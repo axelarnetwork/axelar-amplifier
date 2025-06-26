@@ -65,22 +65,6 @@ impl ChainConfig {
     }
 }
 
-impl From<msg::ChainConfig> for ChainConfig {
-    fn from(input: msg::ChainConfig) -> Self {
-        // Note: This implementation uses Addr::unchecked for the translation_contract
-        // This should only be used in tests or when the address is known to be valid
-        Self {
-            truncation: TruncationConfig {
-                max_uint_bits: input.truncation.max_uint_bits,
-                max_decimals_when_truncating: input.truncation.max_decimals_when_truncating,
-            },
-            its_address: input.its_edge_contract,
-            frozen: false,
-            translation_contract: Addr::unchecked(input.translation_contract.to_string()),
-        }
-    }
-}
-
 #[cw_serde]
 pub struct TruncationConfig {
     pub max_uint_bits: NumBits, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
@@ -394,8 +378,8 @@ mod tests {
 
         let chain1 = "chain1".parse().unwrap();
         let chain2: ChainNameRaw = "chain2".parse().unwrap();
-        let address1: Address = "address1".parse().unwrap();
-        let address2: Address = "address2".parse().unwrap();
+        let address1: Address = MockApi::default().addr_make("address1").to_string().parse().unwrap();
+        let address2: Address = MockApi::default().addr_make("address2").to_string().parse().unwrap();
 
         assert_err_contains!(
             load_its_contract(deps.as_ref().storage, &chain1),
@@ -410,30 +394,36 @@ mod tests {
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain1.clone(),
-            &msg::ChainConfig {
-                chain: chain1.clone(),
-                its_edge_contract: address1.clone(),
-                truncation: msg::TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 16u8
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: chain1.clone(),
+                    its_edge_contract: address1.clone(),
+                    truncation: msg::TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    },
+                    translation_contract: address1.clone(),
                 },
-                translation_contract: address1.clone(),
-            }
-            .into()
+                &MockApi::default(),
+            )
+            .unwrap()
         ));
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain2.clone(),
-            &msg::ChainConfig {
-                chain: chain2.clone(),
-                its_edge_contract: address2.clone(),
-                truncation: msg::TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 16u8
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: chain2.clone(),
+                    its_edge_contract: address2.clone(),
+                    truncation: msg::TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    },
+                    translation_contract: address2.clone(),
                 },
-                translation_contract: address2.clone(),
-            }
-            .into()
+                &MockApi::default(),
+            )
+            .unwrap()
         ));
         assert_eq!(
             assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),

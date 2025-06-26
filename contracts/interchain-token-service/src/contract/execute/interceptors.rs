@@ -337,8 +337,9 @@ mod test {
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
     use crate::msg::TruncationConfig;
-    use crate::state::{self, TokenDeploymentType, TokenInstance};
+    use crate::state::{self, TokenDeploymentType, TokenInstance, ChainConfig};
     use crate::{msg, DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata};
+    use cosmwasm_std::testing::MockApi;
 
     #[test]
     fn register_custom_token_allows_reregistration() {
@@ -417,20 +418,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 32u32.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 32u32.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
 
         let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
@@ -474,20 +474,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 64.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 64.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
 
         let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
@@ -531,20 +530,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 64.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 64.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
 
         let transfer = assert_ok!(interceptors::apply_scaling_factor_to_amount(
             &storage,
@@ -588,20 +586,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 32.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 32.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
 
         assert_err_contains!(
             interceptors::apply_scaling_factor_to_amount(
@@ -645,20 +642,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 32.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 32.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
 
         assert_err_contains!(
             interceptors::apply_scaling_factor_to_amount(
@@ -681,37 +677,35 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            &msg::ChainConfig {
-                chain: source_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 12,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: source_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 12,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 128.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 128.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
         let deploy_token = DeployInterchainToken {
             token_id: [1u8; 32].into(),
             name: "token".to_string().try_into().unwrap(),
@@ -753,37 +747,35 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            &msg::ChainConfig {
-                chain: source_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 128.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: source_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 128.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::from_input(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation_contract").to_string().parse().unwrap(),
                 },
-                translation_contract: "0x1234567890123456789012345678901234567890"
-                    .parse()
-                    .unwrap(),
-            }
-            .into(),
-        )
-        .unwrap();
+                &MockApi::default(),
+            ).unwrap(),
+        ).unwrap();
 
         let deploy_token = DeployInterchainToken {
             token_id: [1u8; 32].into(),
