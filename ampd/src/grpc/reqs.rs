@@ -14,31 +14,47 @@ use tonic::Request;
 use crate::types::TMAddress;
 use crate::{tofnd, PREFIX};
 
-pub fn validate_subscribe(req: Request<SubscribeRequest>) -> Result<EventFilters, Error> {
-    let SubscribeRequest {
-        filters,
-        include_block_begin_end,
-    } = req.into_inner();
+pub trait Validate {
+    type Output;
 
-    (filters, include_block_begin_end).try_into()
+    fn validate(self) -> Result<Self::Output, Error>;
 }
 
-pub fn validate_broadcast(req: Request<BroadcastRequest>) -> Result<Any, Error> {
-    req.into_inner()
-        .msg
-        .ok_or(report!(Error::EmptyBroadcastMsg))
+impl Validate for Request<SubscribeRequest> {
+    type Output = EventFilters;
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let SubscribeRequest {
+            filters,
+            include_block_begin_end,
+        } = self.into_inner();
+
+        (filters, include_block_begin_end).try_into()
+    }
 }
 
-pub fn validate_contract_state(
-    req: Request<ContractStateRequest>,
-) -> Result<(TMAddress, Vec<u8>), Error> {
-    let ContractStateRequest { contract, query } = req.into_inner();
+impl Validate for Request<BroadcastRequest> {
+    type Output = Any;
 
-    ensure!(!query.is_empty(), Error::InvalidQuery);
-    let _: serde_json::Value =
-        serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
+    fn validate(self) -> Result<Self::Output, Error> {
+        self.into_inner()
+            .msg
+            .ok_or(report!(Error::EmptyBroadcastMsg))
+    }
+}
 
-    Ok((validate_address(&contract)?, query))
+impl Validate for Request<ContractStateRequest> {
+    type Output = (TMAddress, Vec<u8>);
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let ContractStateRequest { contract, query } = self.into_inner();
+
+        ensure!(!query.is_empty(), Error::InvalidQuery);
+        let _: serde_json::Value =
+            serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
+
+        Ok((validate_address(&contract)?, query))
+    }
 }
 
 fn validate_address(address: &str) -> Result<TMAddress, Error> {
@@ -52,25 +68,29 @@ fn validate_address(address: &str) -> Result<TMAddress, Error> {
     Ok(address)
 }
 
-pub fn validate_key(
-    req: Request<KeyRequest>,
-) -> Result<(nonempty::String, tofnd::Algorithm), Error> {
-    let KeyRequest { key_id } = req.into_inner();
+impl Validate for Request<KeyRequest> {
+    type Output = (nonempty::String, tofnd::Algorithm);
 
-    validate_key_id(key_id.unwrap_or_default())
+    fn validate(self) -> Result<Self::Output, Error> {
+        let KeyRequest { key_id } = self.into_inner();
+
+        validate_key_id(key_id.unwrap_or_default())
+    }
 }
 
-pub fn validate_sign(
-    req: Request<SignRequest>,
-) -> Result<(nonempty::String, tofnd::Algorithm, [u8; 32]), Error> {
-    let SignRequest { key_id, msg } = req.into_inner();
+impl Validate for Request<SignRequest> {
+    type Output = (nonempty::String, tofnd::Algorithm, [u8; 32]);
 
-    let (id, algorithm) = validate_key_id(key_id.unwrap_or_default())?;
-    let msg = msg
-        .try_into()
-        .map_err(|msg| report!(Error::InvalidSignMsg(msg)))?;
+    fn validate(self) -> Result<Self::Output, Error> {
+        let SignRequest { key_id, msg } = self.into_inner();
 
-    Ok((id, algorithm, msg))
+        let (id, algorithm) = validate_key_id(key_id.unwrap_or_default())?;
+        let msg = msg
+            .try_into()
+            .map_err(|msg| report!(Error::InvalidSignMsg(msg)))?;
+
+        Ok((id, algorithm, msg))
+    }
 }
 
 fn validate_key_id(key_id: KeyId) -> Result<(nonempty::String, tofnd::Algorithm), Error> {
@@ -324,7 +344,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert_eq!(filters.filters.len(), 1);
         assert!(filters.include_block_begin_end);
     }
@@ -342,7 +362,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let result = validate_subscribe(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::EmptyFilter);
     }
 
@@ -356,7 +376,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::BlockBegin(100u32.into())));
         assert!(filters.filter(&Event::BlockEnd(100u32.into())));
     }
@@ -371,7 +391,7 @@ mod tests {
             include_block_begin_end: false,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(!filters.filter(&Event::BlockBegin(100u32.into())));
         assert!(!filters.filter(&Event::BlockEnd(100u32.into())));
     }
@@ -386,7 +406,7 @@ mod tests {
             include_block_begin_end: false,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "test_event".to_string(),
             attributes: Map::new(),
@@ -414,7 +434,7 @@ mod tests {
             include_block_begin_end: false,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "event_1".to_string(),
             attributes: Map::new(),
@@ -440,7 +460,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "any_event".to_string(),
             attributes: Map::new(),
@@ -455,12 +475,12 @@ mod tests {
                 value: vec![1, 2, 3],
             }),
         });
-        let msg = validate_broadcast(req).unwrap();
+        let msg = req.validate().unwrap();
         assert_eq!(msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
         assert_eq!(msg.value, vec![1, 2, 3]);
 
         let req = Request::new(BroadcastRequest { msg: None });
-        assert_err_contains!(validate_broadcast(req), Error, Error::EmptyBroadcastMsg);
+        assert_err_contains!(req.validate(), Error, Error::EmptyBroadcastMsg);
     }
 
     #[test]
@@ -474,7 +494,7 @@ mod tests {
             query: query_bytes.clone(),
         });
 
-        let (result_address, result_query) = validate_contract_state(req).unwrap();
+        let (result_address, result_query) = req.validate().unwrap();
         assert_eq!(result_address, address);
         assert_eq!(result_query, query_bytes);
     }
@@ -487,7 +507,7 @@ mod tests {
             query: vec![],
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidQuery);
     }
 
@@ -499,7 +519,7 @@ mod tests {
             query: vec![1, 2, 3], // invalid JSON bytes
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidQuery);
     }
 
@@ -513,7 +533,7 @@ mod tests {
             query: query_bytes,
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
     }
 
@@ -528,7 +548,7 @@ mod tests {
             query: query_bytes,
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
     }
 
@@ -544,7 +564,7 @@ mod tests {
             }),
         });
 
-        let (result_id, result_algorithm) = validate_key(req).unwrap();
+        let (result_id, result_algorithm) = req.validate().unwrap();
         assert_eq!(result_id.as_str(), key_id);
         assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
     }
@@ -553,7 +573,7 @@ mod tests {
     fn validate_key_should_use_default_key_id_when_none_provided() {
         let req = Request::new(KeyRequest { key_id: None });
 
-        let result = validate_key(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::EmptyKeyId);
     }
 
@@ -611,7 +631,7 @@ mod tests {
             msg: message.clone(),
         });
 
-        let (result_id, result_algorithm, result_msg) = validate_sign(req).unwrap();
+        let (result_id, result_algorithm, result_msg) = req.validate().unwrap();
         assert_eq!(result_id.as_str(), key_id);
         assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
         assert_eq!(result_msg.to_vec(), message);
@@ -625,7 +645,7 @@ mod tests {
             msg: message,
         });
 
-        let result = validate_sign(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::EmptyKeyId);
     }
 
@@ -642,7 +662,7 @@ mod tests {
             msg: vec![],
         });
 
-        let result = validate_sign(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidSignMsg(_));
     }
 
@@ -659,7 +679,7 @@ mod tests {
             msg: vec![0; 33],
         });
 
-        let result = validate_sign(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidSignMsg(_));
     }
 }

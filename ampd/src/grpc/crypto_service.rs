@@ -3,7 +3,8 @@ use ampd_proto::{KeyRequest, KeyResponse, SignRequest, SignResponse};
 use async_trait::async_trait;
 use tonic::{Request, Response, Status};
 
-use crate::grpc::{reqs, status};
+use crate::grpc::reqs::Validate;
+use crate::grpc::status;
 use crate::tofnd::Multisig;
 
 pub struct Service<T>(T)
@@ -25,7 +26,8 @@ where
     T: Multisig + Send + Sync + 'static,
 {
     async fn sign(&self, req: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
-        let (id, algorithm, msg_hash) = reqs::validate_sign(req)
+        let (id, algorithm, msg_hash) = req
+            .validate()
             .inspect_err(status::log("invalid sign request"))
             .map_err(status::StatusExt::into_status)?;
         // TODO: memoize the key
@@ -46,7 +48,8 @@ where
     }
 
     async fn key(&self, req: Request<KeyRequest>) -> Result<Response<KeyResponse>, Status> {
-        let (id, algorithm) = reqs::validate_key(req)
+        let (id, algorithm) = req
+            .validate()
             .inspect_err(status::log("invalid key request"))
             .map_err(status::StatusExt::into_status)?;
 
