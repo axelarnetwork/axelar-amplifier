@@ -1,7 +1,6 @@
-use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use interchain_token_service::payload_translation::TranslationQueryMsg;
 
 use crate::error::ContractError;
@@ -11,32 +10,17 @@ mod query;
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cw_serde]
-pub struct InstantiateMsg {}
 
-#[cw_serde]
-pub enum ExecuteMsg {}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    _msg: Empty,
 ) -> Result<Response, ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new())
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
-    // No execute messages supported for this contract
-    Err(ContractError::UnsupportedOperation)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -64,7 +48,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let env = mock_env();
         let info = message_info(&Addr::unchecked("creator"), &[]);
-        let msg = InstantiateMsg {};
+        let msg = Empty {};
 
         let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(res.messages.len(), 0);

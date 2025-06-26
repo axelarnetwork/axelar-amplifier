@@ -1,4 +1,4 @@
-use abi_translation_contract::hub_message_abi_encode;
+use abi_translation_contract::abi::hub_message_abi_encode;
 use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
@@ -233,7 +233,7 @@ fn execute_hub_message_succeeds() {
 
             // Encode the expected message using the translation contract
             let expected_payload =
-                abi_translation_contract::hub_message_abi_encode(expected_receive_hub_message);
+                abi_translation_contract::abi::hub_message_abi_encode(expected_receive_hub_message);
 
             // Verify the message structure and payload are correct
             match msg {

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use axelar_wasm_std::address::validate_cosmwasm_address;
 use axelar_wasm_std::migrate_from_version;
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -110,7 +111,7 @@ pub fn migrate(
             },
             its_address: old_chain_state.its_address,
             frozen: old_chain_state.frozen,
-            translation_contract: Addr::unchecked(chain_config.translation_contract.to_string()),
+            translation_contract: validate_cosmwasm_address(deps.api, &chain_config.translation_contract.to_string())?,
         };
 
         // Save the new chain config (this will overwrite the old format)

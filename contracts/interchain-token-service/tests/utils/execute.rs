@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use abi_translation_contract::{hub_message_abi_decode, hub_message_abi_encode};
+use abi_translation_contract::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
