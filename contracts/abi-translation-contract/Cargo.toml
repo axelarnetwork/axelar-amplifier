@@ -22,16 +22,16 @@ serde_json = "1.0"
 thiserror = "1.0"
 
 # Axelar dependencies
-axelar-wasm-std = { path = "../../packages/axelar-wasm-std" }
-interchain-token-service = { path = "../interchain-token-service" }
-router-api = { path = "../../packages/router-api" }
+axelar-wasm-std = {workspace = true}
+interchain-token-service = { workspace = true}
+router-api = { workspace = true }
 
 # ABI encoding dependencies
-alloy-primitives = "1.2.1"
-alloy-sol-types = "1.2.1"
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
 hex = "0.4"
 
 [dev-dependencies]
 cosmwasm-schema = "1.5"
-goldie = "0.3"
-assert_ok = "1.0" 
+goldie = { workspace = true }
+assert_ok = { workspace = true }

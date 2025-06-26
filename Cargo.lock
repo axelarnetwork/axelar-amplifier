@@ -16,8 +16,8 @@ dependencies = [
 name = "abi-translation-contract"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives 1.2.1",
- "alloy-sol-types 1.2.1",
+ "alloy-primitives 0.7.7",
+ "alloy-sol-types 0.7.7",
  "assert_ok",
  "axelar-wasm-std",
  "cosmwasm-schema 1.5.11",
@@ -26,7 +26,7 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2",
  "error-stack",
- "goldie 0.3.0",
+ "goldie",
  "hex",
  "interchain-token-service",
  "router-api",
@@ -405,7 +405,7 @@ dependencies = [
  "futures",
  "gateway-event-stack",
  "generic-array",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "humantime-serde",
  "itertools 0.14.0",
@@ -570,15 +570,6 @@ dependencies = [
  "tower 0.4.13",
  "tracing",
  "x509-parser",
-]
-
-[[package]]
-name = "ansi_term"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
-dependencies = [
- "winapi",
 ]
 
 [[package]]
@@ -1100,7 +1091,7 @@ dependencies = [
  "client",
  "cosmwasm-std 2.2.2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "rand 0.8.5",
  "router-api",
@@ -1192,7 +1183,7 @@ dependencies = [
  "cw2",
  "error-stack",
  "flagset",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "into-inner-derive",
  "itertools 0.14.0",
@@ -1250,7 +1241,7 @@ dependencies = [
  "cw-storage-plus 2.0.0",
  "cw2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "itertools 0.14.0",
  "msgs-derive",
@@ -2378,7 +2369,7 @@ dependencies = [
  "cw2",
  "error-stack",
  "gateway-api",
- "goldie 0.5.0",
+ "goldie",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
@@ -3825,7 +3816,7 @@ dependencies = [
  "cosmrs",
  "error-stack",
  "events-derive",
- "goldie 0.5.0",
+ "goldie",
  "serde",
  "serde_json",
  "tendermint 0.35.0",
@@ -4354,7 +4345,7 @@ dependencies = [
  "cw2",
  "error-stack",
  "gateway-api",
- "goldie 0.5.0",
+ "goldie",
  "itertools 0.14.0",
  "rand 0.8.5",
  "report",
@@ -4375,7 +4366,7 @@ dependencies = [
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "msgs-derive",
  "router-api",
  "thiserror 1.0.69",
@@ -4501,21 +4492,6 @@ dependencies = [
  "futures-core",
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "goldie"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81b13cf51127777a6901bee511f57d94ccd84b624fc37318681889f7ba06b230"
-dependencies = [
- "ansi_term",
- "anyhow",
- "once_cell",
- "pretty_assertions",
- "serde",
- "serde_json",
- "tinytemplate",
 ]
 
 [[package]]
@@ -5345,7 +5321,7 @@ dependencies = [
  "events",
  "gateway",
  "gateway-api",
- "goldie 0.5.0",
+ "goldie",
  "interchain-token-service",
  "k256",
  "multisig",
@@ -5383,7 +5359,7 @@ dependencies = [
  "cw-storage-plus 2.0.0",
  "cw2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "itertools 0.11.0",
  "msgs-derive",
@@ -6621,7 +6597,7 @@ dependencies = [
  "enum-display-derive",
  "error-stack",
  "getrandom 0.2.16",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "itertools 0.11.0",
  "k256",
@@ -6661,7 +6637,7 @@ dependencies = [
  "gateway",
  "gateway-api",
  "generic-array",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "itertools 0.11.0",
  "k256",
@@ -8861,7 +8837,7 @@ dependencies = [
  "error-stack",
  "flagset",
  "gateway-api",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "integration-tests",
  "itertools 0.14.0",
@@ -9675,7 +9651,7 @@ dependencies = [
  "cw-storage-plus 2.0.0",
  "cw2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
@@ -9699,7 +9675,7 @@ dependencies = [
  "cosmwasm-std 2.2.2",
  "cw-storage-plus 2.0.0",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "msgs-derive",
  "report",
  "router-api",
@@ -11637,7 +11613,7 @@ dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std 2.2.2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "hex",
  "multisig",
  "rand 0.8.5",
@@ -12595,16 +12571,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinytemplate"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "tinyvec"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13492,7 +13458,7 @@ dependencies = [
  "cw-storage-plus 2.0.0",
  "cw2",
  "error-stack",
- "goldie 0.5.0",
+ "goldie",
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
