@@ -583,3 +583,951 @@ fn apply_to_hub(
     }
     .then(Result::Ok)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use abi_translation_contract::abi::hub_message_abi_encode;
+    use assert_ok::assert_ok;
+    use axelar_wasm_std::assert_err_contains;
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{from_json, to_json_binary, MemoryStorage, OwnedDeps, Response, SystemResult, WasmQuery};
+    use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
+    use interchain_token_service::payload_translation::TranslationQueryMsg;
+    use interchain_token_service::shared::NumBits;
+    use interchain_token_service::{contract, HubMessage, TokenId};
+    use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+
+    const SOLANA: &str = "solana";
+    const ETHEREUM: &str = "ethereum";
+    const XRPL: &str = "xrpl";
+    const AXELAR: &str = "axelar";
+
+    const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
+
+    const ADMIN: &str = "admin";
+    const GOVERNANCE: &str = "governance";
+    const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
+
+    #[test]
+    fn should_be_able_to_transfer() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg.clone()),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+        assert_eq!(response.messages[0].id, 0);
+        assert_eq!(response.messages[0].msg, to_json_binary(&msg).unwrap());
+    }
+
+    #[test]
+    fn should_not_be_able_to_transfer_more_than_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 2u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::InvalidTransferAmount { .. });
+    }
+
+    #[test]
+    fn should_be_able_to_increase_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(modify_supply(
+            deps.as_mut(),
+            ethereum(),
+            token_id(),
+            SupplyModifier::IncreaseSupply(1u64.try_into().unwrap()),
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "modify_supply");
+
+        let supply = assert_ok!(get_supply(deps.as_mut(), ethereum(), token_id()));
+        assert_eq!(supply, TokenSupply::Tracked(2u64.try_into().unwrap()));
+    }
+
+    #[test]
+    fn should_be_able_to_decrease_supply() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(modify_supply(
+            deps.as_mut(),
+            ethereum(),
+            token_id(),
+            SupplyModifier::DecreaseSupply(1u64.try_into().unwrap()),
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "modify_supply");
+
+        let supply = assert_ok!(get_supply(deps.as_mut(), ethereum(), token_id()));
+        assert_eq!(supply, TokenSupply::Tracked(0u64.try_into().unwrap()));
+    }
+
+    #[test]
+    fn should_be_able_to_set_supply_on_untracked() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        // Deploy token to xrpl with untracked supply
+        let response = assert_ok!(deploy_token(deps.as_mut(), ethereum(), xrpl(), token_id()));
+        assert_eq!(response.messages.len(), 1);
+
+        let response = assert_ok!(modify_supply(
+            deps.as_mut(),
+            xrpl(),
+            token_id(),
+            SupplyModifier::IncreaseSupply(5u64.try_into().unwrap()),
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "modify_supply");
+
+        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
+        assert_eq!(supply, TokenSupply::Tracked(5u64.try_into().unwrap()));
+    }
+
+    #[test]
+    fn should_not_be_able_to_set_supply_on_not_deployed_token() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let result = modify_supply(
+            deps.as_mut(),
+            xrpl(),
+            token_id(),
+            SupplyModifier::IncreaseSupply(1u64.try_into().unwrap()),
+        );
+
+        assert_err_contains!(result, Error, Error::TokenNotDeployed { .. });
+    }
+
+    #[test]
+    fn modify_supply_should_detect_overflow_underflow() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        // Try to decrease more than available supply
+        let result = modify_supply(
+            deps.as_mut(),
+            ethereum(),
+            token_id(),
+            SupplyModifier::DecreaseSupply(2u64.try_into().unwrap()),
+        );
+
+        assert_err_contains!(result, Error, Error::ModifySupplyOverflow { .. });
+    }
+
+    #[test]
+    fn should_be_able_to_disable_and_enable_execution() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(disable_execution(deps.as_mut()));
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "disable_execution");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::ExecutionDisabled);
+
+        let response = assert_ok!(enable_execution(deps.as_mut()));
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "enable_execution");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn execution_should_fail_if_source_chain_is_frozen() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(freeze_chain(deps.as_mut(), ethereum()));
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "freeze_chain");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::ChainFrozen { .. });
+    }
+
+    #[test]
+    fn execution_should_fail_if_destination_chain_is_frozen() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(freeze_chain(deps.as_mut(), xrpl()));
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "freeze_chain");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::ChainFrozen { .. });
+    }
+
+    #[test]
+    fn frozen_chain_that_is_not_source_or_destination_should_not_affect_execution() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(freeze_chain(deps.as_mut(), solana()));
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "freeze_chain");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn register_chain_fails_if_already_registered() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let result = register_chain(
+            &mut deps.as_mut(),
+            msg::ChainConfig {
+                chain: ethereum(),
+                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: NumBits::Bits256,
+                    max_decimals_when_truncating: 18,
+                },
+                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            },
+        );
+
+        assert_err_contains!(result, Error, Error::ChainAlreadyRegistered { .. });
+    }
+
+    #[test]
+    fn register_chains_fails_if_any_already_registered() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let result = register_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: ethereum(),
+                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: NumBits::Bits256,
+                    max_decimals_when_truncating: 18,
+                },
+                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            }],
+        );
+
+        assert_err_contains!(result, Error, Error::ChainAlreadyRegistered { .. });
+    }
+
+    #[test]
+    fn update_chains_fails_if_not_registered() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let result = update_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: solana(),
+                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: NumBits::Bits256,
+                    max_decimals_when_truncating: 18,
+                },
+                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            }],
+        );
+
+        assert_err_contains!(result, Error, Error::ChainNotRegistered { .. });
+    }
+
+    #[test]
+    fn update_max_uint_and_decimals_should_affect_new_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(update_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: ethereum(),
+                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: NumBits::Bits128,
+                    max_decimals_when_truncating: 6,
+                },
+                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            }],
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "update_chains");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn update_max_uint_and_decimals_should_not_affect_existing_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(update_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: ethereum(),
+                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: NumBits::Bits128,
+                    max_decimals_when_truncating: 6,
+                },
+                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            }],
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "update_chains");
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn should_link_custom_tokens_with_different_decimals() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id(),
+            ethereum(),
+            xrpl(),
+            18,
+            6,
+            its_address(),
+        );
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn should_link_custom_tokens_with_same_decimals() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id(),
+            ethereum(),
+            xrpl(),
+            18,
+            18,
+            its_address(),
+        );
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn should_fail_to_link_tokens_if_not_registered_on_source() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_custom_token(&mut deps, xrpl(), 6, its_address());
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: Message::LinkToken(LinkToken {
+                token_id: token_id(),
+                token_manager_type: 0u64.try_into().unwrap(),
+                source_token_address: its_address(),
+                destination_token_address: its_address(),
+                params: None,
+            }),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::TokenNotRegistered { .. });
+    }
+
+    #[test]
+    fn should_fail_to_link_tokens_if_not_registered_on_destination() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_custom_token(&mut deps, ethereum(), 18, its_address());
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: Message::LinkToken(LinkToken {
+                token_id: token_id(),
+                token_manager_type: 0u64.try_into().unwrap(),
+                source_token_address: its_address(),
+                destination_token_address: its_address(),
+                params: None,
+            }),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::TokenNotRegistered { .. });
+    }
+
+    #[test]
+    fn should_fail_to_link_tokens_if_not_registered_on_source_or_destination() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: Message::LinkToken(LinkToken {
+                token_id: token_id(),
+                token_manager_type: 0u64.try_into().unwrap(),
+                source_token_address: its_address(),
+                destination_token_address: its_address(),
+                params: None,
+            }),
+        };
+
+        let result = execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        );
+
+        assert_err_contains!(result, Error, Error::TokenNotRegistered { .. });
+    }
+
+    #[test]
+    fn should_register_p2p_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let response = assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+        assert_eq!(response.attributes.len(), 1);
+        assert_eq!(response.attributes[0].key, "action");
+        assert_eq!(response.attributes[0].value, "register_p2p_token_instance");
+
+        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
+        assert_eq!(supply, TokenSupply::Tracked(100u64.try_into().unwrap()));
+    }
+
+    #[test]
+    fn should_transfer_between_p2p_tokens_and_hub_deployed_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        ));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+    }
+
+    #[test]
+    fn should_not_register_same_p2p_token_twice() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        ));
+
+        let result = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        );
+
+        assert_err_contains!(result, Error, Error::TokenAlreadyDeployed { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_different_origin() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        ));
+
+        let result = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            solana(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        );
+
+        assert_err_contains!(result, Error, Error::WrongOriginChain { .. });
+    }
+
+    #[test]
+    fn should_not_register_p2p_token_with_unregistered_chain() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        let result = register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            solana(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        );
+
+        assert_err_contains!(result, Error, Error::ChainNotRegistered { .. });
+    }
+
+    #[test]
+    fn register_p2p_token_should_init_balance_tracking() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        assert_ok!(register_p2p_token_instance(
+            deps.as_mut(),
+            token_id(),
+            xrpl(),
+            ethereum(),
+            6,
+            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        ));
+
+        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
+        assert_eq!(supply, TokenSupply::Tracked(100u64.try_into().unwrap()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: xrpl(),
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id: token_id(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount: 1u64.try_into().unwrap(),
+                data: None,
+            })),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 1);
+
+        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
+        assert_eq!(supply, TokenSupply::Tracked(99u64.try_into().unwrap()));
+    }
+
+    fn transfer_token(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        amount: nonempty::Uint256,
+    ) -> Result<Response, Error> {
+        let msg = HubMessage::SendToHub {
+            destination_chain: to,
+            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+                token_id,
+                source_address: its_address(),
+                destination_address: its_address(),
+                amount,
+                data: None,
+            })),
+        };
+
+        execute_message(
+            deps,
+            cc_id(from),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        )
+    }
+
+    fn register_custom_token(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
+        chain: ChainNameRaw,
+        decimals: u8,
+        token_address: nonempty::HexBinary,
+    ) {
+        let msg = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
+            decimals,
+            token_address,
+        });
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(ethereum()),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+    }
+
+    fn link_custom_token(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
+        token_id: TokenId,
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+        token_address: nonempty::HexBinary,
+    ) {
+        let msg = HubMessage::SendToHub {
+            destination_chain,
+            message: Message::LinkToken(LinkToken {
+                token_id,
+                token_manager_type: 0u64.try_into().unwrap(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address,
+                params: None,
+            }),
+        };
+
+        let response = assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id(source_chain),
+            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            hub_message_abi_encode(msg),
+        ));
+
+        assert_eq!(response.messages.len(), 0);
+    }
+
+    fn register_and_link_custom_tokens(
+        deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>,
+        token_id: TokenId,
+        source_chain: ChainNameRaw,
+        destination_chain: ChainNameRaw,
+        source_decimals: u8,
+        destination_decimals: u8,
+        token_address: nonempty::HexBinary,
+    ) {
+        register_custom_token(deps, source_chain, source_decimals, token_address.clone());
+        register_custom_token(deps, destination_chain, destination_decimals, token_address.clone());
+        link_custom_token(deps, token_id, source_chain, destination_chain, token_address);
+    }
+
+    fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
+        assert_ok!(permission_control::set_admin(
+            deps.as_mut().storage,
+            &MockApi::default().addr_make(ADMIN)
+        ));
+        assert_ok!(permission_control::set_governance(
+            deps.as_mut().storage,
+            &MockApi::default().addr_make(GOVERNANCE)
+        ));
+
+        assert_ok!(state::save_config(
+            deps.as_mut().storage,
+            &Config {
+                axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
+                operator: MockApi::default().addr_make("operator-address")
+            },
+        ));
+
+        assert_ok!(killswitch::init(
+            deps.as_mut().storage,
+            killswitch::State::Disengaged
+        ));
+
+        for chain_name in [SOLANA, ETHEREUM, XRPL, AXELAR] {
+            let chain = ChainNameRaw::try_from(chain_name).unwrap();
+            assert_ok!(register_chain(
+                deps.as_mut().storage,
+                msg::ChainConfig {
+                    chain: chain.clone(),
+                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 18u8
+                    },
+                    translation_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                }
+            ));
+        }
+        deps.querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == MockApi::default().addr_make(AXELARNET_GATEWAY).as_str() =>
+            {
+                let msg = from_json::<QueryMsg>(msg).unwrap();
+                match msg {
+                    QueryMsg::ChainName {} => {
+                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                    }
+                    _ => panic!("unsupported query"),
+                }
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
+    }
+}

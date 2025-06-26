@@ -30,9 +30,9 @@ path = "src/bin/schema.rs"
 library = []
 
 [dependencies]
-axelar-core-std = { path = "../../packages/axelar-core-std" }
-axelar-wasm-std = { path = "../../packages/axelar-wasm-std", features = ["derive"] }
-axelarnet-gateway = { path = "../axelarnet-gateway" }
+axelar-core-std = { workspace = true }
+axelar-wasm-std = { workspace = true }
+axelarnet-gateway = { workspace = true }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -43,7 +43,7 @@ hex = "0.4"
 itertools = "0.11.0"
 msgs-derive = { workspace = true }
 report = { workspace = true }
-router-api = { path = "../../packages/router-api" }
+router-api = { workspace = true }
 schemars = { workspace = true }
 semver = { workspace = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
@@ -51,13 +51,11 @@ serde_json = { workspace = true }
 sha3 = { workspace = true }
 strum = { workspace = true }
 thiserror = "1.0"
-alloy-primitives = "1.2.1"
-alloy-sol-types = "1.2.1"
 
 [dev-dependencies]
 assert_ok = { workspace = true }
 goldie = { workspace = true }
-abi-translation-contract = { path = "../abi-translation-contract" }
+abi-translation-contract = { workspace = true }
 
 [lints]
 workspace = true
