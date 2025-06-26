@@ -5,25 +5,26 @@ use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{
-    AddressRequest, BroadcastRequest, BroadcastResponse, ContractStateRequest, ContractsRequest,
-    ContractsResponse, KeyId, KeyRequest, SignRequest, SubscribeRequest,
+    AddressRequest, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyRequest,
+    SignRequest, SubscribeRequest,
 };
 use async_trait::async_trait;
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
-use error_stack::{bail, Report, Result, ResultExt as _};
+use error_stack::{bail, Result, ResultExt as _};
 use events::{AbciEventTypeFilter, Event};
 use futures::{Future, StreamExt};
 use mockall::automock;
-use report::{ResultCompatExt, ResultExt};
+use report::ResultExt;
 use serde::de::DeserializeOwned;
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 use tracing::{error, info, warn};
 
-use crate::future::{with_retry, RetryPolicy};
+use crate::future::RetryPolicy;
 use crate::grpc::error::{AppError, Error};
+use crate::grpc::utils::{parse_addr, BroadcastClientResponse, ContractsAddresses, Key};
 
 // TODO: make these configurable
 const DEFAULT_INITIAL_TIMEOUT: Duration = Duration::from_secs(3);
@@ -79,6 +80,7 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     let endpoint: transport::Endpoint = url.parse().into_report()?;
     let endpoint = endpoint
         .connect_timeout(DEFAULT_INITIAL_TIMEOUT)
+        .timeout(DEFAULT_RPC_TIMEOUT)
         .keep_alive_timeout(KEEPALIVE_TIMEOUT)
         .keep_alive_while_idle(KEEPALIVE_WHILE_IDLE)
         .http2_keep_alive_interval(KEEPALIVE_TIME);
@@ -106,121 +108,6 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     })
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BroadcastClientResponse {
-    pub tx_hash: String,
-    pub index: u64,
-}
-
-impl From<BroadcastResponse> for BroadcastClientResponse {
-    fn from(response: BroadcastResponse) -> Self {
-        BroadcastClientResponse {
-            tx_hash: response.tx_hash,
-            index: response.index,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ContractsAddresses {
-    pub voting_verifier: AccountId,
-    pub multisig_prover: AccountId,
-    pub service_registry: AccountId,
-    pub rewards: AccountId,
-}
-
-impl TryFrom<&ContractsResponse> for ContractsAddresses {
-    type Error = Report<Error>;
-
-    fn try_from(
-        response: &ContractsResponse,
-    ) -> core::result::Result<ContractsAddresses, Self::Error> {
-        let ContractsResponse {
-            voting_verifier,
-            multisig_prover,
-            service_registry,
-            rewards,
-        } = response;
-
-        Ok(ContractsAddresses {
-            voting_verifier: parse_addr(voting_verifier, "voting verifier")?,
-            multisig_prover: parse_addr(multisig_prover, "multisig prover")?,
-            service_registry: parse_addr(service_registry, "service registry")?,
-            rewards: parse_addr(rewards, "rewards contract")?,
-        })
-    }
-}
-
-fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error> {
-    addr.parse::<AccountId>()
-        .change_context(AppError::InvalidAddress(address_name).into())
-        .attach_printable_lazy(|| addr.to_string())
-}
-
-pub enum KeyAlgorithm {
-    Ecdsa,
-    Ed25519,
-}
-
-pub struct Key {
-    pub id: nonempty::String,
-    pub algorithm: KeyAlgorithm,
-}
-
-impl From<Key> for KeyId {
-    fn from(key: Key) -> Self {
-        let algorithm = match key.algorithm {
-            KeyAlgorithm::Ecdsa => ampd_proto::Algorithm::Ecdsa,
-            KeyAlgorithm::Ed25519 => ampd_proto::Algorithm::Ed25519,
-        };
-
-        KeyId {
-            id: key.id.into(),
-            algorithm: algorithm as i32,
-        }
-    }
-}
-
-pub async fn with_timeout_and_retry<F, Fut, R>(
-    mut operation: F,
-    timeout_duration: Duration,
-    retry_policy: RetryPolicy,
-) -> Result<R, Error>
-where
-    F: FnMut() -> Fut,
-    Fut: Future<Output = std::result::Result<R, tonic::Status>>,
-{
-    with_retry(
-        || {
-            let operation_fut = operation();
-            async move {
-                match timeout(timeout_duration, operation_fut).await {
-                    Ok(Ok(value)) => Ok(value),
-                    Ok(Err(err)) => {
-                        if is_connection_error(&err) {
-                            warn!("connection error detected: {}", err);
-                        }
-                        Err(err).into_report()
-                    }
-                    Err(timeout_err) => {
-                        warn!("Operation timed out: {}", timeout_err);
-                        Err(timeout_err).into_report()
-                    }
-                }
-            }
-        },
-        retry_policy,
-    )
-    .await
-}
-
-fn is_connection_error(status: &tonic::Status) -> bool {
-    matches!(
-        status.code(),
-        tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Internal
-    )
-}
-
 impl GrpcClient {
     pub async fn reconnect(&mut self) -> Result<(), Error> {
         warn!("attempting to reconnect to gRPC server at {}", self.url);
@@ -238,6 +125,56 @@ impl GrpcClient {
                     self.url, err
                 );
                 Err(err)
+            }
+        }
+    }
+
+    fn should_reconnect(&self, status: &tonic::Status) -> bool {
+        matches!(
+            status.code(),
+            tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Cancelled
+        )
+    }
+
+    pub async fn with_retry_and_reconnect<F, Fut, R>(
+        &mut self,
+        mut operation: F,
+    ) -> Result<R, Error>
+    where
+        F: FnMut(&mut Self) -> Fut,
+        Fut: Future<Output = std::result::Result<R, tonic::Status>>,
+    {
+        let retry_policy = DEFAULT_RETRY_POLICY;
+        let mut attempts = 0u64;
+        let max_attempts = match retry_policy {
+            RetryPolicy::RepeatConstant { max_attempts, .. } => max_attempts,
+            RetryPolicy::NoRetry => 1,
+        };
+
+        loop {
+            attempts = attempts.saturating_add(1);
+
+            match operation(self).await {
+                Ok(value) => return Ok(value),
+                Err(err) => {
+                    if attempts >= max_attempts {
+                        return Err(err).into_report();
+                    }
+
+                    if self.should_reconnect(&err) {
+                        warn!(
+                            "connection error detected, attempting to reconnect: {}",
+                            err
+                        );
+                        if let Err(reconnect_err) = self.reconnect().await {
+                            warn!("reconnection failed: {}", reconnect_err);
+                        }
+                    }
+
+                    if let RetryPolicy::RepeatConstant { sleep, .. } = retry_policy {
+                        tokio::time::sleep(sleep).await;
+                    }
+                }
             }
         }
     }
@@ -263,16 +200,13 @@ impl Client for GrpcClient {
             include_block_begin_end,
         };
 
-        let streaming_response = with_timeout_and_retry(
-            || {
-                let mut blockchain_client = self.blockchain.clone();
+        let streaming_response = self
+            .with_retry_and_reconnect(|client| {
+                let mut blockchain_client = client.blockchain.clone();
                 let request = request.clone();
                 async move { blockchain_client.subscribe(request).await }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
-        .await?;
+            })
+            .await?;
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
@@ -288,40 +222,34 @@ impl Client for GrpcClient {
     }
 
     async fn address(&mut self) -> Result<AccountId, Error> {
-        let broadcaster_address = with_timeout_and_retry(
-            || {
-                let mut blockchain_client = self.blockchain.clone();
+        let broadcaster_address = self
+            .with_retry_and_reconnect(|client| {
+                let mut blockchain_client = client.blockchain.clone();
                 async move {
                     blockchain_client
                         .address(Request::new(AddressRequest {}))
                         .await
                 }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
-        .await?
-        .into_inner()
-        .address;
+            })
+            .await?
+            .into_inner()
+            .address;
 
         let ampd_broadcaster_address = parse_addr(&broadcaster_address, "broadcaster")?;
         Ok(ampd_broadcaster_address)
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
-        let broadcast_response = with_timeout_and_retry(
-            || {
-                let mut blockchain_client = self.blockchain.clone();
+        let broadcast_response = self
+            .with_retry_and_reconnect(|client| {
+                let mut blockchain_client = client.blockchain.clone();
                 let request = BroadcastRequest {
                     msg: Some(msg.clone()),
                 };
                 async move { blockchain_client.broadcast(request).await }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
-        .await?
-        .into_inner();
+            })
+            .await?
+            .into_inner();
 
         Ok(broadcast_response.into())
     }
@@ -336,15 +264,11 @@ impl Client for GrpcClient {
             query: query.into(),
         };
 
-        with_timeout_and_retry(
-            || {
-                let mut blockchain_client = self.blockchain.clone();
-                let request = request.clone();
-                async move { blockchain_client.contract_state(request).await }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
+        self.with_retry_and_reconnect(|client| {
+            let mut blockchain_client = client.blockchain.clone();
+            let request = request.clone();
+            async move { blockchain_client.contract_state(request).await }
+        })
         .await
         .map(|response| response.into_inner().result)
         .and_then(|result| {
@@ -355,20 +279,17 @@ impl Client for GrpcClient {
     }
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
-        let response = with_timeout_and_retry(
-            || {
-                let mut blockchain_client = self.blockchain.clone();
+        let response = self
+            .with_retry_and_reconnect(|client| {
+                let mut blockchain_client = client.blockchain.clone();
                 async move {
                     blockchain_client
                         .contracts(Request::new(ContractsRequest {}))
                         .await
                 }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
-        .await?
-        .into_inner();
+            })
+            .await?
+            .into_inner();
 
         ContractsAddresses::try_from(&response)
             .change_context(AppError::InvalidContractsResponse.into())
@@ -385,15 +306,11 @@ impl Client for GrpcClient {
             msg: message.into(),
         };
 
-        with_timeout_and_retry(
-            || {
-                let mut crypto_client = self.crypto.clone();
-                let request = request.clone();
-                async move { crypto_client.sign(request).await }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
+        self.with_retry_and_reconnect(|client| {
+            let mut crypto_client = client.crypto.clone();
+            let request = request.clone();
+            async move { crypto_client.sign(request).await }
+        })
         .await
         .and_then(|response| {
             nonempty::Vec::try_from(response.into_inner().signature)
@@ -406,15 +323,11 @@ impl Client for GrpcClient {
             key_id: key.map(|k| k.into()),
         };
 
-        with_timeout_and_retry(
-            || {
-                let mut crypto_client = self.crypto.clone();
-                let request = request.clone();
-                async move { crypto_client.key(request).await }
-            },
-            DEFAULT_RPC_TIMEOUT,
-            DEFAULT_RETRY_POLICY,
-        )
+        self.with_retry_and_reconnect(|client| {
+            let mut crypto_client = client.crypto.clone();
+            let request = request.clone();
+            async move { crypto_client.key(request).await }
+        })
         .await
         .and_then(|response| {
             nonempty::Vec::try_from(response.into_inner().pub_key)
@@ -432,7 +345,8 @@ mod tests {
     use ampd_proto::blockchain_service_server::{BlockchainService, BlockchainServiceServer};
     use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
     use ampd_proto::{
-        AddressResponse, ContractStateResponse, KeyResponse, SignResponse, SubscribeResponse,
+        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
+        KeyResponse, SignResponse, SubscribeResponse,
     };
     use cosmrs::{AccountId, Any};
     use futures::StreamExt;
@@ -444,6 +358,7 @@ mod tests {
     use super::*;
     use crate::grpc::client::new as new_client;
     use crate::grpc::error::GrpcError;
+    use crate::grpc::utils::KeyAlgorithm;
 
     type ServerSubscribeStream =
         Pin<Box<dyn Stream<Item = std::result::Result<SubscribeResponse, Status>> + Send>>;
@@ -1305,73 +1220,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn with_timeout_and_retry_should_handle_custom_timeout() {
+    async fn with_retry_and_reconnect_should_handle_custom_timeout() {
+        let mut client =
+            setup_test_client(MockBlockchainService::new(), MockCryptoService::new()).await;
         let call_count = Arc::new(Mutex::new(0));
         let call_count_clone = call_count.clone();
 
-        let operation = || {
-            let count_clone = call_count_clone.clone();
-            async move {
-                let mut count = count_clone.lock().unwrap();
-                *count += 1;
-
-                if *count <= 2 {
-                    Err(Status::unavailable("service down"))
-                } else {
-                    Ok("success".to_string())
-                }
-            }
-        };
-
-        let custom_timeout = Duration::from_secs(1);
-        let custom_retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
-
         let start_time = Instant::now();
-        let result = with_timeout_and_retry(operation, custom_timeout, custom_retry_policy).await;
+        let result = client
+            .with_retry_and_reconnect(|_client| {
+                let count_clone = call_count_clone.clone();
+                async move {
+                    let mut count = count_clone.lock().unwrap();
+                    *count += 1;
+
+                    if *count <= 2 {
+                        Err(Status::unavailable("service down"))
+                    } else {
+                        Ok("success".to_string())
+                    }
+                }
+            })
+            .await;
+
         let elapsed = start_time.elapsed();
 
         assert!(result.is_ok(), "unexpected error: {:?}", result.err());
         assert_eq!(result.unwrap(), "success");
 
-        assert!(elapsed < Duration::from_secs(2));
+        assert!(elapsed < Duration::from_secs(6));
         assert_eq!(*call_count.lock().unwrap(), 3);
-    }
-
-    #[tokio::test]
-    async fn with_timeout_and_retry_should_log_connection_errors() {
-        let call_count = Arc::new(Mutex::new(0));
-        let call_count_clone = call_count.clone();
-
-        let operation = || {
-            let count_clone = call_count_clone.clone();
-            async move {
-                let mut count = count_clone.lock().unwrap();
-                *count += 1;
-
-                if *count == 1 {
-                    Err(Status::unavailable("connection lost"))
-                } else {
-                    Ok("success".to_string())
-                }
-            }
-        };
-
-        let result = with_timeout_and_retry(
-            operation,
-            Duration::from_secs(5),
-            RetryPolicy::RepeatConstant {
-                sleep: Duration::from_millis(100),
-                max_attempts: 2,
-            },
-        )
-        .await;
-
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "success");
-        assert_eq!(*call_count.lock().unwrap(), 2);
     }
 
     #[tokio::test]
