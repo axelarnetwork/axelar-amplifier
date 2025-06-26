@@ -302,16 +302,25 @@ fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Err
     }
 }
 
+
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use assert_ok::assert_ok;
-    use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::testing::MockApi;
     use std::str::FromStr;
 
+    use alloy_primitives::{FixedBytes, U256};
+    use alloy_sol_types::SolValue;
+    use assert_ok::assert_ok;
+    use axelar_wasm_std::{assert_err_contains, nonempty};
+    use cosmwasm_std::{HexBinary, Uint256};
+    use router_api::ChainNameRaw;
+
+    use super::{DeployInterchainToken, InterchainTransfer};
+    use crate::abi::{hub_message_abi_decode, hub_message_abi_encode, Error, MessageType, SendToHub};
+    use interchain_token_service::{HubMessage};
+
     fn from_hex(hex: &str) -> nonempty::HexBinary {
-        hex::decode(hex).unwrap().try_into().unwrap()
+        HexBinary::from_hex(hex).unwrap().try_into().unwrap()
     }
 
     #[test]
@@ -531,16 +540,46 @@ mod tests {
 
     #[test]
     fn invalid_hub_message_type() {
-        let payload = vec![0u8; 32];
-        let result = hub_message_abi_decode(&payload);
-        assert_err_contains!(result, Error, Error::InvalidMessageType);
+        let invalid_message_types = vec![
+            u8::MIN,
+            MessageType::InterchainTransfer as u8,
+            MessageType::DeployInterchainToken as u8,
+            MessageType::ReceiveFromHub as u8 + 1,
+            u8::MAX,
+        ];
+
+        for message_type in invalid_message_types {
+            let invalid_payload = SendToHub {
+                messageType: U256::from(message_type),
+                destination_chain: "remote-chain".into(),
+                message: vec![].into(),
+            }
+            .abi_encode_params();
+
+            let result = hub_message_abi_decode(&invalid_payload);
+            assert_err_contains!(result, Error, Error::InvalidMessageType);
+        }
     }
 
     #[test]
     fn invalid_message_type() {
-        let payload = vec![0u8; 32];
-        let result = message_abi_decode(&payload);
-        assert_err_contains!(result, Error, Error::InvalidMessageType);
+        let invalid_message_types = vec![
+            MessageType::SendToHub as u8,
+            MessageType::ReceiveFromHub as u8,
+            u8::MAX,
+        ];
+
+        for message_type in invalid_message_types {
+            let invalid_payload = SendToHub {
+                messageType: MessageType::SendToHub.into(),
+                destination_chain: "remote-chain".into(),
+                message: U256::from(message_type).abi_encode().into(),
+            }
+            .abi_encode_params();
+
+            let result = hub_message_abi_decode(&invalid_payload);
+            assert_err_contains!(result, Error, Error::InvalidMessageType);
+        }
     }
 
     #[test]
@@ -604,6 +643,4 @@ mod tests {
         assert_eq!(original, decoded);
     }
 }
-
-
 
