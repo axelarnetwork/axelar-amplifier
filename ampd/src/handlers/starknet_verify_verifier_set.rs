@@ -12,8 +12,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::Event;
-use events_derive::try_from;
+use events::{try_from, Event};
 use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
@@ -43,6 +42,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: StarknetClient + Send + Sync,

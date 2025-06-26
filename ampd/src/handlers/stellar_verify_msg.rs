@@ -9,8 +9,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::Event;
-use events_derive::try_from;
+use events::{try_from, Event};
 use router_api::ChainName;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
@@ -51,6 +50,7 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
+#[derive(Debug)]
 pub struct Handler {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,

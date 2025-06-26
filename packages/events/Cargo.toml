@@ -6,12 +6,16 @@ license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+derive = ["dep:events-derive"]
+
 [dependencies]
 ampd-proto = { workspace = true }
 axelar-wasm-std = { workspace = true }
 base64 = "0.21.2"
 cosmrs = { version = "0.22.0", features = ["cosmwasm"] }
 error-stack = { workspace = true }
+events-derive = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }

@@ -9,8 +9,8 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
+use events::try_from;
 use events::Error::EventTypeMismatch;
-use events_derive::try_from;
 use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
@@ -51,6 +51,7 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: EthereumClient,

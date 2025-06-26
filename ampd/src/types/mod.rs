@@ -7,6 +7,7 @@ use deref_derive::Deref;
 use ethers_core::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
+pub mod debug;
 mod key;
 pub(crate) mod starknet;
 #[cfg(test)]

@@ -7,8 +7,8 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
+use events::try_from;
 use events::Error::EventTypeMismatch;
-use events_derive::try_from;
 use futures::future::join_all;
 use itertools::Itertools;
 use router_api::ChainName;
@@ -48,6 +48,7 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: StarknetClient,

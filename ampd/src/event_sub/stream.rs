@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::iter;
 use std::time::Duration;
 
@@ -7,6 +8,7 @@ use futures::{stream, FutureExt, Stream, StreamExt};
 use tendermint::block;
 use tokio::time::{interval, Interval};
 use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::tm_client::TmClient;
@@ -14,6 +16,7 @@ use crate::tm_client::TmClient;
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
 
+#[instrument]
 pub async fn blocks<T>(
     tm_client: &T,
     poll_interval: Duration,
@@ -21,7 +24,7 @@ pub async fn blocks<T>(
     token: CancellationToken,
 ) -> Result<impl Stream<Item = Result<block::Height>> + '_>
 where
-    T: TmClient,
+    T: TmClient + Debug,
 {
     latest_block_height(tm_client)
         .await

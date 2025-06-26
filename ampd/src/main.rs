@@ -18,6 +18,8 @@ use error_stack::{Report, ResultExt};
 use report::LoggableError;
 use tracing::{error, info};
 use tracing_core::LevelFilter;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 use valuable::Valuable;
 
@@ -96,26 +98,26 @@ async fn main() -> ExitCode {
 }
 
 fn set_up_logger(output: &Output) {
+    let error_layer = ErrorLayer::default();
+    let filter_layer = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
     match output {
         Output::Json => {
-            tracing_subscriber::fmt()
-                .json()
-                .flatten_event(true)
-                .with_env_filter(
-                    EnvFilter::builder()
-                        .with_default_directive(LevelFilter::INFO.into())
-                        .from_env_lossy(),
-                )
+            let fmt_layer = tracing_subscriber::fmt::layer().json().flatten_event(true);
+            tracing_subscriber::registry()
+                .with(error_layer)
+                .with(filter_layer)
+                .with(fmt_layer)
                 .init();
         }
         Output::Text => {
-            tracing_subscriber::fmt()
-                .compact()
-                .with_env_filter(
-                    EnvFilter::builder()
-                        .with_default_directive(LevelFilter::INFO.into())
-                        .from_env_lossy(),
-                )
+            let fmt_layer = tracing_subscriber::fmt::layer().compact();
+            tracing_subscriber::registry()
+                .with(error_layer)
+                .with(filter_layer)
+                .with(fmt_layer)
                 .init();
         }
     };

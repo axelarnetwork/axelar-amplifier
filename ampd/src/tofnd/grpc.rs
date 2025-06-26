@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -10,6 +12,7 @@ use super::proto::keygen_response::KeygenResponse;
 use super::proto::sign_response::SignResponse;
 use super::proto::{multisig_client, Algorithm, KeygenRequest, SignRequest};
 use super::Error;
+use crate::types::debug::REDACTED_VALUE;
 use crate::types::PublicKey;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -122,5 +125,14 @@ impl Multisig for MultisigClient {
                 .attach(res),
                 SignResponse::Error(error) => Err(report!(Error::ExecutionFailed(error.clone()))),
             })
+    }
+}
+
+impl Debug for MultisigClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MultisigClient")
+            .field("party_uid", &self.party_uid)
+            .field("client", &REDACTED_VALUE)
+            .finish()
     }
 }
