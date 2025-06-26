@@ -1,7 +1,6 @@
 use ampd_proto::crypto_service_server::CryptoService;
 use ampd_proto::{KeyRequest, KeyResponse, SignRequest, SignResponse};
 use async_trait::async_trait;
-use sha3::{Digest, Keccak256};
 use tonic::{Request, Response, Status};
 
 use crate::grpc::{reqs, status};
@@ -26,7 +25,7 @@ where
     T: Multisig + Send + Sync + 'static,
 {
     async fn sign(&self, req: Request<SignRequest>) -> Result<Response<SignResponse>, Status> {
-        let (id, algorithm, msg) = reqs::validate_sign(req)
+        let (id, algorithm, msg_hash) = reqs::validate_sign(req)
             .inspect_err(status::log("invalid sign request"))
             .map_err(status::StatusExt::into_status)?;
         // TODO: memoize the key
@@ -36,7 +35,6 @@ where
             .await
             .inspect_err(status::log("query key error"))
             .map_err(status::StatusExt::into_status)?;
-        let msg_hash: [u8; 32] = Keccak256::digest(msg.as_ref()).into();
 
         self.0
             .sign(&id, msg_hash, pub_key, algorithm)

@@ -62,11 +62,13 @@ pub fn validate_key(
 
 pub fn validate_sign(
     req: Request<SignRequest>,
-) -> Result<(nonempty::String, tofnd::Algorithm, nonempty::Vec<u8>), Error> {
+) -> Result<(nonempty::String, tofnd::Algorithm, [u8; 32]), Error> {
     let SignRequest { key_id, msg } = req.into_inner();
 
     let (id, algorithm) = validate_key_id(key_id.unwrap_or_default())?;
-    let msg = nonempty::Vec::<u8>::try_from(msg).change_context(Error::EmptySignMsg)?;
+    let msg = msg
+        .try_into()
+        .map_err(|msg| report!(Error::InvalidSignMsg(msg)))?;
 
     Ok((id, algorithm, msg))
 }
@@ -100,8 +102,8 @@ pub enum Error {
     EmptyKeyId,
     #[error("invalid crypto algorithm {0}")]
     InvalidCryptoAlgorithm(i32),
-    #[error("empty sign message")]
-    EmptySignMsg,
+    #[error("invalid 32-byte sign message {0:?}")]
+    InvalidSignMsg(Vec<u8>),
 }
 
 #[derive(Debug)]
@@ -612,7 +614,7 @@ mod tests {
         let (result_id, result_algorithm, result_msg) = validate_sign(req).unwrap();
         assert_eq!(result_id.as_str(), key_id);
         assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
-        assert_eq!(result_msg.as_ref().as_slice(), message);
+        assert_eq!(result_msg.to_vec(), message);
     }
 
     #[test]
@@ -641,6 +643,23 @@ mod tests {
         });
 
         let result = validate_sign(req);
-        assert_err_contains!(result, Error, Error::EmptySignMsg);
+        assert_err_contains!(result, Error, Error::InvalidSignMsg(_));
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_longer_than_32_byte_message() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: vec![0; 33],
+        });
+
+        let result = validate_sign(req);
+        assert_err_contains!(result, Error, Error::InvalidSignMsg(_));
     }
 }
