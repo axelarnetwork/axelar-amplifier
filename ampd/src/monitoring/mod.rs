@@ -3,6 +3,7 @@ pub mod server;
 use std::fmt;
 use std::fmt::Debug;
 use std::net::{Ipv4Addr, SocketAddrV4};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +12,8 @@ use crate::types::debug::REDACTED_VALUE;
 #[derive(Clone)]
 pub enum MetricsMsg {
     IncBlockReceived,
+    IncTransactionsTotal,
+    RecordTransactionDuration(Duration),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]

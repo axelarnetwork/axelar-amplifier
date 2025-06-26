@@ -1,6 +1,6 @@
 use axum::http::StatusCode;
 use error_stack::{Result, ResultExt};
-use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
+use prometheus::{Encoder, Histogram, IntCounter, Registry, TextEncoder};
 use thiserror::Error;
 
 use crate::monitoring::MetricsMsg;
@@ -27,6 +27,8 @@ pub enum MetricsError {
 
 pub struct Metrics {
     block_received: IntCounter,
+    transactions_total: IntCounter,
+    transaction_duration: Histogram,
 }
 
 impl Metrics {
@@ -34,17 +36,42 @@ impl Metrics {
         let block_received = IntCounter::new("blocks_received", "number of blocks received")
             .change_context(MetricsError::MetricSpawnFailed)?;
 
+        let transactions_total = IntCounter::new("transactions_total", "number of transactions")
+            .change_context(MetricsError::MetricSpawnFailed)?;
+
+        let transaction_duration = Histogram::new("transaction_duration", "duration of transactions")
+            .change_context(MetricsError::MetricSpawnFailed)?;
+
         registry
             .register(Box::new(block_received.clone()))
             .change_context(MetricsError::MetricRegisterFailed)?;
 
-        Ok(Self { block_received })
+        registry
+            .register(Box::new(transactions_total.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+
+        registry
+            .register(Box::new(transaction_duration.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+
+
+        Ok(Self { 
+            block_received,
+            transactions_total,
+            transaction_duration,
+         })
     }
 
     pub fn handle_message(&self, msg: MetricsMsg) {
         match msg {
             MetricsMsg::IncBlockReceived => {
                 self.block_received.inc();
+            }
+            MetricsMsg::IncTransactionsTotal => {
+                self.transactions_total.inc();
+            }
+            MetricsMsg::RecordTransactionDuration(duration) => {
+                self.transaction_duration.observe(duration);
             }
         }
     }

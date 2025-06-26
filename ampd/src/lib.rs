@@ -138,6 +138,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .key_id(tofnd_config.key_uid.clone())
         .gas_adjustment(broadcast.gas_adjustment)
         .gas_price(broadcast.gas_price.clone())
+        .metrics_client(metrics_client.clone())
         .build();
     let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .address_prefix(PREFIX.to_string())
