@@ -109,8 +109,7 @@ where
                 warn!( handler = handler_label,
                     height = height.value(),
                     err = %err,
-                    "failed to record {:?} metric for block end event",
-                    MetricsMsg::IncBlockReceived
+                    "failed to record block received metric for block end event",
                 );
             }
         }
@@ -208,17 +207,11 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::monitoring::server::test_utils::{
+        test_dummy_server_setup, test_metrics_server_setup,
+    };
     use crate::monitoring::server::Server;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
-
-    fn test_bind_addr() -> SocketAddrV4 {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-
-        match listener.local_addr().unwrap() {
-            SocketAddr::V4(addr) => addr,
-            SocketAddr::V6(_) => panic!("unexpected address"),
-        }
-    }
 
     fn setup_event_config(
         retry_delay_value: Duration,
@@ -254,7 +247,8 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -290,7 +284,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -327,7 +321,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -368,7 +362,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Ok(()));
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -409,7 +403,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -450,7 +444,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -482,7 +476,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -552,12 +546,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let bind_address = test_bind_addr();
-
-        let (server, metrics_client) =
-            Server::new(Some(bind_address)).expect("failed to create server");
-        let cancel_token = CancellationToken::new();
-
+        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(
@@ -576,7 +565,7 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let base_url = Url::parse(&format!("http://{}", bind_address)).unwrap();
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();

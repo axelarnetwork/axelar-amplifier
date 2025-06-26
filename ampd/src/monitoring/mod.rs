@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::debug::REDACTED_VALUE;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum MetricsMsg {
     IncBlockReceived,
 }

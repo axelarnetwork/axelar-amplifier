@@ -145,15 +145,12 @@ impl Server {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod test_utils {
     use std::net::{SocketAddr, TcpListener};
-    use std::time::Duration;
 
-    use reqwest::Url;
-    use tokio::test as async_test;
+    use tokio_util::sync::CancellationToken;
 
     use super::*;
-    use crate::monitoring::endpoints::status::Status;
 
     fn test_bind_addr() -> SocketAddrV4 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -164,7 +161,7 @@ mod tests {
         }
     }
 
-    fn test_metrics_server_setup() -> (
+    pub fn test_metrics_server_setup() -> (
         Option<SocketAddrV4>,
         Server,
         MetricsClient,
@@ -177,13 +174,13 @@ mod tests {
         (Some(bind_address), server, metrics_client, cancel)
     }
 
-    fn test_dummy_server_setup() -> (Server, MetricsClient, CancellationToken) {
+    pub fn test_dummy_server_setup() -> (Server, MetricsClient, CancellationToken) {
         let (server, metrics_client) = Server::new(None).expect("failed to create server");
         let cancel = CancellationToken::new();
         (server, metrics_client, cancel)
     }
 
-    fn send_metrics_client_msg(
+    pub fn send_metrics_client_msg(
         metrics_client: &MetricsClient,
         msg: MetricsMsg,
         number_of_messages: usize,
@@ -194,6 +191,18 @@ mod tests {
                 .unwrap_or_else(|_| panic!("failed to send message {}", i));
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use reqwest::Url;
+    use tokio::test as async_test;
+
+    use super::test_utils::*;
+    use super::*;
+    use crate::monitoring::endpoints::status::Status;
 
     #[async_test(start_paused = true)]
     async fn metrics_server_should_respond_to_status_and_shutdown_gracefully() {
