@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::ops::Mul;
 
 use axelar_wasm_std::nonempty;
@@ -11,7 +12,7 @@ use report::{LoggableError, ResultCompatExt};
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
@@ -70,11 +71,11 @@ pub enum Error {
 /// * `T` - A Cosmos client that can communicate with the blockchain
 /// * `Q` - A Stream that yields batches of messages to be broadcast
 /// * `S` - A cryptographic signer that can sign transaction payloads
-#[derive(TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
     S: tofnd::grpc::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
@@ -87,9 +88,9 @@ where
 
 impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
-    T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
-    S: tofnd::grpc::Multisig,
+    T: cosmos::CosmosClient + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    S: tofnd::grpc::Multisig + Debug,
 {
     /// Runs the broadcaster task until the message queue is exhausted
     ///
@@ -108,6 +109,7 @@ where
     ///
     /// A Result indicating whether the task completed successfully.
     /// Note that individual transaction failures don't cause the task to return an error.
+    #[instrument]
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
             let tx_hash = self
@@ -183,6 +185,7 @@ where
     }
 }
 
+#[instrument]
 fn handle_tx_res(tx_hash: Result<String>, msgs: nonempty::Vec<msg_queue::QueueMsg>) {
     Vec::from(msgs)
         .into_iter()

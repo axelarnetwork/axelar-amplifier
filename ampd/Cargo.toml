@@ -48,6 +48,7 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
+prometheus = "0.13"
 prost = "0.13.5"
 prost-types = "0.13.5"
 report = { workspace = true }

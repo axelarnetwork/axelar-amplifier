@@ -46,6 +46,7 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: EthereumClient,
