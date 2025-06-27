@@ -229,7 +229,10 @@ fn handle_tx_res(tx_hash: Result<String>, msgs: nonempty::Vec<msg_queue::QueueMs
 
 #[cfg(test)]
 mod tests {
-    use crate::monitoring::server::Server;
+    use crate::monitoring::server::test_utils::{
+        test_dummy_server_setup, test_metrics_server_setup,
+    };
+    use reqwest::Url;
     use axelar_wasm_std::assert_err_contains;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
@@ -342,7 +345,7 @@ mod tests {
                 })
             });
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+         let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -433,7 +436,7 @@ mod tests {
                 })
             });
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+         let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -503,7 +506,7 @@ mod tests {
                 })
             });
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+         let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -620,7 +623,7 @@ mod tests {
                 })
             });
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+         let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -746,7 +749,7 @@ mod tests {
                 })
             });
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+         let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -852,7 +855,7 @@ mod tests {
                 })
             });
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+         let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -877,7 +880,7 @@ mod tests {
         assert_eq!(idx, 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn broadcaster_task_should_record_transaction_metrics() {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
@@ -938,15 +941,14 @@ mod tests {
                 })
             });
 
-        // Create metrics server and capture metrics
-        let (server, metrics_client) = Server::new(None).expect("failed to create server");
         
-        // Get the registry to check metrics after the test
-        let registry = server.registry();
-
+        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
+        tokio::spawn(server.run(cancel_token.clone()));
+    
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -967,31 +969,16 @@ mod tests {
         assert_eq!(tx_hash, "tx_hash_success");
         assert_eq!(idx, 0);
 
-        // Check that metrics were recorded
-        let metrics = gather(&registry).unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+        assert!(metrics_text.contains("ampd_transactions_total 1"));
+        assert!(metrics_text.contains("ampd_transaction_duration_seconds"));
         
-        // Check that transaction total was incremented
-        assert!(metrics.contains("ampd_transactions_total 1"));
-        
-        // Check that transaction duration was recorded (should be > 0)
-        assert!(metrics.contains("ampd_transaction_duration_seconds"));
-        
-        // Verify the duration histogram has at least one observation
-        let duration_metric = metrics
-            .lines()
-            .find(|line| line.contains("ampd_transaction_duration_seconds"))
-            .expect("transaction duration metric should be present");
-        
-        // The histogram should have a count > 0
-        assert!(duration_metric.contains("_count 1"));
     }
 
-    // Helper function to gather metrics from registry
-    fn gather(registry: &Registry) -> Result<String, Box<dyn std::error::Error>> {
-        use prometheus::Encoder;
-        let mut buffer = Vec::new();
-        let encoder = TextEncoder::new();
-        encoder.encode(&registry.gather(), &mut buffer)?;
-        Ok(String::from_utf8(buffer)?)
-    }
 }
