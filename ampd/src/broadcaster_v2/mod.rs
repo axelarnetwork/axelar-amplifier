@@ -126,6 +126,8 @@ where
                     if let Err(err) = self.metrics_client.record_metric(MetricsMsg::RecordTransactionDuration(start_time.elapsed())) {
                         warn!( 
                             err = %err,
+                            tx_hash = res.txhash,
+                            msg_count = msgs.as_ref().len(),
                             "failed to record transaction duration metrics for broadcastTask event",
                         );
                     }
@@ -133,6 +135,8 @@ where
                     if let Err(err) = self.metrics_client.record_metric(MetricsMsg::IncTransactionsTotal) {
                         warn!( 
                             err = %err,
+                            tx_hash = res.txhash,
+                            msg_count = msgs.as_ref().len(),
                             "failed to record transaction total metrics for broadcastTask event",
                         );
                     }
