@@ -584,19 +584,35 @@ fn apply_to_hub(
     .then(Result::Ok)
 }
 
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use abi_translation_contract::abi::hub_message_abi_encode;
+
     use assert_ok::assert_ok;
-    use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
-    use cosmwasm_std::{from_json, to_json_binary, MemoryStorage, OwnedDeps, Response, SystemResult, WasmQuery};
-    use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
-    use interchain_token_service::payload_translation::TranslationQueryMsg;
-    use interchain_token_service::shared::NumBits;
-    use interchain_token_service::{contract, HubMessage, TokenId};
-    use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
+    use axelarnet_gateway::msg::QueryMsg;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
+    use cosmwasm_std::{
+        from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, Uint256,
+        WasmQuery,
+    };
+    use error_stack::{report, Result};
+    use router_api::{ChainName, ChainNameRaw, CrossChainId};
+
+    use abi_translation_contract::abi::hub_message_abi_encode;
+
+    use super::{apply_to_hub, register_p2p_token_instance};
+    use crate::contract::execute::{
+        apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
+        modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
+    };
+    use crate::msg::TruncationConfig;
+    use crate::state::{self, Config, TokenSupply};
+    use crate::{
+        msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
+        RegisterTokenMetadata, TokenId,
+    };
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
@@ -614,53 +630,53 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
-
-        let response = assert_ok!(execute_message(
+        assert_ok!(deploy_token(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg.clone()),
+            ethereum(),
+            solana(),
+            token_id()
         ));
 
-        assert_eq!(response.messages.len(), 1);
-        assert_eq!(response.messages[0].id, 0);
-        assert_eq!(response.messages[0].msg, to_json_binary(&msg).unwrap());
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
     }
 
     #[test]
     fn should_not_be_able_to_transfer_more_than_supply() {
         let mut deps = mock_dependencies();
         init(&mut deps);
+        let origin_chain = ethereum();
+        let remote_chain = solana();
 
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 2u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
-
-        let result = execute_message(
+        assert_ok!(deploy_token(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
-        );
+            origin_chain.clone(),
+            remote_chain.clone(),
+            token_id()
+        ));
 
-        assert_err_contains!(result, Error, Error::InvalidTransferAmount { .. });
+        let starting_supply =
+            assert_ok!(get_supply(deps.as_mut(), remote_chain.clone(), token_id()));
+        assert_eq!(starting_supply, TokenSupply::Tracked(Uint256::zero()));
+
+        // we try to transfer from the remote chain to the origin chain, which should fail
+        // since the token was just deployed and thus there is no supply on remote chain yet
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                remote_chain,
+                origin_chain,
+                token_id(),
+                Uint256::one().try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
     }
 
     #[test]
@@ -668,20 +684,38 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(modify_supply(
+        assert_ok!(deploy_token(
             deps.as_mut(),
             ethereum(),
-            token_id(),
-            SupplyModifier::IncreaseSupply(1u64.try_into().unwrap()),
+            solana(),
+            token_id()
         ));
 
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "modify_supply");
+        let starting_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(starting_supply, TokenSupply::Tracked(Uint256::zero()));
 
-        let supply = assert_ok!(get_supply(deps.as_mut(), ethereum(), token_id()));
-        assert_eq!(supply, TokenSupply::Tracked(2u64.try_into().unwrap()));
+        let supply_increase = Uint256::from_u128(100).try_into().unwrap();
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(supply_increase)
+        ));
+
+        let expected_supply = assert_ok!(starting_supply.checked_add(supply_increase));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+
+        assert_eq!(result_supply, expected_supply);
+
+        // transfer from solana to ethereum should succeed, since we manually set the supply
+        // otherwise this would fail, since there have been no transfers to solana and thus no supply
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
     }
 
     #[test]
@@ -689,20 +723,51 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(modify_supply(
+        assert_ok!(deploy_token(
             deps.as_mut(),
             ethereum(),
-            token_id(),
-            SupplyModifier::DecreaseSupply(1u64.try_into().unwrap()),
+            solana(),
+            token_id()
         ));
 
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "modify_supply");
+        // perform a transfer to add some token supply to solana
+        let initial_transfer = Uint256::from_u128(100).try_into().unwrap();
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id(),
+            initial_transfer
+        ));
 
-        let supply = assert_ok!(get_supply(deps.as_mut(), ethereum(), token_id()));
-        assert_eq!(supply, TokenSupply::Tracked(0u64.try_into().unwrap()));
+        let current_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(current_supply, TokenSupply::Tracked(*initial_transfer));
+
+        let supply_decrease = initial_transfer;
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::DecreaseSupply(supply_decrease)
+        ));
+
+        let expected_supply = assert_ok!(current_supply.checked_sub(supply_decrease));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(result_supply, expected_supply);
+
+        // transfer from solana to ethereum should fail. We transferred 100 tokens to solana at the start of the test,
+        // but then manually decreased the supply, so there should not be 100 tokens to transfer from solana
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                initial_transfer
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
     }
 
     #[test]
@@ -710,24 +775,42 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        // Deploy token to xrpl with untracked supply
-        let response = assert_ok!(deploy_token(deps.as_mut(), ethereum(), xrpl(), token_id()));
-        assert_eq!(response.messages.len(), 1);
-
-        let response = assert_ok!(modify_supply(
+        assert_ok!(deploy_token_custom_minter(
             deps.as_mut(),
-            xrpl(),
+            ethereum(),
+            solana(),
             token_id(),
-            SupplyModifier::IncreaseSupply(5u64.try_into().unwrap()),
+            its_address()
         ));
 
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "modify_supply");
+        let supply_increase = Uint256::from_u128(50);
+        let expected_supply = TokenSupply::Tracked(supply_increase);
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(supply_increase.try_into().unwrap())
+        ));
 
-        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
-        assert_eq!(supply, TokenSupply::Tracked(5u64.try_into().unwrap()));
+        let result_supply = assert_ok!(get_supply(deps.as_mut(), solana(), token_id()));
+        assert_eq!(result_supply, expected_supply);
+
+        // try to transfer more than the supply we just set, should fail
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                supply_increase
+                    .checked_add(Uint256::one())
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
     }
 
     #[test]
@@ -735,14 +818,36 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let result = modify_supply(
-            deps.as_mut(),
-            xrpl(),
-            token_id(),
-            SupplyModifier::IncreaseSupply(1u64.try_into().unwrap()),
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
         );
 
-        assert_err_contains!(result, Error, Error::TokenNotDeployed { .. });
+        // deploy the token
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // token id exists now, but try to modify supply on a chain where it is not yet deployed
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                ChainNameRaw::try_from(XRPL).unwrap(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+            ),
+            Error,
+            Error::TokenNotDeployed { .. }
+        );
     }
 
     #[test]
@@ -750,15 +855,41 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        // Try to decrease more than available supply
-        let result = modify_supply(
+        assert_ok!(deploy_token(
             deps.as_mut(),
             ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
             token_id(),
-            SupplyModifier::DecreaseSupply(2u64.try_into().unwrap()),
+            msg::SupplyModifier::IncreaseSupply(Uint256::one().try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::IncreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
         );
 
-        assert_err_contains!(result, Error, Error::ModifySupplyOverflow { .. });
+        assert_err_contains!(
+            modify_supply(
+                deps.as_mut(),
+                solana(),
+                token_id(),
+                msg::SupplyModifier::DecreaseSupply(Uint256::MAX.try_into().unwrap())
+            ),
+            Error,
+            Error::ModifySupplyOverflow { .. }
+        );
     }
 
     #[test]
@@ -766,57 +897,70 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(disable_execution(deps.as_mut()));
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "disable_execution");
-
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: DeployInterchainToken {
+                token_id: [7u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain: ChainNameRaw::try_from(ETHEREUM).unwrap(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
         };
 
-        let result = execute_message(
+        assert_ok!(execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
-        );
-
-        assert_err_contains!(result, Error, Error::ExecutionDisabled);
-
-        let response = assert_ok!(enable_execution(deps.as_mut()));
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "enable_execution");
-
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
-
-        let response = assert_ok!(execute_message(
-            deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        assert_ok!(disable_execution(deps.as_mut()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: InterchainTransfer {
+                token_id: [7u8; 32].into(),
+                amount: Uint256::one().try_into().unwrap(),
+                source_address: its_address(),
+                destination_address: its_address(),
+                data: None,
+            }
+            .into(),
+        };
+
+        let res = execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
+        );
+        assert_err_contains!(res, Error, Error::ExecutionDisabled);
+
+        assert_ok!(enable_execution(deps.as_mut()));
+
+        let msg = HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            message: DeployInterchainToken {
+                token_id: [1u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg),
+        ));
     }
 
     #[test]
@@ -824,31 +968,51 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(freeze_chain(deps.as_mut(), ethereum()));
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "freeze_chain");
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        assert_ok!(freeze_chain(deps.as_mut(), source_chain.clone()));
 
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
+            destination_chain,
+            message: DeployInterchainToken {
+                token_id: [7u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
         };
-
-        let result = execute_message(
+        let res = execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         );
 
-        assert_err_contains!(result, Error, Error::ChainFrozen { .. });
+        assert_err_contains!(res, Error, Error::ChainFrozen(..));
+
+        assert_ok!(unfreeze_chain(deps.as_mut(), source_chain.clone()));
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            CrossChainId {
+                source_chain,
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
+        ));
     }
 
     #[test]
@@ -856,31 +1020,46 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(freeze_chain(deps.as_mut(), xrpl()));
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "freeze_chain");
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        assert_ok!(freeze_chain(deps.as_mut(), destination_chain.clone()));
 
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
+            destination_chain: destination_chain.clone(),
+            message: DeployInterchainToken {
+                token_id: [7u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                .to_string()
+                .try_into()
+                .unwrap(),
         };
 
-        let result = execute_message(
+        let res = execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         );
+        assert_err_contains!(res, Error, Error::ChainFrozen(..));
 
-        assert_err_contains!(result, Error, Error::ChainFrozen { .. });
+        assert_ok!(unfreeze_chain(deps.as_mut(), destination_chain));
+
+        assert_ok!(execute_message(
+            deps.as_mut(),
+            cc_id,
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg),
+        ));
     }
 
     #[test]
@@ -888,94 +1067,122 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(freeze_chain(deps.as_mut(), solana()));
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "freeze_chain");
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let other_chain = ChainNameRaw::try_from(XRPL).unwrap();
+
+        assert_ok!(freeze_chain(deps.as_mut(), other_chain.clone()));
 
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
+            destination_chain: destination_chain.clone(),
+            message: DeployInterchainToken {
+                token_id: [7u8; 32].into(),
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                .to_string()
+                .try_into()
+                .unwrap(),
         };
 
-        let response = assert_ok!(execute_message(
+        assert_ok!(execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         ));
-
-        assert_eq!(response.messages.len(), 1);
     }
 
     #[test]
     fn register_chain_fails_if_already_registered() {
         let mut deps = mock_dependencies();
-        init(&mut deps);
-
-        let result = register_chain(
+        assert_ok!(register_chain(
             &mut deps.as_mut(),
             msg::ChainConfig {
-                chain: ethereum(),
-                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                chain: SOLANA.parse().unwrap(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: NumBits::Bits256,
-                    max_decimals_when_truncating: 18,
+                    max_uint_bits: 256.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8
                 },
-                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            },
+                translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+            }
+        ));
+        assert_err_contains!(
+            register_chain(
+                &mut deps.as_mut(),
+                msg::ChainConfig {
+                    chain: SOLANA.parse().unwrap(),
+                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    },
+                    translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+                }
+            ),
+            Error,
+            Error::ChainAlreadyRegistered(..)
         );
-
-        assert_err_contains!(result, Error, Error::ChainAlreadyRegistered { .. });
     }
 
     #[test]
     fn register_chains_fails_if_any_already_registered() {
         let mut deps = mock_dependencies();
-        init(&mut deps);
-
-        let result = register_chains(
-            deps.as_mut(),
-            vec![msg::ChainConfig {
-                chain: ethereum(),
-                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+        let chains = vec![
+            msg::ChainConfig {
+                chain: SOLANA.parse().unwrap(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: NumBits::Bits256,
-                    max_decimals_when_truncating: 18,
+                    max_uint_bits: 256.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8,
                 },
-                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            }],
+                translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+            },
+            msg::ChainConfig {
+                chain: XRPL.parse().unwrap(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: 256.try_into().unwrap(),
+                    max_decimals_when_truncating: 16u8,
+                },
+                translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+            },
+        ];
+        assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
+        assert_err_contains!(
+            register_chains(deps.as_mut(), chains,),
+            Error,
+            Error::ChainAlreadyRegistered(..)
         );
-
-        assert_err_contains!(result, Error, Error::ChainAlreadyRegistered { .. });
     }
 
     #[test]
     fn update_chains_fails_if_not_registered() {
         let mut deps = mock_dependencies();
-        init(&mut deps);
-
-        let result = update_chains(
-            deps.as_mut(),
-            vec![msg::ChainConfig {
-                chain: solana(),
-                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: NumBits::Bits256,
-                    max_decimals_when_truncating: 18,
-                },
-                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            }],
+        assert_err_contains!(
+            update_chains(
+                deps.as_mut(),
+                vec![msg::ChainConfig {
+                    chain: SOLANA.parse().unwrap(),
+                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8,
+                    },
+                    translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+                }]
+            ),
+            Error,
+            Error::ChainNotRegistered(..)
         );
-
-        assert_err_contains!(result, Error, Error::ChainNotRegistered { .. });
     }
 
     #[test]
@@ -983,43 +1190,85 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(update_chains(
+        let token_id: TokenId = [7u8; 32].into();
+        let solana = ChainNameRaw::try_from(SOLANA).unwrap();
+        let ethereum = ChainNameRaw::try_from(ETHEREUM).unwrap();
+
+        // update the max_uint to u128 max (previously was u256 max) and reduce decimals when truncating to 6
+        let new_decimals = 6u8;
+        assert_ok!(update_chains(
             deps.as_mut(),
             vec![msg::ChainConfig {
-                chain: ethereum(),
-                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+                chain: solana.clone(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
-                    max_uint_bits: NumBits::Bits128,
-                    max_decimals_when_truncating: 6,
+                    max_uint_bits: 128.try_into().unwrap(),
+                    max_decimals_when_truncating: new_decimals,
                 },
-                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            }],
+                translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+            }]
         ));
 
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "update_chains");
-
+        // now deploy a token with 18 decimals. Should truncate to 6
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
+            destination_chain: solana.clone(),
+            message: DeployInterchainToken {
+                token_id,
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain: ethereum.clone(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
         };
 
-        let response = assert_ok!(execute_message(
+        assert_ok!(execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        // destination token instance should use 6 decimals
+        let destination_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            solana.clone(),
+            token_id,
+        ));
+        assert!(destination_token_instance.is_some());
+        assert_eq!(destination_token_instance.unwrap().decimals, new_decimals);
+
+        // source instance should use 18
+        let source_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            ethereum.clone(),
+            token_id,
+        ));
+        assert!(source_token_instance.is_some());
+        assert_eq!(source_token_instance.unwrap().decimals, 18u8);
+
+        // transfers should be scaled appropriately
+        let transfer = InterchainTransfer {
+            token_id,
+            amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
+            source_address: its_address(),
+            destination_address: its_address(),
+            data: None,
+        };
+        let transformed_transfer = assert_ok!(apply_to_transfer(
+            deps.as_mut().storage,
+            ethereum,
+            solana,
+            transfer.clone(),
+        ));
+        assert_eq!(
+            transformed_transfer.amount,
+            Uint256::one().try_into().unwrap()
+        );
     }
 
     #[test]
@@ -1027,43 +1276,80 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(update_chains(
-            deps.as_mut(),
-            vec![msg::ChainConfig {
-                chain: ethereum(),
-                its_edge_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: NumBits::Bits128,
-                    max_decimals_when_truncating: 6,
-                },
-                translation_contract: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            }],
-        ));
+        let token_id: TokenId = [7u8; 32].into();
+        let solana = ChainNameRaw::try_from(SOLANA).unwrap();
+        let ethereum = ChainNameRaw::try_from(ETHEREUM).unwrap();
 
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "update_chains");
-
+        // deploy a token with 18 decimals
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
+            destination_chain: solana.clone(),
+            message: DeployInterchainToken {
+                token_id,
+                name: "Test".parse().unwrap(),
+                symbol: "TEST".parse().unwrap(),
+                decimals: 18,
+                minter: None,
+            }
+            .into(),
+        };
+        let cc_id = CrossChainId {
+            source_chain: ethereum.clone(),
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
         };
 
-        let response = assert_ok!(execute_message(
+        assert_ok!(execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            cc_id.clone(),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        // update the max_uint to u128 max (previously was u256 max) and reduce decimals when truncating to 6
+        assert_ok!(update_chains(
+            deps.as_mut(),
+            vec![msg::ChainConfig {
+                chain: solana.clone(),
+                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                truncation: TruncationConfig {
+                    max_uint_bits: 128.try_into().unwrap(),
+                    max_decimals_when_truncating: 6u8,
+                },
+                translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
+            }]
+        ));
+
+        // previously deployed tokens should have 18 decimals, unaffected by the config update
+        let destination_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            solana.clone(),
+            token_id
+        ));
+        assert!(destination_token_instance.is_some());
+        assert_eq!(destination_token_instance.unwrap().decimals, 18u8);
+
+        let source_token_instance = assert_ok!(state::may_load_token_instance(
+            deps.as_mut().storage,
+            ethereum.clone(),
+            token_id
+        ));
+        assert!(source_token_instance.is_some());
+        assert_eq!(source_token_instance.unwrap().decimals, 18u8);
+
+        // transfers should not be scaled, since decimals are the same
+        let transfer = InterchainTransfer {
+            token_id,
+            amount: Uint256::from_u128(1000000000000).try_into().unwrap(),
+            source_address: its_address(),
+            destination_address: its_address(),
+            data: None,
+        };
+        let transformed_transfer = assert_ok!(apply_to_transfer(
+            deps.as_mut().storage,
+            ethereum,
+            solana,
+            transfer.clone(),
+        ));
+        assert_eq!(transformed_transfer.amount, transfer.amount);
     }
 
     #[test]
@@ -1071,35 +1357,67 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_decimals = 12u8;
+        let destination_decimals = 6u8;
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
         register_and_link_custom_tokens(
             &mut deps,
-            token_id(),
-            ethereum(),
-            xrpl(),
-            18,
-            6,
-            its_address(),
+            token_id,
+            source_chain.clone(),
+            destination_chain.clone(),
+            source_decimals,
+            destination_decimals,
+            token_address.clone(),
         );
 
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
+        let transfer_amount = Uint256::from_u128(100000000u128);
+        let msg = Message::InterchainTransfer(InterchainTransfer {
+            token_id,
+            source_address: token_address.clone(),
+            destination_address: token_address.clone(),
+            data: None,
+            amount: transfer_amount.try_into().unwrap(),
+        });
 
-        let response = assert_ok!(execute_message(
-            deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            source_chain.clone(),
+            destination_chain.clone(),
+            msg.clone()
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        let scaling_factor = Uint256::from_u128(10)
+            .checked_pow(source_decimals.abs_diff(destination_decimals).into())
+            .unwrap();
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(
+            Uint256::from(transfer.amount),
+            transfer_amount.checked_div(scaling_factor).unwrap()
+        );
+
+        // check the other direction
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            destination_chain,
+            source_chain,
+            msg
+        ));
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(
+            Uint256::from(transfer.amount),
+            transfer_amount.checked_mul(scaling_factor).unwrap()
+        );
     }
 
     #[test]
@@ -1107,35 +1425,64 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_decimals = 12u8;
+        let destination_decimals = 12u8;
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
         register_and_link_custom_tokens(
             &mut deps,
-            token_id(),
-            ethereum(),
-            xrpl(),
-            18,
-            18,
-            its_address(),
+            token_id,
+            source_chain.clone(),
+            destination_chain.clone(),
+            source_decimals,
+            destination_decimals,
+            token_address.clone(),
         );
 
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
+        let transfer_amount = Uint256::from_u128(100000000u128);
+        let msg = Message::InterchainTransfer(InterchainTransfer {
+            token_id,
+            source_address: token_address.clone(),
+            destination_address: token_address.clone(),
+            data: None,
+            amount: transfer_amount.try_into().unwrap(),
+        });
 
-        let response = assert_ok!(execute_message(
-            deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            source_chain.clone(),
+            destination_chain.clone(),
+            msg.clone()
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        let transfer = get_transfer(res);
+
+        assert_eq!(Uint256::from(transfer.amount), transfer_amount,);
+
+        // check the other direction
+        let res = assert_ok!(apply_to_hub(
+            deps.as_mut().storage,
+            destination_chain,
+            source_chain,
+            msg
+        ));
+
+        let transfer = get_transfer(res);
+
+        assert_eq!(Uint256::from(transfer.amount), transfer_amount,);
+    }
+
+    fn get_transfer(message: Message) -> InterchainTransfer {
+        match message {
+            Message::InterchainTransfer(transfer) => transfer,
+            _ => panic!("wrong msg type returned"),
+        }
     }
 
     #[test]
@@ -1143,27 +1490,49 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        register_custom_token(&mut deps, xrpl(), 6, its_address());
-
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: Message::LinkToken(LinkToken {
-                token_id: token_id(),
-                token_manager_type: 0u64.try_into().unwrap(),
-                source_token_address: its_address(),
-                destination_token_address: its_address(),
-                params: None,
-            }),
-        };
-
-        let result = execute_message(
-            deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+        register_custom_token(
+            &mut deps,
+            destination_chain.clone(),
+            10u8,
+            token_address.clone(),
         );
 
-        assert_err_contains!(result, Error, Error::TokenNotRegistered { .. });
+        let msg = HubMessage::SendToHub {
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
+                params: None,
+            }
+            .into(),
+        };
+
+        assert_err_contains!(
+            execute_message(
+                deps.as_mut(),
+                CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                hub_message_abi_encode(msg.clone()),
+            ),
+            Error,
+            Error::TokenNotRegistered(..)
+        );
     }
 
     #[test]
@@ -1171,27 +1540,44 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        register_custom_token(&mut deps, ethereum(), 18, its_address());
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+        register_custom_token(&mut deps, source_chain.clone(), 10u8, token_address.clone());
 
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: Message::LinkToken(LinkToken {
-                token_id: token_id(),
-                token_manager_type: 0u64.try_into().unwrap(),
-                source_token_address: its_address(),
-                destination_token_address: its_address(),
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
                 params: None,
-            }),
+            }
+            .into(),
         };
 
-        let result = execute_message(
-            deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+        assert_err_contains!(
+            execute_message(
+                deps.as_mut(),
+                CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                hub_message_abi_encode(msg.clone()),
+            ),
+            Error,
+            Error::TokenNotRegistered(..)
         );
-
-        assert_err_contains!(result, Error, Error::TokenNotRegistered { .. });
     }
 
     #[test]
@@ -1199,25 +1585,87 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
+        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let token_address: nonempty::HexBinary =
+            HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let token_id = TokenId::new([1; 32]);
+
         let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: Message::LinkToken(LinkToken {
-                token_id: token_id(),
-                token_manager_type: 0u64.try_into().unwrap(),
-                source_token_address: its_address(),
-                destination_token_address: its_address(),
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
+                token_id,
+                token_manager_type: Uint256::zero(),
+                source_token_address: token_address.clone(),
+                destination_token_address: token_address.clone(),
                 params: None,
-            }),
+            }
+            .into(),
         };
 
-        let result = execute_message(
-            deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+        assert_err_contains!(
+            execute_message(
+                deps.as_mut(),
+                CrossChainId {
+                    source_chain: source_chain.clone(),
+                    message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                },
+                ITS_ADDRESS.to_string().try_into().unwrap(),
+                hub_message_abi_encode(msg.clone()),
+            ),
+            Error,
+            Error::TokenNotRegistered(..)
+        );
+    }
+
+    #[test]
+    fn should_modify_supply_on_custom_tokens() {
+        let mut deps = mock_dependencies();
+        init(&mut deps);
+
+        register_and_link_custom_tokens(
+            &mut deps,
+            token_id(),
+            ethereum(),
+            solana(),
+            18,
+            18,
+            its_address(),
         );
 
-        assert_err_contains!(result, Error, Error::TokenNotRegistered { .. });
+        assert_ok!(modify_supply(
+            deps.as_mut(),
+            solana(),
+            token_id(),
+            msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
+        ));
+
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                Uint256::from_u128(100u128).try_into().unwrap()
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+
+        // a smaller transfer should succeed
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            Uint256::from_u128(50u128).try_into().unwrap()
+        ));
     }
 
     #[test]
@@ -1225,22 +1673,29 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let response = assert_ok!(register_p2p_token_instance(
+        let origin_chain = ethereum();
+        let instance_chains: Vec<ChainNameRaw> = vec![solana(), ethereum()];
+        let decimals = 18;
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
+
+        for chain in instance_chains {
+            assert_ok!(register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                chain,
+                origin_chain.clone(),
+                decimals,
+                supply.clone()
+            ));
+        }
+
+        assert_ok!(transfer_token(
             deps.as_mut(),
-            token_id(),
-            xrpl(),
             ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
         ));
-
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.attributes.len(), 1);
-        assert_eq!(response.attributes[0].key, "action");
-        assert_eq!(response.attributes[0].value, "register_p2p_token_instance");
-
-        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
-        assert_eq!(supply, TokenSupply::Tracked(100u64.try_into().unwrap()));
     }
 
     #[test]
@@ -1248,34 +1703,40 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        // deploy to solana via the hub
+        assert_ok!(deploy_token(
+            deps.as_mut(),
+            ethereum(),
+            solana(),
+            token_id()
+        ));
+
+        // register instance of same token deployed on xrpl
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
             xrpl(),
             ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            18,
+            msg::TokenSupply::Tracked(Uint256::one())
         ));
 
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
-
-        let response = assert_ok!(execute_message(
+        // test transfer in both directions
+        assert_ok!(transfer_token(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            xrpl(),
+            solana(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            xrpl(),
+            token_id(),
+            Uint256::one().try_into().unwrap()
+        ));
     }
 
     #[test]
@@ -1283,25 +1744,25 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let decimals = 18;
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
-            xrpl(),
+            solana(),
             ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            decimals,
+            supply.clone()
         ));
-
-        let result = register_p2p_token_instance(
+        let res = register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
-            xrpl(),
+            solana(),
             ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            decimals,
+            supply.clone(),
         );
-
-        assert_err_contains!(result, Error, Error::TokenAlreadyDeployed { .. });
+        assert_err_contains!(res, Error, Error::TokenAlreadyDeployed { .. });
     }
 
     #[test]
@@ -1309,25 +1770,28 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let origin_chain = ethereum();
+        let instance_chain = solana();
+        let decimals = 18;
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
-            xrpl(),
-            ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            origin_chain.clone(),
+            origin_chain.clone(),
+            decimals,
+            supply.clone()
         ));
-
-        let result = register_p2p_token_instance(
+        let wrong_origin_chain = xrpl();
+        let res = register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
-            xrpl(),
-            solana(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            instance_chain,
+            wrong_origin_chain,
+            decimals,
+            supply.clone(),
         );
-
-        assert_err_contains!(result, Error, Error::WrongOriginChain { .. });
+        assert_err_contains!(res, Error, Error::WrongOriginChain { .. });
     }
 
     #[test]
@@ -1335,16 +1799,33 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let result = register_p2p_token_instance(
-            deps.as_mut(),
-            token_id(),
-            solana(),
-            ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+        let decimals = 18;
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
+        assert_err_contains!(
+            register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                ChainNameRaw::try_from("bananas").unwrap(),
+                ethereum(),
+                decimals,
+                supply.clone()
+            ),
+            Error,
+            Error::ChainNotRegistered { .. }
         );
 
-        assert_err_contains!(result, Error, Error::ChainNotRegistered { .. });
+        assert_err_contains!(
+            register_p2p_token_instance(
+                deps.as_mut(),
+                token_id(),
+                ethereum(),
+                ChainNameRaw::try_from("bananas").unwrap(),
+                decimals,
+                supply.clone()
+            ),
+            Error,
+            Error::ChainNotRegistered { .. }
+        );
     }
 
     #[test]
@@ -1352,40 +1833,92 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
+        let decimals = 18;
         assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
             token_id(),
-            xrpl(),
             ethereum(),
-            6,
-            msg::TokenSupply::Tracked(100u64.try_into().unwrap()),
+            ethereum(),
+            decimals,
+            msg::TokenSupply::Untracked
         ));
 
-        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
-        assert_eq!(supply, TokenSupply::Tracked(100u64.try_into().unwrap()));
-
-        let msg = HubMessage::SendToHub {
-            destination_chain: xrpl(),
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
-                token_id: token_id(),
-                source_address: its_address(),
-                destination_address: its_address(),
-                amount: 1u64.try_into().unwrap(),
-                data: None,
-            })),
-        };
-
-        let response = assert_ok!(execute_message(
+        let supply = msg::TokenSupply::Tracked(Uint256::one());
+        assert_ok!(register_p2p_token_instance(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            token_id(),
+            solana(),
+            ethereum(),
+            decimals,
+            supply.clone(),
         ));
 
-        assert_eq!(response.messages.len(), 1);
+        let transfer_amount = Uint256::one().try_into().unwrap();
 
-        let supply = assert_ok!(get_supply(deps.as_mut(), xrpl(), token_id()));
-        assert_eq!(supply, TokenSupply::Tracked(99u64.try_into().unwrap()));
+        // initial supply is one token. first transfer should succeed
+        assert_ok!(transfer_token(
+            deps.as_mut(),
+            solana(),
+            ethereum(),
+            token_id(),
+            transfer_amount
+        ));
+
+        assert_err_contains!(
+            transfer_token(
+                deps.as_mut(),
+                solana(),
+                ethereum(),
+                token_id(),
+                transfer_amount
+            ),
+            Error,
+            Error::TokenSupplyInvariantViolated { .. }
+        );
+    }
+
+    // Below are various helper functions to assist with writing tests
+
+    fn its_address() -> nonempty::HexBinary {
+        HexBinary::from_hex(ITS_ADDRESS)
+            .unwrap()
+            .try_into()
+            .unwrap()
+    }
+
+    // most tests only need one token id
+    fn token_id() -> TokenId {
+        TokenId::new([7u8; 32])
+    }
+
+    fn xrpl() -> ChainNameRaw {
+        XRPL.try_into().unwrap()
+    }
+
+    fn solana() -> ChainNameRaw {
+        SOLANA.try_into().unwrap()
+    }
+
+    fn ethereum() -> ChainNameRaw {
+        ETHEREUM.try_into().unwrap()
+    }
+
+    fn cc_id(source_chain: ChainNameRaw) -> CrossChainId {
+        CrossChainId {
+            source_chain,
+            message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
+        }
+    }
+
+    fn get_supply(
+        deps: DepsMut,
+        chain: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<TokenSupply, Error> {
+        state::may_load_token_instance(deps.storage, chain.clone(), token_id)
+            .unwrap()
+            .ok_or(report!(Error::TokenNotDeployed { token_id, chain }))
+            .map(|token| token.supply)
     }
 
     fn transfer_token(
@@ -1397,20 +1930,88 @@ mod tests {
     ) -> Result<Response, Error> {
         let msg = HubMessage::SendToHub {
             destination_chain: to,
-            message: get_transfer(Message::InterchainTransfer(InterchainTransfer {
+            message: InterchainTransfer {
                 token_id,
                 source_address: its_address(),
                 destination_address: its_address(),
                 amount,
                 data: None,
-            })),
+            }
+            .into(),
+        };
+        execute_message(
+            deps,
+            cc_id(from),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
+        )
+    }
+
+    fn deploy_token(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+    ) -> Result<Response, Error> {
+        deploy_token_with_metadata(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            None,
+        )
+    }
+
+    fn deploy_token_custom_minter(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        minter: nonempty::HexBinary,
+    ) -> Result<Response, Error> {
+        deploy_token_with_metadata(
+            deps,
+            from,
+            to,
+            token_id,
+            "Test".parse().unwrap(),
+            "TEST".parse().unwrap(),
+            18,
+            Some(minter),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn deploy_token_with_metadata(
+        deps: DepsMut,
+        from: ChainNameRaw,
+        to: ChainNameRaw,
+        token_id: TokenId,
+        name: nonempty::String,
+        symbol: nonempty::String,
+        decimals: u8,
+        minter: Option<nonempty::HexBinary>,
+    ) -> Result<Response, Error> {
+        let msg = HubMessage::SendToHub {
+            destination_chain: to,
+            message: DeployInterchainToken {
+                token_id,
+                name,
+                symbol,
+                decimals,
+                minter,
+            }
+            .into(),
         };
 
         execute_message(
             deps,
             cc_id(from),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         )
     }
 
@@ -1422,17 +2023,22 @@ mod tests {
     ) {
         let msg = HubMessage::RegisterTokenMetadata(RegisterTokenMetadata {
             decimals,
-            token_address,
+            token_address: token_address.clone(),
         });
 
-        let response = assert_ok!(execute_message(
+        let res = assert_ok!(execute_message(
             deps.as_mut(),
-            cc_id(ethereum()),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            CrossChainId {
+                source_chain: chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         ));
-
-        assert_eq!(response.messages.len(), 0);
+        assert_eq!(res.messages.len(), 0);
     }
 
     fn link_custom_token(
@@ -1443,24 +2049,30 @@ mod tests {
         token_address: nonempty::HexBinary,
     ) {
         let msg = HubMessage::SendToHub {
-            destination_chain,
-            message: Message::LinkToken(LinkToken {
+            destination_chain: destination_chain.clone(),
+            message: LinkToken {
                 token_id,
-                token_manager_type: 0u64.try_into().unwrap(),
+                token_manager_type: Uint256::zero(),
                 source_token_address: token_address.clone(),
-                destination_token_address: token_address,
+                destination_token_address: token_address.clone(),
                 params: None,
-            }),
+            }
+            .into(),
         };
 
-        let response = assert_ok!(execute_message(
+        let res = assert_ok!(execute_message(
             deps.as_mut(),
-            cc_id(source_chain),
-            Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-            hub_message_abi_encode(msg),
+            CrossChainId {
+                source_chain: source_chain.clone(),
+                message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32)
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+            ITS_ADDRESS.to_string().try_into().unwrap(),
+            hub_message_abi_encode(msg.clone()),
         ));
-
-        assert_eq!(response.messages.len(), 0);
+        assert_eq!(res.messages.len(), 1);
     }
 
     fn register_and_link_custom_tokens(
@@ -1472,9 +2084,26 @@ mod tests {
         destination_decimals: u8,
         token_address: nonempty::HexBinary,
     ) {
-        register_custom_token(deps, source_chain, source_decimals, token_address.clone());
-        register_custom_token(deps, destination_chain, destination_decimals, token_address.clone());
-        link_custom_token(deps, token_id, source_chain, destination_chain, token_address);
+        register_custom_token(
+            deps,
+            source_chain.clone(),
+            source_decimals,
+            token_address.clone(),
+        );
+        register_custom_token(
+            deps,
+            destination_chain.clone(),
+            destination_decimals,
+            token_address.clone(),
+        );
+
+        link_custom_token(
+            deps,
+            token_id,
+            source_chain,
+            destination_chain,
+            token_address,
+        );
     }
 
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
@@ -1503,7 +2132,7 @@ mod tests {
         for chain_name in [SOLANA, ETHEREUM, XRPL, AXELAR] {
             let chain = ChainNameRaw::try_from(chain_name).unwrap();
             assert_ok!(register_chain(
-                deps.as_mut().storage,
+                &mut deps.as_mut(),
                 msg::ChainConfig {
                     chain: chain.clone(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
@@ -1511,7 +2140,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
                     },
-                    translation_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    translation_contract: MockApi::default().addr_make("translation").to_string().try_into().unwrap(),
                 }
             ));
         }
