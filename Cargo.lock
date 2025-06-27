@@ -6226,6 +6226,7 @@ dependencies = [
  "quote 1.0.40",
  "serde",
  "syn 2.0.101",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

@@ -9,7 +9,7 @@ use msgs_derive::ensure_permissions;
 use router_api::error::Error;
 
 use crate::events::RouterInstantiated;
-use crate::msg::{ExecuteMsg, ExecuteMsgFromContract, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
 
@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[ensure_permissions(allow_execution_from_contracts(coordinator = find_coordinator_address), allow_execution_from_addresses(gateway = find_gateway_address(&info.sender)))]
+#[external_execute(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -1888,7 +1888,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
-            ExecuteMsgFromContract::Direct(ExecuteMsg::RouteMessages(generate_messages(
+            ExecuteMsgFromProxy::Direct(ExecuteMsg::RouteMessages(generate_messages(
                 &eth, &polygon, &mut 0, 10
             ))),
         )
@@ -1906,7 +1906,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
-            ExecuteMsgFromContract::Relay {
+            ExecuteMsgFromProxy::Relay {
                 sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
@@ -1929,7 +1929,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
-            ExecuteMsgFromContract::Relay {
+            ExecuteMsgFromProxy::Relay {
                 sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
@@ -1955,7 +1955,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
-            ExecuteMsgFromContract::Relay {
+            ExecuteMsgFromProxy::Relay {
                 sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: ExecuteMsg::EnableRouting {},
             },
