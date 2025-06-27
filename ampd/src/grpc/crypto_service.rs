@@ -71,7 +71,6 @@ mod tests {
     use error_stack::report;
     use mockall::predicate;
     use rand::rngs::OsRng;
-    use sha3::{Digest, Keccak256};
     use tonic::{Code, Request};
 
     use super::*;
@@ -169,13 +168,13 @@ mod tests {
     async fn sign_should_return_signature_on_valid_request() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
-        let message = vec![1, 2, 3, 4];
+        let message = vec![0; 32];
         let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
         let verifying_key = signing_key.verifying_key();
         let pub_key = PublicKey::new_secp256k1(verifying_key.to_sec1_bytes()).unwrap();
         let expected_signature_val = vec![5, 6, 7, 8]; // Mock signature
 
-        let msg_hash: [u8; 32] = Keccak256::digest(&message).into();
+        let expected_msg = <[u8; 32]>::try_from(message.as_slice()).unwrap();
 
         let mut multisig = MockMultisig::new();
         multisig
@@ -189,7 +188,7 @@ mod tests {
             .expect_sign()
             .with(
                 predicate::eq(key_id),
-                predicate::eq(msg_hash),
+                predicate::eq(expected_msg),
                 predicate::eq(pub_key),
                 predicate::eq(tofnd::Algorithm::Ecdsa),
             )
@@ -218,7 +217,7 @@ mod tests {
                 id: "".to_string(),
                 algorithm: Algorithm::Ecdsa.into(),
             }),
-            msg: vec![1, 2, 3, 4],
+            msg: vec![0; 32],
         });
 
         let err = service.sign(request).await.unwrap_err();
@@ -246,7 +245,7 @@ mod tests {
                 id: "test_key".to_string(),
                 algorithm: 999,
             }),
-            msg: vec![1, 2, 3, 4],
+            msg: vec![0; 32],
         });
 
         let err = service.sign(request).await.unwrap_err();
@@ -257,7 +256,7 @@ mod tests {
     async fn sign_should_propagate_keygen_errors() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
-        let message = vec![1, 2, 3, 4];
+        let message = vec![0; 32];
 
         let mut multisig = MockMultisig::new();
         multisig
@@ -285,12 +284,12 @@ mod tests {
     async fn sign_should_propagate_sign_errors() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
-        let message = vec![1, 2, 3, 4];
+        let message = vec![0; 32];
         let signing_key = k256::ecdsa::SigningKey::random(&mut OsRng);
         let verifying_key = signing_key.verifying_key();
         let pub_key = PublicKey::new_secp256k1(verifying_key.to_sec1_bytes()).unwrap();
 
-        let msg_hash: [u8; 32] = Keccak256::digest(&message).into();
+        let expected_msg = <[u8; 32]>::try_from(message.as_slice()).unwrap();
 
         let mut multisig = MockMultisig::new();
         multisig
@@ -304,7 +303,7 @@ mod tests {
             .expect_sign()
             .with(
                 predicate::eq(key_id),
-                predicate::eq(msg_hash),
+                predicate::eq(expected_msg),
                 predicate::eq(pub_key),
                 predicate::eq(tofnd::Algorithm::Ecdsa),
             )

@@ -621,7 +621,7 @@ mod tests {
     fn validate_sign_should_extract_key_id_algorithm_and_message() {
         let key_id = "test_key";
         let algorithm = ampd_proto::Algorithm::Ecdsa;
-        let message = vec![1, 2, 3, 4];
+        let message = vec![0; 32];
 
         let req = Request::new(SignRequest {
             key_id: Some(KeyId {
