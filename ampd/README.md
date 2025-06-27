@@ -44,18 +44,18 @@ type="MultisigSigner"
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier  | StarknetMsgVerifier | SolanaMsgVerifier]
+type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier  | StarknetMsgVerifier | SolanaMsgVerifier | StacksMsgVerifier]
 
 # handler to verify verifier set rotations. One per supported chain
 [[handlers]]
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier]
+type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier | StacksVerifierSetVerifier]
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
-from Avalanche testnet and Sui testnet.
+from Avalanche testnet, Sui testnet and Stacks testnet.
 
 ```yaml
 prometheus_monitor_bind_addr="0.0.0.0:3000"
@@ -94,6 +94,18 @@ rpc_url = "https://fullnode.testnet.sui.io:443"
 type = 'SuiVerifierSetVerifier'
 cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns9yqsap'
 rpc_url = "https://fullnode.testnet.sui.io:443"
+
+[[handlers]]
+type = 'StacksMsgVerifier'
+chain_name = 'stacks'
+cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
+http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
+
+[[handlers]]
+type = 'StacksVerifierSetVerifier'
+chain_name = 'stacks'
+cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
+http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
 
 [[handlers]]
 type = 'EvmMsgVerifier'
