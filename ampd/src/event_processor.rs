@@ -629,7 +629,7 @@ mod tests {
         let token = CancellationToken::new();
         let event_config = setup_event_config(
             Duration::from_secs(1),
-            Duration::from_secs(0),
+            Duration::from_secs(2),
             Duration::from_secs(1),
         );
 
