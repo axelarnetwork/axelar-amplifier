@@ -5209,6 +5209,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "interchain-token-api"
+version = "0.1.0"
+
+[[package]]
 name = "interchain-token-service"
 version = "1.2.1"
 dependencies = [

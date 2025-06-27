@@ -72,6 +72,7 @@ heck = "0.5.0"
 hex = "0.4.3"
 humantime-serde = "1.1.1"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
+interchain-token-api = { version = "^1.0.0", path = "packages/interchain-token-api" }
 interchain-token-service = { version = "^1.2.1", path = "contracts/interchain-token-service" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
