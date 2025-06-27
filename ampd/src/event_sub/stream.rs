@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::iter;
 use std::time::Duration;
 
@@ -7,6 +8,7 @@ use futures::{stream, FutureExt, Stream, StreamExt};
 use tendermint::block;
 use tokio::time::{interval, Interval};
 use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::tm_client::TmClient;
@@ -14,18 +16,20 @@ use crate::tm_client::TmClient;
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
 
+#[instrument]
 pub async fn blocks<T>(
     tm_client: &T,
     poll_interval: Duration,
+    delay: Duration,
     token: CancellationToken,
 ) -> Result<impl Stream<Item = Result<block::Height>> + '_>
 where
-    T: TmClient,
+    T: TmClient + Debug,
 {
     latest_block_height(tm_client)
         .await
         .map(BlockState::new)
-        .map(|block_state| block_state.stream(tm_client, interval(poll_interval), token))
+        .map(|block_state| block_state.stream(tm_client, interval(poll_interval), delay, token))
         .map(Box::pin)
 }
 
@@ -119,6 +123,7 @@ impl BlockState {
         mut self,
         tm_client: &T,
         interval: &mut Interval,
+        delay: Duration,
         token: &CancellationToken,
     ) -> Result<Option<Self>>
     where
@@ -131,6 +136,7 @@ impl BlockState {
                 .await?;
         }
 
+        tokio::time::sleep(delay).await;
         match token.is_cancelled() {
             true => Ok(None),
             false => {
@@ -144,22 +150,27 @@ impl BlockState {
         self,
         tm_client: &T,
         interval: Interval,
+        delay: Duration,
         token: CancellationToken,
     ) -> impl Stream<Item = Result<block::Height>> + '_
     where
         T: TmClient,
     {
         futures::stream::unfold(
-            (self, tm_client, interval, token),
-            |(block_state, tm_client, mut interval, token)| async move {
+            (self, tm_client, interval, delay, token),
+            |(block_state, tm_client, mut interval, delay, token)| async move {
                 let to_stream = block_state.next_to_stream;
 
-                match block_state.update(tm_client, &mut interval, &token).await {
+                match block_state
+                    .update(tm_client, &mut interval, delay, &token)
+                    .await
+                {
                     Ok(None) => None,
-                    Ok(Some(block_state)) => {
-                        Some((Ok(to_stream), (block_state, tm_client, interval, token)))
-                    }
-                    Err(err) => Some((Err(err), (block_state, tm_client, interval, token))),
+                    Ok(Some(block_state)) => Some((
+                        Ok(to_stream),
+                        (block_state, tm_client, interval, delay, token),
+                    )),
+                    Err(err) => Some((Err(err), (block_state, tm_client, interval, delay, token))),
                 }
             },
         )
@@ -366,9 +377,14 @@ mod tests {
             )))
         });
 
-        assert!(blocks(&tm_client, interval, CancellationToken::new())
-            .await
-            .is_err());
+        assert!(blocks(
+            &tm_client,
+            interval,
+            Duration::from_secs(1),
+            CancellationToken::new()
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
@@ -387,7 +403,9 @@ mod tests {
                     block: block.clone(),
                 })
             });
-            let mut stream = blocks(&tm_client, interval, child_token).await.unwrap();
+            let mut stream = blocks(&tm_client, interval, Duration::from_secs(1), child_token)
+                .await
+                .unwrap();
 
             while stream.next().await.is_some() {}
         });
@@ -421,9 +439,14 @@ mod tests {
         });
 
         let token = CancellationToken::new();
-        let mut stream = blocks(&tm_client, interval, token.child_token())
-            .await
-            .unwrap();
+        let mut stream = blocks(
+            &tm_client,
+            interval,
+            Duration::from_secs(1),
+            token.child_token(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(stream.next().await.unwrap().unwrap(), height);
         assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
@@ -475,9 +498,14 @@ mod tests {
         });
 
         let token = CancellationToken::new();
-        let mut stream = blocks(&tm_client, interval, token.child_token())
-            .await
-            .unwrap();
+        let mut stream = blocks(
+            &tm_client,
+            interval,
+            Duration::from_secs(1),
+            token.child_token(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(stream.next().await.unwrap().unwrap(), height);
         let height = height.increment();

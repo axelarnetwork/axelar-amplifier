@@ -1,4 +1,4 @@
-health_check_bind_addr = '0.0.0.0:3000'
+prometheus_monitor_bind_addr = '0.0.0.0:3000'
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
 
@@ -11,6 +11,7 @@ retry_delay = '1s'
 retry_max_attempts = 3
 stream_timeout = '15s'
 stream_buffer_size = 100000
+delay = '1s'
 
 [broadcast]
 chain_id = 'axelar-dojo-1'

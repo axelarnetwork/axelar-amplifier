@@ -21,6 +21,8 @@ pub enum ContractError {
     ServiceAlreadyExists,
     #[error("service not found")]
     ServiceNotFound,
+    #[error("service override not found")]
+    ServiceOverrideNotFound,
     #[error("verifier already authorized")]
     VerifierAlreadyAuthorized,
     #[error("funds are in the wrong denomination")]

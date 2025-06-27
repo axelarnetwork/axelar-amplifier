@@ -1,6 +1,6 @@
 [package]
 edition = { workspace = true }
-version = "1.8.0"
+version = "1.9.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 name = "ampd"
@@ -30,8 +30,7 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
-events = { workspace = true }
-events-derive = { workspace = true }
+events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
 futures = { workspace = true }
 gateway-event-stack = { workspace = true }
@@ -48,6 +47,7 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] }# Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
+prometheus = "0.13"
 prost = "0.13.5"
 prost-types = "0.13.5"
 report = { workspace = true }
@@ -85,12 +85,9 @@ tonic = "0.13.0"
 tower = "0.5.2"
 tower-http = { version = "0.6.4", features = ["trace"] }
 tracing = { workspace = true }
-tracing-core = { version = "0.1.30", features = ["valuable"] }
-tracing-subscriber = { version = "0.3.16", features = [
-  "json",
-  "valuable",
-  "env-filter",
-] }
+tracing-core = { workspace = true }
+tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
 typed-builder = "0.18.2"
 url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }

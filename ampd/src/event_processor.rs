@@ -15,6 +15,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::prometheus_metrics::metrics::MetricsMsg;
+use crate::prometheus_metrics::monitor::MetricsClient;
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 // Maximum number of messages to enqueue for broadcasting concurrently.
@@ -47,6 +49,8 @@ pub struct Config {
     #[serde(with = "humantime_serde")]
     pub stream_timeout: Duration,
     pub stream_buffer_size: usize,
+    #[serde(with = "humantime_serde")]
+    pub delay: Duration,
 }
 
 impl Default for Config {
@@ -56,6 +60,7 @@ impl Default for Config {
             retry_max_attempts: 3,
             stream_timeout: Duration::from_secs(15),
             stream_buffer_size: 100000,
+            delay: Duration::from_secs(1),
         }
     }
 }
@@ -71,6 +76,7 @@ pub async fn consume_events<H, S, C>(
     event_processor_config: Config,
     token: CancellationToken,
     msg_queue_client: broadcaster_v2::MsgQueueClient<C>,
+    metric_client: MetricsClient,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -93,7 +99,7 @@ where
             Ok(Err(err)) => StreamStatus::Error(err),
             Err(_) => StreamStatus::TimedOut,
         })
-        .inspect(log_block_end_event)
+        .inspect(|event| log_block_end_event(event, &handler_label, &metric_client))
         .take_while(should_task_stop(token));
     pin_mut!(event_stream);
 
@@ -158,9 +164,17 @@ fn should_task_stop(token: CancellationToken) -> impl Fn(&StreamStatus) -> futur
     }
 }
 
-fn log_block_end_event(event: &StreamStatus) {
+fn log_block_end_event(event: &StreamStatus, handler_label: &str, metric_client: &MetricsClient) {
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
         info!(height = height.value(), "handler finished processing block");
+
+        if let Err(err) = metric_client.record_metric(MetricsMsg::IncBlockReceived) {
+            warn!( handler = handler_label,
+                height = height.value(),
+                err = %err,
+                "failed to update metrics for block end event"
+            );
+        }
     }
 }
 
@@ -189,22 +203,28 @@ mod tests {
     use futures::{stream, StreamExt};
     use mockall::mock;
     use report::ErrorExt;
+    use reqwest::Url;
+    use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
 
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::prometheus_metrics::monitor::tests::test_metrics_server_setup;
+    use crate::prometheus_metrics::monitor::Server;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{broadcaster_v2, cosmos, event_sub, PREFIX};
 
     pub fn setup_event_config(
         retry_delay_value: Duration,
         stream_timeout_value: Duration,
+        delay: Duration,
     ) -> Config {
         Config {
             retry_delay: retry_delay_value,
             retry_max_attempts: 3,
             stream_timeout: stream_timeout_value,
             stream_buffer_size: 100000,
+            delay,
         }
     }
 
@@ -221,7 +241,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Ok(Event::BlockEnd(1_u32.into())),
@@ -251,6 +275,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -258,6 +284,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         assert!(result.is_ok());
@@ -276,7 +303,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Err(report!(event_sub::Error::LatestBlockQuery)),
@@ -302,6 +333,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -309,6 +342,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         assert_err_contains!(result, Error, Error::EventStream);
@@ -327,7 +361,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
 
         let mut handler = MockEventHandler::new();
@@ -353,6 +391,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -360,6 +400,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         assert!(result.is_ok());
@@ -378,7 +419,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
 
         let mut handler = MockEventHandler::new();
@@ -417,6 +462,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -424,6 +471,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         assert!(result.is_ok());
@@ -446,7 +494,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
 
         let mut handler = MockEventHandler::new();
@@ -479,6 +531,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -486,6 +540,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         let msgs = msg_queue.collect::<Vec<_>>().await;
@@ -506,7 +561,11 @@ mod tests {
             account_number,
             sequence,
         };
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(1000));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
         let token = CancellationToken::new();
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
@@ -539,6 +598,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
         token.cancel();
         let result = consume_events(
             "handler".to_string(),
@@ -547,6 +607,7 @@ mod tests {
             event_config,
             token.child_token(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         assert!(result.is_ok());
@@ -566,7 +627,11 @@ mod tests {
             sequence,
         };
         let token = CancellationToken::new();
-        let event_config = setup_event_config(Duration::from_secs(1), Duration::from_secs(2));
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(0),
+            Duration::from_secs(1),
+        );
 
         let mut mock_client = cosmos::MockCosmosClient::new();
         mock_client.expect_account().return_once(move |_| {
@@ -585,6 +650,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
+        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
         token.cancel();
         let result = consume_events(
             "handler".to_string(),
@@ -593,6 +659,7 @@ mod tests {
             event_config,
             token.child_token(),
             msg_queue_client,
+            metrics_client,
         )
         .await;
         assert!(result.is_ok());
@@ -623,5 +690,86 @@ mod tests {
         }
         .to_any()
         .unwrap()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn block_end_events_increment_blocks_received_metric() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence,
+        };
+        let events: Vec<Result<Event, event_sub::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+            Ok(Event::BlockEnd(2_u32.into())),
+            Ok(Event::BlockBegin(3_u32.into())),
+            Ok(Event::BlockEnd(4_u32.into())),
+            Ok(Event::BlockBegin(5_u32.into())),
+            Ok(Event::BlockEnd(6_u32.into())),
+        ];
+        let num_block_ends = 5;
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(events.len())
+            .returning(|_| Ok(vec![]));
+
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client.expect_account().return_once(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any::from_msg(&base_account).unwrap()),
+            })
+        });
+
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+
+        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
+
+        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
+
+        tokio::spawn(server.run(cancel_token.clone()));
+
+        let result_with_timeout = timeout(
+            Duration::from_secs(3),
+            consume_events(
+                "handler".to_string(),
+                handler,
+                stream::iter(events),
+                event_config,
+                cancel_token.clone(),
+                msg_queue_client,
+                metrics_client,
+            ),
+        )
+        .await;
+
+        assert!(result_with_timeout.is_ok());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+        assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
+
+        cancel_token.cancel();
     }
 }

@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::ops::{DerefMut, Mul};
 
 use axelar_wasm_std::nonempty;
@@ -89,7 +90,7 @@ pub enum Error {
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
     S: tofnd::grpc::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
@@ -104,9 +105,9 @@ where
 
 impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
-    T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
-    S: tofnd::grpc::Multisig,
+    T: cosmos::CosmosClient + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    S: tofnd::grpc::Multisig + Debug,
 {
     /// Validates the broadcaster task configuration by ensuring the account has sufficient balance.
     ///
@@ -138,18 +139,18 @@ where
 #[derive(Debug, Deref, DerefMut)]
 pub struct ValidatedBroadcasterTask<T, Q, S>
 where
-    T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
-    S: tofnd::grpc::Multisig,
+    T: cosmos::CosmosClient + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    S: tofnd::grpc::Multisig + Debug,
 {
     inner: BroadcasterTask<T, Q, S>,
 }
 
 impl<T, Q, S> ValidatedBroadcasterTask<T, Q, S>
 where
-    T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin,
-    S: tofnd::grpc::Multisig,
+    T: cosmos::CosmosClient + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    S: tofnd::grpc::Multisig + Debug,
 {
     /// Runs the broadcaster task until the message queue is exhausted
     ///

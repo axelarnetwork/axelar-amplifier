@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "ampd-proto",
  "assert_ok",
@@ -269,7 +269,6 @@ dependencies = [
  "ethers-core",
  "ethers-providers",
  "events",
- "events-derive",
  "evm-gateway",
  "faux",
  "futures",
@@ -287,6 +286,7 @@ dependencies = [
  "num-traits",
  "openssl",
  "pin-project-lite",
+ "prometheus",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
@@ -329,6 +329,7 @@ dependencies = [
  "tower-http 0.6.4",
  "tracing",
  "tracing-core",
+ "tracing-error",
  "tracing-subscriber",
  "tracing-test",
  "typed-builder",
@@ -370,25 +371,22 @@ version = "0.1.0"
 dependencies = [
  "ampd-proto",
  "async-trait",
+ "axelar-wasm-std",
  "cosmrs",
  "error-stack",
  "events",
  "futures",
+ "hex",
  "humantime-serde",
- "itertools 0.14.0",
  "mockall 0.12.1",
- "prost 0.13.5",
- "prost-types 0.13.5",
  "report",
  "serde",
  "serde_json",
- "tendermint 0.35.0",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "tonic 0.13.1",
- "tonic-build",
  "tracing",
  "typed-builder",
  "valuable",
@@ -3318,6 +3316,7 @@ dependencies = [
  "anyhow",
  "eyre",
  "rustc_version 0.4.1",
+ "tracing-error",
 ]
 
 [[package]]
@@ -3561,6 +3560,7 @@ dependencies = [
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
+ "events-derive",
  "goldie",
  "serde",
  "serde_json",
@@ -5054,7 +5054,6 @@ dependencies = [
  "error-stack",
  "ethers-core",
  "events",
- "events-derive",
  "gateway",
  "gateway-api",
  "goldie",
@@ -8226,6 +8225,10 @@ dependencies = [
  "eyre",
  "itertools 0.14.0",
  "thiserror 1.0.69",
+ "tracing",
+ "tracing-core",
+ "tracing-error",
+ "tracing-subscriber",
  "valuable",
 ]
 
@@ -9347,6 +9350,7 @@ dependencies = [
  "schemars",
  "semver 1.0.26",
  "serde",
+ "serde_json",
  "service-registry-api",
  "thiserror 1.0.69",
 ]
@@ -12672,6 +12676,16 @@ checksum = "e672c95779cf947c5311f83787af4fa8fffd12fb27e4993211a84bdfd9610f9c"
 dependencies = [
  "once_cell",
  "valuable",
+]
+
+[[package]]
+name = "tracing-error"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b1581020d7a273442f5b45074a6a57d5757ad0a47dac0e9f0bd57b81936f3db"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -7,8 +7,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
-use events_derive;
-use events_derive::try_from;
+use events::try_from;
 use hex::encode;
 use multisig::msg::ExecuteMsg;
 use multisig::types::MsgToSign;
@@ -50,6 +49,7 @@ where
         .collect()
 }
 
+#[derive(Debug)]
 pub struct Handler<S> {
     verifier: TMAddress,
     multisig: TMAddress,

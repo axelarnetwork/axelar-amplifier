@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::pin::Pin;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
@@ -10,12 +11,13 @@ use async_trait::async_trait;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
+use tracing::instrument;
 use typed_builder::TypedBuilder;
 
 use super::{reqs, status};
 use crate::{broadcaster_v2, cosmos, event_sub};
 
-#[derive(TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct Service<E, C>
 where
     E: event_sub::EventSub,
@@ -29,11 +31,12 @@ where
 #[async_trait]
 impl<E, C> BlockchainService for Service<E, C>
 where
-    E: event_sub::EventSub + Send + Sync + 'static,
-    C: cosmos::CosmosClient + Clone + Send + Sync + 'static,
+    E: event_sub::EventSub + Send + Sync + 'static + Debug,
+    C: cosmos::CosmosClient + Clone + Send + Sync + 'static + Debug,
 {
     type SubscribeStream = Pin<Box<dyn Stream<Item = Result<SubscribeResponse, Status>> + Send>>;
 
+    #[instrument]
     async fn subscribe(
         &self,
         req: Request<SubscribeRequest>,
@@ -56,6 +59,7 @@ where
         )))
     }
 
+    #[instrument]
     async fn broadcast(
         &self,
         req: Request<BroadcastRequest>,
@@ -75,6 +79,7 @@ where
             .map_err(status::StatusExt::into_status)
     }
 
+    #[instrument]
     async fn contract_state(
         &self,
         req: Request<ContractStateRequest>,
@@ -83,7 +88,7 @@ where
             .inspect_err(status::log("invalid contract state request"))
             .map_err(status::StatusExt::into_status)?;
 
-        cosmos::contract_state(&mut self.cosmos_client.clone(), &contract, &query)
+        cosmos::contract_state(&mut self.cosmos_client.clone(), &contract, query)
             .await
             .map(|result| ContractStateResponse { result })
             .map(Response::new)
