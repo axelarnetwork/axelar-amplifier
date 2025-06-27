@@ -57,7 +57,7 @@ pub enum TestMsg3 {
     Proxy2,
     #[permission(Any, Proxy(gateway1))]
     Proxy3,
-    #[permission(Any, Proxy(gateway1, gateway2, gateway3))]
+    #[permission(Specific(gateway2), NoPrivilege, Proxy(gateway1, gateway2, gateway3))]
     Proxy4,
 }
 
@@ -78,7 +78,7 @@ pub fn specific_permission(
     move |_, _| error_stack::Result::Ok(MockApi::default().addr_make(specific_name))
 }
 
-#[external_execute(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1")))]
+#[external_execute(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1"), gateway2 = specific_permission("gateway2")))]
 pub fn execute(
     deps: DepsMut,
     info: MessageInfo,
@@ -685,7 +685,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: governance.clone(),
+            sender: gateway2_addr.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -697,7 +697,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: governance.clone(),
+            sender: gateway2_addr.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -709,11 +709,97 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: governance.clone(),
+            sender: gateway2_addr.clone(),
             msg: TestMsg3::Proxy4
         }
     )
     .is_ok());
+
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: no_privilege.clone(),
+            msg: TestMsg3::Proxy4
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway2_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: no_privilege.clone(),
+            msg: TestMsg3::Proxy4
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway3_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: no_privilege.clone(),
+            msg: TestMsg3::Proxy4
+        }
+    )
+    .is_ok());
+
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: governance.clone(),
+                msg: TestMsg3::Proxy4
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway2_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: governance.clone(),
+                msg: TestMsg3::Proxy4
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway3_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: governance.clone(),
+                msg: TestMsg3::Proxy4
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
 }
 
 #[derive(Debug)]
