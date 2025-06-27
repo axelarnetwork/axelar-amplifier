@@ -12,8 +12,8 @@ use crate::types::debug::REDACTED_VALUE;
 #[derive(Clone)]
 pub enum MetricsMsg {
     IncBlockReceived,
-    IncTransactionsTotal,
-    RecordTransactionDuration(Duration),
+    IncTransactionsTotal { status: String, chain: String },
+    RecordTransactionDuration { duration: Duration, chain: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]

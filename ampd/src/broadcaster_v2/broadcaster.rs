@@ -203,6 +203,10 @@ where
             }
         }
     }
+
+    pub fn get_chain_name(&self) -> String {
+        self.chain_id.to_string()
+    }
 }
 
 async fn reset_sequence<T>(

@@ -1,6 +1,8 @@
 use axum::http::StatusCode;
 use error_stack::{Result, ResultExt};
-use prometheus::{Encoder, Histogram, IntCounter, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder,
+};
 use thiserror::Error;
 
 use crate::monitoring::MetricsMsg;
@@ -27,8 +29,8 @@ pub enum MetricsError {
 
 pub struct Metrics {
     block_received: IntCounter,
-    transactions_total: IntCounter,
-    transaction_duration: Histogram,
+    transactions_total: IntCounterVec,
+    transaction_duration: HistogramVec,
 }
 
 impl Metrics {
@@ -36,11 +38,20 @@ impl Metrics {
         let block_received = IntCounter::new("blocks_received", "number of blocks received")
             .change_context(MetricsError::MetricSpawnFailed)?;
 
-        let transactions_total = IntCounter::new("transactions_total", "number of transactions")
-            .change_context(MetricsError::MetricSpawnFailed)?;
+        let transactions_total = IntCounterVec::new(
+            Opts::new("ampd_transactions_total", "number of transactions"),
+            &["status", "chain"],
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
 
-        let transaction_duration = Histogram::new("transaction_duration", "duration of transactions")
-            .change_context(MetricsError::MetricSpawnFailed)?;
+        let transaction_duration = HistogramVec::new(
+            HistogramOpts::new(
+                "ampd_transaction_duration_seconds",
+                "duration of transaction processing in seconds",
+            ),
+            &["chain"],
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
 
         registry
             .register(Box::new(block_received.clone()))
@@ -54,12 +65,11 @@ impl Metrics {
             .register(Box::new(transaction_duration.clone()))
             .change_context(MetricsError::MetricRegisterFailed)?;
 
-
-        Ok(Self { 
+        Ok(Self {
             block_received,
             transactions_total,
             transaction_duration,
-         })
+        })
     }
 
     pub fn handle_message(&self, msg: MetricsMsg) {
@@ -67,11 +77,16 @@ impl Metrics {
             MetricsMsg::IncBlockReceived => {
                 self.block_received.inc();
             }
-            MetricsMsg::IncTransactionsTotal => {
-                self.transactions_total.inc();
+            MetricsMsg::IncTransactionsTotal { status, chain } => {
+                self.transactions_total
+                    .with_label_values(&[&status, &chain])
+                    .inc();
             }
-            MetricsMsg::RecordTransactionDuration(duration) => {
-                self.transaction_duration.observe(duration);
+            MetricsMsg::RecordTransactionDuration { duration, chain } => {
+                let duration_seconds = duration.as_secs_f64();
+                self.transaction_duration
+                    .with_label_values(&[&chain])
+                    .observe(duration_seconds);
             }
         }
     }

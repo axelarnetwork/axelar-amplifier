@@ -118,7 +118,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use axelar_wasm_std::nonempty;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
@@ -151,7 +151,7 @@ mod tests {
         mock_cosmos_client: MockCosmosClient,
     ) -> (
         Service<MockEventSub, MockCosmosClient>,
-        impl Stream<Item = nonempty::Vec<broadcaster_v2::QueueMsg>>,
+        impl Stream<Item = (nonempty::Vec<broadcaster_v2::QueueMsg>, Option<Instant>)>,
     ) {
         broadcaster_mock_cosmos_client
             .expect_account()
@@ -655,7 +655,8 @@ mod tests {
                 .collect::<Vec<_>>(),
         );
 
-        let msgs: Vec<_> = msg_queue.next().await.unwrap().into();
+        let (batch, _) = msg_queue.next().await.unwrap();
+        let msgs: Vec<_> = batch.into();
         assert_eq!(msgs.len(), msg_count);
         for (i, msg) in msgs.into_iter().enumerate() {
             assert_eq!(msg.gas, GAS_CAP / msg_count as u64);

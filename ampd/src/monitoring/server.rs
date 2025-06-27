@@ -15,7 +15,7 @@ use crate::monitoring::MetricsMsg;
 // shouldnt exceed 1000 message
 const CHANNEL_SIZE: usize = 1000;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MetricsClient {
     sender: mpsc::Sender<MetricsMsg>,
 }

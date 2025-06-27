@@ -2,6 +2,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::fmt::Debug;
 use std::future::Future;
+use std::time::Instant;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
@@ -31,6 +32,7 @@ pub struct QueueMsg {
     pub msg: Any,
     pub gas: Gas,
     pub tx_res_callback: oneshot::Sender<Result<(String, u64)>>,
+    pub created_at: Instant,
 }
 
 /// Client interface for submitting messages to the message queue
@@ -183,6 +185,7 @@ where
         &mut self,
         msg: Any,
     ) -> Result<oneshot::Receiver<Result<(String, u64)>>> {
+        let start_time = Instant::now();
         let (tx, rx) = oneshot::channel();
         let gas = self.broadcaster.estimate_gas(vec![msg.clone()]).await?;
 
@@ -190,6 +193,7 @@ where
             msg,
             gas,
             tx_res_callback: tx,
+            created_at: start_time,
         };
 
         self.tx
@@ -273,7 +277,7 @@ impl MsgQueue {
 
 impl Stream for MsgQueue {
     /// The MsgQueue yields batches of messages as non-empty vectors
-    type Item = nonempty::Vec<QueueMsg>;
+    type Item = (nonempty::Vec<QueueMsg>, Option<Instant>);
 
     /// Polls the message queue and yields batched messages when ready
     ///
@@ -297,8 +301,8 @@ impl Stream for MsgQueue {
 
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
-                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
-                        return Poll::Ready(Some(msgs));
+                    if let Some((msgs, start_time)) = me.queue.push_or(msg, handle_queue_error) {
+                        return Poll::Ready(Some((msgs, start_time)));
                     }
                 }
                 Poll::Ready(None) => {
@@ -339,6 +343,7 @@ struct Queue {
     msgs: Vec<QueueMsg>,
     gas_cost: Gas,
     gas_cap: Gas,
+    transaction_start_time: Option<Instant>,
 }
 
 impl Queue {
@@ -347,11 +352,16 @@ impl Queue {
             msgs: vec![],
             gas_cost: Gas::default(),
             gas_cap,
+            transaction_start_time: None,
         }
     }
 
     #[instrument(skip(handle_error))]
-    pub fn push_or<F>(&mut self, msg: QueueMsg, handle_error: F) -> Option<nonempty::Vec<QueueMsg>>
+    pub fn push_or<F>(
+        &mut self,
+        msg: QueueMsg,
+        handle_error: F,
+    ) -> Option<(nonempty::Vec<QueueMsg>, Option<Instant>)>
     where
         F: FnOnce(QueueMsg, Error),
     {
@@ -365,6 +375,11 @@ impl Queue {
 
             return None;
         }
+
+        self.transaction_start_time = match self.transaction_start_time {
+            Some(current) => Some(current.min(msg.created_at)),
+            None => Some(msg.created_at),
+        };
 
         match self
             .gas_cost
@@ -383,10 +398,16 @@ impl Queue {
             }
             // if gas cost = gas cap, pop all including the new message
             Some(gas_cost) if gas_cost == self.gas_cap => {
-                let mut results = self.pop_all().map(Vec::from).unwrap_or_default();
+                let mut results = self
+                    .pop_all()
+                    .map(|(msgs, _)| Vec::from(msgs))
+                    .unwrap_or_default();
                 results.push(msg);
 
-                Some(results.try_into().expect("must not be empty"))
+                Some((
+                    results.try_into().expect("must not be empty"),
+                    self.transaction_start_time,
+                ))
             }
             // if gas cost < gas cap, only push the new message
             Some(gas_cost) => {
@@ -398,9 +419,14 @@ impl Queue {
         }
     }
 
-    pub fn pop_all(&mut self) -> Option<nonempty::Vec<QueueMsg>> {
+    pub fn pop_all(&mut self) -> Option<(nonempty::Vec<QueueMsg>, Option<Instant>)> {
         self.gas_cost = 0;
-        std::mem::take(&mut self.msgs).try_into().ok()
+        let current_transaction_start_time = self.transaction_start_time;
+        self.transaction_start_time = None;
+        std::mem::take(&mut self.msgs)
+            .try_into()
+            .ok()
+            .map(|msgs| (msgs, current_transaction_start_time))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -497,7 +523,8 @@ mod tests {
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
-        let actual = msg_queue.next().await.unwrap();
+
+        let (actual, _) = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cap);
@@ -551,7 +578,7 @@ mod tests {
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
-        let actual = msg_queue.next().await.unwrap();
+        let (actual, _) = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cap);
@@ -639,7 +666,7 @@ mod tests {
             .collect();
 
         for _ in 0..((client_count * msg_count_per_client) as u64 * gas_cost) / gas_cap {
-            let actual = msg_queue.next().await.unwrap();
+            let (actual, _) = msg_queue.next().await.unwrap();
             assert_eq!(actual.as_ref().len() as u64, gas_cap / gas_cost);
         }
         for handle in handles {
@@ -780,7 +807,7 @@ mod tests {
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
-        let actual = msg_queue.next().await.unwrap();
+        let (actual, _) = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cap / 10);
@@ -835,14 +862,14 @@ mod tests {
             time::Duration::from_secs(3),
         );
         let handle = tokio::spawn(async move {
-            let actual = msg_queue.next().await.unwrap();
+            let (actual, _) = msg_queue.next().await.unwrap();
             assert_eq!(actual.as_ref().len(), 10);
             for msg in actual.as_ref() {
                 assert_eq!(msg.gas, gas_cost);
                 assert_eq!(msg.msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
             }
 
-            let actual = msg_queue.next().await.unwrap();
+            let (actual, _) = msg_queue.next().await.unwrap();
             assert_eq!(actual.as_ref().len(), 1);
             assert_eq!(actual.as_ref()[0].gas, gas_cost);
             assert_eq!(
@@ -963,7 +990,7 @@ mod tests {
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
-        let actual = msg_queue.next().await.unwrap();
+        let (actual, _) = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cost);
@@ -972,7 +999,7 @@ mod tests {
             "/cosmos.bank.v1beta1.MsgSend"
         );
 
-        let actual = msg_queue.next().await.unwrap();
+        let (actual, _) = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cost);

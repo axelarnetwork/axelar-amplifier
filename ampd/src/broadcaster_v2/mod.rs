@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::ops::Mul;
+use std::time::Instant;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -12,14 +13,13 @@ use report::{LoggableError, ResultCompatExt};
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
-use std::time::{Instant, Duration};
 use tracing::{error, info, instrument, warn};
-use crate::monitoring::MetricsMsg;
-use crate::monitoring::server::MetricsClient;
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::broadcaster::dec_coin::DecCoin;
+use crate::monitoring::server::MetricsClient;
+use crate::monitoring::MetricsMsg;
 use crate::{cosmos, tofnd};
 
 mod broadcaster;
@@ -78,7 +78,9 @@ pub enum Error {
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    Q: futures::Stream<Item = (nonempty::Vec<msg_queue::QueueMsg>, Option<Instant>)>
+        + Unpin
+        + Debug,
     S: tofnd::grpc::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
@@ -93,7 +95,9 @@ where
 impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient + Debug,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    Q: futures::Stream<Item = (nonempty::Vec<msg_queue::QueueMsg>, Option<Instant>)>
+        + Unpin
+        + Debug,
     S: tofnd::grpc::Multisig + Debug,
 {
     /// Runs the broadcaster task until the message queue is exhausted
@@ -115,16 +119,28 @@ where
     /// Note that individual transaction failures don't cause the task to return an error.
     #[instrument]
     pub async fn run(mut self) -> Result<()> {
-        while let Some(msgs) = self.msg_queue.next().await {
-            let start_time = Instant::now();
+        let chain_name = self.broadcaster.get_chain_name();
 
+        while let Some((msgs, transaction_start_time)) = self.msg_queue.next().await {
             let tx_hash = self
                 .broadcast(msgs.as_ref().iter().map(|msg| msg.msg.clone()))
                 .await
                 .inspect(|res| {
+                    // might need to change
+                    let status = if res.code == 0u32 {
+                        "success"
+                    } else {
+                        "failed"
+                    };
 
-                    if let Err(err) = self.metrics_client.record_metric(MetricsMsg::RecordTransactionDuration(start_time.elapsed())) {
-                        warn!( 
+                    if let Err(err) =
+                        self.metrics_client
+                            .record_metric(MetricsMsg::RecordTransactionDuration {
+                                duration: transaction_start_time.unwrap().elapsed(),
+                                chain: chain_name.clone(),
+                            })
+                    {
+                        warn!(
                             err = %err,
                             tx_hash = res.txhash,
                             msg_count = msgs.as_ref().len(),
@@ -132,15 +148,21 @@ where
                         );
                     }
 
-                    if let Err(err) = self.metrics_client.record_metric(MetricsMsg::IncTransactionsTotal) {
-                        warn!( 
+                    if let Err(err) =
+                        self.metrics_client
+                            .record_metric(MetricsMsg::IncTransactionsTotal {
+                                status: status.to_string(),
+                                chain: chain_name.clone(),
+                            })
+                    {
+                        warn!(
                             err = %err,
                             tx_hash = res.txhash,
                             msg_count = msgs.as_ref().len(),
                             "failed to record transaction total metrics for broadcastTask event",
                         );
                     }
-                    
+
                     info!(
                         tx_hash = res.txhash,
                         msg_count = msgs.as_ref().len(),
@@ -229,10 +251,8 @@ fn handle_tx_res(tx_hash: Result<String>, msgs: nonempty::Vec<msg_queue::QueueMs
 
 #[cfg(test)]
 mod tests {
-    use crate::monitoring::server::test_utils::{
-        test_dummy_server_setup, test_metrics_server_setup,
-    };
-    use reqwest::Url;
+    use std::time::{Duration, Instant};
+
     use axelar_wasm_std::assert_err_contains;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
@@ -241,16 +261,28 @@ mod tests {
     use error_stack::report;
     use mockall::Sequence;
     use prost::Message;
+    use reqwest::Url;
     use tokio::sync::oneshot;
     use tokio_stream::iter;
 
     use crate::broadcaster::dec_coin::DecCoin;
     use crate::broadcaster_v2::msg_queue::QueueMsg;
     use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
+    use crate::monitoring::server::test_utils::{
+        test_dummy_server_setup, test_metrics_server_setup,
+    };
     use crate::tofnd::error::Error as TofndError;
     use crate::tofnd::grpc::MockMultisig;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{cosmos, PREFIX};
+
+    fn make_batch(
+        msgs: Vec<QueueMsg>,
+    ) -> (axelar_wasm_std::nonempty::Vec<QueueMsg>, Option<Instant>) {
+        let batch: axelar_wasm_std::nonempty::Vec<QueueMsg> = msgs.try_into().unwrap();
+        let start_time = batch.as_ref().iter().map(|m| m.created_at).min();
+        (batch, start_time)
+    }
 
     fn dummy_msg() -> Any {
         Any {
@@ -294,12 +326,13 @@ mod tests {
                     msg: dummy_msg(),
                     gas: 50000,
                     tx_res_callback: tx,
+                    created_at: Instant::now(),
                 };
 
                 (rx, msg)
             })
             .unzip();
-        let msg_queue = iter(vec![queue_msgs.try_into().unwrap()]);
+        let msg_queue = iter(vec![make_batch(queue_msgs)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -345,7 +378,7 @@ mod tests {
                 })
             });
 
-         let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -386,10 +419,10 @@ mod tests {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![queue_msgs]);
+            created_at: Instant::now(),
+        }];
+
+        let msg_queue = iter(vec![make_batch(queue_msgs)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -436,7 +469,7 @@ mod tests {
                 })
             });
 
-         let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -470,10 +503,9 @@ mod tests {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![queue_msgs]);
+            created_at: Instant::now(),
+        }];
+        let msg_queue = iter(vec![make_batch(queue_msgs)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -506,7 +538,7 @@ mod tests {
                 })
             });
 
-         let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -541,17 +573,15 @@ mod tests {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx_1,
-        }]
-        .try_into()
-        .unwrap();
+            created_at: Instant::now(),
+        }];
         let batch_2 = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx_2,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![batch_1, batch_2]);
+            created_at: Instant::now(),
+        }];
+        let msg_queue = iter(vec![make_batch(batch_1), make_batch(batch_2)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -623,7 +653,7 @@ mod tests {
                 })
             });
 
-         let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -666,17 +696,15 @@ mod tests {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx_1,
-        }]
-        .try_into()
-        .unwrap();
+            created_at: Instant::now(),
+        }];
         let batch_2 = vec![QueueMsg {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx_2,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![batch_1, batch_2]);
+            created_at: Instant::now(),
+        }];
+        let msg_queue = iter(vec![make_batch(batch_1), make_batch(batch_2)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -749,7 +777,7 @@ mod tests {
                 })
             });
 
-         let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -796,10 +824,9 @@ mod tests {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![queue_msgs]);
+            created_at: Instant::now(),
+        }];
+        let msg_queue = iter(vec![make_batch(queue_msgs)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -855,7 +882,7 @@ mod tests {
                 })
             });
 
-         let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
@@ -881,7 +908,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn broadcaster_task_should_record_transaction_metrics() {
+    async fn broadcaster_task_should_record_transaction_metrics_successfully() {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -892,10 +919,9 @@ mod tests {
             msg: dummy_msg(),
             gas: 50000,
             tx_res_callback: tx,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![queue_msgs]);
+            created_at: Instant::now(),
+        }];
+        let msg_queue = iter(vec![make_batch(queue_msgs)]);
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -941,10 +967,9 @@ mod tests {
                 })
             });
 
-        
         let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
-    
+
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
@@ -964,7 +989,6 @@ mod tests {
             .unwrap();
         assert!(result.is_ok());
 
-        // Verify transaction result
         let (tx_hash, idx) = rx.await.unwrap().unwrap();
         assert_eq!(tx_hash, "tx_hash_success");
         assert_eq!(idx, 0);
@@ -976,9 +1000,19 @@ mod tests {
 
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains("ampd_transactions_total 1"));
-        assert!(metrics_text.contains("ampd_transaction_duration_seconds"));
-        
-    }
 
+        assert!(metrics_text.contains(&format!(
+            "ampd_transactions_total{{chain=\"{}\",status=\"success\"}} 1",
+            "test-chain-id"
+        )));
+        assert!(metrics_text.contains(&format!(
+            "ampd_transaction_duration_seconds_bucket{{chain=\"{}\"",
+            "test-chain-id"
+        )));
+        assert!(metrics_text.contains("ampd_transaction_duration_seconds_bucket"));
+        assert!(metrics_text.contains("ampd_transaction_duration_seconds_sum"));
+        assert!(metrics_text.contains("ampd_transaction_duration_seconds_count"));
+
+        cancel_token.cancel();
+    }
 }
