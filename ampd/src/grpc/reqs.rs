@@ -6,7 +6,7 @@ use ampd_proto::{
 };
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
-use error_stack::{ensure, report, Report, Result, ResultExt};
+use error_stack::{bail, ensure, report, Report, Result, ResultExt};
 use report::ResultCompatExt;
 use thiserror::Error;
 use tonic::Request;
@@ -100,8 +100,8 @@ fn validate_key_id(key_id: KeyId) -> Result<(nonempty::String, tofnd::Algorithm)
     let algorithm = match algorithm.try_into() {
         Ok(Algorithm::Ecdsa) => tofnd::Algorithm::Ecdsa,
         Ok(Algorithm::Ed25519) => tofnd::Algorithm::Ed25519,
-        _ => {
-            return Err(report!(Error::InvalidCryptoAlgorithm(algorithm)));
+        Ok(Algorithm::Unspecified) | Err(_) => {
+            bail!(Error::InvalidCryptoAlgorithm(algorithm));
         }
     };
 
