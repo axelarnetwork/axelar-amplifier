@@ -681,7 +681,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     execute_fn
         .sig
         .inputs
-        .push(parse_quote! {msg: impl Into<#new_msg_ident>});
+        .push(parse_quote! {msg: #new_msg_ident});
 
     let validate_fn = validate_external_contract_function(contract_names.clone());
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
@@ -689,7 +689,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
-            let (msg, info) = match msg.into() {
+            let (msg, info) = match msg {
                 #new_msg_ident::Relay{sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
