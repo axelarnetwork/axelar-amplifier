@@ -103,7 +103,7 @@ async fn instantiate_broadcaster(
     config: Config,
     pub_key: CosmosPublicKey,
 ) -> Result<
-    broadcaster_v2::ValidatedBroadcasterTask<
+    broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
         Pin<Box<broadcaster_v2::MsgQueue>>,
         MultisigClient,
@@ -148,7 +148,6 @@ async fn instantiate_broadcaster(
         .gas_adjustment(broadcast.gas_adjustment)
         .gas_price(broadcast.gas_price)
         .build()
-        .validate()
         .await
         .change_context(Error::Broadcaster)?;
 

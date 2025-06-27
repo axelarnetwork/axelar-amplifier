@@ -136,7 +136,6 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .gas_price(broadcast.gas_price)
         .tx_confirmer_client(tx_confirmer_client)
         .build()
-        .validate()
         .await
         .change_context(Error::Broadcaster)?;
 
@@ -185,7 +184,7 @@ struct App {
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     prometheus_monitor_server: monitor::Server,
     grpc_server: grpc::Server,
-    broadcaster_task: broadcaster_v2::ValidatedBroadcasterTask<
+    broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
         Pin<Box<MsgQueue>>,
         MultisigClient,
@@ -204,7 +203,7 @@ impl App {
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         prometheus_monitor_server: monitor::Server,
         grpc_server: grpc::Server,
-        broadcaster_task: broadcaster_v2::ValidatedBroadcasterTask<
+        broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,

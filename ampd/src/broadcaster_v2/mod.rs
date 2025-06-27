@@ -1,12 +1,11 @@
 use std::fmt::Debug;
-use std::ops::{DerefMut, Mul};
+use std::ops::Mul;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
 use cosmrs::{Any, Coin, Denom, Gas};
 use dec_coin::DecCoin;
-use deref_derive::{Deref, DerefMut};
 use error_stack::{ensure, report, ResultExt};
 use k256::sha2::{Digest, Sha256};
 use num_traits::cast;
@@ -87,6 +86,7 @@ pub enum Error {
 /// * `Q` - A Stream that yields batches of messages to be broadcast
 /// * `S` - A cryptographic signer that can sign transaction payloads
 #[derive(Debug, TypedBuilder)]
+#[builder(build_method(vis="", name=build_internal))]
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
@@ -103,13 +103,34 @@ where
     tx_confirmer_client: Option<confirmer::TxConfirmerClient>,
 }
 
-impl<T, Q, S> BroadcasterTask<T, Q, S>
+#[allow(dead_code, non_camel_case_types)]
+impl<
+        T,
+        Q,
+        S,
+        __tx_confirmer_client: ::typed_builder::Optional<Option<confirmer::TxConfirmerClient>>,
+    >
+    BroadcasterTaskBuilder<
+        T,
+        Q,
+        S,
+        (
+            (broadcaster::Broadcaster<T>,),
+            (Q,),
+            (S,),
+            (String,),
+            (f64,),
+            (DecCoin,),
+            __tx_confirmer_client,
+        ),
+    >
 where
-    T: cosmos::CosmosClient + Debug,
+    T: cosmos::CosmosClient,
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
-    S: tofnd::grpc::Multisig + Debug,
+    S: tofnd::grpc::Multisig,
 {
-    /// Validates the broadcaster task configuration by ensuring the account has sufficient balance.
+    /// Builds and then validates the broadcaster task configuration by ensuring the account
+    /// has sufficient balance.
     ///
     /// This method checks that the account associated with the broadcaster's address has
     /// a positive balance in the currency specified by the gas price denomination. This
@@ -117,14 +138,16 @@ where
     /// attempting to process any messages.
     ///
     /// # Returns
-    /// A Result containing a ValidatedBroadcasterTask if validation succeeds, or an error if:
+    /// A Result containing a BroadcasterTask if validation succeeds, or an error if:
     /// - The balance query fails (Error::BalanceQuery)
     /// - The account has insufficient balance (Error::InsufficientBalance)
-    pub async fn validate(mut self) -> Result<ValidatedBroadcasterTask<T, Q, S>> {
-        let denom: Denom = self.gas_price.denom.clone().into();
-        let address = self.broadcaster.address.clone();
+    pub async fn build(self) -> Result<BroadcasterTask<T, Q, S>> {
+        let mut task = self.build_internal();
 
-        let balance = cosmos::balance(&mut self.broadcaster.client, &address, &denom)
+        let denom: Denom = task.gas_price.denom.clone().into();
+        let address = task.broadcaster.address.clone();
+
+        let balance = cosmos::balance(&mut task.broadcaster.client, &address, &denom)
             .await
             .change_context(Error::BalanceQuery)?;
         ensure!(
@@ -132,21 +155,11 @@ where
             Error::InsufficientBalance { address, balance }
         );
 
-        Ok(ValidatedBroadcasterTask { inner: self })
+        Ok(task)
     }
 }
 
-#[derive(Debug, Deref, DerefMut)]
-pub struct ValidatedBroadcasterTask<T, Q, S>
-where
-    T: cosmos::CosmosClient + Debug,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
-    S: tofnd::grpc::Multisig + Debug,
-{
-    inner: BroadcasterTask<T, Q, S>,
-}
-
-impl<T, Q, S> ValidatedBroadcasterTask<T, Q, S>
+impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient + Debug,
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
@@ -229,9 +242,7 @@ where
         let fee = self.estimate_fee(batch_req.clone()).await?;
         let pub_key = self.broadcaster.pub_key;
 
-        let inner = self.deref_mut();
-        inner
-            .broadcaster
+        self.broadcaster
             .broadcast(vec![batch_req], fee, |sign_doc| {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_doc);
@@ -242,8 +253,8 @@ where
                     .try_into()
                     .expect("hash size must be 32");
 
-                inner.signer.sign(
-                    &inner.key_id,
+                self.signer.sign(
+                    &self.key_id,
                     sign_digest.into(),
                     pub_key.into(),
                     tofnd::Algorithm::Ecdsa,
@@ -414,7 +425,7 @@ mod tests {
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build();
 
-        let result = broadcaster_task.validate().await;
+        let result = broadcaster_task.await;
         assert!(result.is_err());
         assert_err_contains!(result, Error, Error::BalanceQuery);
     }
@@ -470,7 +481,7 @@ mod tests {
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build();
 
-        let result = broadcaster_task.validate().await;
+        let result = broadcaster_task.await;
         assert_err_contains!(result, Error, Error::InsufficientBalance { .. });
     }
 
@@ -569,7 +580,6 @@ mod tests {
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .tx_confirmer_client(tx)
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -682,7 +692,6 @@ mod tests {
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -789,7 +798,6 @@ mod tests {
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -875,7 +883,6 @@ mod tests {
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1008,7 +1015,6 @@ mod tests {
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1150,7 +1156,6 @@ mod tests {
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1272,7 +1277,6 @@ mod tests {
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, expected_denom).unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1379,7 +1383,6 @@ mod tests {
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1475,7 +1478,6 @@ mod tests {
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1549,7 +1551,6 @@ mod tests {
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1629,7 +1630,6 @@ mod tests {
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
@@ -1708,7 +1708,6 @@ mod tests {
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
             .build()
-            .validate()
             .await
             .unwrap();
 
