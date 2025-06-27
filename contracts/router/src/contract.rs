@@ -5,7 +5,7 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use error_stack::ResultExt;
-use msgs_derive::external_execute;
+use msgs_derive::ensure_permissions;
 use router_api::error::Error;
 
 use crate::events::RouterInstantiated;
