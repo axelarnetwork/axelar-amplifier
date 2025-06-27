@@ -347,7 +347,15 @@ fn build_verify_external_executor_function(
         let allowed_contracts: Vec<_> = permission
             .external
             .iter()
-            .map(|path| syn::LitStr::new(&path.get_ident().expect("error parsing proxy contract's name from permissions").to_string(), Span::call_site()))
+            .map(|path| {
+                syn::LitStr::new(
+                    &path
+                        .get_ident()
+                        .expect("error parsing proxy contract's name from permissions")
+                        .to_string(),
+                    Span::call_site(),
+                )
+            })
             .collect();
 
         quote! {
@@ -382,7 +390,14 @@ fn build_full_check_function(
         .iter()
         .flat_map(|permission| permission.specific.iter())
         .unique()
-        .sorted_by(|a, b| sort_permissions(a.get_ident().expect("error parsing specific permission identifier"), b.get_ident().expect("error parsing specific permission identifier")))
+        .sorted_by(|a, b| {
+            sort_permissions(
+                a.get_ident()
+                    .expect("error parsing specific permission identifier"),
+                b.get_ident()
+                    .expect("error parsing specific permission identifier"),
+            )
+        })
         .collect::<Vec<_>>();
 
     let comments = quote! {
@@ -537,24 +552,14 @@ impl Parse for AllPermissions {
             relay_permissions: ContractPermission(
                 punct
                     .iter()
-                    .filter_map(|e| {
-                        parse_permissions_list(
-                            e.clone(),
-                            String::from("proxy"),
-                        )
-                    })
+                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("proxy")))
                     .flatten()
                     .collect(),
             ),
             specific_permissions: ContractPermission(
                 punct
                     .iter()
-                    .filter_map(|e| {
-                        parse_permissions_list(
-                            e.clone(),
-                            String::from("direct"),
-                        )
-                    })
+                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("direct")))
                     .flatten()
                     .collect(),
             ),
@@ -581,6 +586,8 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
         .collect();
 
     TokenStream::from(quote! {
+        // this function can be called with a lot of arguments, so we suppress the warning
+        #[allow(clippy::too_many_arguments)]
         fn validate_external_contract<#(#fs),*, #(#cs),*>(
                 storage: &dyn cosmwasm_std::Storage,
                 contract_addr: Addr,
@@ -652,10 +659,19 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
         .collect();
 
     // Replace ExecuteMsg with ExecuteMsgFromProxy
-    let original_msg = execute_fn.sig.inputs.pop().expect("error parsing execute endpoint's last argument").into_value();
+    let original_msg = execute_fn
+        .sig
+        .inputs
+        .pop()
+        .expect("error parsing execute endpoint's last argument")
+        .into_value();
     let original_msg_ident = match original_msg {
         syn::FnArg::Typed(typ) => match *typ.ty {
-            syn::Type::Path(p) => p.path.get_ident().expect("error parsing execute message type").clone(),
+            syn::Type::Path(p) => p
+                .path
+                .get_ident()
+                .expect("error parsing execute message type")
+                .clone(),
             _ => panic!("problem parsing final argument of 'execute'"),
         },
         _ => panic!("last argument of 'execute' must be a typed execute message"),

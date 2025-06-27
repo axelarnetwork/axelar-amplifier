@@ -19,7 +19,8 @@ impl RouterContract {
         axelarnet: Addr,
         coordinator: Addr,
     ) -> Self {
-        let code: ContractWrapper<router_api::msg::ExecuteMsgFromProxy, _, _, _, _, _, _, _> = ContractWrapper::new_with_empty(execute, instantiate, query);
+        let code: ContractWrapper<router_api::msg::ExecuteMsgFromProxy, _, _, _, _, _, _, _> =
+            ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app

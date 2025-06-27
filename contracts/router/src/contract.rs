@@ -1210,7 +1210,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // can route from the chain
         let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
@@ -1271,7 +1272,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // can't route from frozen chain
         let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
@@ -1316,7 +1318,8 @@ mod test {
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let _ = execute(
             deps.as_mut(),
@@ -1325,7 +1328,8 @@ mod test {
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let nonce = &mut 0;
         // can't route to frozen chain
@@ -1377,7 +1381,8 @@ mod test {
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let _ = execute(
             deps.as_mut(),
@@ -1386,7 +1391,8 @@ mod test {
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let nonce = &mut 0;
         // can't route to frozen chain
@@ -1452,7 +1458,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // unfreeze outgoing
         let _ = execute(
@@ -1462,7 +1469,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // can route to the chain now
         let nonce = &mut 0;
@@ -1516,7 +1524,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // unfreeze incoming
         let _ = execute(
@@ -1526,7 +1535,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         // can route to the chain now
         let nonce = &mut 0;
@@ -1580,7 +1590,8 @@ mod test {
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::None)]),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let nonce = &mut 0;
         let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
@@ -1641,7 +1652,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
-        ).unwrap();
+        )
+        .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1657,7 +1669,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
-        ).unwrap();
+        )
+        .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1727,7 +1740,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(res.events.len() == 1);
         assert!(res.events.contains(&events::RoutingDisabled.into()));
@@ -1738,7 +1752,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {},
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(res.events.is_empty());
 
@@ -1747,7 +1762,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(res.events.len() == 1);
         assert!(res.events.contains(&events::RoutingEnabled.into()));
@@ -1758,7 +1774,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {},
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(res.events.is_empty());
     }

@@ -5,7 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockStorage};
 use cosmwasm_std::{Addr, DepsMut, MessageInfo, Storage};
 use error_stack::{report, Report};
-use msgs_derive::{EnsurePermissions, external_execute};
+use msgs_derive::{external_execute, EnsurePermissions};
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
@@ -61,23 +61,29 @@ pub enum TestMsg3 {
     Proxy4,
 }
 
-pub fn proxy_permission(proxy_name: &str) -> impl FnOnce(&dyn Storage) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error> + '_ {
-    move |_| {
-        error_stack::Result::Ok(MockApi::default().addr_make(proxy_name))
-    }
+pub fn proxy_permission(
+    proxy_name: &str,
+) -> impl FnOnce(&dyn Storage) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error>
+       + '_ {
+    move |_| error_stack::Result::Ok(MockApi::default().addr_make(proxy_name))
 }
 
-pub fn specific_permission(specific_name: &str) -> impl FnOnce(&dyn Storage, &TestMsg3) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error> + '_ {
-    move |_, _| {
-        error_stack::Result::Ok(MockApi::default().addr_make(specific_name))
-    }
+pub fn specific_permission(
+    specific_name: &str,
+) -> impl FnOnce(
+    &dyn Storage,
+    &TestMsg3,
+) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error>
+       + '_ {
+    move |_, _| error_stack::Result::Ok(MockApi::default().addr_make(specific_name))
 }
 
 #[external_execute(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1")))]
 pub fn execute(
     deps: DepsMut,
     info: MessageInfo,
-    msg: TestMsg3) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
+    msg: TestMsg3,
+) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
     Ok(())
 }
 
@@ -372,34 +378,342 @@ fn ensure_proxy_permissions() {
     permission_control::set_admin(&mut deps.storage, &admin).unwrap();
     permission_control::set_governance(&mut deps.storage, &governance).unwrap();
 
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: no_privilege.clone(), msg: TestMsg3::Any}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: admin.clone(), msg: TestMsg3::Any}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Any}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway1_addr.clone(), msg: TestMsg3::Any}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway2_addr.clone(), msg: TestMsg3::Any}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway3_addr.clone(), msg: TestMsg3::Any}).is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: no_privilege.clone(),
+            msg: TestMsg3::Any
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: admin.clone(),
+            msg: TestMsg3::Any
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: governance.clone(),
+            msg: TestMsg3::Any
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: gateway1_addr.clone(),
+            msg: TestMsg3::Any
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: gateway2_addr.clone(),
+            msg: TestMsg3::Any
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: gateway3_addr.clone(),
+            msg: TestMsg3::Any
+        }
+    )
+    .is_ok());
 
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: no_privilege.clone(), msg: TestMsg3::Proxy1}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: admin.clone(), msg: TestMsg3::Proxy1}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy1}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway1_addr.clone(), msg: TestMsg3::Proxy1}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway2_addr.clone(), msg: TestMsg3::Proxy1}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway3_addr.clone(), msg: TestMsg3::Proxy1}).is_err());
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: no_privilege.clone(),
+                msg: TestMsg3::Proxy1
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: admin.clone(),
+            msg: TestMsg3::Proxy1
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: governance.clone(),
+            msg: TestMsg3::Proxy1
+        }
+    )
+    .is_ok());
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: gateway1_addr.clone(),
+                msg: TestMsg3::Proxy1
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: gateway2_addr.clone(),
+                msg: TestMsg3::Proxy1
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: gateway3_addr.clone(),
+                msg: TestMsg3::Proxy1
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::PermissionDenied { .. }
+    ));
 
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: no_privilege.clone(), msg: TestMsg3::Proxy2}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: admin.clone(), msg: TestMsg3::Proxy2}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy2}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway1_addr.clone(), msg: TestMsg3::Proxy2}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway2_addr.clone(), msg: TestMsg3::Proxy2}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: gateway3_addr.clone(), msg: TestMsg3::Proxy2}).is_err());
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: no_privilege.clone(),
+                msg: TestMsg3::Proxy2
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::AddressNotWhitelisted { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: admin.clone(),
+                msg: TestMsg3::Proxy2
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::AddressNotWhitelisted { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: governance.clone(),
+                msg: TestMsg3::Proxy2
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::AddressNotWhitelisted { .. }
+    ));
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: gateway1_addr.clone(),
+            msg: TestMsg3::Proxy2
+        }
+    )
+    .is_ok());
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: gateway2_addr.clone(),
+                msg: TestMsg3::Proxy2
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::AddressNotWhitelisted { .. }
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway1_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: gateway3_addr.clone(),
+                msg: TestMsg3::Proxy2
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::AddressNotWhitelisted { .. }
+    ));
 
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy3}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway2_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy3}).is_err());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway3_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy3}).is_err());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: governance.clone(),
+            msg: TestMsg3::Proxy3
+        }
+    )
+    .is_ok());
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway2_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: governance.clone(),
+                msg: TestMsg3::Proxy3
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::Unauthorized
+    ));
+    assert!(matches!(
+        execute(
+            deps.as_mut(),
+            MessageInfo {
+                sender: gateway3_addr.clone(),
+                funds: vec![]
+            },
+            TestMsg3FromProxy::Relay {
+                sender: governance.clone(),
+                msg: TestMsg3::Proxy3
+            }
+        )
+        .unwrap_err()
+        .current_context(),
+        permission_control::Error::Unauthorized
+    ));
 
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway1_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy4}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway2_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy4}).is_ok());
-    assert!(execute(deps.as_mut(), MessageInfo { sender: gateway3_addr.clone(), funds: vec![]}, TestMsg3FromProxy::Relay{sender: governance.clone(), msg: TestMsg3::Proxy4}).is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway1_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: governance.clone(),
+            msg: TestMsg3::Proxy4
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway2_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: governance.clone(),
+            msg: TestMsg3::Proxy4
+        }
+    )
+    .is_ok());
+    assert!(execute(
+        deps.as_mut(),
+        MessageInfo {
+            sender: gateway3_addr.clone(),
+            funds: vec![]
+        },
+        TestMsg3FromProxy::Relay {
+            sender: governance.clone(),
+            msg: TestMsg3::Proxy4
+        }
+    )
+    .is_ok());
 }
 
 #[derive(Debug)]
