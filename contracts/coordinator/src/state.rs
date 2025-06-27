@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Order, StdError, Storage};
 use cw_storage_plus::{
     index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
 };
-use error_stack::{report, Result, ResultExt};
+use error_stack::{bail, report, Result, ResultExt};
 use router_api::ChainName;
 
 use crate::msg::ChainContractsResponse;
@@ -195,13 +195,10 @@ pub fn validate_deployment_name_availability(
     storage: &dyn Storage,
     deployment_name: nonempty::String,
 ) -> Result<(), Error> {
-    let deployments = DEPLOYED_CHAINS
-        .may_load(storage, deployment_name.clone().to_string())
-        .change_context(Error::StateParseFailed)?;
-
-    match deployments {
-        Some(_) => Err(report!(Error::DeploymentNameInUse(deployment_name))),
-        None => Ok(()),
+    if DEPLOYED_CHAINS.has(storage, deployment_name.clone().to_string()) {
+        bail!(Error::DeploymentNameInUse(deployment_name))
+    } else {
+        Ok(())
     }
 }
 
