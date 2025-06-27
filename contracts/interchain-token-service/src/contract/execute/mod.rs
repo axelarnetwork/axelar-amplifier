@@ -6,7 +6,7 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::msg::SupplyModifier;
-use crate::payload_translation::TranslationContract;
+use interchain_token_api::payload_translation::TranslationContract;
 use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{
     msg, state
@@ -609,7 +609,8 @@ mod tests {
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config, TokenSupply};
-    use crate::{msg, payload_translation};
+    use crate::msg;
+    use interchain_token_api::payload_translation::TranslationContract;
     use interchain_token_api::{DeployInterchainToken, InterchainTransfer, LinkToken, Message, RegisterTokenMetadata, TokenId,HubMessage};
 
     const SOLANA: &str = "solana";
@@ -2155,12 +2156,12 @@ mod tests {
                 }
             },
             WasmQuery::Smart { contract_addr, msg } if contract_addr == MockApi::default().addr_make("translation").as_str() => {
-                let msg = from_json::<payload_translation::TranslationQueryMsg>(msg).unwrap();
+                let msg = from_json::<interchain_token_api::payload_translation::TranslationQueryMsg>(msg).unwrap();
                 match msg {
-                    payload_translation::TranslationQueryMsg::FromBytes { payload } => {
+                    interchain_token_api::payload_translation::TranslationQueryMsg::FromBytes { payload } => {
                         Ok(to_json_binary(&abi_translation_contract::abi::hub_message_abi_decode(&payload).unwrap()).into()).into()
                     },
-                    payload_translation::TranslationQueryMsg::ToBytes { message} => {
+                    interchain_token_api::payload_translation::TranslationQueryMsg::ToBytes { message} => {
                         Ok(to_json_binary(&abi_translation_contract::abi::hub_message_abi_encode(message)).into()).into()
                     }
                     _ => panic!("unsupported query"),

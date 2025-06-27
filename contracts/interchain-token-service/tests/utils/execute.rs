@@ -11,7 +11,7 @@ use cosmwasm_std::{
     SystemResult, WasmQuery,
 };
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
-use interchain_token_service::payload_translation::TranslationQueryMsg;
+use interchain_token_api::payload_translation::TranslationQueryMsg;
 use interchain_token_service::shared::NumBits;
 use interchain_token_service::{contract};
 use interchain_token_api::{HubMessage, TokenId};

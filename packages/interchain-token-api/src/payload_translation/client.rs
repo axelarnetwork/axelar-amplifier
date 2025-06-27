@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use error_stack::{Result, ResultExt};
 
 use super::msg::TranslationQueryMsg;
-use interchain_token_api::HubMessage;
+use crate::HubMessage;
 
 #[derive(Clone)]
 pub struct TranslationContract<'a, T = Empty> {

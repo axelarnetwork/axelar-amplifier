@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-use interchain_token_service::payload_translation::TranslationQueryMsg;
+use interchain_token_api::payload_translation::TranslationQueryMsg;
 
 use crate::error::ContractError;
 
