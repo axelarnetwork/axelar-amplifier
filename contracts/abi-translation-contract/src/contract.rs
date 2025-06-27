@@ -36,7 +36,7 @@ mod tests {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{from_json, Addr, HexBinary};
-    use interchain_token_service::{
+    use interchain_token_api::{
         DeployInterchainToken, HubMessage, InterchainTransfer, Message, TokenId,
     };
     use router_api::ChainNameRaw;

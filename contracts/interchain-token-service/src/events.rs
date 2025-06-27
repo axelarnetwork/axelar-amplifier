@@ -2,8 +2,7 @@ use axelar_wasm_std::{nonempty, IntoEvent};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::msg::SupplyModifier;
-use crate::primitives::Message;
-use crate::TokenId;
+use interchain_token_api::{TokenId, Message};
 
 #[derive(IntoEvent)]
 pub enum Event {
@@ -39,7 +38,8 @@ mod test {
     use router_api::CrossChainId;
 
     use crate::events::Event;
-    use crate::{DeployInterchainToken, InterchainTransfer, Message, TokenId};
+
+    use interchain_token_api::{DeployInterchainToken, InterchainTransfer, Message, TokenId};
 
     #[test]
     fn message_received_with_all_attributes() {

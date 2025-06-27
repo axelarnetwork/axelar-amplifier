@@ -6,7 +6,8 @@ use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
 use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{msg, TokenId};
+use interchain_token_service::msg;
+use interchain_token_api::TokenId;
 use router_api::{Address, ChainNameRaw};
 
 pub fn query_its_chain(

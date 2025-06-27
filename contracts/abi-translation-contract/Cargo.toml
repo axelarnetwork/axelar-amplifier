@@ -24,6 +24,7 @@ thiserror = "1.0"
 # Axelar dependencies
 axelar-wasm-std = {workspace = true}
 interchain-token-service = { workspace = true}
+interchain-token-api = {workspace = true }
 router-api = { workspace = true }
 
 # ABI encoding dependencies

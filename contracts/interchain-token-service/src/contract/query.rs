@@ -4,7 +4,8 @@ use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::ChainNameRaw;
 
-use crate::{msg, state, TokenId};
+use crate::{msg, state};
+use interchain_token_api::TokenId;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {

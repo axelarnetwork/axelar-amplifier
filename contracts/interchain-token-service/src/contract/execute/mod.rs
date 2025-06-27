@@ -7,12 +7,12 @@ use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use crate::events::Event;
 use crate::msg::SupplyModifier;
 use crate::payload_translation::TranslationContract;
-use crate::primitives::HubMessage;
 use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{
-    msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId,
+    msg, state
 };
+
+use interchain_token_api::{DeployInterchainToken, InterchainTransfer, LinkToken, Message, RegisterTokenMetadata, TokenId,HubMessage};
 
 mod interceptors;
 
@@ -609,10 +609,8 @@ mod tests {
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config, TokenSupply};
-    use crate::{
-        msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId,
-    };
+    use crate::msg;
+    use interchain_token_api::{DeployInterchainToken, InterchainTransfer, LinkToken, Message, RegisterTokenMetadata, TokenId,HubMessage};
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";

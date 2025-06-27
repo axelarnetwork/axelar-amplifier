@@ -6,7 +6,7 @@ use router_api::ChainNameRaw;
 use super::Error;
 use crate::shared::NumBits;
 use crate::state::{self, TokenConfig, TokenDeploymentType, TokenInstance};
-use crate::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId};
+use interchain_token_api::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId};
 
 pub fn subtract_supply_amount(
     storage: &mut dyn Storage,
@@ -338,7 +338,8 @@ mod test {
     use crate::contract::execute::interceptors;
     use crate::msg::TruncationConfig;
     use crate::state::{self, TokenDeploymentType, TokenInstance, ChainConfig};
-    use crate::{msg, DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata};
+    use crate::msg;
+    use interchain_token_api::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata};
     use cosmwasm_std::testing::MockApi;
 
     #[test]

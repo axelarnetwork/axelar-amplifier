@@ -7,7 +7,7 @@ use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
 };
-use interchain_token_service::TokenId;
+use interchain_token_api::TokenId;
 use router_api::{Address, ChainNameRaw};
 
 mod utils;

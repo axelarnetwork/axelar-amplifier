@@ -9,7 +9,7 @@ use router_api::{Address, ChainNameRaw};
 
 pub use crate::contract::migrations::MigrateMsg;
 use crate::shared::NumBits;
-use crate::TokenId;
+use interchain_token_api::TokenId;
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 

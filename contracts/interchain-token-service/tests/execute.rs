@@ -8,10 +8,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
-use interchain_token_service::{
-    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-    RegisterTokenMetadata, TokenId,
-};
+use interchain_token_api::{DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message, RegisterTokenMetadata, TokenId};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};

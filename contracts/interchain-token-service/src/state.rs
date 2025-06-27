@@ -9,7 +9,8 @@ use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
 
 use crate::shared::NumBits;
-use crate::{msg, RegisterTokenMetadata, TokenId};
+use crate::{msg};
+use interchain_token_api::{RegisterTokenMetadata, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
