@@ -189,7 +189,6 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{SocketAddr, SocketAddrV4, TcpListener};
     use std::time::Duration;
 
     use assert_ok::assert_ok;
@@ -210,7 +209,6 @@ mod tests {
     use crate::monitoring::server::test_utils::{
         test_dummy_server_setup, test_metrics_server_setup,
     };
-    use crate::monitoring::server::Server;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
     fn setup_event_config(
