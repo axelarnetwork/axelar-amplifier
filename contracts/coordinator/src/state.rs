@@ -215,6 +215,16 @@ pub fn save_deployed_contracts(
         .change_context(Error::PersistingState)
 }
 
+pub fn deployed_contracts(
+    storage: &dyn Storage,
+    deployment_name: nonempty::String,
+) -> Result<ChainContracts, Error> {
+    DEPLOYED_CHAINS
+        .may_load(storage, deployment_name.to_string())
+        .change_context(Error::StateParseFailed)?
+        .ok_or(report!(Error::DeploymentNameInUse(deployment_name)))
+}
+
 // Legacy prover storage - maintained for backward compatibility
 #[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {

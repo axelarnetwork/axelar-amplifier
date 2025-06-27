@@ -6,7 +6,7 @@ use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Empty, WasmMsg};
 use error_stack::{report, Result};
 
 use crate::error::Error;
-use crate::msg::{ExecuteMsg, ExecuteMsgFromContract};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy};
 use crate::primitives::{Address, ChainName};
 use crate::Message;
 
@@ -26,7 +26,7 @@ impl<T> Router<T> {
     fn execute(&self, msg: &ExecuteMsg) -> Result<CosmosMsg<T>, Error> {
         Ok(WasmMsg::Execute {
             contract_addr: self.address.to_string(),
-            msg: to_json_binary(&ExecuteMsgFromContract::Direct(msg.clone()))
+            msg: to_json_binary(&ExecuteMsgFromProxy::Direct(msg.clone()))
                 .map_err(|_| report!(Error::Serialize))?,
             funds: vec![],
         }
@@ -46,7 +46,7 @@ impl<T> Router<T> {
     ) -> Result<CosmosMsg<T>, Error> {
         Ok(WasmMsg::Execute {
             contract_addr: self.address.to_string(),
-            msg: to_json_binary(&ExecuteMsgFromContract::Relay {
+            msg: to_json_binary(&ExecuteMsgFromProxy::Relay {
                 sender: original_sender,
                 msg: msg.clone(),
             })
