@@ -54,9 +54,9 @@ strum = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+abi-translation-contract = { workspace = true }
 assert_ok = { workspace = true }
 goldie = { workspace = true }
-abi-translation-contract = { workspace = true }
 
 [lints]
 workspace = true
