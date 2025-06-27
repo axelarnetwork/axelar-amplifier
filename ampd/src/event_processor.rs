@@ -189,7 +189,6 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{SocketAddr, SocketAddrV4, TcpListener};
     use std::time::Duration;
 
     use assert_ok::assert_ok;
