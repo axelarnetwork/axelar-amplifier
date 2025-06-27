@@ -609,7 +609,7 @@ mod tests {
     };
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config, TokenSupply};
-    use crate::msg;
+    use crate::{msg, payload_translation};
     use interchain_token_api::{DeployInterchainToken, InterchainTransfer, LinkToken, Message, RegisterTokenMetadata, TokenId,HubMessage};
 
     const SOLANA: &str = "solana";
@@ -2150,6 +2150,18 @@ mod tests {
                 match msg {
                     QueryMsg::ChainName {} => {
                         Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                    }
+                    _ => panic!("unsupported query"),
+                }
+            },
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == MockApi::default().addr_make("translation").as_str() => {
+                let msg = from_json::<payload_translation::TranslationQueryMsg>(msg).unwrap();
+                match msg {
+                    payload_translation::TranslationQueryMsg::FromBytes { payload } => {
+                        Ok(to_json_binary(&abi_translation_contract::abi::hub_message_abi_decode(&payload).unwrap()).into()).into()
+                    },
+                    payload_translation::TranslationQueryMsg::ToBytes { message} => {
+                        Ok(to_json_binary(&abi_translation_contract::abi::hub_message_abi_encode(message)).into()).into()
                     }
                     _ => panic!("unsupported query"),
                 }
