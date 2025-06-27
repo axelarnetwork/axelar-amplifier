@@ -40,7 +40,7 @@ pub enum Error {
     StateRemoveFailed,
 
     #[error("deployment name {0} is in use")]
-    DeploymentName(nonempty::String),
+    DeploymentNameInUse(nonempty::String),
 }
 
 #[cw_serde]
@@ -203,7 +203,7 @@ pub fn validate_deployment_name_availability(
         .change_context(Error::StateParseFailed)?;
 
     match deployments {
-        Some(_) => Err(report!(Error::DeploymentName(deployment_name))),
+        Some(_) => Err(report!(Error::DeploymentNameInUse(deployment_name))),
         None => Ok(()),
     }
 }
@@ -216,17 +216,6 @@ pub fn save_deployed_contracts(
     DEPLOYED_CHAINS
         .save(storage, deployment_name.to_string(), &contracts)
         .change_context(Error::PersistingState)
-}
-
-#[allow(dead_code)]
-pub fn deployed_contracts(
-    storage: &dyn Storage,
-    deployment_name: nonempty::String,
-) -> Result<ChainContracts, Error> {
-    DEPLOYED_CHAINS
-        .may_load(storage, deployment_name.to_string())
-        .change_context(Error::StateParseFailed)?
-        .ok_or(report!(Error::DeploymentName(deployment_name)))
 }
 
 // Legacy prover storage - maintained for backward compatibility
