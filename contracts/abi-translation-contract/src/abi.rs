@@ -1,13 +1,10 @@
 use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
-use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{bail, ensure, report, Report, ResultExt};
+use interchain_token_api::{HubMessage, Message, TokenId};
 use router_api::ChainNameRaw;
-
-use crate::primitives::{HubMessage, Message};
-use crate::{primitives, TokenId};
-
 // ITS Message payload types
 // Reference: https://github.com/axelarnetwork/interchain-token-service/blob/v1.2.4/DESIGN.md#interchain-communication-spec
 // `abi_encode_params` is used to encode the struct fields as ABI params as required by the spec.
@@ -85,209 +82,205 @@ pub enum Error {
     AbiDecodeFailed(#[from] alloy_sol_types::Error),
 }
 
-impl Message {
-    pub fn abi_encode(self) -> HexBinary {
-        match self {
-            Message::InterchainTransfer(primitives::InterchainTransfer {
-                token_id,
-                source_address,
-                destination_address,
-                amount,
-                data,
-            }) => InterchainTransfer {
-                messageType: MessageType::InterchainTransfer.into(),
-                tokenId: FixedBytes::<32>::new(token_id.into()),
-                sourceAddress: Vec::<u8>::from(source_address).into(),
-                destinationAddress: Vec::<u8>::from(destination_address).into(),
-                amount: U256::from_le_bytes(amount.to_le_bytes()),
-                data: into_vec(data).into(),
-            }
-            .abi_encode_params(),
-            Message::DeployInterchainToken(primitives::DeployInterchainToken {
-                token_id,
-                name,
-                symbol,
-                decimals,
-                minter,
-            }) => DeployInterchainToken {
-                messageType: MessageType::DeployInterchainToken.into(),
-                tokenId: FixedBytes::<32>::new(token_id.into()),
-                name: name.into(),
-                symbol: symbol.into(),
-                decimals,
-                minter: into_vec(minter).into(),
-            }
-            .abi_encode_params(),
-            Message::LinkToken(primitives::LinkToken {
-                token_id,
-                token_manager_type,
-                source_token_address,
-                destination_token_address,
-                params,
-            }) => LinkToken {
-                messageType: MessageType::LinkToken.into(),
-                tokenId: FixedBytes::<32>::new(token_id.into()),
-                destinationToken: destination_token_address.to_vec().into(),
-                sourceToken: source_token_address.to_vec().into(),
-                tokenManagerType: U256::from_le_bytes(token_manager_type.to_le_bytes()),
-                params: into_vec(params).into(),
-            }
-            .abi_encode_params(),
+pub fn message_abi_encode(message: Message) -> HexBinary {
+    match message {
+        Message::InterchainTransfer(interchain_token_api::InterchainTransfer {
+            token_id,
+            source_address,
+            destination_address,
+            amount,
+            data,
+        }) => InterchainTransfer {
+            messageType: MessageType::InterchainTransfer.into(),
+            tokenId: FixedBytes::<32>::new(token_id.into()),
+            sourceAddress: Vec::<u8>::from(source_address).into(),
+            destinationAddress: Vec::<u8>::from(destination_address).into(),
+            amount: U256::from_le_bytes(amount.to_le_bytes()),
+            data: into_vec(data).into(),
         }
-        .into()
+        .abi_encode_params(),
+        Message::DeployInterchainToken(interchain_token_api::DeployInterchainToken {
+            token_id,
+            name,
+            symbol,
+            decimals,
+            minter,
+        }) => DeployInterchainToken {
+            messageType: MessageType::DeployInterchainToken.into(),
+            tokenId: FixedBytes::<32>::new(token_id.into()),
+            name: name.into(),
+            symbol: symbol.into(),
+            decimals,
+            minter: into_vec(minter).into(),
+        }
+        .abi_encode_params(),
+        Message::LinkToken(interchain_token_api::LinkToken {
+            token_id,
+            token_manager_type,
+            source_token_address,
+            destination_token_address,
+            params,
+        }) => LinkToken {
+            messageType: MessageType::LinkToken.into(),
+            tokenId: FixedBytes::<32>::new(token_id.into()),
+            destinationToken: destination_token_address.to_vec().into(),
+            sourceToken: source_token_address.to_vec().into(),
+            tokenManagerType: U256::from_le_bytes(token_manager_type.to_le_bytes()),
+            params: into_vec(params).into(),
+        }
+        .abi_encode_params(),
     }
+    .into()
+}
 
-    pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
+pub fn message_abi_decode(payload: &[u8]) -> Result<Message, Report<Error>> {
+    ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
 
-        let message_type = MessageType::abi_decode(&payload[0..32], true)
-            .change_context(Error::InvalidMessageType)?;
+    let message_type =
+        MessageType::abi_decode(&payload[0..32], true).change_context(Error::InvalidMessageType)?;
 
-        let message = match message_type {
-            MessageType::InterchainTransfer => {
-                let decoded = InterchainTransfer::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
+    let message = match message_type {
+        MessageType::InterchainTransfer => {
+            let decoded = InterchainTransfer::abi_decode_params(payload, true)
+                .map_err(Error::AbiDecodeFailed)?;
 
-                primitives::InterchainTransfer {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    source_address: Vec::<u8>::from(decoded.sourceAddress)
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
-                    destination_address: Vec::<u8>::from(decoded.destinationAddress)
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
-                    amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes())
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
-                    data: from_vec(decoded.data.into())?,
-                }
-                .into()
+            interchain_token_api::InterchainTransfer {
+                token_id: TokenId::new(decoded.tokenId.into()),
+                source_address: Vec::<u8>::from(decoded.sourceAddress)
+                    .try_into()
+                    .map_err(Error::NonEmpty)?,
+                destination_address: Vec::<u8>::from(decoded.destinationAddress)
+                    .try_into()
+                    .map_err(Error::NonEmpty)?,
+                amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes())
+                    .try_into()
+                    .map_err(Error::NonEmpty)?,
+                data: from_vec(decoded.data.into())?,
             }
-            MessageType::DeployInterchainToken => {
-                let decoded = DeployInterchainToken::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
+            .into()
+        }
+        MessageType::DeployInterchainToken => {
+            let decoded = DeployInterchainToken::abi_decode_params(payload, true)
+                .map_err(Error::AbiDecodeFailed)?;
 
-                primitives::DeployInterchainToken {
-                    token_id: TokenId::new(decoded.tokenId.into()),
-                    name: decoded.name.try_into().map_err(Error::NonEmpty)?,
-                    symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
-                    decimals: decoded.decimals,
-                    minter: from_vec(decoded.minter.into())?,
-                }
-                .into()
+            interchain_token_api::DeployInterchainToken {
+                token_id: TokenId::new(decoded.tokenId.into()),
+                name: decoded.name.try_into().map_err(Error::NonEmpty)?,
+                symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
+                decimals: decoded.decimals,
+                minter: from_vec(decoded.minter.into())?,
             }
-            MessageType::LinkToken => {
-                let LinkToken {
-                    tokenId,
-                    tokenManagerType,
-                    sourceToken,
-                    destinationToken,
-                    params,
-                    ..
-                } = LinkToken::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
+            .into()
+        }
+        MessageType::LinkToken => {
+            let LinkToken {
+                tokenId,
+                tokenManagerType,
+                sourceToken,
+                destinationToken,
+                params,
+                ..
+            } = LinkToken::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
 
-                primitives::LinkToken {
-                    token_id: TokenId::new(tokenId.into()),
-                    source_token_address: Vec::<u8>::from(sourceToken)
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
-                    token_manager_type: Uint256::from_le_bytes(tokenManagerType.to_le_bytes()),
-                    destination_token_address: Vec::<u8>::from(destinationToken)
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
-                    params: from_vec(params.into())?,
-                }
-                .into()
+            interchain_token_api::LinkToken {
+                token_id: TokenId::new(tokenId.into()),
+                source_token_address: Vec::<u8>::from(sourceToken)
+                    .try_into()
+                    .map_err(Error::NonEmpty)?,
+                token_manager_type: Uint256::from_le_bytes(tokenManagerType.to_le_bytes()),
+                destination_token_address: Vec::<u8>::from(destinationToken)
+                    .try_into()
+                    .map_err(Error::NonEmpty)?,
+                params: from_vec(params.into())?,
             }
-            _ => bail!(Error::InvalidMessageType),
-        };
+            .into()
+        }
+        _ => bail!(Error::InvalidMessageType),
+    };
 
-        Ok(message)
+    Ok(message)
+}
+
+pub fn hub_message_abi_encode(hub_message: HubMessage) -> HexBinary {
+    match hub_message {
+        HubMessage::SendToHub {
+            destination_chain,
+            message,
+        } => SendToHub {
+            messageType: MessageType::SendToHub.into(),
+            destination_chain: destination_chain.into(),
+            message: Vec::<u8>::from(message_abi_encode(message)).into(),
+        }
+        .abi_encode_params()
+        .into(),
+        HubMessage::ReceiveFromHub {
+            source_chain,
+            message,
+        } => ReceiveFromHub {
+            messageType: MessageType::ReceiveFromHub.into(),
+            source_chain: source_chain.into(),
+            message: Vec::<u8>::from(message_abi_encode(message)).into(),
+        }
+        .abi_encode_params()
+        .into(),
+        HubMessage::RegisterTokenMetadata(interchain_token_api::RegisterTokenMetadata {
+            decimals,
+            token_address,
+        }) => RegisterTokenMetadata {
+            messageType: MessageType::RegisterTokenMetadata.into(),
+            decimals,
+            tokenAddress: token_address.to_vec().into(),
+        }
+        .abi_encode_params()
+        .into(),
     }
 }
 
-impl HubMessage {
-    pub fn abi_encode(self) -> HexBinary {
-        match self {
+pub fn hub_message_abi_decode(payload: &[u8]) -> Result<HubMessage, Report<Error>> {
+    ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
+
+    let message_type =
+        MessageType::abi_decode(&payload[0..32], true).change_context(Error::InvalidMessageType)?;
+
+    let hub_message = match message_type {
+        MessageType::SendToHub => {
+            let decoded =
+                SendToHub::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
+
             HubMessage::SendToHub {
-                destination_chain,
-                message,
-            } => SendToHub {
-                messageType: MessageType::SendToHub.into(),
-                destination_chain: destination_chain.into(),
-                message: Vec::<u8>::from(message.abi_encode()).into(),
+                destination_chain: ChainNameRaw::try_from(decoded.destination_chain)
+                    .change_context(Error::InvalidChainName)?,
+                message: message_abi_decode(&decoded.message)?,
             }
-            .abi_encode_params()
-            .into(),
-            HubMessage::ReceiveFromHub {
-                source_chain,
-                message,
-            } => ReceiveFromHub {
-                messageType: MessageType::ReceiveFromHub.into(),
-                source_chain: source_chain.into(),
-                message: Vec::<u8>::from(message.abi_encode()).into(),
-            }
-            .abi_encode_params()
-            .into(),
-            HubMessage::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
-                decimals,
-                token_address,
-            }) => RegisterTokenMetadata {
-                messageType: MessageType::RegisterTokenMetadata.into(),
-                decimals,
-                tokenAddress: token_address.to_vec().into(),
-            }
-            .abi_encode_params()
-            .into(),
         }
-    }
+        MessageType::ReceiveFromHub => {
+            let decoded =
+                ReceiveFromHub::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
 
-    pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
-        ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
-
-        let message_type = MessageType::abi_decode(&payload[0..32], true)
-            .change_context(Error::InvalidMessageType)?;
-
-        let hub_message = match message_type {
-            MessageType::SendToHub => {
-                let decoded =
-                    SendToHub::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
-
-                HubMessage::SendToHub {
-                    destination_chain: ChainNameRaw::try_from(decoded.destination_chain)
-                        .change_context(Error::InvalidChainName)?,
-                    message: Message::abi_decode(&decoded.message)?,
-                }
+            HubMessage::ReceiveFromHub {
+                source_chain: ChainNameRaw::try_from(decoded.source_chain)
+                    .change_context(Error::InvalidChainName)?,
+                message: message_abi_decode(&decoded.message)?,
             }
-            MessageType::ReceiveFromHub => {
-                let decoded = ReceiveFromHub::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
+        }
+        MessageType::RegisterTokenMetadata => {
+            let RegisterTokenMetadata {
+                tokenAddress,
+                decimals,
+                ..
+            } = RegisterTokenMetadata::abi_decode_params(payload, true)
+                .map_err(Error::AbiDecodeFailed)?;
+            HubMessage::RegisterTokenMetadata(interchain_token_api::RegisterTokenMetadata {
+                decimals,
+                token_address: Vec::<u8>::from(tokenAddress)
+                    .try_into()
+                    .map_err(Error::NonEmpty)?,
+            })
+        }
+        _ => bail!(Error::InvalidMessageType),
+    };
 
-                HubMessage::ReceiveFromHub {
-                    source_chain: ChainNameRaw::try_from(decoded.source_chain)
-                        .change_context(Error::InvalidChainName)?,
-                    message: Message::abi_decode(&decoded.message)?,
-                }
-            }
-            MessageType::RegisterTokenMetadata => {
-                let RegisterTokenMetadata {
-                    tokenAddress,
-                    decimals,
-                    ..
-                } = RegisterTokenMetadata::abi_decode_params(payload, true)
-                    .map_err(Error::AbiDecodeFailed)?;
-                HubMessage::RegisterTokenMetadata(primitives::RegisterTokenMetadata {
-                    decimals,
-                    token_address: Vec::<u8>::from(tokenAddress)
-                        .try_into()
-                        .map_err(Error::NonEmpty)?,
-                })
-            }
-            _ => bail!(Error::InvalidMessageType),
-        };
-
-        Ok(hub_message)
-    }
+    Ok(hub_message)
 }
 
 impl From<MessageType> for U256 {
@@ -297,16 +290,15 @@ impl From<MessageType> for U256 {
 }
 
 fn into_vec(value: Option<nonempty::HexBinary>) -> std::vec::Vec<u8> {
-    value.map(|v| v.into()).unwrap_or_default()
+    value.map(|v| v.to_vec()).unwrap_or_default()
 }
 
 fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Error> {
     if value.is_empty() {
-        None
+        Ok(None)
     } else {
-        Some(nonempty::HexBinary::try_from(value)?)
+        Ok(Some(value.try_into().map_err(Error::NonEmpty)?))
     }
-    .then(Ok)
 }
 
 #[cfg(test)]
@@ -318,11 +310,13 @@ mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::{HexBinary, Uint256};
+    use interchain_token_api::HubMessage;
     use router_api::ChainNameRaw;
 
     use super::{DeployInterchainToken, InterchainTransfer};
-    use crate::abi::{Error, MessageType, SendToHub};
-    use crate::{primitives, HubMessage};
+    use crate::abi::{
+        hub_message_abi_decode, hub_message_abi_encode, Error, MessageType, SendToHub,
+    };
 
     fn from_hex(hex: &str) -> nonempty::HexBinary {
         HexBinary::from_hex(hex).unwrap().try_into().unwrap()
@@ -335,7 +329,7 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: primitives::InterchainTransfer {
+                message: interchain_token_api::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
@@ -346,7 +340,7 @@ mod tests {
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: primitives::InterchainTransfer {
+                message: interchain_token_api::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
@@ -357,7 +351,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: primitives::InterchainTransfer {
+                message: interchain_token_api::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
@@ -368,7 +362,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: primitives::InterchainTransfer {
+                message: interchain_token_api::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
@@ -381,14 +375,14 @@ mod tests {
 
         let encoded: Vec<_> = cases
             .iter()
-            .map(|original| original.clone().abi_encode().to_hex())
+            .map(|original| hub_message_abi_encode(original.clone()).to_hex())
             .collect();
 
         goldie::assert_json!(encoded);
 
         for original in cases {
-            let encoded = original.clone().abi_encode();
-            let decoded = assert_ok!(HubMessage::abi_decode(&encoded));
+            let encoded = hub_message_abi_encode(original.clone());
+            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -451,7 +445,7 @@ mod tests {
             }
             .abi_encode_params();
 
-            let result = HubMessage::abi_decode(&payload);
+            let result = hub_message_abi_decode(&payload);
             assert_err_contains!(result, Error, Error::NonEmpty(..));
         }
     }
@@ -463,7 +457,7 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: primitives::DeployInterchainToken {
+                message: interchain_token_api::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
                     symbol: "T".try_into().unwrap(),
@@ -474,7 +468,7 @@ mod tests {
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: primitives::DeployInterchainToken {
+                message: interchain_token_api::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
                     symbol: "TST".try_into().unwrap(),
@@ -485,7 +479,7 @@ mod tests {
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: primitives::DeployInterchainToken {
+                message: interchain_token_api::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
                     symbol: "UNI🔣".try_into().unwrap(),
@@ -496,7 +490,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: primitives::DeployInterchainToken {
+                message: interchain_token_api::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
                     symbol: "T".try_into().unwrap(),
@@ -507,7 +501,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: primitives::DeployInterchainToken {
+                message: interchain_token_api::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
                     symbol: "TST".try_into().unwrap(),
@@ -518,7 +512,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: primitives::DeployInterchainToken {
+                message: interchain_token_api::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
                     symbol: "UNI🔣".try_into().unwrap(),
@@ -531,14 +525,14 @@ mod tests {
 
         let encoded: Vec<_> = cases
             .iter()
-            .map(|original| original.clone().abi_encode().to_hex())
+            .map(|original| hub_message_abi_encode(original.clone()).to_hex())
             .collect();
 
         goldie::assert_json!(encoded);
 
         for original in cases {
-            let encoded = original.clone().abi_encode();
-            let decoded = assert_ok!(HubMessage::abi_decode(&encoded));
+            let encoded = hub_message_abi_encode(original.clone());
+            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -561,7 +555,7 @@ mod tests {
             }
             .abi_encode_params();
 
-            let result = HubMessage::abi_decode(&invalid_payload);
+            let result = hub_message_abi_decode(&invalid_payload);
             assert_err_contains!(result, Error, Error::InvalidMessageType);
         }
     }
@@ -582,7 +576,7 @@ mod tests {
             }
             .abi_encode_params();
 
-            let result = HubMessage::abi_decode(&invalid_payload);
+            let result = hub_message_abi_decode(&invalid_payload);
             assert_err_contains!(result, Error, Error::InvalidMessageType);
         }
     }
@@ -605,7 +599,7 @@ mod tests {
         }
         .abi_encode_params();
 
-        let result = HubMessage::abi_decode(&payload);
+        let result = hub_message_abi_decode(&payload);
         assert_err_contains!(result, Error, Error::InvalidChainName);
     }
 
@@ -614,7 +608,7 @@ mod tests {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
-            message: primitives::InterchainTransfer {
+            message: interchain_token_api::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: from_hex("1234"),
                 destination_address: from_hex("5678"),
@@ -624,8 +618,8 @@ mod tests {
             .into(),
         };
 
-        let encoded = original.clone().abi_encode();
-        let decoded = assert_ok!(HubMessage::abi_decode(&encoded));
+        let encoded = hub_message_abi_encode(original.clone());
+        let decoded = assert_ok!(hub_message_abi_decode(&encoded));
         assert_eq!(original, decoded);
     }
 
@@ -633,7 +627,7 @@ mod tests {
     fn encode_decode_unicode_strings() {
         let original = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::from_str("chain").unwrap(),
-            message: primitives::DeployInterchainToken {
+            message: interchain_token_api::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".try_into().unwrap(),
                 symbol: "UNI🔣".try_into().unwrap(),
@@ -643,8 +637,8 @@ mod tests {
             .into(),
         };
 
-        let encoded = original.clone().abi_encode();
-        let decoded = assert_ok!(HubMessage::abi_decode(&encoded));
+        let encoded = hub_message_abi_encode(original.clone());
+        let decoded = assert_ok!(hub_message_abi_decode(&encoded));
         assert_eq!(original, decoded);
     }
 }
