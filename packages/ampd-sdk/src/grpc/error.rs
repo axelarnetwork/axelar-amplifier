@@ -49,6 +49,9 @@ pub enum Error {
     GrpcConnection(#[from] tonic::transport::Error),
 
     #[error(transparent)]
+    RpcRequestTimeout(#[from] tokio::time::error::Elapsed),
+
+    #[error(transparent)]
     Grpc(#[from] GrpcError),
 
     #[error(transparent)]
