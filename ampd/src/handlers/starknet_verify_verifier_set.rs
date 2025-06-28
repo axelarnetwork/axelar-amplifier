@@ -20,7 +20,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::EventHandler;
+use crate::event_processor::{EventHandler, HandlerInfo};
 use crate::handlers::errors::Error;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
@@ -155,6 +155,14 @@ where
             .vote_msg(poll_id, vote)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn get_handler_info(&self) -> HandlerInfo {
+        HandlerInfo {
+            chain_name: "starknet".to_string(),
+            verifier_id: self.verifier.to_string(),
+            is_voting: true,
+        }
     }
 }
 

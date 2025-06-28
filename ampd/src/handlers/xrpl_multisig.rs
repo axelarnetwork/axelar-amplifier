@@ -19,7 +19,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 use xrpl_types::types::XRPLAccountId;
 
-use crate::event_processor::EventHandler;
+use crate::event_processor::{EventHandler, HandlerInfo};
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{Algorithm, MessageDigest};
@@ -180,6 +180,14 @@ where
 
                 Ok(vec![])
             }
+        }
+    }
+
+    fn get_handler_info(&self) -> HandlerInfo {
+        HandlerInfo {
+            chain_name: self.chain.to_string(),
+            verifier_id: self.verifier.to_string(),
+            is_voting: false,
         }
     }
 }

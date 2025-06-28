@@ -22,7 +22,7 @@ use xrpl_http_client::Transaction;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
-use crate::event_processor::EventHandler;
+use crate::event_processor::{EventHandler, HandlerInfo};
 use crate::handlers::errors::Error;
 use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
@@ -184,5 +184,13 @@ where
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn get_handler_info(&self) -> HandlerInfo {
+        HandlerInfo {
+            chain_name: self.chain.to_string(),
+            verifier_id: self.verifier.to_string(),
+            is_voting: true,
+        }
     }
 }
