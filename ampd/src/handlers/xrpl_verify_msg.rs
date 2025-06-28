@@ -188,7 +188,7 @@ where
 
     fn get_handler_info(&self) -> HandlerInfo {
         HandlerInfo {
-            chain_name: self.chain.to_string(),
+            chain_name: "xrpl".to_string(),
             verifier_id: self.verifier.to_string(),
             is_voting: true,
         }
