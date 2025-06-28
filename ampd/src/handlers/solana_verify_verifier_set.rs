@@ -97,7 +97,6 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
             .await
             .map(|tx| (signature, tx))
     }
-    
 }
 
 #[async_trait]

@@ -20,9 +20,6 @@ use crate::asyncutil::task::TaskError;
 use crate::monitoring::endpoints::metrics::MetricsMsg;
 use crate::monitoring::server::MonitoringClient;
 use crate::queue::queued_broadcaster::BroadcasterClient;
-use cosmrs::cosmwasm::MsgExecuteContract;
-use voting_verifier::msg::ExecuteMsg;
-
 
 #[derive(Clone, Debug)]
 pub struct HandlerInfo {
@@ -150,26 +147,32 @@ where
                 match broadcaster.broadcast(msg.clone()).await {
                     Ok(()) => {
                         if handler_info.is_voting {
-                            if let Err(err) = metric_client.record_metric(MetricsMsg::IncSuccessVoteCasted { 
-                                verifier_id: handler_info.verifier_id.clone(), 
-                                chain_name: handler_info.chain_name.clone() 
-                            }) {
+                            if let Err(err) =
+                                metric_client.record_metric(MetricsMsg::IncSuccessVoteCasted {
+                                    verifier_id: handler_info.verifier_id.clone(),
+                                    chain_name: handler_info.chain_name.clone(),
+                                })
+                            {
                                 warn!(
                                     err = LoggableError::from(&err).as_value(),
-                                    "failed to record success vote casted metric for message {:?}", msg
+                                    "failed to record success vote casted metric for message {:?}",
+                                    msg
                                 )
                             }
                         }
                     }
                     Err(err) => {
                         if handler_info.is_voting {
-                            if let Err(metric_err) = metric_client.record_metric(MetricsMsg::IncFailedVoteCasted { 
-                                verifier_id: handler_info.verifier_id.clone(), 
-                                chain_name: handler_info.chain_name.clone()
-                            }) {
+                            if let Err(metric_err) =
+                                metric_client.record_metric(MetricsMsg::IncFailedVoteCasted {
+                                    verifier_id: handler_info.verifier_id.clone(),
+                                    chain_name: handler_info.chain_name.clone(),
+                                })
+                            {
                                 warn!(
                                     err = LoggableError::from(&metric_err).as_value(),
-                                    "failed to record failed vote casted metric for message {:?}", msg
+                                    "failed to record failed vote casted metric for message {:?}",
+                                    msg
                                 )
                             }
                         }
@@ -226,8 +229,6 @@ enum StreamStatus {
     TimedOut,
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -246,7 +247,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use crate::event_processor;
-    use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::event_processor::{consume_events, Config, Error, EventHandler, HandlerInfo};
     use crate::monitoring::server::test_utils::{
         test_dummy_server_setup, test_metrics_server_setup,
     };
@@ -265,6 +266,13 @@ mod tests {
             delay,
         }
     }
+    fn create_dummy_handler() -> HandlerInfo {
+        HandlerInfo {
+            chain_name: "chain".to_string(),
+            verifier_id: "verifier".to_string(),
+            is_voting: false,
+        }
+    }
 
     #[tokio::test]
     async fn stop_when_stream_closes() {
@@ -279,6 +287,10 @@ mod tests {
             .expect_handle()
             .times(events.len())
             .returning(|_| Ok(vec![]));
+        handler
+            .expect_get_handler_info()
+            .times(events.len())
+            .returning(create_dummy_handler);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -316,6 +328,10 @@ mod tests {
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().times(1).returning(|_| Ok(vec![]));
+        handler
+            .expect_get_handler_info()
+            .times(1)
+            .returning(create_dummy_handler);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -390,6 +406,10 @@ mod tests {
             .expect_handle()
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
+        handler
+            .expect_get_handler_info()
+            .times(events.len())
+            .returning(create_dummy_handler);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -431,6 +451,10 @@ mod tests {
             .expect_handle()
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
+        handler
+            .expect_get_handler_info()
+            .times(events.len())
+            .returning(create_dummy_handler);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -473,6 +497,10 @@ mod tests {
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().times(4).returning(|_| Ok(vec![]));
+        handler
+            .expect_get_handler_info()
+            .times(4)
+            .returning(create_dummy_handler);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -579,6 +607,10 @@ mod tests {
             .expect_handle()
             .times(events.len())
             .returning(|_| Ok(vec![]));
+        handler
+            .expect_get_handler_info()
+            .times(events.len())
+            .returning(create_dummy_handler);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -610,6 +642,152 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
+
+        cancel_token.cancel();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn non_voting_handler_successful_broadcast_does_not_record_vote_metrics() {
+        let events: Vec<Result<Event, event_processor::Error>> =
+            vec![Ok(Event::BlockEnd(0_u32.into()))];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .once()
+            .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
+
+        handler
+            .expect_get_handler_info()
+            .once()
+            .returning(|| HandlerInfo {
+                chain_name: "ethereum".to_string(),
+                verifier_id: "axelar1abc".to_string(),
+                is_voting: false,
+            });
+
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+
+        let mut broadcaster = MockBroadcasterClient::new();
+        broadcaster
+            .expect_broadcast()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
+        tokio::spawn(server.run(cancel_token.clone()));
+
+        let result_with_timeout = timeout(
+            Duration::from_secs(3),
+            consume_events(
+                "handler".to_string(),
+                handler,
+                broadcaster,
+                stream::iter(events),
+                event_config,
+                cancel_token.clone(),
+                metrics_client,
+            ),
+        )
+        .await;
+
+        assert!(result_with_timeout.is_ok());
+        assert!(result_with_timeout.unwrap().is_ok());
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+
+        assert!(!metrics_text.contains(
+            "verifier_votes_casted_successful{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"}"
+        ));
+        assert!(!metrics_text.contains(
+            "verifier_votes_casted_failed{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"}"
+        ));
+        assert!(!metrics_text.contains("verifier_votes_casted_success_rate{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"}"));
+
+        cancel_token.cancel();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn voting_handler_mixed_success_failure_broadcast_records_correct_metrics() {
+        let events: Vec<Result<Event, event_processor::Error>> =
+            vec![Ok(Event::BlockEnd(0_u32.into()))];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .once()
+            .returning(|_| Ok(vec![dummy_msg(), dummy_msg(), dummy_msg()]));
+
+        handler
+            .expect_get_handler_info()
+            .once()
+            .returning(|| HandlerInfo {
+                chain_name: "ethereum".to_string(),
+                verifier_id: "axelar1abc".to_string(),
+                is_voting: true,
+            });
+
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+
+        let mut broadcaster = MockBroadcasterClient::new();
+        broadcaster.expect_broadcast().times(3).returning(|_| {
+            static mut COUNTER: u32 = 0;
+            unsafe {
+                COUNTER += 1;
+                if COUNTER == 2 {
+                    Err(report!(BroadcasterError::EstimateFee))
+                } else {
+                    Ok(())
+                }
+            }
+        });
+
+        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
+        tokio::spawn(server.run(cancel_token.clone()));
+
+        let result_with_timeout = timeout(
+            Duration::from_secs(3),
+            consume_events(
+                "handler".to_string(),
+                handler,
+                broadcaster,
+                stream::iter(events),
+                event_config,
+                cancel_token.clone(),
+                metrics_client,
+            ),
+        )
+        .await;
+
+        assert!(result_with_timeout.is_ok());
+        assert!(result_with_timeout.unwrap().is_ok());
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+        println!("metrics_text: {}", metrics_text);
+
+        assert!(metrics_text.contains("verifier_votes_casted_successful{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 2"));
+        assert!(metrics_text.contains(
+            "verifier_votes_casted_failed{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 1"
+        ));
+        assert!(metrics_text.contains("verifier_votes_casted_success_rate{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 0.6666666666666666"));
 
         cancel_token.cancel();
     }
