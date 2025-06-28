@@ -17,7 +17,7 @@ use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
 use tracing::info;
 
-use crate::event_processor::EventHandler;
+use crate::event_processor::{EventHandler, HandlerInfo};
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{self, MessageDigest};
@@ -177,6 +177,14 @@ where
 
                 Ok(vec![])
             }
+        }
+    }
+
+    fn get_handler_info(&self) -> HandlerInfo {
+        HandlerInfo {
+            chain_name: self.chain.to_string(),
+            verifier_id: self.verifier.to_string(),
+            is_voting: false,
         }
     }
 }

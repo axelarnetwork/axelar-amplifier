@@ -20,12 +20,22 @@ use crate::asyncutil::task::TaskError;
 use crate::monitoring::server::MetricsClient;
 use crate::monitoring::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
+use cosmrs::cosmwasm::MsgExecuteContract;
+use voting_verifier::msg::ExecuteMsg;
+
+
+#[derive(Clone, Debug)]
+pub struct HandlerInfo {
+    pub chain_name: String,
+    pub verifier_id: String,
+    pub is_voting: bool,
+}
 
 #[async_trait]
 pub trait EventHandler {
     type Err: Context;
-
     async fn handle(&self, event: &Event) -> Result<Vec<Any>, Self::Err>;
+    fn get_handler_info(&self) -> HandlerInfo;
 }
 
 #[derive(Error, Debug)]
@@ -94,6 +104,7 @@ where
                     sleep: event_processor_config.retry_delay,
                     max_attempts: event_processor_config.retry_max_attempts,
                 },
+                metric_client.clone(),
             )
             .await?;
         }
@@ -125,6 +136,7 @@ async fn handle_event<H, B>(
     broadcaster: &B,
     event: &Event,
     retry_policy: RetryPolicy,
+    metric_client: MetricsClient,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -133,12 +145,39 @@ where
     // if handlers run into errors we log them and then move on to the next event
     match future::with_retry(|| handler.handle(event), retry_policy).await {
         Ok(msgs) => {
+            let handler_info = handler.get_handler_info();
             for msg in msgs {
-                if let Err(err) = broadcaster.broadcast(msg.clone()).await {
-                    warn!(
-                        err = LoggableError::from(&err).as_value(),
-                        "failed to broadcast message {:?} for event {}", msg, event
-                    )
+                match broadcaster.broadcast(msg.clone()).await {
+                    Ok(()) => {
+                        if handler_info.is_voting {
+                            if let Err(err) = metric_client.record_metric(MetricsMsg::IncSuccessVoteCasted { 
+                                verifier_id: handler_info.verifier_id.clone(), 
+                                chain_name: handler_info.chain_name.clone() 
+                            }) {
+                                warn!(
+                                    err = LoggableError::from(&err).as_value(),
+                                    "failed to record success vote casted metric for message {:?}", msg
+                                )
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        if handler_info.is_voting {
+                            if let Err(metric_err) = metric_client.record_metric(MetricsMsg::IncFailedVoteCasted { 
+                                verifier_id: handler_info.verifier_id.clone(), 
+                                chain_name: handler_info.chain_name.clone()
+                            }) {
+                                warn!(
+                                    err = LoggableError::from(&metric_err).as_value(),
+                                    "failed to record failed vote casted metric for message {:?}", msg
+                                )
+                            }
+                        }
+                        warn!(
+                            err = LoggableError::from(&err).as_value(),
+                            "failed to broadcast message {:?} for event {}", msg, event
+                        )
+                    }
                 }
             }
         }
@@ -186,6 +225,8 @@ enum StreamStatus {
     Closed,
     TimedOut,
 }
+
+
 
 #[cfg(test)]
 mod tests {
@@ -507,6 +548,7 @@ mod tests {
                 type Err = EventHandlerError;
 
                 async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
+                fn get_handler_info(&self) -> HandlerInfo;
             }
     }
 

@@ -11,6 +11,14 @@ use crate::types::debug::REDACTED_VALUE;
 #[derive(Clone)]
 pub enum MetricsMsg {
     IncBlockReceived,
+    IncSuccessVoteCasted {
+        verifier_id: String,
+        chain_name: String,
+    },
+    IncFailedVoteCasted {
+        verifier_id: String,
+        chain_name: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]

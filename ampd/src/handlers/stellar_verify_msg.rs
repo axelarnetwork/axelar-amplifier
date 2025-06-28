@@ -19,7 +19,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::EventHandler;
+use crate::event_processor::{EventHandler, HandlerInfo};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::stellar::rpc_client::Client;
@@ -163,6 +163,14 @@ impl EventHandler for Handler {
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn get_handler_info(&self) -> HandlerInfo {
+        HandlerInfo {
+            chain_name: "stellar".to_string(),
+            verifier_id: self.verifier.to_string(),
+            is_voting: true,
+        }
     }
 }
 
