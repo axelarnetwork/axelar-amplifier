@@ -1,16 +1,15 @@
 use std::net::SocketAddrV4;
 
-use axum::http::StatusCode;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::Router;
 use error_stack::{Result, ResultExt};
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use crate::prometheus_metrics::metrics::{self, Metrics, MetricsError, MetricsMsg};
+use crate::monitoring::endpoints::metrics::{gather_metrics, Metrics, MetricsError};
+use crate::monitoring::endpoints::status::status;
+use crate::monitoring::MetricsMsg;
 
 // safe upper bound for expected metric throughput;
 // shouldnt exceed 1000 message
@@ -33,6 +32,7 @@ impl MetricsClient {
         Ok(())
     }
 }
+
 pub struct Server {
     bind_address: Option<SocketAddrV4>,
     metrics_rx: mpsc::Receiver<MetricsMsg>,
@@ -144,33 +144,15 @@ impl Server {
     }
 }
 
-async fn status() -> (StatusCode, Json<Status>) {
-    (StatusCode::OK, Json(Status { ok: true }))
-}
-
-async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-    match metrics::gather(registry) {
-        Ok(metrics) => (StatusCode::OK, metrics),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct Status {
-    ok: bool,
-}
-
 #[cfg(test)]
-pub mod tests {
+pub mod test_utils {
     use std::net::{SocketAddr, TcpListener};
-    use std::time::Duration;
 
-    use reqwest::Url;
-    use tokio::test as async_test;
+    use tokio_util::sync::CancellationToken;
 
     use super::*;
 
-    pub fn test_bind_addr() -> SocketAddrV4 {
+    fn test_bind_addr() -> SocketAddrV4 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 
         match listener.local_addr().unwrap() {
@@ -198,7 +180,7 @@ pub mod tests {
         (server, metrics_client, cancel)
     }
 
-    fn send_metrics_client_msg(
+    pub fn send_metrics_client_msg(
         metrics_client: &MetricsClient,
         msg: MetricsMsg,
         number_of_messages: usize,
@@ -209,6 +191,18 @@ pub mod tests {
                 .unwrap_or_else(|_| panic!("failed to send message {}", i));
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use reqwest::Url;
+    use tokio::test as async_test;
+
+    use super::test_utils::*;
+    use super::*;
+    use crate::monitoring::endpoints::status::Status;
 
     #[async_test(start_paused = true)]
     async fn metrics_server_should_respond_to_status_and_shutdown_gracefully() {
@@ -337,6 +331,7 @@ pub mod tests {
             "dummy server should complete without errors"
         );
     }
+
     #[async_test(start_paused = true)]
     async fn dummy_server_client_fails_after_cancellation() {
         let (server, metrics_client, cancel) = test_dummy_server_setup();
@@ -360,6 +355,7 @@ pub mod tests {
             "client should not be able to send messages after dummy server cancellation"
         );
     }
+
     #[async_test(start_paused = true)]
     async fn metrics_server_handle_concurrent_requests_sucessfully() {
         let (bind_address, server, original_client, cancel) = test_metrics_server_setup();

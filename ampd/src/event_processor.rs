@@ -17,8 +17,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::prometheus_metrics::metrics::MetricsMsg;
-use crate::prometheus_metrics::monitor::MetricsClient;
+use crate::monitoring::server::MetricsClient;
+use crate::monitoring::MetricsMsg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -104,11 +104,12 @@ where
                 height = height.value(),
                 "handler finished processing block"
             );
+
             if let Err(err) = metric_client.record_metric(MetricsMsg::IncBlockReceived) {
                 warn!( handler = handler_label,
                     height = height.value(),
                     err = %err,
-                    "failed to update metrics for block end event"
+                    "failed to record block received metric for block end event",
                 );
             }
         }
@@ -205,11 +206,12 @@ mod tests {
 
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::prometheus_metrics::monitor::tests::test_metrics_server_setup;
-    use crate::prometheus_metrics::monitor::Server;
+    use crate::monitoring::server::test_utils::{
+        test_dummy_server_setup, test_metrics_server_setup,
+    };
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
-    pub fn setup_event_config(
+    fn setup_event_config(
         retry_delay_value: Duration,
         stream_timeout_value: Duration,
         delay: Duration,
@@ -243,7 +245,8 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -279,7 +282,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -316,7 +319,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -357,7 +360,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Ok(()));
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -398,7 +401,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -439,7 +442,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -471,7 +474,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_server, metrics_client, _) = test_dummy_server_setup();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -541,9 +544,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-
         let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
-
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(
