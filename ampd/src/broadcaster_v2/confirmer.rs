@@ -67,7 +67,10 @@ where
     ///
     /// # Returns
     /// A tuple containing the confirmer instance and a client for submitting transaction hashes
-    pub fn new(client: T, retry_policy: RetryPolicy) -> (Self, TxConfirmerClient) {
+    pub fn new_confirmer_and_client(
+        client: T,
+        retry_policy: RetryPolicy,
+    ) -> (Self, TxConfirmerClient) {
         let (tx, rx) = mpsc::channel(TX_CONFIRMATION_QUEUE_CAP);
         let confirmer = Self {
             rx,
@@ -200,7 +203,8 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) = super::TxConfirmer::new(client, retry_policy);
+        let (confirmer, confirmer_client) =
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
@@ -236,7 +240,8 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) = super::TxConfirmer::new(client, retry_policy);
+        let (confirmer, confirmer_client) =
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
@@ -263,7 +268,8 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) = super::TxConfirmer::new(client, retry_policy);
+        let (confirmer, confirmer_client) =
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
@@ -290,7 +296,8 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) = super::TxConfirmer::new(client, retry_policy);
+        let (confirmer, confirmer_client) =
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();

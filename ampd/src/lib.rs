@@ -120,7 +120,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .msg_queue_client(msg_queue_client.clone())
         .cosmos_grpc_client(cosmos_client.clone())
         .build();
-    let (tx_confirmer, tx_confirmer_client) = broadcaster_v2::TxConfirmer::new(
+    let (tx_confirmer, tx_confirmer_client) = broadcaster_v2::TxConfirmer::new_confirmer_and_client(
         cosmos_client,
         RetryPolicy::repeat_constant(
             broadcast.tx_fetch_interval,
