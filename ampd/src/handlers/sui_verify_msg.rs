@@ -16,7 +16,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::EventHandler;
+use crate::event_processor::{EventHandler, HandlerInfo};
 use crate::handlers::errors::Error;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
@@ -147,6 +147,14 @@ where
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn get_handler_info(&self) -> HandlerInfo {
+        HandlerInfo {
+            chain_name: "sui".to_string(),
+            verifier_id: self.verifier.to_string(),
+            is_voting: true,
+        }
     }
 }
 
