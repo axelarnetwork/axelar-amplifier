@@ -14,7 +14,8 @@ use tonic::{Request, Response, Status};
 use tracing::instrument;
 use typed_builder::TypedBuilder;
 
-use super::{reqs, status};
+use crate::grpc::reqs::Validate;
+use crate::grpc::status;
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 #[derive(Debug, TypedBuilder)]
@@ -41,7 +42,8 @@ where
         &self,
         req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
-        let filters = reqs::validate_subscribe(req)
+        let filters = req
+            .validate()
             .inspect_err(status::log("invalid subscribe request"))
             .map_err(status::StatusExt::into_status)?;
 
@@ -64,7 +66,8 @@ where
         &self,
         req: Request<BroadcastRequest>,
     ) -> Result<Response<BroadcastResponse>, Status> {
-        let msg = reqs::validate_broadcast(req)
+        let msg = req
+            .validate()
             .inspect_err(status::log("invalid broadcast request"))
             .map_err(status::StatusExt::into_status)?;
 
@@ -84,7 +87,8 @@ where
         &self,
         req: Request<ContractStateRequest>,
     ) -> Result<Response<ContractStateResponse>, Status> {
-        let (contract, query) = reqs::validate_contract_state(req)
+        let (contract, query) = req
+            .validate()
             .inspect_err(status::log("invalid contract state request"))
             .map_err(status::StatusExt::into_status)?;
 
