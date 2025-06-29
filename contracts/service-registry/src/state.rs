@@ -6,10 +6,16 @@ use error_stack::{bail, report, ResultExt as _};
 use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
+use service_registry_api::AuthorizationState::{Authorized, Jailed, NotAuthorized};
 use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
-
 type ServiceName = String;
 type VerifierAddress = Addr;
+use error_stack::ensure;
+
+enum VerifierCountOperation {
+    Increment,
+    Decrement,
+}
 
 #[cw_serde]
 pub struct UpdatedServiceParams {
@@ -89,6 +95,8 @@ const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 const SERVICE_OVERRIDES: Map<(&ServiceName, &ChainName), ServiceParamsOverride> =
     Map::new("service_overrides");
 
+const AUTHORIZED_VERIFIER_COUNT: Map<&ServiceName, u16> = Map::new("authorized_verifier_count");
+
 pub fn service(
     storage: &dyn Storage,
     service_name: &ServiceName,
@@ -127,6 +135,13 @@ pub fn save_new_service(
     service_name: &ServiceName,
     service: Service,
 ) -> error_stack::Result<Service, ContractError> {
+    AUTHORIZED_VERIFIER_COUNT
+        .update(storage, service_name, |count| match count {
+            None => Ok(0u16),
+            Some(_) => Err(ContractError::ServiceAlreadyExists),
+        })
+        .change_context(ContractError::StorageError)?;
+
     SERVICES
         .update(storage, service_name, |s| match s {
             None => Ok(service),
@@ -144,6 +159,15 @@ pub fn update_service(
     service_name: &ServiceName,
     updated_service_params: UpdatedServiceParams,
 ) -> error_stack::Result<Service, ContractError> {
+    if let Some(Some(max_verifiers_limit)) = updated_service_params.max_num_verifiers {
+        let current_authorized = number_of_authorized_verifiers(storage, service_name)?;
+
+        ensure!(
+            max_verifiers_limit >= current_authorized,
+            ContractError::MaxVerifiersSetBelowCurrent(max_verifiers_limit, current_authorized)
+        );
+    }
+
     SERVICES
         .update(storage, service_name, |service| match service {
             None => Err(ContractError::ServiceNotFound),
@@ -193,6 +217,29 @@ pub fn remove_service_override(
     SERVICE_OVERRIDES.remove(storage, (service_name, chain));
 
     Ok(())
+}
+
+pub fn update_verifier_status(
+    storage: &mut dyn Storage,
+    service_name: &String,
+    auth_state: &AuthorizationState,
+    verifier: Addr,
+) -> error_stack::Result<(), ContractError> {
+    update_authorized_verifier_count(storage, service_name, auth_state, &verifier)?;
+    update_verifier_auth_state(storage, service_name, &verifier, auth_state.clone())?;
+
+    Ok(())
+}
+
+pub fn number_of_authorized_verifiers(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+) -> error_stack::Result<u16, ContractError> {
+    let count = AUTHORIZED_VERIFIER_COUNT
+        .may_load(storage, service_name)
+        .change_context(ContractError::StorageError)?
+        .ok_or(report!(ContractError::ServiceNotFound))?;
+    Ok(count)
 }
 
 pub fn bond_verifier(
@@ -297,6 +344,82 @@ pub fn deregister_chains_support(
     for chain in chains {
         VERIFIERS_PER_CHAIN.remove(storage, (service_name.clone(), chain, verifier.clone()))?;
     }
+    Ok(())
+}
+
+fn update_verifier_auth_state(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    verifier_addr: &VerifierAddress,
+    auth_state: AuthorizationState,
+) -> error_stack::Result<Verifier, ContractError> {
+    VERIFIERS
+        .update(
+            storage,
+            (service_name, verifier_addr),
+            |sw| -> std::result::Result<Verifier, ContractError> {
+                match sw {
+                    Some(mut verifier) => {
+                        verifier.authorization_state = auth_state;
+                        Ok(verifier)
+                    }
+                    None => Ok(Verifier {
+                        address: verifier_addr.clone(),
+                        bonding_state: BondingState::Unbonded,
+                        authorization_state: auth_state,
+                        service_name: service_name.clone(),
+                    }),
+                }
+            },
+        )
+        .change_context(ContractError::StorageError)
+}
+
+fn update_authorized_verifier_count(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    auth_state: &AuthorizationState,
+    verifier: &VerifierAddress,
+) -> error_stack::Result<(), ContractError> {
+    let old_state = VERIFIERS
+        .may_load(storage, (service_name, verifier))
+        .change_context(ContractError::StorageError)?
+        .map(|v| v.authorization_state);
+
+    let operation = match (old_state, auth_state) {
+        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => {
+            VerifierCountOperation::Increment
+        }
+        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => {
+            VerifierCountOperation::Decrement
+        }
+        _ => return Ok(()),
+    };
+    update_authorized_count(storage, service_name, operation)
+}
+
+fn update_authorized_count(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    operation: VerifierCountOperation,
+) -> error_stack::Result<(), ContractError> {
+    AUTHORIZED_VERIFIER_COUNT
+        .update(
+            storage,
+            service_name,
+            |count| -> std::result::Result<u16, ContractError> {
+                let current = count.ok_or(ContractError::ServiceNotFound)?;
+                match operation {
+                    VerifierCountOperation::Increment => current
+                        .checked_add(1)
+                        .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow),
+                    VerifierCountOperation::Decrement => Ok(current
+                        .checked_sub(1)
+                        .expect("authorized verifiers count should not be negative, the counter is out of sync")),
+                }
+            },
+        )
+        .change_context(ContractError::StorageError)?;
     Ok(())
 }
 
@@ -1049,5 +1172,63 @@ mod tests {
     fn save_mock_service(storage: &mut dyn Storage) -> Service {
         let service = mock_service();
         save_new_service(storage, &service.name.clone(), service).unwrap()
+    }
+
+    #[test]
+    fn test_authorized_verifier_count_operation() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 0);
+
+        update_authorized_count(
+            deps.as_mut().storage,
+            &service.name,
+            VerifierCountOperation::Increment,
+        )
+        .unwrap();
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 1);
+
+        update_authorized_count(
+            deps.as_mut().storage,
+            &service.name,
+            VerifierCountOperation::Decrement,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_update_service_max_verifiers_below_current_should_fail() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        for _ in 0..5 {
+            update_authorized_count(
+                deps.as_mut().storage,
+                &service.name,
+                VerifierCountOperation::Increment,
+            )
+            .unwrap();
+        }
+
+        let params = UpdatedServiceParams {
+            max_num_verifiers: Some(Some(4)),
+            min_num_verifiers: None,
+            min_verifier_bond: None,
+            unbonding_period_days: None,
+        };
+
+        let result = update_service(deps.as_mut().storage, &service.name, params);
+        assert!(result.is_err());
+    }
+    #[test]
+    fn test_number_of_authorized_return_err_verifiers_service_not_found() {
+        let deps = mock_dependencies();
+        let nonexistent_service = "nonexistent_service".to_string();
+        let result = number_of_authorized_verifiers(deps.as_ref().storage, &nonexistent_service);
+        assert!(result.is_err());
+        assert_err_contains!(result, ContractError, ContractError::ServiceNotFound);
     }
 }

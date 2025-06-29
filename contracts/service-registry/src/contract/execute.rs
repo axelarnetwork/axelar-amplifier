@@ -6,7 +6,7 @@ use state::VERIFIERS;
 
 use super::*;
 use crate::events::Event;
-use crate::state::{self, ServiceParamsOverride, UpdatedServiceParams};
+use crate::state::{self, save_new_service, ServiceParamsOverride, UpdatedServiceParams};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -20,11 +20,11 @@ pub fn register_service(
     unbonding_period_days: u16,
     description: String,
 ) -> Result<Response, ContractError> {
-    state::save_new_service(
+    save_new_service(
         deps.storage,
-        &service_name.clone(),
+        &service_name,
         Service {
-            name: service_name,
+            name: service_name.clone(),
             coordinator_contract,
             min_num_verifiers,
             max_num_verifiers,
@@ -34,7 +34,6 @@ pub fn register_service(
             description,
         },
     )?;
-
     Ok(Response::new())
 }
 
@@ -47,24 +46,11 @@ pub fn update_verifier_authorization_status(
     ensure_service_exists(deps.storage, &service_name)?;
 
     for verifier in verifiers {
-        VERIFIERS.update(
-            deps.storage,
-            (&service_name, &verifier.clone()),
-            |sw| -> std::result::Result<Verifier, ContractError> {
-                match sw {
-                    Some(mut verifier) => {
-                        verifier.authorization_state = auth_state.clone();
-                        Ok(verifier)
-                    }
-                    None => Ok(Verifier {
-                        address: verifier,
-                        bonding_state: BondingState::Unbonded,
-                        authorization_state: auth_state.clone(),
-                        service_name: service_name.clone(),
-                    }),
-                }
-            },
-        )?;
+        state::update_verifier_status(deps.storage, &service_name, &auth_state, verifier)?;
+    }
+
+    if auth_state == AuthorizationState::Authorized {
+        ensure_authorization_max_limit_respected(deps.storage, &service_name)?;
     }
 
     Ok(Response::new())
@@ -261,6 +247,24 @@ fn ensure_service_exists(
         state::has_service(storage, service_name),
         ContractError::ServiceNotFound
     );
+
+    Ok(())
+}
+
+fn ensure_authorization_max_limit_respected(
+    storage: &dyn Storage,
+    service_name: &String,
+) -> Result<(), ContractError> {
+    let max_limit = state::service(storage, service_name, None)?.max_num_verifiers;
+    if let Some(max_limit) = max_limit {
+        let authorzied_verifier_count =
+            state::number_of_authorized_verifiers(storage, service_name)?;
+
+        ensure!(
+            authorzied_verifier_count <= max_limit,
+            ContractError::VerifierLimitExceeded
+        );
+    }
 
     Ok(())
 }

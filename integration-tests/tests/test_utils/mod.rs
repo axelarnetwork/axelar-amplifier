@@ -976,7 +976,7 @@ pub fn register_in_service_registry(
             service_name: protocol.service_name.to_string(),
         },
     );
-    assert!(response.is_ok());
+    assert!(response.is_ok()); // failed here
 
     for verifier in verifiers {
         let response = protocol.app.send_tokens(
