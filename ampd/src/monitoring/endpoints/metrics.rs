@@ -51,13 +51,13 @@ impl Metrics {
 }
 
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-    match gather(registry) {
+    match render_metrics(registry) {
         Ok(metrics) => (StatusCode::OK, metrics),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     }
 }
 
-fn gather(registry: &Registry) -> Result<String, MetricsError> {
+fn render_metrics(registry: &Registry) -> Result<String, MetricsError> {
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
     let metric_families = registry.gather();
@@ -80,13 +80,13 @@ mod tests {
         let registry = Registry::new();
         let metrics = Metrics::new(&registry).unwrap();
 
-        let initial_metrics = gather(&registry).unwrap();
+        let initial_metrics = render_metrics(&registry).unwrap();
         assert!(initial_metrics.contains("blocks_received 0"));
 
         metrics.handle_message(MetricsMsg::IncBlockReceived);
         metrics.handle_message(MetricsMsg::IncBlockReceived);
         metrics.handle_message(MetricsMsg::IncBlockReceived);
-        let final_metrics = gather(&registry).unwrap();
+        let final_metrics = render_metrics(&registry).unwrap();
         assert!(final_metrics.contains("blocks_received 3"));
     }
 
