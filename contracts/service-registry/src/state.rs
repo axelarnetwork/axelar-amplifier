@@ -219,6 +219,35 @@ pub fn remove_service_override(
     Ok(())
 }
 
+pub fn update_multiple_verifier_status(
+    storage: &mut dyn Storage,
+    service_name: &ServiceName,
+    auth_state: &AuthorizationState,
+    verifiers: Vec<Addr>,
+) -> error_stack::Result<(), ContractError> {
+    let mut authroized_verifiers_count_changed = 0;
+
+    for verifier in verifiers {
+        let old_state = VERIFIERS
+            .may_load(storage, (service_name, verifier))
+            .change_context(ContractError::StorageError)?
+            .map(|v| v.authorization_state);
+
+        total_verifier_count_changed += calculate_single_verifier_diff(&old_state, &auth_state);
+
+
+
+
+}
+
+fn calculate_single_verifier_diff(old_state: &Option<AuthorizationState>, auth_state: &AuthorizationState) -> i16 {
+    match (old_state, auth_state) {
+        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => 1,
+        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => -1,
+        _ => 0,
+    }
+}
+
 pub fn update_verifier_status(
     storage: &mut dyn Storage,
     service_name: &String,
