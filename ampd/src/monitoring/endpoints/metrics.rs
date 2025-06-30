@@ -141,7 +141,27 @@ impl VotesCastedMetrics {
     }
 }
 
-fn create_verifier_votes_casted_metrics() -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
+pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
+    match gather(registry) {
+        Ok(metrics) => (StatusCode::OK, metrics),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+fn gather(registry: &Registry) -> Result<String, MetricsError> {
+    let mut buffer = Vec::new();
+    let encoder = TextEncoder::new();
+    let metric_families = registry.gather();
+
+    encoder
+        .encode(&metric_families, &mut buffer)
+        .change_context(MetricsError::EncodeError)?;
+
+    String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
+}
+
+fn create_verifier_votes_casted_metrics(
+) -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
     let verifier_votes_casted_successful = IntCounterVec::new(
         Opts::new(
             "verifier_votes_casted_successful",
@@ -172,11 +192,11 @@ fn create_verifier_votes_casted_metrics() -> Result<(IntCounterVec, IntCounterVe
     )
     .change_context(MetricsError::MetricSpawnFailed)?;
 
-        Ok((
-            verifier_votes_casted_successful,
-            verifier_votes_casted_failed,
-            verifier_votes_casted_success_rate,
-        ))
+    Ok((
+        verifier_votes_casted_successful,
+        verifier_votes_casted_failed,
+        verifier_votes_casted_success_rate,
+    ))
 }
 
 
