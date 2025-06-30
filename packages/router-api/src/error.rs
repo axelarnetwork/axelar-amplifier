@@ -1,4 +1,4 @@
-use axelar_wasm_std::IntoContractError;
+use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
@@ -55,4 +55,7 @@ pub enum Error {
 
     #[error("error serializing data")]
     Serialize,
+
+    #[error("failed to create '{0}' message")]
+    CreateMessage(nonempty::String),
 }
