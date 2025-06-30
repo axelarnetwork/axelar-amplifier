@@ -219,44 +219,45 @@ pub fn remove_service_override(
     Ok(())
 }
 
-pub fn update_multiple_verifier_status(
+pub fn update_verifier_authorization_status(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
     auth_state: &AuthorizationState,
-    verifiers: Vec<Addr>,
+    verifiers: &[Addr],
 ) -> error_stack::Result<(), ContractError> {
-    let mut authroized_verifiers_count_changed = 0;
+    let mut authorized_verifiers_count_changed = 0i16;
 
-    for verifier in verifiers {
-        let old_state = VERIFIERS
-            .may_load(storage, (service_name, verifier))
-            .change_context(ContractError::StorageError)?
-            .map(|v| v.authorization_state);
+    for verifier_addr in verifiers.iter() {
+        VERIFIERS
+            .update(
+                storage,
+                (service_name, verifier_addr),
+                |existing_verifier| -> std::result::Result<Verifier, ContractError> {
+                    match existing_verifier {
+                        Some(mut verifier) => {
+                            let old_state = Some(verifier.authorization_state.clone());
+                            authorized_verifiers_count_changed +=
+                                calculate_single_verifier_diff(&old_state, &auth_state);
+                            verifier.authorization_state = auth_state.clone();
+                            Ok(verifier)
+                        }
 
-        total_verifier_count_changed += calculate_single_verifier_diff(&old_state, &auth_state);
-
-
-
-
-}
-
-fn calculate_single_verifier_diff(old_state: &Option<AuthorizationState>, auth_state: &AuthorizationState) -> i16 {
-    match (old_state, auth_state) {
-        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => 1,
-        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => -1,
-        _ => 0,
+                        None => {
+                            authorized_verifiers_count_changed +=
+                                calculate_single_verifier_diff(&None, &auth_state);
+                            Ok(Verifier {
+                                address: verifier_addr.clone(),
+                                bonding_state: BondingState::Unbonded,
+                                authorization_state: auth_state.clone(),
+                                service_name: service_name.clone(),
+                            })
+                        }
+                    }
+                },
+            )
+            .change_context(ContractError::StorageError)?;
     }
-}
-
-pub fn update_verifier_status(
-    storage: &mut dyn Storage,
-    service_name: &String,
-    auth_state: &AuthorizationState,
-    verifier: Addr,
-) -> error_stack::Result<(), ContractError> {
-    update_authorized_verifier_count(storage, service_name, auth_state, &verifier)?;
-    update_verifier_auth_state(storage, service_name, &verifier, auth_state.clone())?;
-
+    update_authorized_count_by_diff(storage, service_name, authorized_verifiers_count_changed)?;
     Ok(())
 }
 
@@ -376,75 +377,40 @@ pub fn deregister_chains_support(
     Ok(())
 }
 
-fn update_verifier_auth_state(
-    storage: &mut dyn Storage,
-    service_name: &ServiceName,
-    verifier_addr: &VerifierAddress,
-    auth_state: AuthorizationState,
-) -> error_stack::Result<Verifier, ContractError> {
-    VERIFIERS
-        .update(
-            storage,
-            (service_name, verifier_addr),
-            |sw| -> std::result::Result<Verifier, ContractError> {
-                match sw {
-                    Some(mut verifier) => {
-                        verifier.authorization_state = auth_state;
-                        Ok(verifier)
-                    }
-                    None => Ok(Verifier {
-                        address: verifier_addr.clone(),
-                        bonding_state: BondingState::Unbonded,
-                        authorization_state: auth_state,
-                        service_name: service_name.clone(),
-                    }),
-                }
-            },
-        )
-        .change_context(ContractError::StorageError)
-}
-
-fn update_authorized_verifier_count(
-    storage: &mut dyn Storage,
-    service_name: &ServiceName,
+fn calculate_single_verifier_diff(
+    old_state: &Option<AuthorizationState>,
     auth_state: &AuthorizationState,
-    verifier: &VerifierAddress,
-) -> error_stack::Result<(), ContractError> {
-    let old_state = VERIFIERS
-        .may_load(storage, (service_name, verifier))
-        .change_context(ContractError::StorageError)?
-        .map(|v| v.authorization_state);
-
-    let operation = match (old_state, auth_state) {
-        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => {
-            VerifierCountOperation::Increment
-        }
-        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => {
-            VerifierCountOperation::Decrement
-        }
-        _ => return Ok(()),
-    };
-    update_authorized_count(storage, service_name, operation)
+) -> i16 {
+    match (old_state, auth_state) {
+        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => 1,
+        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => -1,
+        _ => 0,
+    }
 }
 
-fn update_authorized_count(
+fn update_authorized_count_by_diff(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
-    operation: VerifierCountOperation,
+    diff: i16,
 ) -> error_stack::Result<(), ContractError> {
+    if diff == 0 {
+        return Ok(());
+    }
+
     AUTHORIZED_VERIFIER_COUNT
         .update(
             storage,
             service_name,
             |count| -> std::result::Result<u16, ContractError> {
                 let current = count.ok_or(ContractError::ServiceNotFound)?;
-                match operation {
-                    VerifierCountOperation::Increment => current
-                        .checked_add(1)
-                        .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow),
-                    VerifierCountOperation::Decrement => Ok(current
-                        .checked_sub(1)
-                        .expect("authorized verifiers count should not be negative, the counter is out of sync")),
+                if diff > 0 {
+                    current
+                        .checked_add(diff as u16)
+                        .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow)
+                } else {
+                    Ok(current
+                        .checked_sub((-diff) as u16)
+                        .expect("authorized verifiers count should not be negative, the counter is out of sync"))
                 }
             },
         )
@@ -1210,22 +1176,28 @@ mod tests {
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
 
-        update_authorized_count(
+        let verifier = MockApi::default().addr_make("verifier");
+        update_verifier_authorization_status(
             deps.as_mut().storage,
             &service.name,
-            VerifierCountOperation::Increment,
+            &AuthorizationState::Authorized,
+            &[verifier.clone()],
         )
         .unwrap();
 
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 1);
 
-        update_authorized_count(
+        update_verifier_authorization_status(
             deps.as_mut().storage,
             &service.name,
-            VerifierCountOperation::Decrement,
+            &AuthorizationState::NotAuthorized,
+            &[verifier],
         )
         .unwrap();
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 0);
     }
 
     #[test]
@@ -1233,14 +1205,17 @@ mod tests {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
 
-        for _ in 0..5 {
-            update_authorized_count(
-                deps.as_mut().storage,
-                &service.name,
-                VerifierCountOperation::Increment,
-            )
-            .unwrap();
-        }
+        let verifiers: Vec<Addr> = (0..5)
+            .map(|i| MockApi::default().addr_make(&format!("verifier{}", i)))
+            .collect();
+
+        update_verifier_authorization_status(
+            deps.as_mut().storage,
+            &service.name,
+            &AuthorizationState::Authorized,
+            &verifiers,
+        )
+        .unwrap();
 
         let params = UpdatedServiceParams {
             max_num_verifiers: Some(Some(4)),
@@ -1252,6 +1227,7 @@ mod tests {
         let result = update_service(deps.as_mut().storage, &service.name, params);
         assert!(result.is_err());
     }
+
     #[test]
     fn test_number_of_authorized_return_err_verifiers_service_not_found() {
         let deps = mock_dependencies();

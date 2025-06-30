@@ -45,9 +45,12 @@ pub fn update_verifier_authorization_status(
 ) -> Result<Response, ContractError> {
     ensure_service_exists(deps.storage, &service_name)?;
 
-    for verifier in verifiers {
-        state::update_verifier_status(deps.storage, &service_name, &auth_state, verifier)?;
-    }
+    state::update_verifier_authorization_status(
+        deps.storage,
+        &service_name,
+        &auth_state,
+        &verifiers,
+    )?;
 
     if auth_state == AuthorizationState::Authorized {
         ensure_authorization_max_limit_respected(deps.storage, &service_name)?;
