@@ -1,4 +1,4 @@
-use interchain_token_api::{DeployInterchainToken, HubMessage, Message, TokenId};
+use interchain_token::{DeployInterchainToken, HubMessage, Message, TokenId};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 pub fn dummy_message() -> Message {

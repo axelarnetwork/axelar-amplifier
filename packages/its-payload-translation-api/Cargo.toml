@@ -10,7 +10,7 @@ description = "ITS payload translation API"
 client = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
-interchain-token-api = { workspace = true }
+interchain-token = { workspace = true }
 cosmwasm-schema = { workspace = true }
 thiserror = { workspace = true }
 

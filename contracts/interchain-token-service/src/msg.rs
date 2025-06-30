@@ -4,7 +4,7 @@ use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint256};
-use interchain_token_api::TokenId;
+use interchain_token::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
 

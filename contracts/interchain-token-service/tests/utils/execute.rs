@@ -10,8 +10,8 @@ use cosmwasm_std::{
     from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     SystemResult, WasmQuery,
 };
-use interchain_token_api::payload_translation::TranslationQueryMsg;
-use interchain_token_api::{HubMessage, TokenId};
+use interchain_token::{HubMessage, TokenId};
+use its_payload_translation_api::TranslationQueryMsg;
 use interchain_token_service::contract;
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;

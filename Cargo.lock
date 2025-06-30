@@ -28,7 +28,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "interchain-token-api",
+ "interchain-token",
  "interchain-token-service",
  "its-payload-translation-api",
  "router-api",
@@ -5211,7 +5211,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "interchain-token-api"
+name = "interchain-token"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
@@ -5249,7 +5249,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "interchain-token-api",
+ "interchain-token",
  "itertools 0.11.0",
  "its-payload-translation-api",
  "msgs-derive",
@@ -5357,7 +5357,7 @@ dependencies = [
  "cosmwasm-schema 2.2.2",
  "cosmwasm-std 2.2.2",
  "error-stack",
- "interchain-token-api",
+ "interchain-token",
  "thiserror 1.0.69",
 ]
 

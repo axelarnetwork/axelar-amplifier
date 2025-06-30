@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{from_json, Empty, OwnedDeps};
-use interchain_token_api::TokenId;
+use interchain_token::TokenId;
 use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,

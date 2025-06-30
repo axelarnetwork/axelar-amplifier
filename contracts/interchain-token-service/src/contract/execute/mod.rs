@@ -4,7 +4,7 @@ use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use its_payload_translation_api::Client as TranslationClient;
-use interchain_token_api::{
+use interchain_token::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
@@ -599,7 +599,7 @@ mod tests {
     };
     use error_stack::{report, Result};
     use its_payload_translation_api::Client as TranslationClient;
-    use interchain_token_api::{
+    use interchain_token::{
         DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
         RegisterTokenMetadata, TokenId,
     };
