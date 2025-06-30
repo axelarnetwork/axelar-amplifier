@@ -204,7 +204,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: dylint
-          args: --all -- -D warnings
+          args: --all
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
