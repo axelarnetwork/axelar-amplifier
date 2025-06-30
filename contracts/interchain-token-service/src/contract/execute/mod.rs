@@ -2,12 +2,12 @@ use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-use its_payload_translation_api::Client as TranslationClient;
 use interchain_token::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
+use its_payload_translation_api::Client as TranslationClient;
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::msg::SupplyModifier;
@@ -587,7 +587,6 @@ fn apply_to_hub(
 #[cfg(test)]
 mod tests {
 
-    use its_abi_translation::abi::hub_message_abi_encode;
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
@@ -602,6 +601,7 @@ mod tests {
         DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
         RegisterTokenMetadata, TokenId,
     };
+    use its_abi_translation::abi::hub_message_abi_encode;
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::{apply_to_hub, register_p2p_token_instance};
@@ -2190,25 +2190,19 @@ mod tests {
             WasmQuery::Smart { contract_addr, msg }
                 if contract_addr == MockApi::default().addr_make("translation").as_str() =>
             {
-                let msg =
-                    from_json::<its_payload_translation_api::TranslationQueryMsg>(
-                        msg,
-                    )
-                    .unwrap();
+                let msg = from_json::<its_payload_translation_api::QueryMsg>(msg).unwrap();
                 match msg {
-                    its_payload_translation_api::TranslationQueryMsg::FromBytes {
-                        payload,
-                    } => Ok(to_json_binary(
-                        &its_abi_translation::abi::hub_message_abi_decode(&payload).unwrap(),
+                    its_payload_translation_api::QueryMsg::FromBytes { payload } => {
+                        Ok(to_json_binary(
+                            &its_abi_translation::abi::hub_message_abi_decode(&payload).unwrap(),
+                        )
+                        .into())
+                        .into()
+                    }
+                    its_payload_translation_api::QueryMsg::ToBytes { message } => Ok(
+                        to_json_binary(&its_abi_translation::abi::hub_message_abi_encode(message))
+                            .into(),
                     )
-                    .into())
-                    .into(),
-                    its_payload_translation_api::TranslationQueryMsg::ToBytes {
-                        message,
-                    } => Ok(to_json_binary(
-                        &its_abi_translation::abi::hub_message_abi_encode(message),
-                    )
-                    .into())
                     .into(),
                 }
             }

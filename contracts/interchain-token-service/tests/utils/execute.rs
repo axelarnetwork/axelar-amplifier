@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use its_abi_translation::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use axelar_core_std::nexus;
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_core_std::query::AxelarQueryMsg;
@@ -11,10 +10,11 @@ use cosmwasm_std::{
     SystemResult, WasmQuery,
 };
 use interchain_token::{HubMessage, TokenId};
-use its_payload_translation_api::TranslationQueryMsg;
 use interchain_token_service::contract;
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
+use its_abi_translation::abi::{hub_message_abi_decode, hub_message_abi_encode};
+use its_payload_translation_api::QueryMsg;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
@@ -72,9 +72,9 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
         }
         WasmQuery::Smart { contract_addr, msg } if *contract_addr == translation_contract_addr => {
             // Handle translation contract queries
-            let query_msg = from_json::<TranslationQueryMsg>(msg).unwrap();
+            let query_msg = from_json::<QueryMsg>(msg).unwrap();
             match query_msg {
-                TranslationQueryMsg::FromBytes { payload } => {
+                QueryMsg::FromBytes { payload } => {
                     // Use the actual translation logic
                     match hub_message_abi_decode(payload.as_slice()) {
                         Ok(hub_message) => Ok(to_json_binary(&hub_message).into()).into(),
@@ -84,7 +84,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
                         }),
                     }
                 }
-                TranslationQueryMsg::ToBytes { message } => {
+                QueryMsg::ToBytes { message } => {
                     // Use the actual translation logic
                     let payload = hub_message_abi_encode(message);
                     Ok(to_json_binary(&payload).into()).into()

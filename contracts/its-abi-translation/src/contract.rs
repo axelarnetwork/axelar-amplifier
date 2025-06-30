@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-use its_payload_translation_api::TranslationQueryMsg;
+use its_payload_translation_api::QueryMsg;
 
 use crate::error::ContractError;
 
@@ -22,10 +22,10 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: TranslationQueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        TranslationQueryMsg::FromBytes { payload } => query::from_bytes(deps, env, payload),
-        TranslationQueryMsg::ToBytes { message } => query::to_bytes(deps, env, message),
+        QueryMsg::FromBytes { payload } => query::from_bytes(deps, env, payload),
+        QueryMsg::ToBytes { message } => query::to_bytes(deps, env, message),
     }
 }
 
@@ -78,14 +78,14 @@ mod tests {
         };
 
         // Test ToBytes
-        let to_bytes_msg = TranslationQueryMsg::ToBytes {
+        let to_bytes_msg = QueryMsg::ToBytes {
             message: hub_message.clone(),
         };
         let bytes_result = query(deps.as_ref(), env.clone(), to_bytes_msg).unwrap();
         let payload: HexBinary = from_json(bytes_result).unwrap();
 
         // Test FromBytes
-        let from_bytes_msg = TranslationQueryMsg::FromBytes {
+        let from_bytes_msg = QueryMsg::FromBytes {
             payload: payload.clone(),
         };
         let message_result = query(deps.as_ref(), env, from_bytes_msg).unwrap();
@@ -113,14 +113,14 @@ mod tests {
         };
 
         // Test ToBytes
-        let to_bytes_msg = TranslationQueryMsg::ToBytes {
+        let to_bytes_msg = QueryMsg::ToBytes {
             message: hub_message.clone(),
         };
         let bytes_result = query(deps.as_ref(), env.clone(), to_bytes_msg).unwrap();
         let payload: HexBinary = from_json(bytes_result).unwrap();
 
         // Test FromBytes
-        let from_bytes_msg = TranslationQueryMsg::FromBytes { payload };
+        let from_bytes_msg = QueryMsg::FromBytes { payload };
         let message_result = query(deps.as_ref(), env, from_bytes_msg).unwrap();
         let decoded_message: HubMessage = from_json(message_result).unwrap();
 
@@ -135,7 +135,7 @@ mod tests {
 
         // Test with invalid payload
         let invalid_payload = HexBinary::from_hex("deadbeef").unwrap();
-        let from_bytes_msg = TranslationQueryMsg::FromBytes {
+        let from_bytes_msg = QueryMsg::FromBytes {
             payload: invalid_payload,
         };
 

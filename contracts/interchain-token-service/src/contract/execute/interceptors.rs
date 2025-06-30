@@ -1,9 +1,7 @@
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{OverflowError, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
-use interchain_token::{
-    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId,
-};
+use interchain_token::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId};
 use router_api::ChainNameRaw;
 
 use super::Error;

@@ -2,7 +2,7 @@ use cosmwasm_std::{CosmosMsg, HexBinary};
 use error_stack::ResultExt;
 use interchain_token::primitives::HubMessage;
 
-use super::msg::TranslationQueryMsg;
+use super::msg::QueryMsg;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -14,35 +14,35 @@ pub enum Error {
     ToBytes,
 }
 
-impl From<TranslationQueryMsg> for Error {
-    fn from(value: TranslationQueryMsg) -> Self {
+impl From<QueryMsg> for Error {
+    fn from(value: QueryMsg) -> Self {
         match value {
-            TranslationQueryMsg::FromBytes { .. } => Error::FromBytes,
-            TranslationQueryMsg::ToBytes { .. } => Error::ToBytes,
+            QueryMsg::FromBytes { .. } => Error::FromBytes,
+            QueryMsg::ToBytes { .. } => Error::ToBytes,
         }
     }
 }
 
-impl<'a> From<client::ContractClient<'a, CosmosMsg, TranslationQueryMsg>> for Client<'a> {
-    fn from(client: client::ContractClient<'a, CosmosMsg, TranslationQueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, CosmosMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, CosmosMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
 pub struct Client<'a> {
-    client: client::ContractClient<'a, CosmosMsg, TranslationQueryMsg>,
+    client: client::ContractClient<'a, CosmosMsg, QueryMsg>,
 }
 
 impl Client<'_> {
     /// Query the translation contract to decode a chain-specific payload into a HubMessage
     pub fn from_bytes(&self, payload: HexBinary) -> Result<HubMessage> {
-        let msg = TranslationQueryMsg::FromBytes { payload };
+        let msg = QueryMsg::FromBytes { payload };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
     /// Query the translation contract to encode a HubMessage into a chain-specific payload
     pub fn to_bytes(&self, message: HubMessage) -> Result<HexBinary> {
-        let msg = TranslationQueryMsg::ToBytes { message };
+        let msg = QueryMsg::ToBytes { message };
         self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 }

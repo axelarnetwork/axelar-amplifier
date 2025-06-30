@@ -1,4 +1,3 @@
-use its_abi_translation::abi::hub_message_abi_encode;
 use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
@@ -12,6 +11,7 @@ use interchain_token::{
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
+use its_abi_translation::abi::hub_message_abi_encode;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};

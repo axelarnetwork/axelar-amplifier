@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use axelar_wasm_std::address::validate_cosmwasm_address;
 use axelar_wasm_std::{migrate_from_version, IntoContractError};
@@ -43,13 +43,6 @@ pub struct MigrateMsg {
     pub chain_translation_configs: Vec<ChainTranslationConfig>,
 }
 
-fn load_old_chain_config(
-    storage: &dyn Storage,
-    chain: &ChainNameRaw,
-) -> Result<OldChainConfig, cosmwasm_std::StdError> {
-    OLD_CHAIN_CONFIGS.load(storage, chain)
-}
-
 fn load_all_old_chain_configs(
     storage: &dyn Storage,
 ) -> Result<HashMap<ChainNameRaw, OldChainConfig>, cosmwasm_std::StdError> {
@@ -78,26 +71,16 @@ pub fn migrate(
     let existing_chains =
         load_all_old_chain_configs(deps.storage).change_context(Error::LoadOldChainConfigs)?;
 
-    // Create a set of chains specified in the migration message
-    let migration_chains: HashSet<ChainNameRaw> = msg
+    let translation_contracts: HashMap<ChainNameRaw, Address> = msg
         .chain_translation_configs
         .iter()
-        .map(|config| config.chain.clone())
+        .map(|config| (config.chain.clone(), config.translation_contract.clone()))
         .collect();
 
-    // Check that all existing chains are specified in the migration
-    for existing_chain in existing_chains.keys() {
-        if !migration_chains.contains(existing_chain) {
-            return Err(Error::ChainNotFound(existing_chain.clone()).into());
-        }
-    }
-
-    // Migrate each chain's config by loading old state and saving new state
-    for chain_config in msg.chain_translation_configs {
-        // Load the old chain config (without translation_contract)
-        let old_chain_state = load_old_chain_config(deps.storage, &chain_config.chain)
-            .change_context(Error::ChainNotFound(chain_config.chain.clone()))?;
-
+    for (chain, old_chain_state) in existing_chains {
+        let translation_contract = translation_contracts
+            .get(&chain)
+            .ok_or_else(|| Error::ChainNotFound(chain.clone()))?;
         // Create new chain config with translation_contract added
         let new_chain_state = NewChainConfig {
             truncation: crate::state::TruncationConfig {
@@ -110,12 +93,10 @@ pub fn migrate(
             frozen: old_chain_state.frozen,
             translation_contract: validate_cosmwasm_address(
                 deps.api,
-                &chain_config.translation_contract.to_string(),
+                &translation_contract.to_string(),
             )?,
         };
-
-        // Save the new chain config (this will overwrite the old format)
-        save_chain_config(deps.storage, &chain_config.chain, &new_chain_state)?;
+        save_chain_config(deps.storage, &chain, &new_chain_state)?;
     }
 
     Ok(Response::new())
@@ -123,6 +104,7 @@ pub fn migrate(
 
 #[cfg(test)]
 mod tests {
+    use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
 
@@ -292,52 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_fails_when_chain_not_in_state() {
-        let mut deps = mock_dependencies();
-        let env = mock_env();
-
-        setup_test_chains_old_format(&mut deps);
-
-        // Try to migrate a chain that doesn't exist in state
-        let msg = MigrateMsg {
-            chain_translation_configs: vec![
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("ethereum").unwrap(),
-                    translation_contract: Address::try_from(
-                        MockApi::default()
-                            .addr_make("ethereum_translation")
-                            .to_string(),
-                    )
-                    .unwrap(),
-                },
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("polygon").unwrap(),
-                    translation_contract: Address::try_from(
-                        MockApi::default()
-                            .addr_make("polygon_translation")
-                            .to_string(),
-                    )
-                    .unwrap(),
-                },
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("nonexistent").unwrap(),
-                    translation_contract: Address::try_from(
-                        MockApi::default()
-                            .addr_make("nonexistent_translation")
-                            .to_string(),
-                    )
-                    .unwrap(),
-                },
-            ],
-        };
-
-        let result = migrate(deps.as_mut(), env, msg);
-        assert!(result.is_err());
-
-        assert_err_contains!(result, Error, ChainNotFound);
-    }
-
-    #[test]
     fn test_migrate_single_chain() {
         let mut deps = mock_dependencies();
         let env = mock_env();
@@ -381,7 +317,7 @@ mod tests {
             }],
         };
 
-        let result = migrate(deps.as_mut(), env, msg).unwrap();
+        assert_ok!(migrate(deps.as_mut(), env, msg));
 
         // Verify the migrated config
         let migrated_config = load_chain_config(
@@ -475,7 +411,7 @@ mod tests {
             ],
         };
 
-        let result = migrate(deps.as_mut(), env, msg).unwrap();
+        assert_ok!(migrate(deps.as_mut(), env, msg));
 
         // Verify different truncation configs are preserved
         let ethereum_migrated = load_chain_config(
