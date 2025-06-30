@@ -246,7 +246,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -282,7 +282,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -319,7 +319,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -360,7 +360,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Ok(()));
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -401,7 +401,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -442,7 +442,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -474,7 +474,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_server, metrics_client, _) = test_dummy_server_setup();
+        let (_, metrics_client, _) = test_dummy_server_setup();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(

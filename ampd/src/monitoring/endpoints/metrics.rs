@@ -50,6 +50,13 @@ impl Metrics {
     }
 }
 
+pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
+    match gather(registry) {
+        Ok(metrics) => (StatusCode::OK, metrics),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
 fn gather(registry: &Registry) -> Result<String, MetricsError> {
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
@@ -60,13 +67,6 @@ fn gather(registry: &Registry) -> Result<String, MetricsError> {
         .change_context(MetricsError::EncodeError)?;
 
     String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
-}
-
-pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-    match gather(registry) {
-        Ok(metrics) => (StatusCode::OK, metrics),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-    }
 }
 
 #[cfg(test)]

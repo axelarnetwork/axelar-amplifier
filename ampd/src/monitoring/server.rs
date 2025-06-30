@@ -180,7 +180,7 @@ pub mod test_utils {
         (server, metrics_client, cancel)
     }
 
-    pub fn send_metrics_client_msg(
+    pub fn send_mutiple_metrics(
         metrics_client: &MetricsClient,
         msg: MetricsMsg,
         number_of_messages: usize,
@@ -235,7 +235,7 @@ mod tests {
     async fn test_metrics_server_handles_all_clients_dropped() {
         let (bind_address, server, metrics_client, cancel) = test_metrics_server_setup();
         tokio::spawn(server.run(cancel.clone()));
-        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 3);
+        send_mutiple_metrics(&metrics_client, MetricsMsg::IncBlockReceived, 3);
         drop(metrics_client);
         tokio::time::sleep(Duration::from_millis(100)).await;
         let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
@@ -268,7 +268,7 @@ mod tests {
         let initial_text = initial_metrics.text().await.unwrap();
         assert!(initial_text.contains("blocks_received 0"));
 
-        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 3);
+        send_mutiple_metrics(&metrics_client, MetricsMsg::IncBlockReceived, 3);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -286,7 +286,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 2);
+        send_mutiple_metrics(&metrics_client, MetricsMsg::IncBlockReceived, 2);
 
         cancel.cancel();
         let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
@@ -315,7 +315,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 5);
+        send_mutiple_metrics(&metrics_client, MetricsMsg::IncBlockReceived, 5);
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -337,7 +337,7 @@ mod tests {
         let (server, metrics_client, cancel) = test_dummy_server_setup();
         let server_handle = tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(50)).await;
-        send_metrics_client_msg(&metrics_client, MetricsMsg::IncBlockReceived, 1);
+        send_mutiple_metrics(&metrics_client, MetricsMsg::IncBlockReceived, 1);
         cancel.cancel();
         let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
         assert!(
@@ -371,7 +371,7 @@ mod tests {
 
         for client in [client1, client2, client3].into_iter() {
             let handle = tokio::spawn(async move {
-                send_metrics_client_msg(&client, MetricsMsg::IncBlockReceived, 5);
+                send_mutiple_metrics(&client, MetricsMsg::IncBlockReceived, 5);
             });
             handles.push(handle);
         }

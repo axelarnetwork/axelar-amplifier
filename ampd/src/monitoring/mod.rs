@@ -1,19 +1,15 @@
 mod endpoints;
 pub mod server;
-use std::fmt;
-use std::fmt::Debug;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::{Deserialize, Serialize};
-
-use crate::types::debug::REDACTED_VALUE;
 
 #[derive(Clone)]
 pub enum MetricsMsg {
     IncBlockReceived,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Config {
     pub enabled: bool,
     pub bind_address: Option<SocketAddrV4>,
@@ -25,15 +21,6 @@ impl Default for Config {
             enabled: false,
             bind_address: Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)),
         }
-    }
-}
-
-impl Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Monitoring Server Config")
-            .field("enabled", &self.enabled)
-            .field("bind_address", &REDACTED_VALUE)
-            .finish()
     }
 }
 
@@ -77,14 +64,5 @@ mod tests {
         let serialized = toml::to_string(&config).unwrap();
         assert!(serialized.contains("bind_address = \"127.0.0.1:3000\""));
         assert!(!serialized.contains("Some("));
-        println!("Serialized config with address: {}", serialized);
-    }
-
-    #[test]
-    fn debug_implementation_redatcs_bind_address() {
-        let config = Config::default();
-        let debug_str = format!("{:?}", config);
-        assert!(debug_str.contains("bind_address: \"redacted\""));
-        assert!(debug_str.contains("enabled: false"));
     }
 }
