@@ -1,0 +1,18 @@
+[package]
+name = "its-payload-translation-api"
+version = "1.0.0"
+rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
+edition = { workspace = true }
+description = "ITS payload translation API"
+
+[dependencies]
+client = { workspace = true }
+cosmwasm-std = { workspace = true }
+error-stack = { workspace = true }
+interchain-token-api = { workspace = true }
+cosmwasm-schema = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,8 +1,8 @@
 use cosmwasm_std::{CosmosMsg, HexBinary};
 use error_stack::ResultExt;
+use interchain_token_api::primitives::HubMessage;
 
 use super::msg::TranslationQueryMsg;
-use crate::primitives::HubMessage;
 
 type Result<T> = error_stack::Result<T, Error>;
 

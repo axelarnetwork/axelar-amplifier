@@ -2,12 +2,12 @@ use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
-use interchain_token_api::payload_translation::Client as TranslationClient;
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use its_payload_translation_api::Client as TranslationClient;
 use interchain_token_api::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
 use crate::msg::SupplyModifier;
@@ -598,7 +598,7 @@ mod tests {
         WasmQuery,
     };
     use error_stack::{report, Result};
-    use interchain_token_api::payload_translation::Client as TranslationClient;
+    use its_payload_translation_api::Client as TranslationClient;
     use interchain_token_api::{
         DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
         RegisterTokenMetadata, TokenId,
@@ -2192,19 +2192,19 @@ mod tests {
                 if contract_addr == MockApi::default().addr_make("translation").as_str() =>
             {
                 let msg =
-                    from_json::<interchain_token_api::payload_translation::TranslationQueryMsg>(
+                    from_json::<its_payload_translation_api::TranslationQueryMsg>(
                         msg,
                     )
                     .unwrap();
                 match msg {
-                    interchain_token_api::payload_translation::TranslationQueryMsg::FromBytes {
+                    its_payload_translation_api::TranslationQueryMsg::FromBytes {
                         payload,
                     } => Ok(to_json_binary(
                         &abi_translation_contract::abi::hub_message_abi_decode(&payload).unwrap(),
                     )
                     .into())
                     .into(),
-                    interchain_token_api::payload_translation::TranslationQueryMsg::ToBytes {
+                    its_payload_translation_api::TranslationQueryMsg::ToBytes {
                         message,
                     } => Ok(to_json_binary(
                         &abi_translation_contract::abi::hub_message_abi_encode(message),

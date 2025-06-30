@@ -30,6 +30,7 @@ dependencies = [
  "hex",
  "interchain-token-api",
  "interchain-token-service",
+ "its-payload-translation-api",
  "router-api",
  "serde",
  "serde_json",
@@ -5250,6 +5251,7 @@ dependencies = [
  "hex",
  "interchain-token-api",
  "itertools 0.11.0",
+ "its-payload-translation-api",
  "msgs-derive",
  "report",
  "router-api",
@@ -5346,6 +5348,18 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "its-payload-translation-api"
+version = "1.0.0"
+dependencies = [
+ "client",
+ "cosmwasm-schema 2.2.2",
+ "cosmwasm-std 2.2.2",
+ "error-stack",
+ "interchain-token-api",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "jni"
