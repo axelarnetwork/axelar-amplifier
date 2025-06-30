@@ -52,13 +52,21 @@ impl Metrics {
 }
 
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
+<<<<<<< HEAD
     match render_metrics(registry) {
+=======
+    match gather(registry) {
+>>>>>>> 94bcfc7d (update style)
         Ok(metrics) => (StatusCode::OK, metrics),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     }
 }
 
+<<<<<<< HEAD
 fn render_metrics(registry: &Registry) -> Result<String, MetricsError> {
+=======
+fn gather(registry: &Registry) -> Result<String, MetricsError> {
+>>>>>>> 94bcfc7d (update style)
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
     let metric_families = registry.gather();
