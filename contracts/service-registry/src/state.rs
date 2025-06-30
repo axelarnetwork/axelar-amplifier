@@ -225,7 +225,7 @@ pub fn update_verifier_authorization_status(
     auth_state: &AuthorizationState,
     verifiers: &[Addr],
 ) -> error_stack::Result<(), ContractError> {
-    let mut authorized_verifiers_count_changed = 0i16;
+    let mut auth_verifiers_diff_counter = 0i16;
 
     for verifier_addr in verifiers.iter() {
         VERIFIERS
@@ -236,15 +236,19 @@ pub fn update_verifier_authorization_status(
                     match existing_verifier {
                         Some(mut verifier) => {
                             let old_state = Some(verifier.authorization_state.clone());
-                            authorized_verifiers_count_changed +=
-                                calculate_single_verifier_diff(&old_state, &auth_state);
+                            let operation =
+                                determine_auth_verifier_count_operation(&old_state, &auth_state);
+                            auth_verifiers_diff_counter =
+                                apply_operation_to_diff_counter(auth_verifiers_diff_counter, operation)?;
                             verifier.authorization_state = auth_state.clone();
                             Ok(verifier)
                         }
 
                         None => {
-                            authorized_verifiers_count_changed +=
-                                calculate_single_verifier_diff(&None, &auth_state);
+                            let operation =
+                                determine_auth_verifier_count_operation(&None, &auth_state);
+                            auth_verifiers_diff_counter =
+                                apply_operation_to_diff_counter(auth_verifiers_diff_counter, operation)?;
                             Ok(Verifier {
                                 address: verifier_addr.clone(),
                                 bonding_state: BondingState::Unbonded,
@@ -257,7 +261,7 @@ pub fn update_verifier_authorization_status(
             )
             .change_context(ContractError::StorageError)?;
     }
-    update_authorized_count_by_diff(storage, service_name, authorized_verifiers_count_changed)?;
+    update_authorized_count_by_diff(storage, service_name, auth_verifiers_diff_counter)?;
     Ok(())
 }
 
@@ -377,14 +381,37 @@ pub fn deregister_chains_support(
     Ok(())
 }
 
-fn calculate_single_verifier_diff(
+fn determine_auth_verifier_count_operation(
     old_state: &Option<AuthorizationState>,
     auth_state: &AuthorizationState,
-) -> i16 {
+) -> Option<VerifierCountOperation> {
     match (old_state, auth_state) {
-        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => 1,
-        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => -1,
-        _ => 0,
+        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => {
+            Some(VerifierCountOperation::Increment)
+        }
+        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => {
+            Some(VerifierCountOperation::Decrement)
+        }
+        _ => None,
+    }
+}
+
+fn apply_operation_to_diff_counter(
+    current: i16,
+    operation: Option<VerifierCountOperation>,
+) -> Result<i16, ContractError> {
+    match operation {
+        Some(VerifierCountOperation::Increment) => {
+            current
+                .checked_add(1)
+                .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow)
+        }
+        Some(VerifierCountOperation::Decrement) => {
+            Ok(current
+                .checked_sub(1)
+                .expect("authorized verifiers count should not underflow"))
+        }
+        None => Ok(current), 
     }
 }
 
@@ -417,6 +444,8 @@ fn update_authorized_count_by_diff(
         .change_context(ContractError::StorageError)?;
     Ok(())
 }
+
+
 
 #[cfg(test)]
 mod tests {
