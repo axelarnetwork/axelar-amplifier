@@ -184,7 +184,7 @@ where
         HandlerInfo {
             chain_name: self.chain.to_string(),
             verifier_id: self.verifier.to_string(),
-            is_voting: false,
+            cast_votes: false,
         }
     }
 }

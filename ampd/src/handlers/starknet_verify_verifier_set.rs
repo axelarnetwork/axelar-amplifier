@@ -161,7 +161,7 @@ where
         HandlerInfo {
             chain_name: "starknet".to_string(),
             verifier_id: self.verifier.to_string(),
-            is_voting: true,
+            cast_votes: true,
         }
     }
 }

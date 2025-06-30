@@ -28,9 +28,13 @@ pub enum MetricsError {
 
 pub struct Metrics {
     block_received: IntCounter,
-    verifier_votes_casted_successful: IntCounterVec,
-    verifier_votes_casted_failed: IntCounterVec,
-    verifier_votes_casted_success_rate: GaugeVec,
+    votes_casted: VotesCastedMetrics,
+}
+
+struct VotesCastedMetrics {
+    succeed: IntCounterVec,
+    failed: IntCounterVec,
+    success_rate: GaugeVec,
 }
 
 impl Metrics {
@@ -38,89 +42,18 @@ impl Metrics {
         let block_received = IntCounter::new("blocks_received", "number of blocks received")
             .change_context(MetricsError::MetricSpawnFailed)?;
 
-        let (
-            verifier_votes_casted_successful,
-            verifier_votes_casted_failed,
-            verifier_votes_casted_success_rate,
-        ) = Self::create_verifier_votes_casted_metrics()?;
+        let votes_casted = VotesCastedMetrics::new()?;
 
         registry
             .register(Box::new(block_received.clone()))
             .change_context(MetricsError::MetricRegisterFailed)?;
 
-        Self::register_metrics(
-            registry,
-            &verifier_votes_casted_successful,
-            &verifier_votes_casted_failed,
-            &verifier_votes_casted_success_rate,
-        )?;
+        votes_casted.register(registry)?;
 
         Ok(Self {
             block_received,
-            verifier_votes_casted_successful,
-            verifier_votes_casted_failed,
-            verifier_votes_casted_success_rate,
+            votes_casted,
         })
-    }
-
-    fn create_verifier_votes_casted_metrics(
-    ) -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
-        let verifier_votes_casted_successful = IntCounterVec::new(
-            Opts::new(
-                "verifier_votes_casted_successful",
-                "number of successful votes casted",
-            )
-            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
-            &["verifier_id", "chain_name"],
-        )
-        .change_context(MetricsError::MetricSpawnFailed)?;
-
-        let verifier_votes_casted_failed = IntCounterVec::new(
-            Opts::new(
-                "verifier_votes_casted_failed",
-                "number of failed votes casted",
-            )
-            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
-            &["verifier_id", "chain_name"],
-        )
-        .change_context(MetricsError::MetricSpawnFailed)?;
-
-        let verifier_votes_casted_success_rate = GaugeVec::new(
-            Opts::new(
-                "verifier_votes_casted_success_rate",
-                "success rate of votes casted",
-            )
-            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
-            &["verifier_id", "chain_name"],
-        )
-        .change_context(MetricsError::MetricSpawnFailed)?;
-
-        Ok((
-            verifier_votes_casted_successful,
-            verifier_votes_casted_failed,
-            verifier_votes_casted_success_rate,
-        ))
-    }
-
-    fn register_metrics(
-        registry: &Registry,
-        verifier_votes_casted_successful: &IntCounterVec,
-        verifier_votes_casted_failed: &IntCounterVec,
-        verifier_votes_casted_success_rate: &GaugeVec,
-    ) -> Result<(), MetricsError> {
-        registry
-            .register(Box::new(verifier_votes_casted_successful.clone()))
-            .change_context(MetricsError::MetricRegisterFailed)?;
-
-        registry
-            .register(Box::new(verifier_votes_casted_failed.clone()))
-            .change_context(MetricsError::MetricRegisterFailed)?;
-
-        registry
-            .register(Box::new(verifier_votes_casted_success_rate.clone()))
-            .change_context(MetricsError::MetricRegisterFailed)?;
-
-        Ok(())
     }
 
     pub fn handle_message(&self, msg: MetricsMsg) {
@@ -132,48 +65,147 @@ impl Metrics {
                 verifier_id,
                 chain_name,
             } => {
-                self.verifier_votes_casted_successful
-                    .with_label_values(&[&verifier_id, &chain_name])
-                    .inc();
-                self.update_success_rate(&verifier_id, &chain_name);
+                self.votes_casted.record_success(&verifier_id, &chain_name);
             }
             MetricsMsg::IncFailedVoteCasted {
                 verifier_id,
                 chain_name,
             } => {
-                self.verifier_votes_casted_failed
-                    .with_label_values(&[&verifier_id, &chain_name])
-                    .inc();
-                self.update_success_rate(&verifier_id, &chain_name);
+                self.votes_casted.record_failure(&verifier_id, &chain_name);
             }
         }
     }
+}
+
+impl VotesCastedMetrics {
+    fn new() -> Result<Self, MetricsError> {
+        let (succeed, failed, success_rate) = create_verifier_votes_casted_metrics()?;
+        Ok(Self {
+            succeed,
+            failed,
+            success_rate,
+        })
+    }
+
+    fn register(&self, registry: &Registry) -> Result<(), MetricsError> {
+        registry
+            .register(Box::new(self.succeed.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+
+        registry
+            .register(Box::new(self.failed.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+
+        registry
+            .register(Box::new(self.success_rate.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+
+        Ok(())
+    }
+
+    fn record_success(&self, verifier_id: &str, chain_name: &str) {
+        self.succeed
+            .with_label_values(&[verifier_id, chain_name])
+            .inc();
+        self.update_success_rate(verifier_id, chain_name);
+    }
+
+    fn record_failure(&self, verifier_id: &str, chain_name: &str) {
+        self.failed
+            .with_label_values(&[verifier_id, chain_name])
+            .inc();
+        self.update_success_rate(verifier_id, chain_name);
+    }
 
     fn update_success_rate(&self, verifier_id: &str, chain_name: &str) {
-        let successful_casted_votes = self
-            .verifier_votes_casted_successful
+        let successful_votes = self
+            .succeed
             .with_label_values(&[verifier_id, chain_name])
             .get();
 
-        let failed_casted_votes = self
-            .verifier_votes_casted_failed
+        let failed_votes = self
+            .failed
             .with_label_values(&[verifier_id, chain_name])
             .get();
 
-        let total_casted_votes = successful_casted_votes + failed_casted_votes;
+        let total_votes = successful_votes + failed_votes;
 
-        let success_rate = match total_casted_votes {
+        let success_rate = match total_votes {
             0 => 0.0,
-            _ => successful_casted_votes as f64 / total_casted_votes as f64,
+            _ => successful_votes as f64 / total_votes as f64,
         };
 
-        self.verifier_votes_casted_success_rate
+        self.success_rate
             .with_label_values(&[verifier_id, chain_name])
             .set(success_rate);
     }
 }
 
-<<<<<<< HEAD
+fn create_verifier_votes_casted_metrics() -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
+    let verifier_votes_casted_successful = IntCounterVec::new(
+        Opts::new(
+            "verifier_votes_casted_successful",
+            "number of successful votes casted",
+        )
+        .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+        &["verifier_id", "chain_name"],
+    )
+    .change_context(MetricsError::MetricSpawnFailed)?;
+
+    let verifier_votes_casted_failed = IntCounterVec::new(
+        Opts::new(
+            "verifier_votes_casted_failed",
+            "number of failed votes casted",
+        )
+        .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+        &["verifier_id", "chain_name"],
+    )
+    .change_context(MetricsError::MetricSpawnFailed)?;
+
+    let verifier_votes_casted_success_rate = GaugeVec::new(
+        Opts::new(
+            "verifier_votes_casted_success_rate",
+            "success rate of votes casted",
+        )
+        .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+        &["verifier_id", "chain_name"],
+    )
+    .change_context(MetricsError::MetricSpawnFailed)?;
+
+        Ok((
+            verifier_votes_casted_successful,
+            verifier_votes_casted_failed,
+            verifier_votes_casted_success_rate,
+        ))
+}
+
+
+pub fn handle_message(&self, msg: MetricsMsg) {
+    match msg {
+        MetricsMsg::IncBlockReceived => {
+            self.block_received.inc();
+        }
+        MetricsMsg::IncSuccessVoteCasted {
+            verifier_id,
+            chain_name,
+        } => {
+            self.verifier_votes_casted_successful
+                .with_label_values(&[&verifier_id, &chain_name])
+                .inc();
+            self.update_success_rate(&verifier_id, &chain_name);
+        }
+        MetricsMsg::IncFailedVoteCasted {
+            verifier_id,
+            chain_name,
+        } => {
+            self.verifier_votes_casted_failed
+                .with_label_values(&[&verifier_id, &chain_name])
+                .inc();
+            self.update_success_rate(&verifier_id, &chain_name);
+        }
+    }
+}
+
 
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
 <<<<<<< HEAD
@@ -201,6 +233,7 @@ fn gather(registry: &Registry) -> Result<String, MetricsError> {
 
     String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
 }
+
 
 #[cfg(test)]
 mod tests {

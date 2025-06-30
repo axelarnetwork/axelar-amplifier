@@ -152,7 +152,7 @@ where
         HandlerInfo {
             chain_name: "multiversx".to_string(),
             verifier_id: self.verifier.to_string(),
-            is_voting: true,
+            cast_votes: true,
         }
     }
 }
