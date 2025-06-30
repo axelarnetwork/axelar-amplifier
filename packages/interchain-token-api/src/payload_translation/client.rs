@@ -1,52 +1,48 @@
-use std::marker::PhantomData;
-
-use cosmwasm_schema::serde::de::DeserializeOwned;
-use cosmwasm_std::{
-    to_json_binary, Addr, Empty, HexBinary, QuerierWrapper, QueryRequest, WasmQuery,
-};
-use error_stack::{Result, ResultExt};
+use cosmwasm_std::{CosmosMsg, HexBinary};
+use error_stack::ResultExt;
 
 use super::msg::TranslationQueryMsg;
-use crate::HubMessage;
+use crate::primitives::HubMessage;
 
-#[derive(Clone)]
-pub struct TranslationContract<'a, T = Empty> {
-    pub address: Addr,
-    pub querier: QuerierWrapper<'a>,
-    custom_msg_type: PhantomData<T>,
-}
-
-impl<'a, T> TranslationContract<'a, T> {
-    pub fn new(address: Addr, querier: QuerierWrapper<'a>) -> Self {
-        TranslationContract::<'a, T> {
-            address,
-            querier,
-            custom_msg_type: PhantomData,
-        }
-    }
-
-    fn query<U: DeserializeOwned + 'static>(&self, msg: &TranslationQueryMsg) -> Result<U, Error> {
-        self.querier
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: self.address.to_string(),
-                msg: to_json_binary(msg).expect("msg should always be serializable"),
-            }))
-            .change_context(Error::QueryTranslationContract)
-    }
-
-    /// Query the translation contract to decode a chain-specific payload into a HubMessage
-    pub fn from_bytes(&self, payload: HexBinary) -> Result<HubMessage, Error> {
-        self.query(&TranslationQueryMsg::FromBytes { payload })
-    }
-
-    /// Query the translation contract to encode a HubMessage into a chain-specific payload
-    pub fn to_bytes(&self, message: HubMessage) -> Result<HexBinary, Error> {
-        self.query(&TranslationQueryMsg::ToBytes { message })
-    }
-}
+type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("could not query the translation contract")]
-    QueryTranslationContract,
+    #[error("failed to query translation contract to decode payload from bytes")]
+    FromBytes,
+    #[error("failed to query translation contract to encode message to bytes")]
+    ToBytes,
+}
+
+impl From<TranslationQueryMsg> for Error {
+    fn from(value: TranslationQueryMsg) -> Self {
+        match value {
+            TranslationQueryMsg::FromBytes { .. } => Error::FromBytes,
+            TranslationQueryMsg::ToBytes { .. } => Error::ToBytes,
+        }
+    }
+}
+
+impl<'a> From<client::ContractClient<'a, CosmosMsg, TranslationQueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, CosmosMsg, TranslationQueryMsg>) -> Self {
+        Client { client }
+    }
+}
+
+pub struct Client<'a> {
+    client: client::ContractClient<'a, CosmosMsg, TranslationQueryMsg>,
+}
+
+impl Client<'_> {
+    /// Query the translation contract to decode a chain-specific payload into a HubMessage
+    pub fn from_bytes(&self, payload: HexBinary) -> Result<HubMessage> {
+        let msg = TranslationQueryMsg::FromBytes { payload };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
+    }
+
+    /// Query the translation contract to encode a HubMessage into a chain-specific payload
+    pub fn to_bytes(&self, message: HubMessage) -> Result<HexBinary> {
+        let msg = TranslationQueryMsg::ToBytes { message };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
+    }
 }

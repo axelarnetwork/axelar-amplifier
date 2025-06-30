@@ -2,7 +2,7 @@ use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
 use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
-use interchain_token_api::payload_translation::TranslationContract;
+use interchain_token_api::payload_translation::Client as TranslationClient;
 use interchain_token_api::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
@@ -185,8 +185,8 @@ fn translate_from_bytes(
     let chain_config =
         state::load_chain_config(storage, source_chain).change_context(Error::State)?;
 
-    let translation_client: TranslationContract<'_, cosmwasm_std::Empty> =
-        TranslationContract::new(chain_config.translation_contract, querier);
+    let translation_client: TranslationClient =
+        client::ContractClient::new(querier, &chain_config.translation_contract).into();
 
     translation_client
         .from_bytes(payload.clone())
@@ -203,8 +203,8 @@ fn translate_to_bytes(
     let chain_config =
         state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
 
-    let translation_client: TranslationContract<'_, cosmwasm_std::Empty> =
-        TranslationContract::new(chain_config.translation_contract, querier);
+    let translation_client: TranslationClient =
+        client::ContractClient::new(querier, &chain_config.translation_contract).into();
 
     translation_client
         .to_bytes(hub_message.clone())
@@ -598,7 +598,7 @@ mod tests {
         WasmQuery,
     };
     use error_stack::{report, Result};
-    use interchain_token_api::payload_translation::TranslationContract;
+    use interchain_token_api::payload_translation::Client as TranslationClient;
     use interchain_token_api::{
         DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
         RegisterTokenMetadata, TokenId,
