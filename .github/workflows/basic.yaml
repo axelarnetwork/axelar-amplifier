@@ -204,6 +204,8 @@ jobs:
         with:
           command: dylint
           args: --all
+        env:
+          DYLINT_RUSTFLAGS: -Dwarnings
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
