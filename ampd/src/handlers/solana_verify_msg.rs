@@ -177,7 +177,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         HandlerInfo {
             chain_name: self.chain_name.to_string(),
             verifier_id: self.verifier.to_string(),
-            is_voting: true,
+            cast_votes: true,
         }
     }
 }
