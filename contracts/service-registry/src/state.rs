@@ -225,7 +225,7 @@ pub fn update_verifier_authorization_status(
     auth_state: &AuthorizationState,
     verifiers: &[Addr],
 ) -> error_stack::Result<(), ContractError> {
-    let mut auth_verifiers_diff_counter = 0i16;
+    let mut auth_verifiers_diff_counter = 0i32;
 
     for verifier_addr in verifiers.iter() {
         VERIFIERS
@@ -237,7 +237,7 @@ pub fn update_verifier_authorization_status(
                         Some(mut verifier) => {
                             let old_state = Some(verifier.authorization_state.clone());
                             let operation =
-                                determine_auth_verifier_count_operation(&old_state, &auth_state);
+                                determine_auth_verifier_count_operation(&old_state, auth_state);
                             auth_verifiers_diff_counter = apply_operation_to_diff_counter(
                                 auth_verifiers_diff_counter,
                                 operation,
@@ -248,7 +248,7 @@ pub fn update_verifier_authorization_status(
 
                         None => {
                             let operation =
-                                determine_auth_verifier_count_operation(&None, &auth_state);
+                                determine_auth_verifier_count_operation(&None, auth_state);
                             auth_verifiers_diff_counter = apply_operation_to_diff_counter(
                                 auth_verifiers_diff_counter,
                                 operation,
@@ -401,9 +401,9 @@ fn determine_auth_verifier_count_operation(
 }
 
 fn apply_operation_to_diff_counter(
-    current: i16,
+    current: i32,
     operation: Option<VerifierCountOperation>,
-) -> Result<i16, ContractError> {
+) -> Result<i32, ContractError> {
     match operation {
         Some(VerifierCountOperation::Increment) => current
             .checked_add(1)
@@ -418,7 +418,7 @@ fn apply_operation_to_diff_counter(
 fn update_authorized_count_by_diff(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
-    diff: i16,
+    diff: i32,
 ) -> error_stack::Result<(), ContractError> {
     if diff == 0 {
         return Ok(());
@@ -432,12 +432,21 @@ fn update_authorized_count_by_diff(
                 let current = count.ok_or(ContractError::ServiceNotFound)?;
                 if diff > 0 {
                     current
-                        .checked_add(diff as u16)
+                        .checked_add(
+                            u16::try_from(diff)
+                                .map_err(|_| ContractError::AuthorizedVerifiersIntegerOverflow)?,
+                        )
                         .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow)
                 } else {
+                    let positive_diff = diff
+                        .checked_neg()
+                        .expect("authorized verifiers diff counter negation should not overflow");
                     Ok(current
-                        .checked_sub((-diff) as u16)
-                        .expect("authorized verifiers count should not be negative, the counter is out of sync"))
+                        .checked_sub(
+                            u16::try_from(positive_diff)
+                                .map_err(|_| ContractError::AuthorizedVerifiersIntegerOverflow)?,
+                        )
+                        .expect("authorized verifiers diff counter should not cause underflow"))
                 }
             },
         )
