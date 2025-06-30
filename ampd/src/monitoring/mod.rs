@@ -1,8 +1,9 @@
-mod endpoints;
-pub mod server;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::{Deserialize, Serialize};
+
+mod endpoints;
+pub mod server;
 
 #[derive(Clone)]
 pub enum MetricsMsg {

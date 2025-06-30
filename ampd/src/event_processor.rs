@@ -109,7 +109,7 @@ where
                 warn!( handler = handler_label,
                     height = height.value(),
                     err = %err,
-                    "failed to record block received metric for block end event",
+                    "failed to record block received metric",
                 );
             }
         }
