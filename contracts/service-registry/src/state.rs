@@ -238,8 +238,10 @@ pub fn update_verifier_authorization_status(
                             let old_state = Some(verifier.authorization_state.clone());
                             let operation =
                                 determine_auth_verifier_count_operation(&old_state, &auth_state);
-                            auth_verifiers_diff_counter =
-                                apply_operation_to_diff_counter(auth_verifiers_diff_counter, operation)?;
+                            auth_verifiers_diff_counter = apply_operation_to_diff_counter(
+                                auth_verifiers_diff_counter,
+                                operation,
+                            )?;
                             verifier.authorization_state = auth_state.clone();
                             Ok(verifier)
                         }
@@ -247,8 +249,10 @@ pub fn update_verifier_authorization_status(
                         None => {
                             let operation =
                                 determine_auth_verifier_count_operation(&None, &auth_state);
-                            auth_verifiers_diff_counter =
-                                apply_operation_to_diff_counter(auth_verifiers_diff_counter, operation)?;
+                            auth_verifiers_diff_counter = apply_operation_to_diff_counter(
+                                auth_verifiers_diff_counter,
+                                operation,
+                            )?;
                             Ok(Verifier {
                                 address: verifier_addr.clone(),
                                 bonding_state: BondingState::Unbonded,
@@ -401,17 +405,13 @@ fn apply_operation_to_diff_counter(
     operation: Option<VerifierCountOperation>,
 ) -> Result<i16, ContractError> {
     match operation {
-        Some(VerifierCountOperation::Increment) => {
-            current
-                .checked_add(1)
-                .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow)
-        }
-        Some(VerifierCountOperation::Decrement) => {
-            Ok(current
-                .checked_sub(1)
-                .expect("authorized verifiers count should not underflow"))
-        }
-        None => Ok(current), 
+        Some(VerifierCountOperation::Increment) => current
+            .checked_add(1)
+            .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow),
+        Some(VerifierCountOperation::Decrement) => Ok(current
+            .checked_sub(1)
+            .expect("authorized verifiers count should not underflow")),
+        None => Ok(current),
     }
 }
 
@@ -444,8 +444,6 @@ fn update_authorized_count_by_diff(
         .change_context(ContractError::StorageError)?;
     Ok(())
 }
-
-
 
 #[cfg(test)]
 mod tests {
