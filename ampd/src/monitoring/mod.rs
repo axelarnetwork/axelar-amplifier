@@ -12,14 +12,14 @@ pub enum MetricsMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Config {
     pub enabled: bool,
-    pub bind_address: Option<SocketAddrV4>,
+    pub bind_address: SocketAddrV4,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: false,
-            bind_address: Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)),
+            bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
         }
     }
 }
@@ -27,7 +27,7 @@ impl Default for Config {
 impl Config {
     pub fn get_bind_addr(&self) -> Option<SocketAddrV4> {
         if self.enabled {
-            self.bind_address
+            Some(self.bind_address)
         } else {
             None
         }
@@ -60,7 +60,9 @@ mod tests {
     fn serde_some_address_serializes_to_string() {
         let config = Config::default();
         let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("enabled = false"));
         assert!(serialized.contains("bind_address = \"127.0.0.1:3000\""));
-        assert!(!serialized.contains("Some("));
+        let expected = "enabled = false\nbind_address = \"127.0.0.1:3000\"";
+        assert_eq!(serialized.trim(), expected);
     }
 }

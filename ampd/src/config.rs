@@ -582,7 +582,7 @@ mod tests {
         let cfg: Config = toml::from_str(&config_str).unwrap();
         assert!(cfg.monitoring_server.enabled);
         assert_eq!(
-            cfg.monitoring_server.bind_address.unwrap(),
+            cfg.monitoring_server.bind_address,
             SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001)
         );
     }
