@@ -610,4 +610,14 @@ mod tests {
         let cfg: Config = toml::from_str(config_str).unwrap();
         assert_eq!(cfg.monitoring_server.bind_addr(), None);
     }
+
+    #[test]
+    fn deserialize_monitoring_server_config_disabled() {
+        let config_str = "
+            [monitoring_server]
+            enabled = false
+            ";
+        let cfg: Config = toml::from_str(config_str).unwrap();
+        assert_eq!(cfg.monitoring_server.bind_addr(), None);
+    }
 }
