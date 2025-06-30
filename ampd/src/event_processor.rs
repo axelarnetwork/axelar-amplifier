@@ -25,7 +25,7 @@ use crate::queue::queued_broadcaster::BroadcasterClient;
 pub struct HandlerInfo {
     pub chain_name: String,
     pub verifier_id: String,
-    pub is_voting: bool,
+    pub cast_votes: bool,
 }
 
 #[async_trait]
@@ -144,43 +144,13 @@ where
         Ok(msgs) => {
             let handler_info = handler.get_handler_info();
             for msg in msgs {
-                match broadcaster.broadcast(msg.clone()).await {
-                    Ok(()) => {
-                        if handler_info.is_voting {
-                            if let Err(err) =
-                                metric_client.record_metric(MetricsMsg::IncSuccessVoteCasted {
-                                    verifier_id: handler_info.verifier_id.clone(),
-                                    chain_name: handler_info.chain_name.clone(),
-                                })
-                            {
-                                warn!(
-                                    err = LoggableError::from(&err).as_value(),
-                                    "failed to record success vote casted metric for message {:?}",
-                                    msg
-                                )
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        if handler_info.is_voting {
-                            if let Err(metric_err) =
-                                metric_client.record_metric(MetricsMsg::IncFailedVoteCasted {
-                                    verifier_id: handler_info.verifier_id.clone(),
-                                    chain_name: handler_info.chain_name.clone(),
-                                })
-                            {
-                                warn!(
-                                    err = LoggableError::from(&metric_err).as_value(),
-                                    "failed to record failed vote casted metric for message {:?}",
-                                    msg
-                                )
-                            }
-                        }
-                        warn!(
-                            err = LoggableError::from(&err).as_value(),
-                            "failed to broadcast message {:?} for event {}", msg, event
-                        )
-                    }
+                let broadcast_result = broadcaster.broadcast(msg.clone()).await;
+                record_vote_metrics(&metric_client, &handler_info, &msg, &broadcast_result);
+                if let Err(err) = broadcast_result {
+                    warn!(
+                        err = LoggableError::from(&err).as_value(),
+                        "failed to broadcast message {:?} for event {}", msg, event
+                    )
                 }
             }
         }
@@ -193,6 +163,36 @@ where
     }
 
     Ok(())
+}
+
+fn record_vote_metrics(
+    metric_client: &MetricsClient,
+    handler_info: &HandlerInfo,
+    msg: &Any,
+    result: &std::result::Result<(), error_stack::Report<crate::queue::queued_broadcaster::Error>>,
+) {
+    if !handler_info.cast_votes {
+        return;
+    }
+
+    let metric = match result {
+        Ok(()) => MetricsMsg::IncSuccessVoteCasted {
+            verifier_id: handler_info.verifier_id.clone(),
+            chain_name: handler_info.chain_name.clone(),
+        },
+        Err(_) => MetricsMsg::IncFailedVoteCasted {
+            verifier_id: handler_info.verifier_id.clone(),
+            chain_name: handler_info.chain_name.clone(),
+        },
+    };
+
+    if let Err(metric_error) = metric_client.record_metric(metric) {
+        let metric_type = if result.is_ok() { "success" } else { "failed" };
+        warn!(
+            err = LoggableError::from(&metric_error).as_value(),
+            "failed to record {} vote casted metric for message {:?}", metric_type, msg
+        );
+    }
 }
 
 async fn retrieve_next_event<S, E>(
@@ -266,11 +266,12 @@ mod tests {
             delay,
         }
     }
-    fn create_dummy_handler() -> HandlerInfo {
+
+    fn create_test_handler_info() -> HandlerInfo {
         HandlerInfo {
             chain_name: "chain".to_string(),
             verifier_id: "verifier".to_string(),
-            is_voting: false,
+            cast_votes: false,
         }
     }
 
@@ -290,7 +291,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .times(events.len())
-            .returning(create_dummy_handler);
+            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -331,7 +332,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .times(1)
-            .returning(create_dummy_handler);
+            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -409,7 +410,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .times(events.len())
-            .returning(create_dummy_handler);
+            .returning(create_test_handler_info);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -454,7 +455,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .times(events.len())
-            .returning(create_dummy_handler);
+            .returning(create_test_handler_info);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -500,7 +501,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .times(4)
-            .returning(create_dummy_handler);
+            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -610,7 +611,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .times(events.len())
-            .returning(create_dummy_handler);
+            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -660,11 +661,7 @@ mod tests {
         handler
             .expect_get_handler_info()
             .once()
-            .returning(|| HandlerInfo {
-                chain_name: "ethereum".to_string(),
-                verifier_id: "axelar1abc".to_string(),
-                is_voting: false,
-            });
+            .returning(create_test_handler_info);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -706,12 +703,14 @@ mod tests {
         let metrics_text = response.text().await.unwrap();
 
         assert!(!metrics_text.contains(
-            "verifier_votes_casted_successful{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"}"
+            "verifier_votes_casted_successful{chain_name=\"chain\",verifier_id=\"verifier\"}"
         ));
         assert!(!metrics_text.contains(
-            "verifier_votes_casted_failed{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"}"
+            "verifier_votes_casted_failed{chain_name=\"chain\",verifier_id=\"verifier\"}"
         ));
-        assert!(!metrics_text.contains("verifier_votes_casted_success_rate{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"}"));
+        assert!(!metrics_text.contains(
+            "verifier_votes_casted_success_rate{chain_name=\"chain\",verifier_id=\"verifier\"}"
+        ));
 
         cancel_token.cancel();
     }
@@ -733,7 +732,7 @@ mod tests {
             .returning(|| HandlerInfo {
                 chain_name: "ethereum".to_string(),
                 verifier_id: "axelar1abc".to_string(),
-                is_voting: true,
+                cast_votes: true,
             });
 
         let event_config = setup_event_config(
