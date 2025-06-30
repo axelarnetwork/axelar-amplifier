@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - andrew-linter-test
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
