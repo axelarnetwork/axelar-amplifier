@@ -124,7 +124,6 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::from_json;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
 
     use super::*;
@@ -217,7 +216,7 @@ mod tests {
             ],
         };
 
-        let result = migrate(deps.as_mut(), env, msg).unwrap();
+        migrate(deps.as_mut(), env, msg).unwrap();
 
         // Verify that translation contracts were added to the new format
         let ethereum_config = load_chain_config(

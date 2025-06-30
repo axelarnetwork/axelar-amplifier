@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use abi_translation_contract::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use abi_translation_contract::state::State;
+use its_abi_translation::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use its_abi_translation::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

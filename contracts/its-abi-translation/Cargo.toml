@@ -1,5 +1,5 @@
 [package]
-name = "abi-translation-contract"
+name = "its-abi-translation"
 version = "1.0.0"
 edition = "2021"
 
@@ -26,7 +26,6 @@ cw2 = { workspace = true }
 error-stack = "0.4"
 hex = "0.4"
 interchain-token = { workspace = true }
-interchain-token-service = { workspace = true }
 its-payload-translation-api = { workspace = true }
 router-api = { workspace = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }

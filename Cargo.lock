@@ -13,31 +13,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "abi-translation-contract"
-version = "1.0.0"
-dependencies = [
- "alloy-primitives",
- "alloy-sol-types",
- "assert_ok",
- "axelar-wasm-std",
- "cosmwasm-schema 1.5.11",
- "cosmwasm-std 2.2.2",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "cw2",
- "error-stack",
- "goldie",
- "hex",
- "interchain-token",
- "interchain-token-service",
- "its-payload-translation-api",
- "router-api",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "addchain"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5236,7 +5211,6 @@ dependencies = [
 name = "interchain-token-service"
 version = "1.2.1"
 dependencies = [
- "abi-translation-contract",
  "assert_ok",
  "axelar-core-std",
  "axelar-wasm-std",
@@ -5251,6 +5225,7 @@ dependencies = [
  "hex",
  "interchain-token",
  "itertools 0.11.0",
+ "its-abi-translation",
  "its-payload-translation-api",
  "msgs-derive",
  "report",
@@ -5348,6 +5323,30 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "its-abi-translation"
+version = "1.0.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "assert_ok",
+ "axelar-wasm-std",
+ "cosmwasm-schema 1.5.11",
+ "cosmwasm-std 2.2.2",
+ "cosmwasm-storage",
+ "cw-storage-plus 1.2.0",
+ "cw2",
+ "error-stack",
+ "goldie",
+ "hex",
+ "interchain-token",
+ "its-payload-translation-api",
+ "router-api",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "its-payload-translation-api"

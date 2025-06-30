@@ -587,7 +587,7 @@ fn apply_to_hub(
 #[cfg(test)]
 mod tests {
 
-    use abi_translation_contract::abi::hub_message_abi_encode;
+    use its_abi_translation::abi::hub_message_abi_encode;
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
@@ -598,7 +598,6 @@ mod tests {
         WasmQuery,
     };
     use error_stack::{report, Result};
-    use its_payload_translation_api::Client as TranslationClient;
     use interchain_token::{
         DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
         RegisterTokenMetadata, TokenId,
@@ -2200,18 +2199,17 @@ mod tests {
                     its_payload_translation_api::TranslationQueryMsg::FromBytes {
                         payload,
                     } => Ok(to_json_binary(
-                        &abi_translation_contract::abi::hub_message_abi_decode(&payload).unwrap(),
+                        &its_abi_translation::abi::hub_message_abi_decode(&payload).unwrap(),
                     )
                     .into())
                     .into(),
                     its_payload_translation_api::TranslationQueryMsg::ToBytes {
                         message,
                     } => Ok(to_json_binary(
-                        &abi_translation_contract::abi::hub_message_abi_encode(message),
+                        &its_abi_translation::abi::hub_message_abi_encode(message),
                     )
                     .into())
                     .into(),
-                    _ => panic!("unsupported query"),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
