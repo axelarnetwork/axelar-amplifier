@@ -5116,7 +5116,7 @@ dependencies = [
  "interchain-token",
  "itertools 0.11.0",
  "its-abi-translator",
- "its-payload-translation-api",
+ "its-msg-translator-api",
  "msgs-derive",
  "report",
  "router-api",
@@ -5231,7 +5231,7 @@ dependencies = [
  "hex",
  "interchain-token",
  "interchain-token-service",
- "its-payload-translation-api",
+ "its-msg-translator-api",
  "router-api",
  "serde",
  "serde_json",
@@ -5239,7 +5239,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "its-payload-translation-api"
+name = "its-msg-translator-api"
 version = "1.0.0"
 dependencies = [
  "client",

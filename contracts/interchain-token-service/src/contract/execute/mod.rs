@@ -6,7 +6,7 @@ use interchain_token::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
-use its_payload_translation_api::Client as TranslationClient;
+use its_msg_translator_api::Client as TranslationClient;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
@@ -2190,16 +2190,16 @@ mod tests {
             WasmQuery::Smart { contract_addr, msg }
                 if contract_addr == MockApi::default().addr_make("translation").as_str() =>
             {
-                let msg = from_json::<its_payload_translation_api::QueryMsg>(msg).unwrap();
+                let msg = from_json::<its_msg_translator_api::QueryMsg>(msg).unwrap();
                 match msg {
-                    its_payload_translation_api::QueryMsg::FromBytes { payload } => {
+                    its_msg_translator_api::QueryMsg::FromBytes { payload } => {
                         Ok(to_json_binary(
                             &its_abi_translator::abi::hub_message_abi_decode(&payload).unwrap(),
                         )
                         .into())
                         .into()
                     }
-                    its_payload_translation_api::QueryMsg::ToBytes { message } => Ok(
+                    its_msg_translator_api::QueryMsg::ToBytes { message } => Ok(
                         to_json_binary(&its_abi_translator::abi::hub_message_abi_encode(message))
                             .into(),
                     )

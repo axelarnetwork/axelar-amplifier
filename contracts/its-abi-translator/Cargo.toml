@@ -26,7 +26,7 @@ error-stack = { workspace = true }
 hex = { workspace = true }
 interchain-token = { workspace = true }
 interchain-token-service = { workspace = true }
-its-payload-translation-api = { workspace = true }
+its-msg-translator-api = { workspace = true }
 router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

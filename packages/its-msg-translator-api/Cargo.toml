@@ -1,5 +1,5 @@
 [package]
-name = "its-payload-translation-api"
+name = "its-msg-translator-api"
 version = "1.0.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
