@@ -1,7 +1,7 @@
 use error_stack::ResultExt;
 use router_api::ChainName;
 
-use crate::msg::{ExecuteMsg, QueryMsg, VerifierDetails};
+use crate::msg::{ExecuteMsg, QueryMsg, ServiceParamsOverride, VerifierDetails};
 use crate::{Service, WeightedVerifier};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -16,6 +16,12 @@ pub enum Error {
 
     #[error("failed to query service registry for service {0}")]
     Service(String),
+
+    #[error("failed to query service registry for parameters override for service {service_name} and chain {chain_name}")]
+    ServiceParamsOverride {
+        service_name: String,
+        chain_name: ChainName,
+    },
 
     #[error("failed to query service registry for verifier {verifier} of service {service_name}")]
     Verifier {
@@ -38,6 +44,13 @@ impl From<QueryMsg> for Error {
                 service_name,
                 chain_name: _,
             } => Error::Service(service_name),
+            QueryMsg::ServiceParamsOverride {
+                service_name,
+                chain_name,
+            } => Error::ServiceParamsOverride {
+                service_name,
+                chain_name,
+            },
             QueryMsg::Verifier {
                 service_name,
                 verifier,
@@ -85,6 +98,18 @@ impl Client<'_> {
             .attach_printable_lazy(|| format!("chain_name: {:?}", chain_name))
     }
 
+    pub fn service_params_override(
+        &self,
+        service_name: String,
+        chain_name: ChainName,
+    ) -> Result<ServiceParamsOverride> {
+        let msg = QueryMsg::ServiceParamsOverride {
+            service_name,
+            chain_name,
+        };
+        self.client.query(&msg).change_context_lazy(|| msg.into())
+    }
+
     pub fn verifier(&self, service_name: String, verifier: String) -> Result<VerifierDetails> {
         let msg = QueryMsg::Verifier {
             service_name,
@@ -103,7 +128,7 @@ mod test {
     use router_api::ChainName;
 
     use crate::client::Client;
-    use crate::msg::{QueryMsg, VerifierDetails};
+    use crate::msg::{QueryMsg, ServiceParamsOverride, VerifierDetails};
     use crate::{Service, Verifier, WeightedVerifier};
 
     #[test]
@@ -115,7 +140,7 @@ mod test {
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
-        assert!(res.is_err());
+        assert!(res.is_err(), "{:?}", res.unwrap());
         goldie::assert!(res.unwrap_err().to_string());
     }
 
@@ -128,7 +153,7 @@ mod test {
         let chain_name: ChainName = "ethereum".try_into().unwrap();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
         goldie::assert_json!(res.unwrap());
     }
 
@@ -141,7 +166,7 @@ mod test {
         let verifier = MockApi::default().addr_make("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
-        assert!(res.is_err());
+        assert!(res.is_err(), "{:?}", res.unwrap());
         goldie::assert!(res.unwrap_err().to_string());
     }
 
@@ -154,7 +179,7 @@ mod test {
         let verifier = MockApi::default().addr_make("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
         goldie::assert_json!(res.unwrap());
     }
 
@@ -166,7 +191,7 @@ mod test {
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone(), None);
 
-        assert!(res.is_err());
+        assert!(res.is_err(), "{:?}", res.unwrap());
         goldie::assert!(res.unwrap_err().to_string());
     }
 
@@ -178,7 +203,7 @@ mod test {
         let service_name = "verifiers".to_string();
         let res = client.service(service_name.clone(), None);
 
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
         goldie::assert_json!(res.unwrap());
     }
 
@@ -191,7 +216,7 @@ mod test {
         let chain_name = "ethereum".try_into().unwrap();
         let res = client.service(service_name, Some(chain_name));
 
-        assert!(res.is_err());
+        assert!(res.is_err(), "{:?}", res.unwrap());
         goldie::assert!(res.unwrap_err().to_string());
     }
 
@@ -204,8 +229,34 @@ mod test {
         let chain_name = "ethereum".try_into().unwrap();
         let res = client.service(service_name, Some(chain_name));
 
-        assert!(res.is_ok());
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
         goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_service_params_override_returns_service_params_override() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let service_name = "verifiers".to_string();
+        let chain_name = "ethereum".try_into().unwrap();
+        let res = client.service_params_override(service_name, chain_name);
+
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_service_params_override_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let service_name = "verifiers".to_string();
+        let chain_name = "ethereum".try_into().unwrap();
+        let res = client.service_params_override(service_name, chain_name);
+
+        assert!(res.is_err(), "{:?}", res.unwrap());
+        goldie::assert!(res.unwrap_err().to_string());
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
@@ -271,6 +322,15 @@ mod test {
                         chain_name,
                     } => Ok(to_json_binary(&mock_service(&api, service_name, chain_name)).into())
                         .into(),
+                    QueryMsg::ServiceParamsOverride {
+                        service_name: _,
+                        chain_name: _,
+                    } => Ok(to_json_binary(&ServiceParamsOverride {
+                        min_num_verifiers: Some(2),
+                        max_num_verifiers: None,
+                    })
+                    .into())
+                    .into(),
                     QueryMsg::Verifier {
                         service_name,
                         verifier,
