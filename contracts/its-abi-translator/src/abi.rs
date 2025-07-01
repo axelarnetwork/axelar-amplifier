@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolValue};
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{bail, ensure, report, Report, ResultExt};
-use interchain_token::{HubMessage, Message, TokenId};
+use interchain_token_service_std::{HubMessage, Message, TokenId};
 use router_api::ChainNameRaw;
 // ITS Message payload types
 // Reference: https://github.com/axelarnetwork/interchain-token-service/blob/v1.2.4/DESIGN.md#interchain-communication-spec
@@ -84,7 +84,7 @@ pub enum Error {
 
 pub fn message_abi_encode(message: Message) -> HexBinary {
     match message {
-        Message::InterchainTransfer(interchain_token::InterchainTransfer {
+        Message::InterchainTransfer(interchain_token_service_std::InterchainTransfer {
             token_id,
             source_address,
             destination_address,
@@ -99,7 +99,7 @@ pub fn message_abi_encode(message: Message) -> HexBinary {
             data: into_vec(data).into(),
         }
         .abi_encode_params(),
-        Message::DeployInterchainToken(interchain_token::DeployInterchainToken {
+        Message::DeployInterchainToken(interchain_token_service_std::DeployInterchainToken {
             token_id,
             name,
             symbol,
@@ -114,7 +114,7 @@ pub fn message_abi_encode(message: Message) -> HexBinary {
             minter: into_vec(minter).into(),
         }
         .abi_encode_params(),
-        Message::LinkToken(interchain_token::LinkToken {
+        Message::LinkToken(interchain_token_service_std::LinkToken {
             token_id,
             token_manager_type,
             source_token_address,
@@ -144,7 +144,7 @@ pub fn message_abi_decode(payload: &[u8]) -> Result<Message, Report<Error>> {
             let decoded = InterchainTransfer::abi_decode_params(payload, true)
                 .map_err(Error::AbiDecodeFailed)?;
 
-            interchain_token::InterchainTransfer {
+            interchain_token_service_std::InterchainTransfer {
                 token_id: TokenId::new(decoded.tokenId.into()),
                 source_address: Vec::<u8>::from(decoded.sourceAddress)
                     .try_into()
@@ -163,7 +163,7 @@ pub fn message_abi_decode(payload: &[u8]) -> Result<Message, Report<Error>> {
             let decoded = DeployInterchainToken::abi_decode_params(payload, true)
                 .map_err(Error::AbiDecodeFailed)?;
 
-            interchain_token::DeployInterchainToken {
+            interchain_token_service_std::DeployInterchainToken {
                 token_id: TokenId::new(decoded.tokenId.into()),
                 name: decoded.name.try_into().map_err(Error::NonEmpty)?,
                 symbol: decoded.symbol.try_into().map_err(Error::NonEmpty)?,
@@ -182,7 +182,7 @@ pub fn message_abi_decode(payload: &[u8]) -> Result<Message, Report<Error>> {
                 ..
             } = LinkToken::abi_decode_params(payload, true).map_err(Error::AbiDecodeFailed)?;
 
-            interchain_token::LinkToken {
+            interchain_token_service_std::LinkToken {
                 token_id: TokenId::new(tokenId.into()),
                 source_token_address: Vec::<u8>::from(sourceToken)
                     .try_into()
@@ -223,7 +223,7 @@ pub fn hub_message_abi_encode(hub_message: HubMessage) -> HexBinary {
         }
         .abi_encode_params()
         .into(),
-        HubMessage::RegisterTokenMetadata(interchain_token::RegisterTokenMetadata {
+        HubMessage::RegisterTokenMetadata(interchain_token_service_std::RegisterTokenMetadata {
             decimals,
             token_address,
         }) => RegisterTokenMetadata {
@@ -270,7 +270,7 @@ pub fn hub_message_abi_decode(payload: &[u8]) -> Result<HubMessage, Report<Error
                 ..
             } = RegisterTokenMetadata::abi_decode_params(payload, true)
                 .map_err(Error::AbiDecodeFailed)?;
-            HubMessage::RegisterTokenMetadata(interchain_token::RegisterTokenMetadata {
+            HubMessage::RegisterTokenMetadata(interchain_token_service_std::RegisterTokenMetadata {
                 decimals,
                 token_address: Vec::<u8>::from(tokenAddress)
                     .try_into()
@@ -310,7 +310,7 @@ mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::{HexBinary, Uint256};
-    use interchain_token::HubMessage;
+    use interchain_token_service_std::HubMessage;
     use router_api::ChainNameRaw;
 
     use super::{DeployInterchainToken, InterchainTransfer};
@@ -329,7 +329,7 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: interchain_token::InterchainTransfer {
+                message: interchain_token_service_std::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
@@ -340,7 +340,7 @@ mod tests {
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: interchain_token::InterchainTransfer {
+                message: interchain_token_service_std::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
@@ -351,7 +351,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: interchain_token::InterchainTransfer {
+                message: interchain_token_service_std::InterchainTransfer {
                     token_id: [0u8; 32].into(),
                     source_address: from_hex("00"),
                     destination_address: from_hex("00"),
@@ -362,7 +362,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: interchain_token::InterchainTransfer {
+                message: interchain_token_service_std::InterchainTransfer {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
@@ -457,7 +457,7 @@ mod tests {
         let cases = vec![
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: interchain_token::DeployInterchainToken {
+                message: interchain_token_service_std::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
                     symbol: "T".try_into().unwrap(),
@@ -468,7 +468,7 @@ mod tests {
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: interchain_token::DeployInterchainToken {
+                message: interchain_token_service_std::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
                     symbol: "TST".try_into().unwrap(),
@@ -479,7 +479,7 @@ mod tests {
             },
             HubMessage::SendToHub {
                 destination_chain: remote_chain.clone(),
-                message: interchain_token::DeployInterchainToken {
+                message: interchain_token_service_std::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
                     symbol: "UNI🔣".try_into().unwrap(),
@@ -490,7 +490,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: interchain_token::DeployInterchainToken {
+                message: interchain_token_service_std::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "t".try_into().unwrap(),
                     symbol: "T".try_into().unwrap(),
@@ -501,7 +501,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: interchain_token::DeployInterchainToken {
+                message: interchain_token_service_std::DeployInterchainToken {
                     token_id: [1u8; 32].into(),
                     name: "Test Token".try_into().unwrap(),
                     symbol: "TST".try_into().unwrap(),
@@ -512,7 +512,7 @@ mod tests {
             },
             HubMessage::ReceiveFromHub {
                 source_chain: remote_chain.clone(),
-                message: interchain_token::DeployInterchainToken {
+                message: interchain_token_service_std::DeployInterchainToken {
                     token_id: [0u8; 32].into(),
                     name: "Unicode Token 🪙".try_into().unwrap(),
                     symbol: "UNI🔣".try_into().unwrap(),
@@ -608,7 +608,7 @@ mod tests {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
-            message: interchain_token::InterchainTransfer {
+            message: interchain_token_service_std::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: from_hex("1234"),
                 destination_address: from_hex("5678"),
@@ -627,7 +627,7 @@ mod tests {
     fn encode_decode_unicode_strings() {
         let original = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::from_str("chain").unwrap(),
-            message: interchain_token::DeployInterchainToken {
+            message: interchain_token_service_std::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".try_into().unwrap(),
                 symbol: "UNI🔣".try_into().unwrap(),

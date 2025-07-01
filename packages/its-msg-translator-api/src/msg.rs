@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
-use interchain_token::primitives::HubMessage;
+use interchain_token_service_std::primitives::HubMessage;
 
 #[cw_serde]
 #[derive(QueryResponses)]

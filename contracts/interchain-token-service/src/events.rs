@@ -1,5 +1,5 @@
 use axelar_wasm_std::{nonempty, IntoEvent};
-use interchain_token::{Message, TokenId};
+use interchain_token_service_std::{Message, TokenId};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 
 use crate::msg::SupplyModifier;
@@ -35,7 +35,7 @@ pub enum Event {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::HexBinary;
-    use interchain_token::{DeployInterchainToken, InterchainTransfer, Message, TokenId};
+    use interchain_token_service_std::{DeployInterchainToken, InterchainTransfer, Message, TokenId};
     use router_api::CrossChainId;
 
     use crate::events::Event;

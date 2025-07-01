@@ -5076,28 +5076,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "interchain-token"
-version = "1.0.0"
-dependencies = [
- "axelar-wasm-std",
- "client",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "error-stack",
- "hex",
- "report",
- "router-api",
- "schemars",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "sha3",
- "strum 0.25.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "interchain-token-service"
 version = "1.2.1"
 dependencies = [
@@ -5113,11 +5091,33 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "interchain-token",
+ "interchain-token-service-std",
  "itertools 0.11.0",
  "its-abi-translator",
  "its-msg-translator-api",
  "msgs-derive",
+ "report",
+ "router-api",
+ "schemars",
+ "semver 1.0.26",
+ "serde",
+ "serde_json",
+ "sha3",
+ "strum 0.25.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "interchain-token-service-std"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "error-stack",
+ "hex",
  "report",
  "router-api",
  "schemars",
@@ -5229,8 +5229,8 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "interchain-token",
  "interchain-token-service",
+ "interchain-token-service-std",
  "its-msg-translator-api",
  "router-api",
  "serde",
@@ -5246,7 +5246,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
- "interchain-token",
+ "interchain-token-service-std",
  "thiserror 1.0.69",
 ]
 

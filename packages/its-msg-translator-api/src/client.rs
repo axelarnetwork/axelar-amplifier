@@ -1,6 +1,6 @@
 use cosmwasm_std::{CosmosMsg, HexBinary};
 use error_stack::ResultExt;
-use interchain_token::primitives::HubMessage;
+use interchain_token_service_std::primitives::HubMessage;
 
 use super::msg::QueryMsg;
 

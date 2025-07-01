@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
-use interchain_token::TokenId;
+use interchain_token_service_std::TokenId;
 use interchain_token_service::contract::query;
 use interchain_token_service::msg;
 use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};

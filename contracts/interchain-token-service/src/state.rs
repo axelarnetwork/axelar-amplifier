@@ -5,7 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Bound, Item, Map};
 use error_stack::{report, Result, ResultExt};
-use interchain_token::{RegisterTokenMetadata, TokenId};
+use interchain_token_service_std::{RegisterTokenMetadata, TokenId};
 use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
 

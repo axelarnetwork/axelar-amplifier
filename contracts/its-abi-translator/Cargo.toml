@@ -24,7 +24,7 @@ cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = { workspace = true }
-interchain-token = { workspace = true }
+interchain-token-service-std = { workspace = true }
 interchain-token-service = { workspace = true }
 its-msg-translator-api = { workspace = true }
 router-api = { workspace = true }

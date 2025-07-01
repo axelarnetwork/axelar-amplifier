@@ -1,7 +1,7 @@
 use axelar_wasm_std::{killswitch, IntoContractError};
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
-use interchain_token::TokenId;
+use interchain_token_service_std::TokenId;
 use itertools::Itertools;
 use router_api::ChainNameRaw;
 

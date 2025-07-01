@@ -1,5 +1,5 @@
 use cosmwasm_std::{Binary, Deps, Env, HexBinary};
-use interchain_token::HubMessage;
+use interchain_token_service_std::HubMessage;
 
 use crate::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use crate::error::ContractError;
