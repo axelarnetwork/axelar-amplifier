@@ -601,7 +601,7 @@ mod tests {
         DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
         RegisterTokenMetadata, TokenId,
     };
-    use its_abi_translation::abi::hub_message_abi_encode;
+    use its_abi_translator::abi::hub_message_abi_encode;
     use router_api::{ChainName, ChainNameRaw, CrossChainId};
 
     use super::{apply_to_hub, register_p2p_token_instance};
@@ -2194,13 +2194,13 @@ mod tests {
                 match msg {
                     its_payload_translation_api::QueryMsg::FromBytes { payload } => {
                         Ok(to_json_binary(
-                            &its_abi_translation::abi::hub_message_abi_decode(&payload).unwrap(),
+                            &its_abi_translator::abi::hub_message_abi_decode(&payload).unwrap(),
                         )
                         .into())
                         .into()
                     }
                     its_payload_translation_api::QueryMsg::ToBytes { message } => Ok(
-                        to_json_binary(&its_abi_translation::abi::hub_message_abi_encode(message))
+                        to_json_binary(&its_abi_translator::abi::hub_message_abi_encode(message))
                             .into(),
                     )
                     .into(),

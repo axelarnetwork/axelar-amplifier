@@ -11,7 +11,7 @@ use interchain_token::{
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
-use its_abi_translation::abi::hub_message_abi_encode;
+use its_abi_translator::abi::hub_message_abi_encode;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
@@ -233,7 +233,7 @@ fn execute_hub_message_succeeds() {
 
             // Encode the expected message using the translation contract
             let expected_payload =
-                its_abi_translation::abi::hub_message_abi_encode(expected_receive_hub_message);
+                its_abi_translator::abi::hub_message_abi_encode(expected_receive_hub_message);
 
             // Verify the message structure and payload are correct
             match msg {

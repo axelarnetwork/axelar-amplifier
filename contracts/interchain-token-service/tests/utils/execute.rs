@@ -13,7 +13,7 @@ use interchain_token::{HubMessage, TokenId};
 use interchain_token_service::contract;
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use its_abi_translation::abi::{hub_message_abi_decode, hub_message_abi_encode};
+use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_payload_translation_api::QueryMsg;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 

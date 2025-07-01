@@ -41,8 +41,8 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = { workspace = true }
 interchain-token = { workspace = true }
-itertools = "0.11.0"
 its-payload-translation-api = { workspace = true }
+itertools = "0.11.0"
 msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
@@ -57,7 +57,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 assert_ok = { workspace = true }
 goldie = { workspace = true }
-its-abi-translation = { workspace = true }
+its-abi-translator = { workspace = true }
 
 [lints]
 workspace = true
