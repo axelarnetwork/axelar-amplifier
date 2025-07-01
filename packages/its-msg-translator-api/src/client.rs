@@ -8,9 +8,9 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to query translation contract to decode payload from bytes")]
+    #[error("failed to query translator contract to decode message from bytes")]
     FromBytes,
-    #[error("failed to query translation contract to encode message to bytes")]
+    #[error("failed to query translator contract to encode message to bytes")]
     ToBytes,
 }
 

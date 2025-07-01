@@ -26,7 +26,7 @@ pub fn its_chain(deps: Deps, chain: ChainNameRaw) -> Result<Binary, Error> {
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
-        translation_contract: config.translation_contract,
+        msg_translator: config.msg_translator,
     }))
     .change_context(Error::JsonSerialization)
 }
@@ -66,7 +66,7 @@ pub fn its_chains(
             max_decimals_when_truncating: config.truncation.max_decimals_when_truncating,
         },
         frozen: config.frozen,
-        translation_contract: config.translation_contract,
+        msg_translator: config.msg_translator,
     })
     .try_collect()?;
 

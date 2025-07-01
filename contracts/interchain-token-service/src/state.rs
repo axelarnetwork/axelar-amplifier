@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::address::ContractAddr;
 use axelar_wasm_std::{address, nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
@@ -43,11 +44,11 @@ pub struct ChainConfig {
     pub truncation: TruncationConfig,
     pub its_address: Address,
     pub frozen: bool,
-    pub translation_contract: Addr,
+    pub msg_translator: ContractAddr,
 }
 
 impl ChainConfig {
-    pub fn from_input(input: msg::ChainConfig, api: &dyn cosmwasm_std::Api) -> Result<Self, Error> {
+    pub fn new(input: msg::ChainConfig, api: &dyn cosmwasm_std::Api) -> Result<Self, Error> {
         Ok(Self {
             truncation: TruncationConfig {
                 max_uint_bits: input.truncation.max_uint_bits,
@@ -55,12 +56,12 @@ impl ChainConfig {
             },
             its_address: input.its_edge_contract,
             frozen: false,
-            translation_contract: address::validate_cosmwasm_address(
+            msg_translator: address::validate_cosmwasm_address(
                 api,
-                &input.translation_contract.to_string(),
+                &input.msg_translator.to_string(),
             )
             .change_context(Error::InvalidTranslationContractAddress(
-                input.translation_contract,
+                input.msg_translator,
             ))?,
         })
     }
@@ -403,7 +404,7 @@ mod tests {
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain1.clone(),
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: chain1.clone(),
                     its_edge_contract: address1.clone(),
@@ -411,7 +412,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     },
-                    translation_contract: address1.clone(),
+                    msg_translator: address1.clone(),
                 },
                 &MockApi::default(),
             )
@@ -420,7 +421,7 @@ mod tests {
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain2.clone(),
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: chain2.clone(),
                     its_edge_contract: address2.clone(),
@@ -428,7 +429,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     },
-                    translation_contract: address2.clone(),
+                    msg_translator: address2.clone(),
                 },
                 &MockApi::default(),
             )

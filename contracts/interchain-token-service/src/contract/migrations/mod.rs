@@ -1,3 +1,5 @@
+mod legacy_state;
+
 use std::collections::HashMap;
 
 use axelar_wasm_std::address::validate_cosmwasm_address;
@@ -5,31 +7,11 @@ use axelar_wasm_std::{migrate_from_version, IntoContractError};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response, Storage};
-use cw_storage_plus::Map;
+use cosmwasm_std::{DepsMut, Env, Response};
 use error_stack::ResultExt;
 use router_api::{Address, ChainNameRaw};
 
-use crate::shared::NumBits;
 use crate::state::{save_chain_config, ChainConfig as NewChainConfig};
-
-// Old state structure (before migration)
-#[cw_serde]
-pub struct OldTruncationConfig {
-    pub max_uint_bits: NumBits,
-    pub max_decimals_when_truncating: u8,
-}
-
-#[cw_serde]
-pub struct OldChainConfig {
-    pub truncation: OldTruncationConfig,
-    pub its_address: Address,
-    pub frozen: bool,
-    // Note: no translation_contract field in old state
-}
-
-// Storage map for old chain configs
-const OLD_CHAIN_CONFIGS: Map<&ChainNameRaw, OldChainConfig> = Map::new("chain_configs");
 
 #[cw_serde]
 pub struct ChainTranslationConfig {
@@ -43,14 +25,6 @@ pub struct MigrateMsg {
     pub chain_translation_configs: Vec<ChainTranslationConfig>,
 }
 
-fn load_all_old_chain_configs(
-    storage: &dyn Storage,
-) -> Result<HashMap<ChainNameRaw, OldChainConfig>, cosmwasm_std::StdError> {
-    OLD_CHAIN_CONFIGS
-        .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|res| res.map(|(chain, config)| (chain, config)))
-        .collect::<Result<HashMap<_, _>, _>>()
-}
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -67,9 +41,8 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    // Get all existing chains from old state format
     let existing_chains =
-        load_all_old_chain_configs(deps.storage).change_context(Error::LoadOldChainConfigs)?;
+        legacy_state::load_all_chain_configs(deps.storage).change_context(Error::LoadOldChainConfigs)?;
 
     let translation_contracts: HashMap<ChainNameRaw, Address> = msg
         .chain_translation_configs
@@ -81,7 +54,7 @@ pub fn migrate(
         let translation_contract = translation_contracts
             .get(&chain)
             .ok_or_else(|| Error::ChainNotFound(chain.clone()))?;
-        // Create new chain config with translation_contract added
+
         let new_chain_state = NewChainConfig {
             truncation: crate::state::TruncationConfig {
                 max_uint_bits: old_chain_state.truncation.max_uint_bits,
@@ -91,11 +64,12 @@ pub fn migrate(
             },
             its_address: old_chain_state.its_address,
             frozen: old_chain_state.frozen,
-            translation_contract: validate_cosmwasm_address(
+            msg_translator: validate_cosmwasm_address(
                 deps.api,
                 &translation_contract.to_string(),
             )?,
         };
+
         save_chain_config(deps.storage, &chain, &new_chain_state)?;
     }
 
@@ -134,8 +108,8 @@ mod tests {
         let ethereum_chain = ChainNameRaw::try_from("ethereum").unwrap();
         let polygon_chain = ChainNameRaw::try_from("polygon").unwrap();
 
-        let ethereum_config = OldChainConfig {
-            truncation: OldTruncationConfig {
+        let ethereum_config = legacy_state::ChainConfig {
+            truncation: legacy_state::TruncationConfig {
                 max_uint_bits: NumBits::try_from(256u32).unwrap(),
                 max_decimals_when_truncating: 18,
             },
@@ -146,8 +120,8 @@ mod tests {
             frozen: false,
         };
 
-        let polygon_config = OldChainConfig {
-            truncation: OldTruncationConfig {
+        let polygon_config = legacy_state::ChainConfig {
+            truncation: legacy_state::TruncationConfig {
                 max_uint_bits: NumBits::try_from(256u32).unwrap(),
                 max_decimals_when_truncating: 18,
             },
@@ -157,10 +131,10 @@ mod tests {
         };
 
         // Save in old format
-        OLD_CHAIN_CONFIGS
+        legacy_state::CHAIN_CONFIGS
             .save(deps.as_mut().storage, &ethereum_chain, &ethereum_config)
             .unwrap();
-        OLD_CHAIN_CONFIGS
+        legacy_state::CHAIN_CONFIGS
             .save(deps.as_mut().storage, &polygon_chain, &polygon_config)
             .unwrap();
     }
@@ -224,7 +198,7 @@ mod tests {
         );
         assert_eq!(ethereum_config.frozen, false);
         assert_eq!(
-            ethereum_config.translation_contract,
+            ethereum_config.msg_translator,
             MockApi::default().addr_make("ethereum_translation")
         );
 
@@ -240,7 +214,7 @@ mod tests {
         );
         assert_eq!(polygon_config.frozen, true);
         assert_eq!(
-            polygon_config.translation_contract,
+            polygon_config.msg_translator,
             MockApi::default().addr_make("polygon_translation")
         );
     }
@@ -289,8 +263,8 @@ mod tests {
 
         // Setup single test chain in OLD format
         let ethereum_chain = ChainNameRaw::try_from("ethereum").unwrap();
-        let ethereum_config = OldChainConfig {
-            truncation: OldTruncationConfig {
+        let ethereum_config = legacy_state::ChainConfig {
+            truncation: legacy_state::TruncationConfig {
                 max_uint_bits: NumBits::try_from(128u32).unwrap(),
                 max_decimals_when_truncating: 6,
             },
@@ -301,7 +275,7 @@ mod tests {
             frozen: false,
         };
 
-        OLD_CHAIN_CONFIGS
+        legacy_state::CHAIN_CONFIGS
             .save(deps.as_mut().storage, &ethereum_chain, &ethereum_config)
             .unwrap();
 
@@ -336,7 +310,7 @@ mod tests {
         );
         assert_eq!(migrated_config.frozen, false);
         assert_eq!(
-            migrated_config.translation_contract,
+            migrated_config.msg_translator,
             MockApi::default().addr_make("ethereum_translation")
         );
     }
@@ -359,8 +333,8 @@ mod tests {
         let ethereum_chain = ChainNameRaw::try_from("ethereum").unwrap();
         let polygon_chain = ChainNameRaw::try_from("polygon").unwrap();
 
-        let ethereum_config = OldChainConfig {
-            truncation: OldTruncationConfig {
+        let ethereum_config = legacy_state::ChainConfig {
+            truncation: legacy_state::TruncationConfig {
                 max_uint_bits: NumBits::try_from(256u32).unwrap(),
                 max_decimals_when_truncating: 18,
             },
@@ -371,8 +345,8 @@ mod tests {
             frozen: false,
         };
 
-        let polygon_config = OldChainConfig {
-            truncation: OldTruncationConfig {
+        let polygon_config = legacy_state::ChainConfig {
+            truncation: legacy_state::TruncationConfig {
                 max_uint_bits: NumBits::try_from(128u32).unwrap(),
                 max_decimals_when_truncating: 6,
             },
@@ -381,10 +355,10 @@ mod tests {
             frozen: true,
         };
 
-        OLD_CHAIN_CONFIGS
+        legacy_state::CHAIN_CONFIGS
             .save(deps.as_mut().storage, &ethereum_chain, &ethereum_config)
             .unwrap();
-        OLD_CHAIN_CONFIGS
+        legacy_state::CHAIN_CONFIGS
             .save(deps.as_mut().storage, &polygon_chain, &polygon_config)
             .unwrap();
 

@@ -133,7 +133,7 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            translation_contract: MockApi::default()
+            msg_translator: MockApi::default()
                 .addr_make(&format!("translation_contract_{}", i))
                 .to_string()
                 .parse()
@@ -160,7 +160,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            translation_contract: MockApi::default()
+            msg_translator: MockApi::default()
                 .addr_make(&format!("translation_contract_{}", i))
                 .to_string()
                 .parse()

@@ -186,7 +186,7 @@ fn translate_from_bytes(
         state::load_chain_config(storage, source_chain).change_context(Error::State)?;
 
     let translation_client: TranslationClient =
-        client::ContractClient::new(querier, &chain_config.translation_contract).into();
+        client::ContractClient::new(querier, &chain_config.msg_translator).into();
 
     translation_client
         .from_bytes(payload.clone())
@@ -204,7 +204,7 @@ fn translate_to_bytes(
         state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
 
     let translation_client: TranslationClient =
-        client::ContractClient::new(querier, &chain_config.translation_contract).into();
+        client::ContractClient::new(querier, &chain_config.msg_translator).into();
 
     translation_client
         .to_bytes(hub_message.clone())
@@ -424,7 +424,7 @@ pub fn register_chains(
 fn register_chain(deps: &mut DepsMut, config: msg::ChainConfig) -> Result<(), Error> {
     let chain = config.chain.clone();
     let validated_config =
-        state::ChainConfig::from_input(config, deps.api).change_context(Error::State)?;
+        state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
     match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainAlreadyRegistered(chain)),
         None => state::save_chain_config(deps.storage, &chain, &validated_config)
@@ -444,7 +444,7 @@ pub fn update_chains(mut deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result
 fn update_chain(deps: &mut DepsMut, config: msg::ChainConfig) -> Result<(), Error> {
     let chain = config.chain.clone();
     let validated_config =
-        state::ChainConfig::from_input(config, deps.api).change_context(Error::State)?;
+        state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
     match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         None => bail!(Error::ChainNotRegistered(chain)),
         Some(_) => state::save_chain_config(deps.storage, &chain, &validated_config)
@@ -1111,7 +1111,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 },
-                translation_contract: MockApi::default()
+                msg_translator: MockApi::default()
                     .addr_make("translation")
                     .to_string()
                     .try_into()
@@ -1128,7 +1128,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation")
                         .to_string()
                         .try_into()
@@ -1151,7 +1151,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                translation_contract: MockApi::default()
+                msg_translator: MockApi::default()
                     .addr_make("translation")
                     .to_string()
                     .try_into()
@@ -1164,7 +1164,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                translation_contract: MockApi::default()
+                msg_translator: MockApi::default()
                     .addr_make("translation")
                     .to_string()
                     .try_into()
@@ -1192,7 +1192,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation")
                         .to_string()
                         .try_into()
@@ -1224,7 +1224,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: new_decimals,
                 },
-                translation_contract: MockApi::default()
+                msg_translator: MockApi::default()
                     .addr_make("translation")
                     .to_string()
                     .try_into()
@@ -1337,7 +1337,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6u8,
                 },
-                translation_contract: MockApi::default()
+                msg_translator: MockApi::default()
                     .addr_make("translation")
                     .to_string()
                     .try_into()
@@ -2167,7 +2167,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation")
                         .to_string()
                         .try_into()

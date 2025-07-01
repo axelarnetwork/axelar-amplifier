@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{address::ContractAddr, nonempty};
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::Uint256;
 use interchain_token_service_std::TokenId;
 use msgs_derive::EnsurePermissions;
 use router_api::{Address, ChainNameRaw};
@@ -127,7 +127,7 @@ pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
-    pub translation_contract: Address,
+    pub msg_translator: Address,
 }
 
 #[cw_serde]
@@ -142,7 +142,7 @@ pub struct ChainConfigResponse {
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
     pub frozen: bool,
-    pub translation_contract: Addr,
+    pub msg_translator: ContractAddr,
 }
 
 #[cw_serde]

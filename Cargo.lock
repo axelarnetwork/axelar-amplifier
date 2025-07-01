@@ -5121,10 +5121,6 @@ dependencies = [
  "report",
  "router-api",
  "schemars",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "sha3",
  "strum 0.25.0",
  "thiserror 1.0.69",
 ]

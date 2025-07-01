@@ -422,7 +422,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -430,7 +430,7 @@ mod test {
                         max_uint_bits: 32u32.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -484,7 +484,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -492,7 +492,7 @@ mod test {
                         max_uint_bits: 64.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -546,7 +546,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -554,7 +554,7 @@ mod test {
                         max_uint_bits: 64.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -608,7 +608,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -616,7 +616,7 @@ mod test {
                         max_uint_bits: 32.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -670,7 +670,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -678,7 +678,7 @@ mod test {
                         max_uint_bits: 32.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -711,7 +711,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: source_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -719,7 +719,7 @@ mod test {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 12,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -733,7 +733,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -741,7 +741,7 @@ mod test {
                         max_uint_bits: 128.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -793,7 +793,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: source_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -801,7 +801,7 @@ mod test {
                         max_uint_bits: 128.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()
@@ -815,7 +815,7 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            &ChainConfig::from_input(
+            &ChainConfig::new(
                 msg::ChainConfig {
                     chain: destination_chain.clone(),
                     its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
@@ -823,7 +823,7 @@ mod test {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    translation_contract: MockApi::default()
+                    msg_translator: MockApi::default()
                         .addr_make("translation_contract")
                         .to_string()
                         .parse()

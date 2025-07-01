@@ -126,7 +126,7 @@ pub fn register_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            translation_contract: MockApi::default()
+            msg_translator: MockApi::default()
                 .addr_make("translation_contract")
                 .to_string()
                 .parse()
@@ -186,7 +186,7 @@ pub fn update_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            translation_contract: MockApi::default()
+            msg_translator: MockApi::default()
                 .addr_make("translation_contract")
                 .to_string()
                 .parse()
@@ -250,7 +250,7 @@ pub fn register_chain_with_translation(
     its_edge_contract: Address,
     max_uint_bits: NumBits,
     max_decimals_when_truncating: u8,
-    translation_contract: Address,
+    msg_translator: Address,
 ) -> Result<Response, ContractError> {
     register_chains(
         deps,
@@ -261,7 +261,7 @@ pub fn register_chain_with_translation(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            translation_contract,
+            msg_translator,
         }],
     )
 }
@@ -272,7 +272,7 @@ pub fn update_chain_with_translation(
     its_edge_contract: Address,
     max_uint_bits: NumBits,
     max_decimals_when_truncating: u8,
-    translation_contract: Address,
+    msg_translator: Address,
 ) -> Result<Response, ContractError> {
     update_chains(
         deps,
@@ -283,7 +283,7 @@ pub fn update_chain_with_translation(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            translation_contract,
+            msg_translator,
         }],
     )
 }
