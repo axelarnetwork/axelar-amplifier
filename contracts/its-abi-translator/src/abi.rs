@@ -223,10 +223,12 @@ pub fn hub_message_abi_encode(hub_message: HubMessage) -> HexBinary {
         }
         .abi_encode_params()
         .into(),
-        HubMessage::RegisterTokenMetadata(interchain_token_service_std::RegisterTokenMetadata {
-            decimals,
-            token_address,
-        }) => RegisterTokenMetadata {
+        HubMessage::RegisterTokenMetadata(
+            interchain_token_service_std::RegisterTokenMetadata {
+                decimals,
+                token_address,
+            },
+        ) => RegisterTokenMetadata {
             messageType: MessageType::RegisterTokenMetadata.into(),
             decimals,
             tokenAddress: token_address.to_vec().into(),
@@ -290,14 +292,14 @@ impl From<MessageType> for U256 {
 }
 
 fn into_vec(value: Option<nonempty::HexBinary>) -> std::vec::Vec<u8> {
-    value.map(|v| v.to_vec()).unwrap_or_default()
+    value.map(|v| v.into()).unwrap_or_default()
 }
 
 fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Error> {
     if value.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(value.try_into().map_err(Error::NonEmpty)?))
+        Ok(Some(value.try_into().expect("empty vec should not happen")))
     }
 }
 
@@ -521,6 +523,102 @@ mod tests {
                 }
                 .into(),
             },
+        ];
+
+        let encoded: Vec<_> = cases
+            .iter()
+            .map(|original| hub_message_abi_encode(original.clone()).to_hex())
+            .collect();
+
+        goldie::assert_json!(encoded);
+
+        for original in cases {
+            let encoded = hub_message_abi_encode(original.clone());
+            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+            assert_eq!(original, decoded);
+        }
+    }
+
+    #[test]
+    fn link_token_encode_decode() {
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
+
+        let cases = vec![
+            HubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
+                message: interchain_token_service_std::LinkToken {
+                    token_id: [0u8; 32].into(),
+                    token_manager_type: Uint256::from(0u64),
+                    source_token_address: from_hex("1111111111111111111111111111111111111111"),
+                    destination_token_address: from_hex("2222222222222222222222222222222222222222"),
+                    params: None,
+                }
+                .into(),
+            },
+            HubMessage::SendToHub {
+                destination_chain: remote_chain.clone(),
+                message: interchain_token_service_std::LinkToken {
+                    token_id: [255u8; 32].into(),
+                    token_manager_type: Uint256::MAX,
+                    source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                    destination_token_address: from_hex("742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321"),
+                    params: Some(from_hex("deadbeef")),
+                }
+                .into(),
+            },
+            HubMessage::ReceiveFromHub {
+                source_chain: remote_chain.clone(),
+                message: interchain_token_service_std::LinkToken {
+                    token_id: [0u8; 32].into(),
+                    token_manager_type: Uint256::from(0u64),
+                    source_token_address: from_hex("1111111111111111111111111111111111111111"),
+                    destination_token_address: from_hex("2222222222222222222222222222222222222222"),
+                    params: None,
+                }
+                .into(),
+            },
+            HubMessage::ReceiveFromHub {
+                source_chain: remote_chain.clone(),
+                message: interchain_token_service_std::LinkToken {
+                    token_id: [255u8; 32].into(),
+                    token_manager_type: Uint256::MAX,
+                    source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                    destination_token_address: from_hex("742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321"),
+                    params: Some(from_hex("deadbeef")),
+                }
+                .into(),
+            },
+        ];
+
+        let encoded: Vec<_> = cases
+            .iter()
+            .map(|original| hub_message_abi_encode(original.clone()).to_hex())
+            .collect();
+
+        goldie::assert_json!(encoded);
+
+        for original in cases {
+            let encoded = hub_message_abi_encode(original.clone());
+            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+            assert_eq!(original, decoded);
+        }
+    }
+
+    #[test]
+    fn register_token_metadata_encode_decode() {
+        let cases = vec![
+            HubMessage::RegisterTokenMetadata(
+                interchain_token_service_std::RegisterTokenMetadata {
+                    decimals: 18,
+                    token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                },
+            ),
+            HubMessage::RegisterTokenMetadata(
+                interchain_token_service_std::RegisterTokenMetadata {
+                    decimals: 6,
+                    token_address: from_hex("A0b86a33E6441d36C3ad4d96eD9b3E5D6e6bC7a0"),
+                },
+            ),
         ];
 
         let encoded: Vec<_> = cases

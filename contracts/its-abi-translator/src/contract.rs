@@ -42,7 +42,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_instantiate() {
+    fn instantiate_should_succeed() {
         let mut deps = mock_dependencies();
         let env = mock_env();
         let info = message_info(&Addr::unchecked("creator"), &[]);
@@ -51,21 +51,16 @@ mod tests {
         let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(res.messages.len(), 0);
 
-        // Check that contract version was set
         let version = cw2::get_contract_version(&deps.storage).unwrap();
         assert_eq!(version.contract, CONTRACT_NAME);
         assert_eq!(version.version, CONTRACT_VERSION);
     }
 
-    // Note: ExecuteMsg is an empty enum, so we can't test execute function directly
-    // The execute function will never be called in practice since there are no ExecuteMsg variants
-
     #[test]
-    fn test_query_hub_message_round_trip() {
+    fn query_hub_message_round_trip() {
         let deps = mock_dependencies();
         let env = mock_env();
 
-        // Create a test hub message
         let hub_message = HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from("ethereum").unwrap(),
             message: Message::InterchainTransfer(InterchainTransfer {
@@ -77,30 +72,26 @@ mod tests {
             }),
         };
 
-        // Test ToBytes
         let to_bytes_msg = QueryMsg::ToBytes {
             message: hub_message.clone(),
         };
         let bytes_result = query(deps.as_ref(), env.clone(), to_bytes_msg).unwrap();
         let payload: HexBinary = from_json(bytes_result).unwrap();
 
-        // Test FromBytes
         let from_bytes_msg = QueryMsg::FromBytes {
             payload: payload.clone(),
         };
         let message_result = query(deps.as_ref(), env, from_bytes_msg).unwrap();
         let decoded_message: HubMessage = from_json(message_result).unwrap();
 
-        // Should round-trip correctly
         assert_eq!(hub_message, decoded_message);
     }
 
     #[test]
-    fn test_query_receive_from_hub_message() {
+    fn query_receive_from_hub_message() {
         let deps = mock_dependencies();
         let env = mock_env();
 
-        // Create a ReceiveFromHub message
         let hub_message = HubMessage::ReceiveFromHub {
             source_chain: ChainNameRaw::try_from("ethereum").unwrap(),
             message: Message::DeployInterchainToken(DeployInterchainToken {
@@ -112,28 +103,24 @@ mod tests {
             }),
         };
 
-        // Test ToBytes
         let to_bytes_msg = QueryMsg::ToBytes {
             message: hub_message.clone(),
         };
         let bytes_result = query(deps.as_ref(), env.clone(), to_bytes_msg).unwrap();
         let payload: HexBinary = from_json(bytes_result).unwrap();
 
-        // Test FromBytes
         let from_bytes_msg = QueryMsg::FromBytes { payload };
         let message_result = query(deps.as_ref(), env, from_bytes_msg).unwrap();
         let decoded_message: HubMessage = from_json(message_result).unwrap();
 
-        // Should round-trip correctly
         assert_eq!(hub_message, decoded_message);
     }
 
     #[test]
-    fn test_query_from_bytes_invalid_payload() {
+    fn query_from_bytes_invalid_payload() {
         let deps = mock_dependencies();
         let env = mock_env();
 
-        // Test with invalid payload
         let invalid_payload = HexBinary::from_hex("deadbeef").unwrap();
         let from_bytes_msg = QueryMsg::FromBytes {
             payload: invalid_payload,

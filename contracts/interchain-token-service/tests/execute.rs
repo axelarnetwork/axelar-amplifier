@@ -4,13 +4,13 @@ use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
 use cosmwasm_std::{HexBinary, Uint256};
+use interchain_token_service::contract::{self, ExecuteError};
+use interchain_token_service::events::Event;
+use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service_std::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
-use interchain_token_service::contract::{self, ExecuteError};
-use interchain_token_service::events::Event;
-use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use its_abi_translator::abi::hub_message_abi_encode;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;

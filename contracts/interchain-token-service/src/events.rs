@@ -35,7 +35,9 @@ pub enum Event {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::HexBinary;
-    use interchain_token_service_std::{DeployInterchainToken, InterchainTransfer, Message, TokenId};
+    use interchain_token_service_std::{
+        DeployInterchainToken, InterchainTransfer, Message, TokenId,
+    };
     use router_api::CrossChainId;
 
     use crate::events::Event;

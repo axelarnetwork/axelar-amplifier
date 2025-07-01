@@ -9,10 +9,10 @@ use cosmwasm_std::{
     from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
     SystemResult, WasmQuery,
 };
-use interchain_token_service_std::{HubMessage, TokenId};
 use interchain_token_service::contract;
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
+use interchain_token_service_std::{HubMessage, TokenId};
 use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};

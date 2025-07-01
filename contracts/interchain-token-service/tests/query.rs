@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use assert_ok::assert_ok;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{from_json, Empty, OwnedDeps};
-use interchain_token_service_std::TokenId;
 use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
 };
+use interchain_token_service_std::TokenId;
 use router_api::{Address, ChainNameRaw};
 
 mod utils;

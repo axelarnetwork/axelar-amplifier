@@ -1,7 +1,9 @@
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{OverflowError, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
-use interchain_token_service_std::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId};
+use interchain_token_service_std::{
+    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId,
+};
 use router_api::ChainNameRaw;
 
 use super::Error;
@@ -332,7 +334,9 @@ mod test {
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{MockApi, MockStorage};
     use cosmwasm_std::{HexBinary, Uint256};
-    use interchain_token_service_std::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata};
+    use interchain_token_service_std::{
+        DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
+    };
     use router_api::ChainNameRaw;
 
     use super::{register_custom_token, Error};
