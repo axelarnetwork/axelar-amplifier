@@ -6,7 +6,6 @@ use interchain_token_service_std::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
-use its_msg_translator_api::Client as TranslationClient;
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
 use crate::events::Event;
@@ -15,6 +14,7 @@ use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply}
 use crate::{msg, state};
 
 mod interceptors;
+mod msg_translation;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -117,7 +117,7 @@ pub fn execute_message(
 
     // Use translation hook to decode the payload
     let hub_message =
-        translate_from_bytes(deps.storage, deps.querier, &cc_id.source_chain, &payload)?;
+        msg_translation::translate_from_bytes(deps.storage, deps.querier, &cc_id.source_chain, &payload)?;
 
     match hub_message {
         HubMessage::SendToHub {
@@ -160,7 +160,7 @@ fn execute_message_on_hub(
 
     // Use translation hook to encode the message for the destination chain
     let destination_payload =
-        translate_to_bytes(deps.storage, deps.querier, &destination_chain, &hub_message)?;
+        msg_translation::translate_to_bytes(deps.storage, deps.querier, &destination_chain, &hub_message)?;
 
     Ok(send_to_destination(
         deps.storage,
@@ -173,42 +173,6 @@ fn execute_message_on_hub(
         destination_chain,
         message,
     }))
-}
-
-/// Translate chain-specific payload to standardized ITS Hub Message format using translation contract
-fn translate_from_bytes(
-    storage: &dyn Storage,
-    querier: QuerierWrapper,
-    source_chain: &ChainNameRaw,
-    payload: &HexBinary,
-) -> Result<HubMessage, Error> {
-    let chain_config =
-        state::load_chain_config(storage, source_chain).change_context(Error::State)?;
-
-    let translation_client: TranslationClient =
-        client::ContractClient::new(querier, &chain_config.msg_translator).into();
-
-    translation_client
-        .from_bytes(payload.clone())
-        .change_context(Error::InvalidPayload)
-}
-
-/// Translate standardized ITS Hub Message to chain-specific payload format using translation contract
-fn translate_to_bytes(
-    storage: &dyn Storage,
-    querier: QuerierWrapper,
-    destination_chain: &ChainNameRaw,
-    hub_message: &HubMessage,
-) -> Result<HexBinary, Error> {
-    let chain_config =
-        state::load_chain_config(storage, destination_chain).change_context(Error::State)?;
-
-    let translation_client: TranslationClient =
-        client::ContractClient::new(querier, &chain_config.msg_translator).into();
-
-    translation_client
-        .to_bytes(hub_message.clone())
-        .change_context(Error::TranslationFailed)
 }
 
 fn execute_register_token_metadata(
