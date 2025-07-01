@@ -238,7 +238,8 @@ pub fn hub_message_abi_encode(hub_message: HubMessage) -> HexBinary {
     }
 }
 
-pub fn hub_message_abi_decode(payload: &[u8]) -> Result<HubMessage, Report<Error>> {
+pub fn hub_message_abi_decode(payload: HexBinary) -> Result<HubMessage, Report<Error>> {
+    let payload = payload.as_slice();
     ensure!(payload.len() >= 32, Error::InsufficientMessageLength);
 
     let message_type =
@@ -384,7 +385,7 @@ mod tests {
 
         for original in cases {
             let encoded = hub_message_abi_encode(original.clone());
-            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+            let decoded = assert_ok!(hub_message_abi_decode(encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -447,7 +448,7 @@ mod tests {
             }
             .abi_encode_params();
 
-            let result = hub_message_abi_decode(&payload);
+            let result = hub_message_abi_decode(payload.into());
             assert_err_contains!(result, Error, Error::NonEmpty(..));
         }
     }
@@ -534,7 +535,7 @@ mod tests {
 
         for original in cases {
             let encoded = hub_message_abi_encode(original.clone());
-            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+            let decoded = assert_ok!(hub_message_abi_decode(encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -599,7 +600,7 @@ mod tests {
 
         for original in cases {
             let encoded = hub_message_abi_encode(original.clone());
-            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+            let decoded = assert_ok!(hub_message_abi_decode(encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -630,7 +631,7 @@ mod tests {
 
         for original in cases {
             let encoded = hub_message_abi_encode(original.clone());
-            let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+            let decoded = assert_ok!(hub_message_abi_decode(encoded));
             assert_eq!(original, decoded);
         }
     }
@@ -653,7 +654,7 @@ mod tests {
             }
             .abi_encode_params();
 
-            let result = hub_message_abi_decode(&invalid_payload);
+            let result = hub_message_abi_decode(invalid_payload.into());
             assert_err_contains!(result, Error, Error::InvalidMessageType);
         }
     }
@@ -674,7 +675,7 @@ mod tests {
             }
             .abi_encode_params();
 
-            let result = hub_message_abi_decode(&invalid_payload);
+            let result = hub_message_abi_decode(invalid_payload.into());
             assert_err_contains!(result, Error, Error::InvalidMessageType);
         }
     }
@@ -697,7 +698,7 @@ mod tests {
         }
         .abi_encode_params();
 
-        let result = hub_message_abi_decode(&payload);
+        let result = hub_message_abi_decode(payload.into());
         assert_err_contains!(result, Error, Error::InvalidChainName);
     }
 
@@ -717,7 +718,7 @@ mod tests {
         };
 
         let encoded = hub_message_abi_encode(original.clone());
-        let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+        let decoded = assert_ok!(hub_message_abi_decode(encoded));
         assert_eq!(original, decoded);
     }
 
@@ -736,7 +737,7 @@ mod tests {
         };
 
         let encoded = hub_message_abi_encode(original.clone());
-        let decoded = assert_ok!(hub_message_abi_decode(&encoded));
+        let decoded = assert_ok!(hub_message_abi_decode(encoded));
         assert_eq!(original, decoded);
     }
 }

@@ -76,7 +76,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
             match query_msg {
                 QueryMsg::FromBytes { payload } => {
                     // Use the actual translation logic
-                    match hub_message_abi_decode(payload.as_slice()) {
+                    match hub_message_abi_decode(payload) {
                         Ok(hub_message) => Ok(to_json_binary(&hub_message).into()).into(),
                         Err(_) => SystemResult::Err(cosmwasm_std::SystemError::InvalidRequest {
                             error: "Translation failed".to_string(),

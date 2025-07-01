@@ -2193,7 +2193,7 @@ mod tests {
                 let msg = from_json::<its_msg_translator_api::QueryMsg>(msg).unwrap();
                 match msg {
                     its_msg_translator_api::QueryMsg::FromBytes { payload } => Ok(to_json_binary(
-                        &its_abi_translator::abi::hub_message_abi_decode(&payload).unwrap(),
+                        &its_abi_translator::abi::hub_message_abi_decode(payload).unwrap(),
                     )
                     .into())
                     .into(),
