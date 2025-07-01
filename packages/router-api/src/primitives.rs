@@ -146,6 +146,39 @@ macro_rules! address {
     }};
 }
 
+#[macro_export]
+macro_rules! cosmos_addr {
+    ($s:literal) => {{
+        use cosmwasm_std::testing::MockApi;
+
+        const _: () = {
+            if $s.is_empty() {
+                panic!("address string cannot be empty");
+            }
+        };
+
+        MockApi::default().addr_make($s)
+    }};
+}
+
+#[macro_export]
+macro_rules! cosmos_address {
+    ($s:literal) => {{
+        use std::str::FromStr as _;
+
+        use cosmwasm_std::testing::MockApi;
+
+        const _: () = {
+            if $s.is_empty() {
+                panic!("address string cannot be empty");
+            }
+        };
+
+        let cosmos_addr = MockApi::default().addr_make($s);
+        $crate::Address::from_str(&cosmos_addr.to_string()).expect("cosmos address should be valid")
+    }};
+}
+
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {

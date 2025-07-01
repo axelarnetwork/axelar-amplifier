@@ -2,7 +2,7 @@ use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};
 use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
-use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
+use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
@@ -12,7 +12,7 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{cosmos_address, Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -29,11 +29,7 @@ fn register_update_its_contract_succeeds() {
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
-    let translation_contract: Address = MockApi::default()
-        .addr_make("translation_contract")
-        .to_string()
-        .parse()
-        .unwrap();
+    let translation_contract: Address = cosmos_address!("translation_contract");
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -70,11 +66,7 @@ fn reregistering_same_chain_fails() {
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
-    let translation_contract: Address = MockApi::default()
-        .addr_make("translation_contract")
-        .to_string()
-        .parse()
-        .unwrap();
+    let translation_contract: Address = cosmos_address!("translation_contract");
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -133,11 +125,7 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: MockApi::default()
-                .addr_make(&format!("translation_contract_{}", i))
-                .to_string()
-                .parse()
-                .unwrap(),
+            msg_translator: cosmos_address!("translation_contract"),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains.clone()));
@@ -160,11 +148,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: MockApi::default()
-                .addr_make(&format!("translation_contract_{}", i))
-                .to_string()
-                .parse()
-                .unwrap(),
+            msg_translator: cosmos_address!("translation_contract"),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains[0..1].to_vec()));

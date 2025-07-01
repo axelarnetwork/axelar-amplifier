@@ -560,7 +560,6 @@ fn apply_to_hub(
 
 #[cfg(test)]
 mod tests {
-
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
@@ -576,7 +575,7 @@ mod tests {
         RegisterTokenMetadata, TokenId,
     };
     use its_abi_translator::abi::hub_message_abi_encode;
-    use router_api::{ChainName, ChainNameRaw, CrossChainId};
+    use router_api::{cosmos_addr, cosmos_address, ChainName, ChainNameRaw, CrossChainId};
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
@@ -1085,11 +1084,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 },
-                msg_translator: MockApi::default()
-                    .addr_make("translation")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                msg_translator: cosmos_address!("translation")
             }
         ));
         assert_err_contains!(
@@ -1102,11 +1097,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation")
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation"),
                 }
             ),
             Error,
@@ -1125,11 +1116,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                msg_translator: MockApi::default()
-                    .addr_make("translation")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                msg_translator: cosmos_address!("translation"),
             },
             msg::ChainConfig {
                 chain: XRPL.parse().unwrap(),
@@ -1138,11 +1125,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                msg_translator: MockApi::default()
-                    .addr_make("translation")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                msg_translator: cosmos_address!("translation"),
             },
         ];
         assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -1166,11 +1149,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation")
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation"),
                 }]
             ),
             Error,
@@ -1198,11 +1177,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: new_decimals,
                 },
-                msg_translator: MockApi::default()
-                    .addr_make("translation")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                msg_translator: cosmos_address!("translation"),
             }]
         ));
 
@@ -1311,11 +1286,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6u8,
                 },
-                msg_translator: MockApi::default()
-                    .addr_make("translation")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                msg_translator: cosmos_address!("translation"),
             }]
         ));
 
@@ -2141,11 +2112,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation")
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation"),
                 }
             ));
         }
