@@ -116,8 +116,12 @@ pub fn execute_message(
     ensure_is_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
     // Use translation hook to decode the payload
-    let hub_message =
-        msg_translation::translate_from_bytes(deps.storage, deps.querier, &cc_id.source_chain, &payload)?;
+    let hub_message = msg_translation::hub_message_from_bytes(
+        deps.storage,
+        deps.querier,
+        &cc_id.source_chain,
+        &payload,
+    )?;
 
     match hub_message {
         HubMessage::SendToHub {
@@ -159,8 +163,12 @@ fn execute_message_on_hub(
     };
 
     // Use translation hook to encode the message for the destination chain
-    let destination_payload =
-        msg_translation::translate_to_bytes(deps.storage, deps.querier, &destination_chain, &hub_message)?;
+    let destination_payload = msg_translation::hub_message_to_bytes(
+        deps.storage,
+        deps.querier,
+        &destination_chain,
+        &hub_message,
+    )?;
 
     Ok(send_to_destination(
         deps.storage,
@@ -387,12 +395,13 @@ pub fn register_chains(
 
 fn register_chain(deps: &mut DepsMut, config: msg::ChainConfig) -> Result<(), Error> {
     let chain = config.chain.clone();
-    let validated_config =
-        state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
+    let config = state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
+
     match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         Some(_) => bail!(Error::ChainAlreadyRegistered(chain)),
-        None => state::save_chain_config(deps.storage, &chain, &validated_config)
-            .change_context(Error::State)?,
+        None => {
+            state::save_chain_config(deps.storage, &chain, &config).change_context(Error::State)?
+        }
     };
     Ok(())
 }
@@ -407,12 +416,13 @@ pub fn update_chains(mut deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result
 
 fn update_chain(deps: &mut DepsMut, config: msg::ChainConfig) -> Result<(), Error> {
     let chain = config.chain.clone();
-    let validated_config =
-        state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
+    let config = state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
+
     match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
         None => bail!(Error::ChainNotRegistered(chain)),
-        Some(_) => state::save_chain_config(deps.storage, &chain, &validated_config)
-            .change_context(Error::State)?,
+        Some(_) => {
+            state::save_chain_config(deps.storage, &chain, &config).change_context(Error::State)?
+        }
     };
     Ok(())
 }

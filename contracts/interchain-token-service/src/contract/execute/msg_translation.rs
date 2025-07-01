@@ -8,7 +8,7 @@ use super::Error;
 use crate::state;
 
 /// Translate chain-specific payload to standardized ITS Hub Message format using translation contract
-pub fn translate_from_bytes(
+pub fn hub_message_from_bytes(
     storage: &dyn Storage,
     querier: QuerierWrapper,
     source_chain: &ChainNameRaw,
@@ -26,7 +26,7 @@ pub fn translate_from_bytes(
 }
 
 /// Translate standardized ITS Hub Message to chain-specific payload format using translation contract
-pub fn translate_to_bytes(
+pub fn hub_message_to_bytes(
     storage: &dyn Storage,
     querier: QuerierWrapper,
     destination_chain: &ChainNameRaw,
@@ -41,4 +41,4 @@ pub fn translate_to_bytes(
     translation_client
         .to_bytes(hub_message.clone())
         .change_context(Error::TranslationFailed)
-} 
+}
