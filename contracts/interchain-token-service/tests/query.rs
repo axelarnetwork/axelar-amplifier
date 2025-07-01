@@ -79,8 +79,7 @@ fn query_chain_config() {
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
-        msg_translator: cosmwasm_std::testing::MockApi::default()
-            .addr_make("translation_contract"),
+        msg_translator: cosmwasm_std::testing::MockApi::default().addr_make("translation_contract"),
     };
 
     let eth_chain_config = assert_ok!(utils::query_its_chain(

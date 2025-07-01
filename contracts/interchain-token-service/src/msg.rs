@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{address::ContractAddr, nonempty};
+use axelar_wasm_std::address::ContractAddr;
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint256;

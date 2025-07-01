@@ -1,7 +1,5 @@
 mod legacy_state;
 
-use std::collections::HashMap;
-
 use axelar_wasm_std::address::validate_cosmwasm_address;
 use axelar_wasm_std::{migrate_from_version, IntoContractError};
 use cosmwasm_schema::cw_serde;
@@ -9,27 +7,18 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, Response};
 use error_stack::ResultExt;
-use router_api::{Address, ChainNameRaw};
+use router_api::Address;
 
 use crate::state::{save_chain_config, ChainConfig as NewChainConfig};
 
 #[cw_serde]
-pub struct ChainTranslationConfig {
-    pub chain: ChainNameRaw,
-    pub translation_contract: Address,
-}
-
-#[cw_serde]
 pub struct MigrateMsg {
-    /// List of chain and translation contract address pairs
-    pub chain_translation_configs: Vec<ChainTranslationConfig>,
+    /// Translation contract address to use for all chains
+    pub msg_translator: Address,
 }
-
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
-    #[error("chain not found {0}")]
-    ChainNotFound(ChainNameRaw),
     #[error("failed to load old chain configs")]
     LoadOldChainConfigs,
 }
@@ -41,20 +30,14 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let existing_chains =
-        legacy_state::load_all_chain_configs(deps.storage).change_context(Error::LoadOldChainConfigs)?;
+    let existing_chains = legacy_state::load_all_chain_configs(deps.storage)
+        .change_context(Error::LoadOldChainConfigs)?;
 
-    let translation_contracts: HashMap<ChainNameRaw, Address> = msg
-        .chain_translation_configs
-        .iter()
-        .map(|config| (config.chain.clone(), config.translation_contract.clone()))
-        .collect();
+    // Validate the translation contract address once
+    let validated_translator =
+        validate_cosmwasm_address(deps.api, &msg.msg_translator.to_string())?;
 
     for (chain, old_chain_state) in existing_chains {
-        let translation_contract = translation_contracts
-            .get(&chain)
-            .ok_or_else(|| Error::ChainNotFound(chain.clone()))?;
-
         let new_chain_state = NewChainConfig {
             truncation: crate::state::TruncationConfig {
                 max_uint_bits: old_chain_state.truncation.max_uint_bits,
@@ -64,10 +47,7 @@ pub fn migrate(
             },
             its_address: old_chain_state.its_address,
             frozen: old_chain_state.frozen,
-            msg_translator: validate_cosmwasm_address(
-                deps.api,
-                &translation_contract.to_string(),
-            )?,
+            msg_translator: validated_translator.clone(),
         };
 
         save_chain_config(deps.storage, &chain, &new_chain_state)?;
@@ -79,7 +59,6 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
-    use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
 
     use super::*;
@@ -105,8 +84,8 @@ mod tests {
         save_config(deps.as_mut().storage, &config).unwrap();
 
         // Setup test chains in OLD format (without translation_contract)
-        let ethereum_chain = ChainNameRaw::try_from("ethereum").unwrap();
-        let polygon_chain = ChainNameRaw::try_from("polygon").unwrap();
+        let ethereum_chain = router_api::ChainNameRaw::try_from("ethereum").unwrap();
+        let polygon_chain = router_api::ChainNameRaw::try_from("polygon").unwrap();
 
         let ethereum_config = legacy_state::ChainConfig {
             truncation: legacy_state::TruncationConfig {
@@ -146,43 +125,28 @@ mod tests {
 
         setup_test_chains_old_format(&mut deps);
 
-        let ethereum_translation = Address::try_from(
+        let translation_contract = Address::try_from(
             MockApi::default()
-                .addr_make("ethereum_translation")
-                .to_string(),
-        )
-        .unwrap();
-        let polygon_translation = Address::try_from(
-            MockApi::default()
-                .addr_make("polygon_translation")
+                .addr_make("global_translation")
                 .to_string(),
         )
         .unwrap();
 
         let msg = MigrateMsg {
-            chain_translation_configs: vec![
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("ethereum").unwrap(),
-                    translation_contract: ethereum_translation.clone(),
-                },
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("polygon").unwrap(),
-                    translation_contract: polygon_translation.clone(),
-                },
-            ],
+            msg_translator: translation_contract.clone(),
         };
 
         migrate(deps.as_mut(), env, msg).unwrap();
 
-        // Verify that translation contracts were added to the new format
+        // Verify that the same translation contract was added to all chains
         let ethereum_config = load_chain_config(
             deps.as_ref().storage,
-            &ChainNameRaw::try_from("ethereum").unwrap(),
+            &router_api::ChainNameRaw::try_from("ethereum").unwrap(),
         )
         .unwrap();
         let polygon_config = load_chain_config(
             deps.as_ref().storage,
-            &ChainNameRaw::try_from("polygon").unwrap(),
+            &router_api::ChainNameRaw::try_from("polygon").unwrap(),
         )
         .unwrap();
 
@@ -199,7 +163,7 @@ mod tests {
         assert_eq!(ethereum_config.frozen, false);
         assert_eq!(
             ethereum_config.msg_translator,
-            MockApi::default().addr_make("ethereum_translation")
+            MockApi::default().addr_make("global_translation")
         );
 
         // Check polygon config
@@ -215,36 +179,8 @@ mod tests {
         assert_eq!(polygon_config.frozen, true);
         assert_eq!(
             polygon_config.msg_translator,
-            MockApi::default().addr_make("polygon_translation")
+            MockApi::default().addr_make("global_translation")
         );
-    }
-
-    #[test]
-    fn test_migrate_fails_when_chain_missing_from_message() {
-        let mut deps = mock_dependencies();
-        let env = mock_env();
-
-        setup_test_chains_old_format(&mut deps);
-
-        // Only provide one chain in migration message, but two exist in state
-        let msg = MigrateMsg {
-            chain_translation_configs: vec![
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("ethereum").unwrap(),
-                    translation_contract: Address::try_from(
-                        MockApi::default()
-                            .addr_make("ethereum_translation")
-                            .to_string(),
-                    )
-                    .unwrap(),
-                },
-                // Missing polygon chain
-            ],
-        };
-
-        let result = migrate(deps.as_mut(), env, msg);
-        assert!(result.is_err());
-        assert_err_contains!(result, Error, ChainNotFound);
     }
 
     #[test]
@@ -262,7 +198,7 @@ mod tests {
         save_config(deps.as_mut().storage, &config).unwrap();
 
         // Setup single test chain in OLD format
-        let ethereum_chain = ChainNameRaw::try_from("ethereum").unwrap();
+        let ethereum_chain = router_api::ChainNameRaw::try_from("ethereum").unwrap();
         let ethereum_config = legacy_state::ChainConfig {
             truncation: legacy_state::TruncationConfig {
                 max_uint_bits: NumBits::try_from(128u32).unwrap(),
@@ -280,15 +216,12 @@ mod tests {
             .unwrap();
 
         let msg = MigrateMsg {
-            chain_translation_configs: vec![ChainTranslationConfig {
-                chain: ChainNameRaw::try_from("ethereum").unwrap(),
-                translation_contract: Address::try_from(
-                    MockApi::default()
-                        .addr_make("ethereum_translation")
-                        .to_string(),
-                )
-                .unwrap(),
-            }],
+            msg_translator: Address::try_from(
+                MockApi::default()
+                    .addr_make("single_translation")
+                    .to_string(),
+            )
+            .unwrap(),
         };
 
         assert_ok!(migrate(deps.as_mut(), env, msg));
@@ -296,7 +229,7 @@ mod tests {
         // Verify the migrated config
         let migrated_config = load_chain_config(
             deps.as_ref().storage,
-            &ChainNameRaw::try_from("ethereum").unwrap(),
+            &router_api::ChainNameRaw::try_from("ethereum").unwrap(),
         )
         .unwrap();
         assert_eq!(
@@ -311,7 +244,7 @@ mod tests {
         assert_eq!(migrated_config.frozen, false);
         assert_eq!(
             migrated_config.msg_translator,
-            MockApi::default().addr_make("ethereum_translation")
+            MockApi::default().addr_make("single_translation")
         );
     }
 
@@ -330,8 +263,8 @@ mod tests {
         save_config(deps.as_mut().storage, &config).unwrap();
 
         // Setup chains with different truncation configs
-        let ethereum_chain = ChainNameRaw::try_from("ethereum").unwrap();
-        let polygon_chain = ChainNameRaw::try_from("polygon").unwrap();
+        let ethereum_chain = router_api::ChainNameRaw::try_from("ethereum").unwrap();
+        let polygon_chain = router_api::ChainNameRaw::try_from("polygon").unwrap();
 
         let ethereum_config = legacy_state::ChainConfig {
             truncation: legacy_state::TruncationConfig {
@@ -363,39 +296,25 @@ mod tests {
             .unwrap();
 
         let msg = MigrateMsg {
-            chain_translation_configs: vec![
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("ethereum").unwrap(),
-                    translation_contract: Address::try_from(
-                        MockApi::default()
-                            .addr_make("ethereum_translation")
-                            .to_string(),
-                    )
-                    .unwrap(),
-                },
-                ChainTranslationConfig {
-                    chain: ChainNameRaw::try_from("polygon").unwrap(),
-                    translation_contract: Address::try_from(
-                        MockApi::default()
-                            .addr_make("polygon_translation")
-                            .to_string(),
-                    )
-                    .unwrap(),
-                },
-            ],
+            msg_translator: Address::try_from(
+                MockApi::default()
+                    .addr_make("shared_translation")
+                    .to_string(),
+            )
+            .unwrap(),
         };
 
         assert_ok!(migrate(deps.as_mut(), env, msg));
 
-        // Verify different truncation configs are preserved
+        // Verify different truncation configs are preserved but same translation contract is used
         let ethereum_migrated = load_chain_config(
             deps.as_ref().storage,
-            &ChainNameRaw::try_from("ethereum").unwrap(),
+            &router_api::ChainNameRaw::try_from("ethereum").unwrap(),
         )
         .unwrap();
         let polygon_migrated = load_chain_config(
             deps.as_ref().storage,
-            &ChainNameRaw::try_from("polygon").unwrap(),
+            &router_api::ChainNameRaw::try_from("polygon").unwrap(),
         )
         .unwrap();
 
@@ -412,5 +331,15 @@ mod tests {
             NumBits::try_from(128u32).unwrap()
         );
         assert_eq!(polygon_migrated.truncation.max_decimals_when_truncating, 6);
+
+        // Both should have the same translation contract
+        assert_eq!(
+            ethereum_migrated.msg_translator,
+            MockApi::default().addr_make("shared_translation")
+        );
+        assert_eq!(
+            polygon_migrated.msg_translator,
+            MockApi::default().addr_make("shared_translation")
+        );
     }
 }
