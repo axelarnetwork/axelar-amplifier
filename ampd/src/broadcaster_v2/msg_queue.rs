@@ -770,18 +770,14 @@ mod tests {
         .unwrap();
 
         let timeout = time::Duration::from_secs(3);
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            gas_cap,
-            timeout,
-        );
+        let (mut msg_queue, mut msg_queue_client) =
+            MsgQueue::new_msg_queue_and_client(broadcaster, 10, gas_cap, timeout);
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
-        
+
         let start = time::Instant::now();
         let actual = msg_queue.next().await.unwrap();
         let elapsed = start.elapsed();
@@ -793,7 +789,7 @@ mod tests {
             "/cosmos.bank.v1beta1.MsgSend"
         );
         assert!(elapsed >= timeout);
-        
+
         // explicitly keep the stream alive until the end of the test
         drop(msg_queue_client);
     }

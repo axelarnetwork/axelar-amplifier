@@ -201,9 +201,9 @@ where
 
                     match previous {
                         Some(previous) if previous >= current => {
-                            // revert update of the previous value, must use previous and not current 
+                            // revert update of the previous value, must use previous and not current
                             // because current could potentially be smaller and would mess up the monotonicity invariant of the stream
-                            me.previous.replace(previous.clone()); 
+                            me.previous.replace(previous.clone());
                             continue;
                         }
                         _ => return Poll::Ready(Some(Ok(current))),
@@ -248,7 +248,7 @@ pin_project! {
 /// ## Basic Usage
 /// ```rust, ignore
 /// use tendermint::block;
-/// 
+///
 /// let mut state = StreamState::Start;
 ///
 /// // Receive first block height from blockchain
@@ -265,7 +265,7 @@ pin_project! {
 /// ## Gap Detection and Filling
 /// ```rust, ignore,ignore
 /// use tendermint::block;
-/// 
+///
 /// let mut state = StreamState::First { first: block::Height::from(100u32), streamed: true };
 ///
 /// // Blockchain jumps from 100 to 105 (gap detected)
@@ -283,7 +283,7 @@ pin_project! {
 /// ## Handling New Blocks While Caught Up
 /// ```rust, ignore
 /// use tendermint::block;
-/// 
+///
 /// let mut state = StreamState::CaughtUp(block::Height::from(200u32));
 ///
 /// // New block arrives
@@ -298,11 +298,11 @@ pin_project! {
 #[derive(Debug, Copy, Clone)]
 pub enum StreamState {
     /// Initial state when no blocks have been processed yet.
-    /// 
+    ///
     /// This is the starting point of the state machine. No block heights
     /// have been received from the blockchain yet.
     Start,
-    
+
     /// State when the first block height has been received but may not have been streamed yet.
     ///
     /// # Fields
@@ -315,7 +315,7 @@ pub enum StreamState {
         first: block::Height,
         streamed: bool,
     },
-    
+
     /// State when there are blocks available to be streamed (gap-filling mode).
     ///
     /// # Fields
@@ -329,7 +329,7 @@ pub enum StreamState {
         streamed: block::Height,
         latest: block::Height,
     },
-    
+
     /// State when the stream has caught up to the latest known block.
     ///
     /// # Fields
@@ -358,7 +358,7 @@ impl StreamState {
     ///
     /// ```rust, ignore
     /// use tendermint::block;
-    /// 
+    ///
     /// // Starting fresh
     /// let state = StreamState::Start;
     /// let state = state.update_latest(block::Height::from(100u32));
@@ -429,11 +429,11 @@ impl StreamState {
     ///
     /// ```rust, ignore
     /// use tendermint::block;
-    /// 
+    ///
     /// // Stream first block
-    /// let mut state = StreamState::First { 
-    ///     first: block::Height::from(100u32), 
-    ///     streamed: false 
+    /// let mut state = StreamState::First {
+    ///     first: block::Height::from(100u32),
+    ///     streamed: false
     /// };
     /// assert_eq!(state.stream(), Some(block::Height::from(100u32)));
     /// // State is now First { first: 100, streamed: true }
