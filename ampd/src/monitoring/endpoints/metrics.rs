@@ -3,7 +3,10 @@ use error_stack::{Result, ResultExt};
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
 use thiserror::Error;
 
-use crate::monitoring::MetricsMsg;
+#[derive(Clone)]
+pub enum MetricsMsg {
+    IncBlockReceived,
+}
 
 #[derive(Debug, Error)]
 pub enum MetricsError {
@@ -21,8 +24,6 @@ pub enum MetricsError {
     MetricRegisterFailed,
     #[error("failed to spawn metric")]
     MetricSpawnFailed,
-    #[error("counter not found: {0}")]
-    CounterNotFound(String),
 }
 
 pub struct Metrics {

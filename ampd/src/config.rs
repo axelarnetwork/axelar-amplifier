@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
+use crate::monitoring::server::Config as MonitoringConfig;
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor, grpc, monitoring};
+use crate::{broadcaster, event_processor, grpc};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -26,7 +27,7 @@ pub struct Config {
     pub rewards: RewardsConfig,
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
-    pub monitoring_server: monitoring::Config,
+    pub monitoring_server: MonitoringConfig,
 }
 
 impl Default for Config {
@@ -42,7 +43,7 @@ impl Default for Config {
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
-            monitoring_server: monitoring::Config::default(),
+            monitoring_server: MonitoringConfig::default(),
         }
     }
 }
@@ -570,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_monitoring_server_config() {
+    fn deserialize_monitoring_server_config_with_bind_address_and_enabled() {
         let bind_address = "0.0.0.0:3001";
         let config_str = format!(
             "
@@ -580,10 +581,32 @@ mod tests {
             ",
         );
         let cfg: Config = toml::from_str(&config_str).unwrap();
-        assert!(cfg.monitoring_server.enabled);
         assert_eq!(
-            cfg.monitoring_server.bind_address,
-            SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001)
+            cfg.monitoring_server.bind_addr(),
+            Some(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001))
         );
+    }
+
+    #[test]
+    fn deserialize_monitoring_server_config_without_bind_address_enabled() {
+        let config_str = "
+            [monitoring_server]
+            enabled = true
+            ";
+        let cfg: Config = toml::from_str(config_str).unwrap();
+        assert_eq!(
+            cfg.monitoring_server.bind_addr(),
+            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
+        );
+    }
+
+    #[test]
+    fn deserialize_monitoring_server_config_disabled() {
+        let config_str = "
+            [monitoring_server]
+            enabled = false
+            ";
+        let cfg: Config = toml::from_str(config_str).unwrap();
+        assert_eq!(cfg.monitoring_server.bind_addr(), None);
     }
 }
