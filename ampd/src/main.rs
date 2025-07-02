@@ -44,7 +44,6 @@ enum Output {
     Json,
 }
 
-#[cfg(feature = "config")]
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Args = Args::parse();
@@ -166,11 +165,4 @@ fn expand_home_dir(path: impl AsRef<Path>) -> PathBuf {
     };
 
     dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))
-}
-
-#[cfg(not(feature = "config"))]
-fn main() {
-    eprintln!("this binary requires the 'config' feature to be enabled");
-    eprintln!("please enable it by adding '--features config' to your cargo command");
-    std::process::exit(1);
 }
