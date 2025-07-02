@@ -17,9 +17,9 @@ optimize-arm64:
 
 # Run project checks.
 check:
-    cargo clippy --all-targets -- -D warnings -A deprecated
-    cargo +nightly fmt --all --check
-    cargo sort --workspace --check --check-format
+    cargo clippy-check
+    cargo +nightly fmt-check
+    cargo sort-check
 
 # Run migration remover for a specific contract.
 remove-migration contract:
