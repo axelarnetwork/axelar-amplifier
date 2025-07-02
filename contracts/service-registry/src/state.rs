@@ -225,7 +225,7 @@ pub fn update_verifier_authorization_status(
     auth_state: &AuthorizationState,
     verifiers: &[Addr],
 ) -> error_stack::Result<(), ContractError> {
-    let mut authorized_count_delta = 0i32;
+    let mut authorized_count_change = 0i32;
 
     for verifier_addr in verifiers.iter() {
         VERIFIERS
@@ -233,33 +233,35 @@ pub fn update_verifier_authorization_status(
                 storage,
                 (service_name, verifier_addr),
                 |existing_verifier| -> std::result::Result<Verifier, ContractError> {
-                    let (new_verifier, count_change) = match existing_verifier {
+                    let previous_state = existing_verifier
+                        .as_ref()
+                        .map(|verifier| verifier.authorization_state.clone());
+                    update_auth_verifier_count_change(
+                        &mut authorized_count_change,
+                        &previous_state,
+                        auth_state,
+                    )?;
+
+                    let new_verifier = match existing_verifier {
                         Some(mut verifier) => {
-                            let old_state = Some(verifier.authorization_state.clone());
-                            let operation = calculate_auth_count_change(&old_state, auth_state);
                             verifier.authorization_state = auth_state.clone();
-                            (verifier, operation)
+                            verifier
                         }
 
-                        None => {
-                            let operation = calculate_auth_count_change(&None, auth_state);
-                            let verifier = Verifier {
-                                address: verifier_addr.clone(),
-                                bonding_state: BondingState::Unbonded,
-                                authorization_state: auth_state.clone(),
-                                service_name: service_name.clone(),
-                            };
-                            (verifier, operation)
-                        }
+                        None => Verifier {
+                            address: verifier_addr.clone(),
+                            bonding_state: BondingState::Unbonded,
+                            authorization_state: auth_state.clone(),
+                            service_name: service_name.clone(),
+                        },
                     };
-                    authorized_count_delta =
-                        apply_operation_to_delta(authorized_count_delta, count_change)?;
+
                     Ok(new_verifier)
                 },
             )
             .change_context(ContractError::StorageError)?;
     }
-    apply_authorized_count_delta(storage, service_name, authorized_count_delta)?;
+    apply_authorized_count_change(storage, service_name, authorized_count_change)?;
     Ok(())
 }
 
@@ -379,42 +381,33 @@ pub fn deregister_chains_support(
     Ok(())
 }
 
-fn calculate_auth_count_change(
-    old_state: &Option<AuthorizationState>,
+fn update_auth_verifier_count_change(
+    current: &mut i32,
+    previous_state: &Option<AuthorizationState>,
     auth_state: &AuthorizationState,
-) -> Option<VerifierCountOperation> {
-    match (old_state, auth_state) {
+) -> Result<(), ContractError> {
+    match (previous_state, auth_state) {
         (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => {
-            Some(VerifierCountOperation::Increment)
+            *current = current
+                .checked_add(1)
+                .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow)?;
         }
         (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => {
-            Some(VerifierCountOperation::Decrement)
+            *current = current
+                .checked_sub(1)
+                .expect("authorized verifiers count should not underflow");
         }
-        _ => None,
+        _ => {}
     }
+    Ok(())
 }
 
-fn apply_operation_to_delta(
-    current: i32,
-    operation: Option<VerifierCountOperation>,
-) -> Result<i32, ContractError> {
-    match operation {
-        Some(VerifierCountOperation::Increment) => current
-            .checked_add(1)
-            .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow),
-        Some(VerifierCountOperation::Decrement) => Ok(current
-            .checked_sub(1)
-            .expect("authorized verifiers count should not underflow")),
-        None => Ok(current),
-    }
-}
-
-fn apply_authorized_count_delta(
+fn apply_authorized_count_change(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
-    delta: i32,
+    change: i32,
 ) -> error_stack::Result<(), ContractError> {
-    if delta == 0 {
+    if change == 0 {
         return Ok(());
     }
 
@@ -425,16 +418,16 @@ fn apply_authorized_count_delta(
             |count| -> std::result::Result<u16, ContractError> {
                 let current = count.ok_or(ContractError::ServiceNotFound)?;
 
-                let delta_magnitude = u16::try_from(delta.abs())
+                let change_magnitude = u16::try_from(change.abs())
                     .map_err(|_| ContractError::AuthorizedVerifiersIntegerOverflow)?;
 
-                if delta > 0 {
+                if change > 0 {
                     current
-                        .checked_add(delta_magnitude)
+                        .checked_add(change_magnitude)
                         .ok_or(ContractError::AuthorizedVerifiersIntegerOverflow)
                 } else {
                     Ok(current
-                        .checked_sub(delta_magnitude)
+                        .checked_sub(change_magnitude)
                         .expect("authorized verifiers count should not underflow"))
                 }
             },
