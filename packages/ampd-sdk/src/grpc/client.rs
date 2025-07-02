@@ -160,7 +160,7 @@ impl GrpcClient {
         .await
     }
 
-    pub async fn with_retry_and_reconnect<F, Fut, R>(
+    async fn with_retry_and_reconnect<F, Fut, R>(
         &mut self,
         mut operation: F,
     ) -> Result<R, Error>
