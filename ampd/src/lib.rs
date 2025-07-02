@@ -57,6 +57,14 @@ mod types;
 mod url;
 mod xrpl;
 
+#[cfg(feature = "commands")]
+pub use commands::*;
+#[allow(unused_imports)]
+#[cfg(feature = "config")]
+pub use config::*;
+#[cfg(feature = "url")]
+pub use url::*;
+
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
 
