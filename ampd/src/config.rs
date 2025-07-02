@@ -8,7 +8,7 @@ use crate::handlers::{self};
 use crate::monitoring::server::Config as MonitoringConfig;
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor, grpc, monitoring};
+use crate::{broadcaster, event_processor, grpc};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
