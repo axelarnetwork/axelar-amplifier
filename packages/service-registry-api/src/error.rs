@@ -15,8 +15,6 @@ pub enum ContractError {
     NonEmpty(#[from] nonempty::Error),
     #[error("not more than 65535 authorized verifiers allowed")]
     AuthorizedVerifiersIntegerOverflow,
-    #[error("verifiers count is negative")]
-    AuthorizedVerifiersNegative,
     #[error("max verifiers limit exceeded")]
     VerifierLimitExceeded,
     #[error("max verifiers limit {0} is below current authorized verifiers {1}")]

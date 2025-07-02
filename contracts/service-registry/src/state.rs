@@ -1285,8 +1285,11 @@ mod tests {
             let mut current = 5i32;
             let initial_value = current;
 
-            let result =
-                update_auth_verifier_count_change_tracker(&mut current, &previous_state, &new_state);
+            let result = update_auth_verifier_count_change_tracker(
+                &mut current,
+                &previous_state,
+                &new_state,
+            );
 
             assert!(result.is_ok(), "Test failed for: {}", description);
             assert_eq!(
