@@ -220,7 +220,7 @@ where
             .expect("vote msg should serialize")])
     }
 
-    fn get_handler_info(&self) -> HandlerInfo {
+    fn handler_info(&self) -> HandlerInfo {
         HandlerInfo {
             chain_name: self.chain.to_string(),
             verifier_id: self.verifier.to_string(),

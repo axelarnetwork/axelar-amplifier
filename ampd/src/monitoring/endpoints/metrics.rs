@@ -6,6 +6,14 @@ use thiserror::Error;
 #[derive(Clone)]
 pub enum MetricsMsg {
     IncBlockReceived,
+    IncSuccessVoteCasted {
+        verifier_id: String,
+        chain_name: String,
+    },
+    IncFailedVoteCasted {
+        verifier_id: String,
+        chain_name: String,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -131,7 +139,7 @@ impl VotesCastedMetrics {
         let total_votes = successful_votes + failed_votes;
 
         let success_rate = match total_votes {
-            0 => 0.0,
+            0 => 0.0, // should not happen, total_votes is at least 1 when this is reached 
             _ => successful_votes as f64 / total_votes as f64,
         };
 
@@ -141,24 +149,7 @@ impl VotesCastedMetrics {
     }
 }
 
-pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-    match gather(registry) {
-        Ok(metrics) => (StatusCode::OK, metrics),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-    }
-}
 
-fn gather(registry: &Registry) -> Result<String, MetricsError> {
-    let mut buffer = Vec::new();
-    let encoder = TextEncoder::new();
-    let metric_families = registry.gather();
-
-    encoder
-        .encode(&metric_families, &mut buffer)
-        .change_context(MetricsError::EncodeError)?;
-
-    String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
-}
 
 fn create_verifier_votes_casted_metrics(
 ) -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
@@ -197,33 +188,6 @@ fn create_verifier_votes_casted_metrics(
         verifier_votes_casted_failed,
         verifier_votes_casted_success_rate,
     ))
-}
-
-
-pub fn handle_message(&self, msg: MetricsMsg) {
-    match msg {
-        MetricsMsg::IncBlockReceived => {
-            self.block_received.inc();
-        }
-        MetricsMsg::IncSuccessVoteCasted {
-            verifier_id,
-            chain_name,
-        } => {
-            self.verifier_votes_casted_successful
-                .with_label_values(&[&verifier_id, &chain_name])
-                .inc();
-            self.update_success_rate(&verifier_id, &chain_name);
-        }
-        MetricsMsg::IncFailedVoteCasted {
-            verifier_id,
-            chain_name,
-        } => {
-            self.verifier_votes_casted_failed
-                .with_label_values(&[&verifier_id, &chain_name])
-                .inc();
-            self.update_success_rate(&verifier_id, &chain_name);
-        }
-    }
 }
 
 
@@ -292,7 +256,7 @@ mod tests {
             chain_name: "ethereum".to_string(),
         });
 
-        let final_metrics = gather(&registry).unwrap();
+        let final_metrics = render_metrics(&registry).unwrap();
 
         assert!(final_metrics.contains("verifier_votes_casted_successful{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 2"));
         assert!(final_metrics.contains(
