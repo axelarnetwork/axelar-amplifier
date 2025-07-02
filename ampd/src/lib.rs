@@ -35,8 +35,22 @@ mod block_height_monitor;
 mod broadcaster;
 #[allow(dead_code)]
 mod broadcaster_v2;
+
+#[cfg(feature = "commands")]
 pub mod commands;
+#[cfg(not(feature = "commands"))]
+mod commands;
+
+#[cfg(feature = "config")]
 pub mod config;
+#[cfg(not(feature = "config"))]
+mod config;
+
+#[cfg(feature = "url")]
+pub mod url;
+#[cfg(not(feature = "url"))]
+mod url;
+
 mod cosmos;
 mod event_processor;
 mod event_sub;
@@ -54,16 +68,7 @@ mod sui;
 mod tm_client;
 mod tofnd;
 mod types;
-mod url;
 mod xrpl;
-
-#[cfg(feature = "commands")]
-pub use commands::*;
-#[allow(unused_imports)]
-#[cfg(feature = "config")]
-pub use config::*;
-#[cfg(feature = "url")]
-pub use url::*;
 
 use crate::asyncutil::future::RetryPolicy;
 use crate::broadcaster::confirm_tx::TxConfirmer;
