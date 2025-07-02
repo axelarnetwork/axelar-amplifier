@@ -186,7 +186,7 @@ where
             .expect("vote msg should serialize")])
     }
 
-    fn get_handler_info(&self) -> HandlerInfo {
+    fn handler_info(&self) -> HandlerInfo {
         HandlerInfo {
             chain_name: "xrpl".to_string(),
             verifier_id: self.verifier.to_string(),
