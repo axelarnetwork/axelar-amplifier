@@ -59,9 +59,11 @@ mod xrpl;
 
 #[cfg(feature = "commands")]
 pub use commands::*;
+
 #[allow(unused_imports)]
 #[cfg(feature = "config")]
 pub use config::*;
+
 #[cfg(feature = "url")]
 pub use url::*;
 
@@ -71,10 +73,12 @@ use crate::broadcaster::confirm_tx::TxConfirmer;
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
+#[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {
     prepare_app(cfg).await?.run().await
 }
 
+#[cfg(feature = "config")]
 async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let Config {
         tm_jsonrpc,
