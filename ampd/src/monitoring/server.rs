@@ -220,7 +220,7 @@ mod tests {
     use crate::monitoring::endpoints::status::Status;
 
     #[test]
-    fn get_bind_addr_returns_address_when_enabled() {
+    fn bind_addr_returns_address_when_enabled() {
         let config = Config {
             enabled: true,
             ..Default::default()
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn get_bind_addr_returns_none_when_disabled() {
+    fn bind_addr_returns_none_when_disabled() {
         let config = Config::default();
         assert_eq!(config.bind_addr(), None);
     }
@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[async_test(start_paused = true)]
-    async fn dummy_server_client_fails_after_cancellation() {
+    async fn dummy_server_monitoring_client_fails_to_send_metrics_after_cancellation() {
         let (server, monitoring_client, cancel) = test_dummy_server_setup();
         let server_handle = tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(50)).await;
