@@ -231,7 +231,8 @@ pub fn update_verifier_authorization_status(
                     let previous_state = existing_verifier
                         .as_ref()
                         .map(|verifier| verifier.authorization_state.clone());
-                    update_auth_verifier_count_change(
+
+                    update_auth_verifier_count_change_tracker(
                         &mut authorized_count_change,
                         &previous_state,
                         auth_state,
@@ -376,7 +377,7 @@ pub fn deregister_chains_support(
     Ok(())
 }
 
-fn update_auth_verifier_count_change(
+fn update_auth_verifier_count_change_tracker(
     current: &mut i32,
     previous_state: &Option<AuthorizationState>,
     auth_state: &AuthorizationState,
@@ -1183,7 +1184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_authorized_verifier_count_operation() {
+    fn test_update_verifier_authroization_status_succeed() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
@@ -1251,7 +1252,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_auth_verifier_count_change() {
+    fn test_update_auth_verifier_count_change_succeed() {
         let test_cases = vec![
             // (previous_state, new_state, expected_change, description)
             (
@@ -1285,7 +1286,7 @@ mod tests {
             let initial_value = current;
 
             let result =
-                update_auth_verifier_count_change(&mut current, &previous_state, &new_state);
+                update_auth_verifier_count_change_tracker(&mut current, &previous_state, &new_state);
 
             assert!(result.is_ok(), "Test failed for: {}", description);
             assert_eq!(
@@ -1300,7 +1301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_authorized_count_change() {
+    fn test_apply_authorized_count_change_should_suceed() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
 
@@ -1328,7 +1329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_authorized_count_change_overflow() {
+    fn test_apply_authorized_count_change_should_fail_when_overflow() {
         let mut deps = mock_dependencies();
         let service = save_mock_service(deps.as_mut().storage);
 
