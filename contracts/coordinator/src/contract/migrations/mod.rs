@@ -6,7 +6,7 @@ use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, Response};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::Item;
 use error_stack::{report, ResultExt};
 use router_api::ChainName;
 
@@ -16,11 +16,7 @@ use crate::state;
 #[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 enum MigrationError {
     #[error("cannot have duplicate deployment name '{0}' in migration msg")]
-    DuplicateDeployment(String),
-    #[error("error deserializing state during migration")]
-    Deserialize,
-    #[error("missing information for deployment '{0}' from migration")]
-    MissingDeploymentFromMsg(String),
+    DuplicateDeployment(nonempty::String),
 }
 
 #[cw_serde]
@@ -38,7 +34,9 @@ pub struct OldChainContracts {
 }
 
 #[cw_serde]
-pub struct ChainContracts {
+#[derive(Eq, Hash)]
+pub struct ChainContractsDetails {
+    pub deployment_name: nonempty::String,
     pub chain_name: ChainName,
     pub msg_id_format: MessageIdFormat,
     pub gateway: Addr,
@@ -46,20 +44,11 @@ pub struct ChainContracts {
     pub multisig_prover: Addr,
 }
 
-pub const OLD_DEPLOYED_CHAINS: Map<String, OldChainContracts> = Map::new("deployed_chains");
-
-#[cw_serde]
-pub struct ChainNameAndMsgFormat {
-    pub deployment_name: nonempty::String,
-    pub chain_name: ChainName,
-    pub msg_id_format: MessageIdFormat,
-}
-
 #[cw_serde]
 pub struct MigrateMsg {
     pub router: String,
     pub multisig: String,
-    pub chain_contracts: Vec<ChainNameAndMsgFormat>,
+    pub chain_contracts: Vec<ChainContractsDetails>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -87,39 +76,31 @@ pub fn migrate(
     state::save_protocol_contracts(deps.storage, protocol)
         .change_context(Error::UnableToPersistProtocol)?;
 
-    let mut new_contract_details: HashMap<String, ChainNameAndMsgFormat> = HashMap::new();
-    for contracts in msg.chain_contracts {
-        if let Some { .. } =
-            new_contract_details.insert(contracts.deployment_name.to_string(), contracts.clone())
+    let mut chain_contracts: HashMap<nonempty::String, ChainContractsDetails> = HashMap::new();
+
+    for cc in msg.chain_contracts {
+        if chain_contracts
+            .insert(cc.deployment_name.clone(), cc.clone())
+            .is_some()
         {
-            return Err(
-                MigrationError::DuplicateDeployment(contracts.deployment_name.to_string()).into(),
-            );
+            return Err(MigrationError::DuplicateDeployment(cc.deployment_name.clone()).into());
         }
     }
 
-    for chain_contracts in OLD_DEPLOYED_CHAINS
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|contracts_result| match contracts_result {
-            Ok(old_contracts) => Ok(old_contracts.clone()),
-            Err(..) => Err(MigrationError::Deserialize.into()),
-        })
-        .collect::<Result<Vec<_>, axelar_wasm_std::error::ContractError>>()?
-    {
-        let deployment_details = new_contract_details.get(&chain_contracts.0).ok_or(report!(
-            MigrationError::MissingDeploymentFromMsg(chain_contracts.0.clone())
-        ))?;
+    // Since this state has not yet been set or used, we can clear
+    // it and repopulate it.
+    state::DEPLOYED_CHAINS.clear(deps.storage);
 
+    for (deployement, contracts) in chain_contracts {
         state::save_deployed_contracts(
             deps.storage,
-            axelar_wasm_std::nonempty::String::try_from(chain_contracts.0.clone())
-                .change_context(Error::OldConfigNotFound)?,
+            deployement,
             state::ChainContracts {
-                chain_name: deployment_details.chain_name.clone(),
-                msg_id_format: deployment_details.msg_id_format.clone(),
-                gateway: chain_contracts.1.gateway,
-                voting_verifier: chain_contracts.1.voting_verifier,
-                multisig_prover: chain_contracts.1.multisig_prover,
+                chain_name: contracts.chain_name.clone(),
+                msg_id_format: contracts.msg_id_format.clone(),
+                gateway: contracts.gateway,
+                voting_verifier: contracts.voting_verifier,
+                multisig_prover: contracts.multisig_prover,
             },
         )?;
     }
@@ -135,12 +116,12 @@ mod tests {
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+    use cw_storage_plus::Map;
     use router_api::ChainName;
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{
-        ChainNameAndMsgFormat, MigrationError, OldChainContracts, OldConfig, OLD_CONFIG,
-        OLD_DEPLOYED_CHAINS,
+        ChainContractsDetails, MigrationError, OldChainContracts, OldConfig, OLD_CONFIG,
     };
     use crate::contract::{migrate, MigrateMsg};
     use crate::state;
@@ -148,6 +129,8 @@ mod tests {
 
     const OLD_CONTRACT_NAME: &str = "coordinator";
     const OLD_CONTRACT_VERSION: &str = "1.1.0";
+
+    pub const OLD_DEPLOYED_CHAINS: Map<String, OldChainContracts> = Map::new("deployed_chains");
 
     #[cw_serde]
     pub struct OldInstantiateMsg {
@@ -232,10 +215,13 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![ChainNameAndMsgFormat {
+                chain_contracts: vec![ChainContractsDetails {
+                    gateway: gateway.clone(),
                     deployment_name: nonempty_str!("deployment"),
                     chain_name: chain_name.clone(),
                     msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
+                    voting_verifier: voting_verifier.clone(),
+                    multisig_prover: multisig_prover.clone(),
                 },],
             },
         )
@@ -268,64 +254,6 @@ mod tests {
                 multisig_prover,
             }
         )
-    }
-
-    #[test]
-    fn migrate_fails_when_deployment_missing_from_migration_msg() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
-
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
-            },
-        )
-        .unwrap();
-
-        let gateway = api.addr_make("gateway");
-        let voting_verifier = api.addr_make("verifier");
-        let multisig_prover = api.addr_make("prover");
-
-        assert!(add_old_deployment(
-            deps.as_mut(),
-            nonempty_str!("deployment"),
-            OldChainContracts {
-                gateway: gateway.clone(),
-                voting_verifier: voting_verifier.clone(),
-                multisig_prover: multisig_prover.clone(),
-            }
-        )
-        .is_ok());
-
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-        let chain_name = ChainName::try_from("axelar").unwrap();
-
-        let res = migrate(
-            deps.as_mut(),
-            env,
-            MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_contracts: vec![ChainNameAndMsgFormat {
-                    deployment_name: nonempty_str!("deployment2"),
-                    chain_name: chain_name.clone(),
-                    msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
-                }],
-            },
-        );
-
-        assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains(
-            &MigrationError::MissingDeploymentFromMsg("deployment".to_string()).to_string()
-        ));
     }
 
     #[test]
@@ -373,24 +301,29 @@ mod tests {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
                 chain_contracts: vec![
-                    ChainNameAndMsgFormat {
+                    ChainContractsDetails {
+                        gateway: gateway.clone(),
                         deployment_name: nonempty_str!("deployment"),
                         chain_name: chain_name.clone(),
                         msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
+                        voting_verifier: voting_verifier.clone(),
+                        multisig_prover: multisig_prover.clone(),
                     },
-                    ChainNameAndMsgFormat {
+                    ChainContractsDetails {
+                        gateway,
                         deployment_name: nonempty_str!("deployment"),
                         chain_name: chain_name.clone(),
-                        msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
+                        msg_id_format: MessageIdFormat::HexTxHash,
+                        voting_verifier,
+                        multisig_prover,
                     },
                 ],
             },
         );
 
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains(&MigrationError::DuplicateDeployment("deployment".to_string()).to_string()));
+        assert!(res.unwrap_err().to_string().contains(
+            &MigrationError::DuplicateDeployment(nonempty_str!("deployment")).to_string()
+        ));
     }
 }

@@ -689,7 +689,7 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
-            let (msg, info) = match msg {
+            let (msg, info) = match msg.into() {
                 #new_msg_ident::Relay{sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
