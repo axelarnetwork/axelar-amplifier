@@ -91,7 +91,7 @@ impl Server {
     ) -> Result<(), MetricsError> {
         info!("no prometheus endpoint defined, so no metrics will be collected");
 
-        let handle = Self::spawn_metrcis_processor(metrics_rx, cancel, |_| {});
+        let handle = Self::spawn_metrics_processor(metrics_rx, cancel, |_| {});
         _ = handle.await;
         Ok(())
     }
@@ -110,7 +110,7 @@ impl Server {
         info!(address = addr.to_string(), "starting monitoring server");
 
         let metrics_handle =
-            Self::spawn_metrcis_processor(metrics_rx, cancel.clone(), move |msg| {
+            Self::spawn_metrics_processor(metrics_rx, cancel.clone(), move |msg| {
                 metrics.handle_message(msg)
             });
 
@@ -131,7 +131,7 @@ impl Server {
         Ok(())
     }
 
-    fn spawn_metrcis_processor<F>(
+    fn spawn_metrics_processor<F>(
         mut metrics_rx: mpsc::Receiver<MetricsMsg>,
         cancel: CancellationToken,
         message_handler: F,
