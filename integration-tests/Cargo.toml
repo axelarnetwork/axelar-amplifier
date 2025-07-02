@@ -5,7 +5,6 @@ rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Amplifier Integration Tests"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

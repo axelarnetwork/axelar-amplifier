@@ -7,7 +7,6 @@ edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 
 exclude = ["contract.wasm", "hash.txt"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
