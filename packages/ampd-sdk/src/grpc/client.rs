@@ -1,6 +1,7 @@
 use std::pin::Pin;
 use std::vec;
 
+use ampd::url::Url;
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
@@ -20,21 +21,21 @@ use serde::de::DeserializeOwned;
 use tokio::time::Duration;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
-use tracing::{error, info, warn};
+use tracing::{info, instrument, warn};
 
-use crate::future::RetryPolicy;
+use crate::future::{with_retry_ctx, RetryPolicy};
 use crate::grpc::error::{AppError, Error};
 use crate::grpc::utils::{parse_addr, BroadcastClientResponse, ContractsAddresses, Key};
 
 // TODO: make these configurable
 const DEFAULT_INITIAL_TIMEOUT: Duration = Duration::from_secs(3);
-const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(20);
+const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFAULT_RETRY_POLICY: RetryPolicy = RetryPolicy::RepeatConstant {
     sleep: Duration::from_secs(2),
     max_attempts: 3,
 };
 const KEEPALIVE_TIME: Duration = Duration::from_secs(30);
-const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(5);
+const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(3);
 const KEEPALIVE_WHILE_IDLE: bool = true;
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
@@ -73,9 +74,10 @@ pub trait Client {
 pub struct GrpcClient {
     pub blockchain: BlockchainServiceClient<transport::Channel>,
     pub crypto: CryptoServiceClient<transport::Channel>,
-    pub url: String,
+    pub url: Url,
 }
 
+#[instrument(skip(url))]
 pub async fn new(url: &str) -> Result<GrpcClient, Error> {
     let endpoint: transport::Endpoint = url.parse().into_report()?;
     let endpoint = endpoint
@@ -85,55 +87,77 @@ pub async fn new(url: &str) -> Result<GrpcClient, Error> {
         .keep_alive_while_idle(KEEPALIVE_WHILE_IDLE)
         .http2_keep_alive_interval(KEEPALIVE_TIME);
 
-    info!(
-        "connecting to gRPC server at {} with keepalive enabled",
-        url
-    );
+    info!("connecting to ampd gRPC server");
 
-    let conn = endpoint
-        .connect()
-        .await
-        .into_report()
-        .attach_printable_lazy(|| format!("failed to connect to gRPC server at {}", url))?;
+    let conn = endpoint.connect().await.into_report()?;
 
     let blockchain = BlockchainServiceClient::new(conn.clone());
     let crypto = CryptoServiceClient::new(conn);
 
-    info!("successfully connected to gRPC server at {}", url);
+    info!("successfully connected to ampd gRPC server");
 
     Ok(GrpcClient {
         blockchain,
         crypto,
-        url: url.to_string(),
+        url: Url::new_sensitive(url).change_context(AppError::InvalidUrl.into())?,
     })
 }
 
 impl GrpcClient {
-    pub async fn reconnect(&mut self) -> Result<(), Error> {
-        warn!("attempting to reconnect to gRPC server at {}", self.url);
-
-        match new(&self.url).await {
-            Ok(new_client) => {
-                self.blockchain = new_client.blockchain;
-                self.crypto = new_client.crypto;
-                info!("successfully reconnected to gRPC server at {}", self.url);
-                Ok(())
-            }
-            Err(err) => {
-                error!(
-                    "failed to reconnect to gRPC server at {}: {}",
-                    self.url, err
-                );
-                Err(err)
-            }
-        }
+    pub async fn reconnect(url: &Url) -> Result<Self, Error> {
+        new(url.as_str()).await
     }
 
-    fn should_reconnect(&self, status: &tonic::Status) -> bool {
+    fn should_reconnect(status: &tonic::Status) -> bool {
         matches!(
             status.code(),
             tonic::Code::Unavailable | tonic::Code::DeadlineExceeded | tonic::Code::Cancelled
         )
+    }
+
+    #[allow(dead_code)]
+    // This is a bugged implementation that doesn't work as expected.
+    // It's left here for reference.
+    async fn bugged_with_retry_and_reconnect<F, Fut, R>(&mut self, operation: F) -> Result<R, Error>
+    where
+        F: FnMut(&mut Self) -> Fut,
+        Fut: Future<Output = std::result::Result<R, tonic::Status>>,
+    {
+        with_retry_ctx(
+            self,
+            operation,
+            |client, op| {
+                let fut = op(client);
+                let url = client.url.clone();
+                async move {
+                    match tokio::time::timeout(DEFAULT_RPC_TIMEOUT, fut).await {
+                        Ok(Ok(value)) => Ok(value),
+                        Ok(Err(status)) => {
+                            if Self::should_reconnect(&status) {
+                                warn!(err = ?status, "connection to the ampd gRPC server was interrupted");
+                                //The fundamental issue is that we can't mutate the original client from within
+                                //the async closure due to lifetime constraints.
+                                match Self::reconnect(&url).await {
+                                    Ok(_) => {
+                                        info!("successfully reconnected to ampd gRPC server");
+                                    }
+                                    Err(err) => {
+                                        warn!(err = ?err, "reconnecting to the ampd gRPC server failed");
+                                    }
+                                }
+                            }
+                            Err(status).into_report()
+                        }
+                        Err(timeout_err) => {
+                            warn!(err = ?timeout_err, "operation timed out");
+                            Err(timeout_err).into_report()
+                        }
+                    }
+                }
+            },
+            DEFAULT_RETRY_POLICY,
+        )
+        .await
     }
 
     pub async fn with_retry_and_reconnect<F, Fut, R>(
@@ -144,36 +168,44 @@ impl GrpcClient {
         F: FnMut(&mut Self) -> Fut,
         Fut: Future<Output = std::result::Result<R, tonic::Status>>,
     {
-        let retry_policy = DEFAULT_RETRY_POLICY;
+        let max_attempts = DEFAULT_RETRY_POLICY.max_attempts();
         let mut attempts = 0u64;
-        let max_attempts = match retry_policy {
-            RetryPolicy::RepeatConstant { max_attempts, .. } => max_attempts,
-            RetryPolicy::NoRetry => 1,
-        };
 
         loop {
             attempts = attempts.saturating_add(1);
 
-            match operation(self).await {
-                Ok(value) => return Ok(value),
-                Err(err) => {
-                    if attempts >= max_attempts {
-                        return Err(err).into_report();
-                    }
-
-                    if self.should_reconnect(&err) {
-                        warn!(
-                            "connection error detected, attempting to reconnect: {}",
-                            err
-                        );
-                        if let Err(reconnect_err) = self.reconnect().await {
-                            warn!("reconnection failed: {}", reconnect_err);
+            match tokio::time::timeout(DEFAULT_RPC_TIMEOUT, operation(self)).await {
+                Ok(Ok(value)) => return Ok(value),
+                Ok(Err(status)) => {
+                    if Self::should_reconnect(&status) {
+                        warn!(err = ?status, "connection to the ampd gRPC server was interrupted");
+                        match Self::reconnect(&self.url).await {
+                            Ok(new_client) => {
+                                *self = new_client;
+                                info!("successfully reconnected to ampd gRPC server");
+                            }
+                            Err(err) => {
+                                warn!(err = ?err, "reconnecting to the ampd gRPC server failed")
+                            }
                         }
                     }
 
-                    if let RetryPolicy::RepeatConstant { sleep, .. } = retry_policy {
-                        tokio::time::sleep(sleep).await;
+                    if attempts >= max_attempts {
+                        return Err(status).into_report();
                     }
+
+                    if let Some(delay) = DEFAULT_RETRY_POLICY.delay() {
+                        tokio::time::sleep(delay).await;
+                    }
+                }
+                Err(timeout_err) => {
+                    warn!(err = ?timeout_err, "operation timed out");
+
+                    if attempts >= max_attempts {
+                        return Err(timeout_err).into_report();
+                    }
+
+                    tokio::time::sleep(DEFAULT_RPC_TIMEOUT).await;
                 }
             }
         }
@@ -360,6 +392,12 @@ mod tests {
     use crate::grpc::error::GrpcError;
     use crate::grpc::utils::KeyAlgorithm;
 
+    #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+    pub struct TestContractStateResponse {
+        balance: String,
+        owner: String,
+    }
+
     type ServerSubscribeStream =
         Pin<Box<dyn Stream<Item = std::result::Result<SubscribeResponse, Status>> + Send>>;
     mock! {
@@ -391,7 +429,7 @@ mod tests {
     async fn setup_test_client(
         mock_blockchain: MockBlockchainService,
         mock_crypto: MockCryptoService,
-    ) -> GrpcClient {
+    ) -> (GrpcClient, tokio::task::AbortHandle, std::net::SocketAddr) {
         let server = tonic::transport::Server::builder()
             .add_service(BlockchainServiceServer::new(mock_blockchain))
             .add_service(CryptoServiceServer::new(mock_crypto));
@@ -402,10 +440,13 @@ mod tests {
         let bound_server =
             server.serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener));
 
-        tokio::spawn(bound_server);
-        let url = format!("http://{}", server_addr);
+        let server_handle = tokio::spawn(bound_server);
+        let abort_handle = server_handle.abort_handle();
 
-        new_client(&url).await.unwrap()
+        let url = format!("http://{}", server_addr);
+        let client = new_client(&url).await.unwrap();
+
+        (client, abort_handle, server_addr)
     }
 
     #[tokio::test]
@@ -420,7 +461,7 @@ mod tests {
             .expect_address()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -434,7 +475,7 @@ mod tests {
             .expect_address()
             .returning(|_request| Err(Status::unavailable("service unavailable")));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
         assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
@@ -451,7 +492,7 @@ mod tests {
             .expect_address()
             .returning(|_request| Err(Status::invalid_argument("invalid request")));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
         assert!(
@@ -478,7 +519,7 @@ mod tests {
             .times(5)
             .returning(move |_request| Ok(Response::new(mock_response.clone())));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         for _ in 0..5 {
             let result = client.address().await;
@@ -511,7 +552,7 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let start_time = Instant::now();
         let result = client.address().await;
@@ -540,7 +581,7 @@ mod tests {
                 Err(Status::unavailable("persistent service failure"))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let start_time = Instant::now();
         let result = client.address().await;
@@ -562,6 +603,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn address_should_reconnect_after_server_restart() {
+        let expected_address = sample_account_id();
+        let expected_address_clone = expected_address.clone();
+        let mock_response = AddressResponse {
+            address: expected_address.to_string(),
+        };
+
+        let mut mock_blockchain = MockBlockchainService::new();
+        mock_blockchain
+            .expect_address()
+            .times(1)
+            .returning(move |_request| Ok(Response::new(mock_response.clone())));
+
+        mock_blockchain
+            .expect_address()
+            .times(3)
+            .returning(|_request| Err(Status::unavailable("server is down")));
+
+        let (mut client, server_abort_handle, server_addr) =
+            setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+
+        let result = client.address().await;
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+
+        server_abort_handle.abort();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let result = client.address().await;
+        assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
+
+        let mut new_mock = MockBlockchainService::new();
+        new_mock
+            .expect_address()
+            .times(1)
+            .returning(move |_request| {
+                Ok(Response::new(AddressResponse {
+                    address: expected_address_clone.to_string(),
+                }))
+            });
+
+        let _new_server_handle =
+            restart_server_on_addr(server_addr, new_mock, MockCryptoService::new()).await;
+
+        let mut new_client = GrpcClient::reconnect(&client.url).await.unwrap();
+
+        let result = new_client.address().await;
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_address);
+    }
+
+    #[tokio::test]
     async fn broadcast_should_succeed_returning_the_response() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_response = sample_broadcast_response();
@@ -574,7 +666,7 @@ mod tests {
             .expect_broadcast()
             .return_once(move |__request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -588,7 +680,7 @@ mod tests {
             .expect_broadcast()
             .returning(|_request| Err(Status::internal("gas estimation failed")));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(
@@ -615,7 +707,7 @@ mod tests {
             .expect_broadcast()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let empty_msg = Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
@@ -650,7 +742,7 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -660,17 +752,8 @@ mod tests {
 
     #[tokio::test]
     async fn contract_state_should_succeed_returning_the_response() {
-        #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-        struct TestResponse {
-            balance: String,
-            owner: String,
-        }
-
         let mut mock_blockchain = MockBlockchainService::new();
-        let expected_response = TestResponse {
-            balance: "1000".to_string(),
-            owner: "axelar1abc".to_string(),
-        };
+        let expected_response = sample_contract_state_response();
         let expected_response_clone = expected_response.clone();
 
         mock_blockchain
@@ -681,9 +764,10 @@ mod tests {
                 }))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
-        let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
+        let result: Result<TestContractStateResponse, Error> =
+            client.contract_state(contract, query).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
         assert_eq!(result.unwrap(), expected_response);
@@ -701,7 +785,7 @@ mod tests {
                 }))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
@@ -723,7 +807,7 @@ mod tests {
             .expect_contract_state()
             .returning(|_request| Err(Status::unknown("contract execution failed")));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
@@ -740,17 +824,8 @@ mod tests {
 
     #[tokio::test]
     async fn contract_state_should_retry_on_temporary_failures() {
-        #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
-        struct TestResponse {
-            balance: String,
-            owner: String,
-        }
-
         let mut mock_blockchain = MockBlockchainService::new();
-        let expected_response = TestResponse {
-            balance: "1000".to_string(),
-            owner: "axelar1abc".to_string(),
-        };
+        let expected_response = sample_contract_state_response();
         let expected_response_clone = expected_response.clone();
         let call_count = Arc::new(Mutex::new(0));
         let call_count_clone = call_count.clone();
@@ -771,9 +846,10 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
-        let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
+        let result: Result<TestContractStateResponse, Error> =
+            client.contract_state(contract, query).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
         assert_eq!(result.unwrap(), expected_response);
@@ -795,7 +871,7 @@ mod tests {
             .expect_contracts()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.contracts().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -816,7 +892,7 @@ mod tests {
                 }))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let result = client.contracts().await;
 
@@ -858,7 +934,7 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.contracts().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -878,7 +954,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -895,7 +971,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(SignResponse { signature: vec![] })));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
@@ -920,7 +996,7 @@ mod tests {
             .expect_sign()
             .returning(|_request| Err(Status::internal("signing service unavailable")));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
@@ -949,7 +1025,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.sign(None, sample_message()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -980,7 +1056,7 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -1002,7 +1078,7 @@ mod tests {
             .expect_key()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -1017,7 +1093,7 @@ mod tests {
             .expect_key()
             .returning(|_request| Err(Status::data_loss("connection lost during key retrieval")));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
@@ -1040,7 +1116,7 @@ mod tests {
             .expect_key()
             .returning(|_request| Err(Status::invalid_argument("key not found")));
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
 
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
@@ -1079,7 +1155,7 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _, _) = setup_test_client(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -1107,9 +1183,9 @@ mod tests {
                 ))))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.subscribe(vec![], true).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
 
         let event_result_op = result.unwrap().next().await;
         assert!(event_result_op.unwrap().is_ok());
@@ -1127,7 +1203,7 @@ mod tests {
                 ))))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let result = client.subscribe(vec![], true).await;
         let next_steam_item = result.unwrap().next().await;
@@ -1150,7 +1226,7 @@ mod tests {
                 ))))
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
 
         let result = client.subscribe(vec![], true).await;
         let next_steam_item = result.unwrap().next().await;
@@ -1190,18 +1266,107 @@ mod tests {
                 }
             });
 
-        let mut client = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _, _) = setup_test_client(mock_blockchain, MockCryptoService::new()).await;
         let result = client.subscribe(vec![], true).await;
 
-        assert!(
-            result.is_ok(),
-            "unexpected error: {:?}",
-            result.as_ref().err()
-        );
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
         assert_eq!(*call_count.lock().unwrap(), 2);
 
         let event_result_op = result.unwrap().next().await;
         assert!(event_result_op.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn subscribe_should_reconnect_after_server_restart() {
+        let test_events = block_begin_end_events(101);
+        let test_events_clone = test_events.clone();
+
+        let mut initial_mock_blockchain = MockBlockchainService::new();
+
+        initial_mock_blockchain
+            .expect_subscribe()
+            .times(1)
+            .returning(move |_request| {
+                let subscribe_responses: Vec<SubscribeResponse> = test_events
+                    .clone()
+                    .into_iter()
+                    .map(|event| SubscribeResponse {
+                        event: Some(event.into()),
+                    })
+                    .collect();
+
+                Ok(Response::new(Box::pin(tokio_stream::iter(
+                    subscribe_responses.into_iter().map(std::result::Result::Ok),
+                ))))
+            });
+
+        initial_mock_blockchain
+            .expect_subscribe()
+            .times(3)
+            .returning(|_request| Err(Status::unavailable("server is down")));
+
+        let (mut client, server_abort_handle, server_addr) =
+            setup_test_client(initial_mock_blockchain, MockCryptoService::new()).await;
+
+        let mut stream = client.subscribe(vec![], true).await.unwrap();
+
+        let first_event = stream.next().await;
+        assert!(first_event.is_some(), "Should receive first event");
+        let block_begin_event = first_event.unwrap().unwrap();
+        assert_eq!(
+            block_begin_event,
+            Event::BlockBegin(101u64.try_into().unwrap())
+        );
+
+        server_abort_handle.abort();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let start_time = std::time::Instant::now();
+        let result = client.subscribe(vec![], true).await;
+        let elapsed = start_time.elapsed();
+
+        assert!(result.is_err());
+        assert!(elapsed >= Duration::from_secs(4));
+
+        let mut restart_mock_blockchain = MockBlockchainService::new();
+        restart_mock_blockchain
+            .expect_subscribe()
+            .times(1)
+            .returning(move |_request| {
+                let subscribe_responses: Vec<SubscribeResponse> = test_events_clone
+                    .clone()
+                    .into_iter()
+                    .map(|event| SubscribeResponse {
+                        event: Some(event.into()),
+                    })
+                    .collect();
+
+                Ok(Response::new(Box::pin(tokio_stream::iter(
+                    subscribe_responses.into_iter().map(std::result::Result::Ok),
+                ))))
+            });
+
+        let _new_server_handle = restart_server_on_addr(
+            server_addr,
+            restart_mock_blockchain,
+            MockCryptoService::new(),
+        )
+        .await;
+
+        let mut new_client = GrpcClient::reconnect(&client.url).await.unwrap();
+
+        let result = new_client.subscribe(vec![], true).await;
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+
+        let mut new_stream = result.unwrap();
+        let reconnected_event = new_stream.next().await;
+        assert!(reconnected_event.is_some());
+
+        let event_result = reconnected_event.unwrap();
+        assert!(event_result.is_ok());
+
+        let event = event_result.unwrap();
+        assert_eq!(event, Event::BlockBegin(101u64.try_into().unwrap()));
     }
 
     #[test]
@@ -1217,52 +1382,6 @@ mod tests {
             keyid_ed25519.algorithm,
             ampd_proto::Algorithm::Ed25519 as i32
         );
-    }
-
-    #[tokio::test]
-    async fn with_retry_and_reconnect_should_handle_custom_timeout() {
-        let mut client =
-            setup_test_client(MockBlockchainService::new(), MockCryptoService::new()).await;
-        let call_count = Arc::new(Mutex::new(0));
-        let call_count_clone = call_count.clone();
-
-        let start_time = Instant::now();
-        let result = client
-            .with_retry_and_reconnect(|_client| {
-                let count_clone = call_count_clone.clone();
-                async move {
-                    let mut count = count_clone.lock().unwrap();
-                    *count += 1;
-
-                    if *count <= 2 {
-                        Err(Status::unavailable("service down"))
-                    } else {
-                        Ok("success".to_string())
-                    }
-                }
-            })
-            .await;
-
-        let elapsed = start_time.elapsed();
-
-        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
-        assert_eq!(result.unwrap(), "success");
-
-        assert!(elapsed < Duration::from_secs(6));
-        assert_eq!(*call_count.lock().unwrap(), 3);
-    }
-
-    #[tokio::test]
-    async fn grpc_client_reconnect_should_update_clients_on_success() {
-        let mock_blockchain = MockBlockchainService::new();
-        let mock_crypto = MockCryptoService::new();
-
-        let mut client = setup_test_client(mock_blockchain, mock_crypto).await;
-        let original_url = client.url.clone();
-
-        let _result = client.reconnect().await;
-
-        assert_eq!(client.url, original_url);
     }
 
     pub fn any_msg() -> Any {
@@ -1307,6 +1426,13 @@ mod tests {
         }
     }
 
+    pub fn sample_contract_state_response() -> TestContractStateResponse {
+        TestContractStateResponse {
+            balance: "1000".to_string(),
+            owner: "axelar1abc".to_string(),
+        }
+    }
+
     pub fn sample_broadcast_response() -> BroadcastClientResponse {
         BroadcastClientResponse {
             tx_hash: "ABCDEF1234567890".to_string(),
@@ -1324,5 +1450,22 @@ mod tests {
 
     pub fn sample_message() -> nonempty::Vec<u8> {
         nonempty::Vec::try_from(b"hello world".to_vec()).unwrap()
+    }
+
+    async fn restart_server_on_addr(
+        addr: std::net::SocketAddr,
+        mock_blockchain: MockBlockchainService,
+        mock_crypto: MockCryptoService,
+    ) -> tokio::task::AbortHandle {
+        let server = tonic::transport::Server::builder()
+            .add_service(BlockchainServiceServer::new(mock_blockchain))
+            .add_service(CryptoServiceServer::new(mock_crypto));
+
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        let bound_server =
+            server.serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener));
+
+        let server_handle = tokio::spawn(bound_server);
+        server_handle.abort_handle()
     }
 }

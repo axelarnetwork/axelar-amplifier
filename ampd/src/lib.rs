@@ -35,8 +35,22 @@ mod block_height_monitor;
 mod broadcaster;
 #[allow(dead_code)]
 mod broadcaster_v2;
+
+#[cfg(feature = "commands")]
 pub mod commands;
+#[cfg(not(feature = "commands"))]
+mod commands;
+
+#[cfg(feature = "config")]
 pub mod config;
+#[cfg(not(feature = "config"))]
+mod config;
+
+#[cfg(feature = "url")]
+pub mod url;
+#[cfg(not(feature = "url"))]
+mod url;
+
 mod cosmos;
 mod event_processor;
 mod event_sub;
@@ -54,7 +68,6 @@ mod sui;
 mod tm_client;
 mod tofnd;
 mod types;
-mod url;
 mod xrpl;
 
 use crate::asyncutil::future::RetryPolicy;
@@ -63,10 +76,12 @@ use crate::broadcaster::confirm_tx::TxConfirmer;
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
+#[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {
     prepare_app(cfg).await?.run().await
 }
 
+#[cfg(feature = "config")]
 async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let Config {
         tm_jsonrpc,

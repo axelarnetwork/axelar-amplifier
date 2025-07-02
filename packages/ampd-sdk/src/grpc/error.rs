@@ -41,6 +41,9 @@ pub enum AppError {
 
     #[error("invalid byte array")]
     InvalidByteArray,
+
+    #[error("invalid url")]
+    InvalidUrl,
 }
 
 #[derive(Error, Debug)]

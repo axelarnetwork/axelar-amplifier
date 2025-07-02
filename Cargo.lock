@@ -367,6 +367,7 @@ dependencies = [
 name = "ampd-sdk"
 version = "0.1.0"
 dependencies = [
+ "ampd",
  "ampd-proto",
  "async-trait",
  "axelar-wasm-std",

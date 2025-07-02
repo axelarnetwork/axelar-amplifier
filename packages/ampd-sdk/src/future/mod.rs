@@ -10,14 +10,14 @@ pub enum RetryPolicy {
 }
 
 impl RetryPolicy {
-    fn max_attempts(&self) -> u64 {
+    pub fn max_attempts(&self) -> u64 {
         match self {
             RetryPolicy::RepeatConstant { max_attempts, .. } => *max_attempts,
             RetryPolicy::NoRetry => 1,
         }
     }
 
-    fn delay(&self) -> Option<Duration> {
+    pub fn delay(&self) -> Option<Duration> {
         match self {
             RetryPolicy::RepeatConstant { sleep, .. } => Some(*sleep),
             RetryPolicy::NoRetry => None,
@@ -44,6 +44,36 @@ where
 
                 if let Some(delay) = policy.delay() {
                     time::sleep(delay).await;
+                }
+            }
+        }
+    }
+}
+
+pub async fn with_retry_ctx<F, Fut, R, Err, Ctx, Op>(
+    ctx: &mut Ctx,
+    mut operation: Op,
+    mut retry_fn: F,
+    policy: RetryPolicy,
+) -> Result<R, Err>
+where
+    F: FnMut(&mut Ctx, &mut Op) -> Fut,
+    Fut: Future<Output = Result<R, Err>>,
+{
+    let mut attempts = 0u64;
+
+    loop {
+        match retry_fn(ctx, &mut operation).await {
+            Ok(result) => return Ok(result),
+            Err(err) => {
+                attempts = attempts.saturating_add(1);
+
+                if attempts >= policy.max_attempts() {
+                    return Err(err);
+                }
+
+                if let Some(delay) = policy.delay() {
+                    tokio::time::sleep(delay).await;
                 }
             }
         }
