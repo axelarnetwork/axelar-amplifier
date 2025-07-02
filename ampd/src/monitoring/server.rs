@@ -91,7 +91,7 @@ impl Server {
     ) -> Result<(), MetricsError> {
         info!("no prometheus endpoint defined, so no metrics will be collected");
 
-        let handle = Self::spawn_metrics_processor(metrics_rx, cancel, |_| {});
+        let handle = Self::spawn_metrics_processor(metrics_rx, cancel, |_| Ok(()));
         _ = handle.await;
         Ok(())
     }
@@ -137,7 +137,7 @@ impl Server {
         message_handler: F,
     ) -> tokio::task::JoinHandle<()>
     where
-        F: Fn(MetricsMsg) + Send + 'static,
+        F: Fn(MetricsMsg) -> Result<(), MetricsError> + Send + 'static,
     {
         tokio::spawn(async move {
             loop {
@@ -145,7 +145,10 @@ impl Server {
                     msg = metrics_rx.recv() => {
                         match msg {
                             Some(msg) => {
-                                message_handler(msg)
+                                if let Err(e) = message_handler(msg) {
+                                    warn!("failed to handle metrics message: {:?}", e);
+                                    break;
+                                }
                             }
                             None => {
                                 warn!("all metrics clients disconnected, metrics processing stopped");
