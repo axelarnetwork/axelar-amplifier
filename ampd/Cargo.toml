@@ -6,6 +6,12 @@ rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["commands", "config"]
+commands = []
+config = []
+url = []
+
 [dependencies]
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
@@ -47,6 +53,7 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
+prometheus = "0.13"
 prost = "0.13.5"
 prost-types = "0.13.5"
 report = { workspace = true }

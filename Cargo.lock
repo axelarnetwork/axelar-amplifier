@@ -285,6 +285,7 @@ dependencies = [
  "num-traits",
  "openssl",
  "pin-project-lite",
+ "prometheus",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
@@ -366,6 +367,7 @@ dependencies = [
 name = "ampd-sdk"
 version = "0.1.0"
 dependencies = [
+ "ampd",
  "ampd-proto",
  "async-trait",
  "axelar-wasm-std",
@@ -6218,12 +6220,15 @@ name = "msgs-derive"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "itertools 0.14.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
+ "serde",
  "syn 2.0.101",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
