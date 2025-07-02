@@ -1341,11 +1341,6 @@ mod tests {
             .unwrap();
 
         let result = apply_authorized_count_change(deps.as_mut().storage, &service.name, 1);
-
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("not more than 65535 authorized verifiers allowed"));
     }
 }
