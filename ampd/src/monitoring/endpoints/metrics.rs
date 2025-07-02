@@ -1,5 +1,5 @@
 use axum::http::StatusCode;
-use error_stack::{Result, ResultExt};
+use error_stack::{ensure, Result, ResultExt};
 use prometheus::{Encoder, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder};
 use thiserror::Error;
 
@@ -32,11 +32,19 @@ pub enum MetricsError {
     MetricRegisterFailed,
     #[error("failed to spawn metric")]
     MetricSpawnFailed,
+    #[error("metric value overflow, value is larger than 1.7976931348623157e+308")]
+    MetricValueOverflow,
+    #[error("no vote is recorded but success rate is updated")]
+    InvalidVoteMetricsUpdate,
 }
 
 pub struct Metrics {
-    block_received: IntCounter,
+    block_received: BlockReceivedMetrics,
     votes_casted: VotesCastedMetrics,
+}
+
+struct BlockReceivedMetrics {
+    total: IntCounter,
 }
 
 struct VotesCastedMetrics {
@@ -47,15 +55,10 @@ struct VotesCastedMetrics {
 
 impl Metrics {
     pub fn new(registry: &Registry) -> Result<Self, MetricsError> {
-        let block_received = IntCounter::new("blocks_received", "number of blocks received")
-            .change_context(MetricsError::MetricSpawnFailed)?;
-
+        let block_received = BlockReceivedMetrics::new()?;
         let votes_casted = VotesCastedMetrics::new()?;
 
-        registry
-            .register(Box::new(block_received.clone()))
-            .change_context(MetricsError::MetricRegisterFailed)?;
-
+        block_received.register(registry)?;
         votes_casted.register(registry)?;
 
         Ok(Self {
@@ -64,24 +67,49 @@ impl Metrics {
         })
     }
 
-    pub fn handle_message(&self, msg: MetricsMsg) {
+    pub fn handle_message(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
         match msg {
             MetricsMsg::IncBlockReceived => {
-                self.block_received.inc();
+                self.block_received.increment()?;
             }
             MetricsMsg::IncSuccessVoteCasted {
                 verifier_id,
                 chain_name,
             } => {
-                self.votes_casted.record_success(&verifier_id, &chain_name);
+                self.votes_casted
+                    .record_success(&verifier_id, &chain_name)?;
             }
             MetricsMsg::IncFailedVoteCasted {
                 verifier_id,
                 chain_name,
             } => {
-                self.votes_casted.record_failure(&verifier_id, &chain_name);
+                self.votes_casted
+                    .record_failure(&verifier_id, &chain_name)?;
             }
         }
+        Ok(())
+    }
+}
+
+impl BlockReceivedMetrics {
+    fn new() -> Result<Self, MetricsError> {
+        let counter = IntCounter::new("blocks_received", "number of blocks received")
+            .change_context(MetricsError::MetricSpawnFailed)?;
+        Ok(Self { total: counter })
+    }
+
+    fn register(&self, registry: &Registry) -> Result<(), MetricsError> {
+        registry
+            .register(Box::new(self.total.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+        Ok(())
+    }
+
+    fn increment(&self) -> Result<(), MetricsError> {
+        let current_value = self.total.get();
+        ensure!(current_value < u64::MAX, MetricsError::MetricValueOverflow);
+        self.total.inc();
+        Ok(())
     }
 }
 
@@ -111,21 +139,35 @@ impl VotesCastedMetrics {
         Ok(())
     }
 
-    fn record_success(&self, verifier_id: &str, chain_name: &str) {
+    fn record_success(&self, verifier_id: &str, chain_name: &str) -> Result<(), MetricsError> {
+        let current_value = self
+            .succeed
+            .with_label_values(&[verifier_id, chain_name])
+            .get();
+        ensure!(current_value < u64::MAX, MetricsError::MetricValueOverflow);
+
         self.succeed
             .with_label_values(&[verifier_id, chain_name])
             .inc();
-        self.update_success_rate(verifier_id, chain_name);
+        self.update_success_rate(verifier_id, chain_name)?;
+        Ok(())
     }
 
-    fn record_failure(&self, verifier_id: &str, chain_name: &str) {
+    fn record_failure(&self, verifier_id: &str, chain_name: &str) -> Result<(), MetricsError> {
+        let current_value = self
+            .failed
+            .with_label_values(&[verifier_id, chain_name])
+            .get();
+        ensure!(current_value < u64::MAX, MetricsError::MetricValueOverflow);
+
         self.failed
             .with_label_values(&[verifier_id, chain_name])
             .inc();
-        self.update_success_rate(verifier_id, chain_name);
+        self.update_success_rate(verifier_id, chain_name)?;
+        Ok(())
     }
 
-    fn update_success_rate(&self, verifier_id: &str, chain_name: &str) {
+    fn update_success_rate(&self, verifier_id: &str, chain_name: &str) -> Result<(), MetricsError> {
         let successful_votes = self
             .succeed
             .with_label_values(&[verifier_id, chain_name])
@@ -136,20 +178,23 @@ impl VotesCastedMetrics {
             .with_label_values(&[verifier_id, chain_name])
             .get();
 
-        let total_votes = successful_votes + failed_votes;
+        let total_votes = successful_votes
+            .checked_add(failed_votes)
+            .ok_or(MetricsError::MetricValueOverflow)?;
 
         let success_rate = match total_votes {
-            0 => 0.0, // should not happen, total_votes is at least 1 when this is reached 
+            0 => {
+                return Err(MetricsError::InvalidVoteMetricsUpdate.into());
+            }
             _ => successful_votes as f64 / total_votes as f64,
         };
 
         self.success_rate
             .with_label_values(&[verifier_id, chain_name])
             .set(success_rate);
+        Ok(())
     }
 }
-
-
 
 fn create_verifier_votes_casted_metrics(
 ) -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
@@ -190,7 +235,6 @@ fn create_verifier_votes_casted_metrics(
     ))
 }
 
-
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
 <<<<<<< HEAD
     match render_metrics(registry) {
@@ -218,7 +262,6 @@ fn gather(registry: &Registry) -> Result<String, MetricsError> {
     String::from_utf8(buffer).change_context(MetricsError::Utf8Error)
 }
 
-
 #[cfg(test)]
 mod tests {
     use prometheus::Registry;
@@ -233,9 +276,15 @@ mod tests {
         let initial_metrics = render_metrics(&registry).unwrap();
         assert!(initial_metrics.contains("blocks_received 0"));
 
-        metrics.handle_message(MetricsMsg::IncBlockReceived);
-        metrics.handle_message(MetricsMsg::IncBlockReceived);
-        metrics.handle_message(MetricsMsg::IncBlockReceived);
+        metrics
+            .handle_message(MetricsMsg::IncBlockReceived)
+            .expect("handle message should not fail");
+        metrics
+            .handle_message(MetricsMsg::IncBlockReceived)
+            .expect("handle message should not fail");
+        metrics
+            .handle_message(MetricsMsg::IncBlockReceived)
+            .expect("handle message should not fail");
         let final_metrics = render_metrics(&registry).unwrap();
         assert!(final_metrics.contains("blocks_received 3"));
     }
@@ -245,16 +294,20 @@ mod tests {
         let registry = Registry::new();
         let metrics = Metrics::new(&registry).unwrap();
         for _ in 0..2 {
-            metrics.handle_message(MetricsMsg::IncSuccessVoteCasted {
-                verifier_id: "axelar1abc".to_string(),
-                chain_name: "ethereum".to_string(),
-            });
+            metrics
+                .handle_message(MetricsMsg::IncSuccessVoteCasted {
+                    verifier_id: "axelar1abc".to_string(),
+                    chain_name: "ethereum".to_string(),
+                })
+                .expect("handle message should not fail");
         }
 
-        metrics.handle_message(MetricsMsg::IncFailedVoteCasted {
-            verifier_id: "axelar1abc".to_string(),
-            chain_name: "ethereum".to_string(),
-        });
+        metrics
+            .handle_message(MetricsMsg::IncFailedVoteCasted {
+                verifier_id: "axelar1abc".to_string(),
+                chain_name: "ethereum".to_string(),
+            })
+            .expect("handle message should not fail");
 
         let final_metrics = render_metrics(&registry).unwrap();
 
@@ -263,6 +316,19 @@ mod tests {
             "verifier_votes_casted_failed{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 1"
         ));
         assert!(final_metrics.contains("verifier_votes_casted_success_rate{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 0.6666666666666666"));
+    }
+
+    #[test]
+    fn metrics_handle_message_fails_on_overflow() {
+        let registry = Registry::new();
+        let metrics = Metrics::new(&registry).unwrap();
+        metrics.block_received.total.inc_by(u64::MAX);
+        let result = metrics.handle_message(MetricsMsg::IncBlockReceived);
+        assert!(result.is_err(), "should fail on overfow ");
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("metric value overflow"));
     }
 
     #[tokio::test]
