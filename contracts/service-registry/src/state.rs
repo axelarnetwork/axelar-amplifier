@@ -12,11 +12,6 @@ type ServiceName = String;
 type VerifierAddress = Addr;
 use error_stack::ensure;
 
-enum VerifierCountOperation {
-    Increment,
-    Decrement,
-}
-
 #[cw_serde]
 pub struct UpdatedServiceParams {
     pub min_num_verifiers: Option<u16>,
@@ -1253,5 +1248,100 @@ mod tests {
         let result = number_of_authorized_verifiers(deps.as_ref().storage, &nonexistent_service);
         assert!(result.is_err());
         assert_err_contains!(result, ContractError, ContractError::ServiceNotFound);
+    }
+
+    #[test]
+    fn test_update_auth_verifier_count_change() {
+        let test_cases = vec![
+            // (previous_state, new_state, expected_change, description)
+            (
+                None,
+                AuthorizationState::Authorized,
+                1,
+                "New verifier becomes authorized",
+            ),
+            (
+                Some(AuthorizationState::NotAuthorized),
+                AuthorizationState::Authorized,
+                1,
+                "NotAuthorized -> Authorized",
+            ),
+            (
+                Some(AuthorizationState::Authorized),
+                AuthorizationState::NotAuthorized,
+                -1,
+                "Authorized -> NotAuthorized",
+            ),
+            (
+                Some(AuthorizationState::Authorized),
+                AuthorizationState::Authorized,
+                0,
+                "No change",
+            ),
+        ];
+
+        for (previous_state, new_state, expected_change, description) in test_cases {
+            let mut current = 5i32;
+            let initial_value = current;
+
+            let result =
+                update_auth_verifier_count_change(&mut current, &previous_state, &new_state);
+
+            assert!(result.is_ok(), "Test failed for: {}", description);
+            assert_eq!(
+                current,
+                initial_value + expected_change,
+                "Test failed for: {} (expected change: {}, got: {})",
+                description,
+                expected_change,
+                current - initial_value
+            );
+        }
+    }
+
+    #[test]
+    fn test_apply_authorized_count_change() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        AUTHORIZED_VERIFIER_COUNT
+            .save(deps.as_mut().storage, &service.name, &5u16)
+            .unwrap();
+
+        let result = apply_authorized_count_change(deps.as_mut().storage, &service.name, 3);
+        assert!(result.is_ok());
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 8);
+
+        let result = apply_authorized_count_change(deps.as_mut().storage, &service.name, -2);
+        assert!(result.is_ok());
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 6);
+
+        let result = apply_authorized_count_change(deps.as_mut().storage, &service.name, 0);
+        assert!(result.is_ok());
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 6);
+    }
+
+    #[test]
+    fn test_apply_authorized_count_change_overflow() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        AUTHORIZED_VERIFIER_COUNT
+            .save(deps.as_mut().storage, &service.name, &u16::MAX)
+            .unwrap();
+
+        let result = apply_authorized_count_change(deps.as_mut().storage, &service.name, 1);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("not more than 65535 authorized verifiers allowed"));
     }
 }
