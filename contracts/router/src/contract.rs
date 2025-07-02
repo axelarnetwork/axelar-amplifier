@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[external_execute(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
