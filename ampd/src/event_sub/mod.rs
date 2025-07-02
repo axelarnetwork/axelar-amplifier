@@ -105,6 +105,7 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
 
         tokio::pin!(event_stream);
         while let Some(event) = event_stream.next().await {
+            // error_stack::Report does not implement `Clone`, so we log the full error and pass on the latest context
             let event = event
                 .inspect_err(|err| {
                     error!(

@@ -19,7 +19,7 @@ use crate::tm_client::{BlockResultsResponse, TmClient};
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
 
-/// Returns a stream of block heights as the get generated on the blockchain.
+/// Returns a stream of block heights as they get generated on the blockchain.
 /// To keep the load on the blockchain node manageable, the polling frequency is adjustable.
 /// Because the blockchain state seems to be somewhat unstable when interacting with the latest state,
 /// the stream can be delayed when returning the latest block.
@@ -192,7 +192,7 @@ where
         let mut me = self.as_mut().project();
 
         // loop until we get an element that is not a duplicate of an already streamed one.
-        // We use loop instead of recursion here, because in the case of a stuck chain,
+        // We use loop instead of recursion here, because in the case of a stuck chain
         // the stream could receive the same element for a long time, which would cause a stack overflow.
         loop {
             match me.stream.as_mut().try_poll_next(cx) {
@@ -201,7 +201,9 @@ where
 
                     match previous {
                         Some(previous) if previous >= current => {
-                            me.previous.replace(previous.clone()); // revert update of the previous value
+                            // revert update of the previous value, must use previous and not current 
+                            // because current could potentially be smaller and would mess up the monotonicity invariant of the stream
+                            me.previous.replace(previous.clone()); 
                             continue;
                         }
                         _ => return Poll::Ready(Some(Ok(current))),
@@ -224,21 +226,162 @@ pin_project! {
     }
 }
 
+/// Represents the current state of a block streaming system that ensures sequential block processing
+/// without gaps. This enum tracks the progression through different phases of block streaming
+/// and manages gap-filling to maintain blockchain state integrity.
+///
+/// # State Transitions
+///
+/// The state machine follows this progression:
+/// ```text
+/// Start -> First -> BlocksAvailable -> CaughtUp
+///   |        |           |              ^
+///   |        |           +------+-------+
+///   |        +----------+       |
+///   +-------------------+       |
+///                               |
+/// (new blocks arrive) ----------+
+/// ```
+///
+/// # Examples
+///
+/// ## Basic Usage
+/// ```rust, ignore
+/// use tendermint::block;
+/// 
+/// let mut state = StreamState::Start;
+///
+/// // Receive first block height from blockchain
+/// state = state.update_latest(block::Height::from(100u32));
+/// // State is now First { first: 100, streamed: false }
+///
+/// // Stream the first block
+/// if let Some(height) = state.stream() {
+///     println!("Streaming block {}", height); // Prints: Streaming block 100
+/// }
+/// // State is now First { first: 100, streamed: true }
+/// ```
+///
+/// ## Gap Detection and Filling
+/// ```rust, ignore,ignore
+/// use tendermint::block;
+/// 
+/// let mut state = StreamState::First { first: block::Height::from(100u32), streamed: true };
+///
+/// // Blockchain jumps from 100 to 105 (gap detected)
+/// state = state.update_latest(block::Height::from(105u32));
+/// // State is now BlocksAvailable { streamed: 100, latest: 105 }
+///
+/// // Stream missing blocks sequentially
+/// while let Some(height) = state.stream() {
+///     println!("Filling gap: block {}", height);
+///     // Outputs: 101, 102, 103, 104, 105
+/// }
+/// // State is now CaughtUp(105)
+/// ```
+///
+/// ## Handling New Blocks While Caught Up
+/// ```rust, ignore
+/// use tendermint::block;
+/// 
+/// let mut state = StreamState::CaughtUp(block::Height::from(200u32));
+///
+/// // New block arrives
+/// state = state.update_latest(block::Height::from(201u32));
+/// // State transitions to BlocksAvailable { streamed: 200, latest: 201 }
+///
+/// if let Some(height) = state.stream() {
+///     println!("New block: {}", height); // Prints: New block: 201
+/// }
+/// // Back to CaughtUp(201)
+/// ```
 #[derive(Debug, Copy, Clone)]
-enum StreamState {
+pub enum StreamState {
+    /// Initial state when no blocks have been processed yet.
+    /// 
+    /// This is the starting point of the state machine. No block heights
+    /// have been received from the blockchain yet.
     Start,
+    
+    /// State when the first block height has been received but may not have been streamed yet.
+    ///
+    /// # Fields
+    /// * `first` - The first block height received from the blockchain
+    /// * `streamed` - Whether this first block has been yielded by the stream yet
+    ///
+    /// This state ensures that the very first block is properly handled and streamed
+    /// exactly once before transitioning to gap-filling mode.
     First {
         first: block::Height,
         streamed: bool,
     },
+    
+    /// State when there are blocks available to be streamed (gap-filling mode).
+    ///
+    /// # Fields
+    /// * `streamed` - The last block height that was successfully streamed
+    /// * `latest` - The latest known block height from the blockchain
+    ///
+    /// This state indicates there are one or more blocks between `streamed` and `latest`
+    /// that need to be streamed sequentially. The stream will yield `streamed + 1`,
+    /// `streamed + 2`, etc., until it reaches `latest`.
     BlocksAvailable {
         streamed: block::Height,
         latest: block::Height,
     },
+    
+    /// State when the stream has caught up to the latest known block.
+    ///
+    /// # Fields
+    /// * `block::Height` - The current latest block height that we're caught up to
+    ///
+    /// In this state, no blocks are available to stream until a new latest block
+    /// height is received from the blockchain. The stream will yield `None` until
+    /// new blocks become available.
     CaughtUp(block::Height),
 }
 
 impl StreamState {
+    /// Updates the state machine with a new latest block height from the blockchain.
+    ///
+    /// This method drives the state transitions by incorporating new block height information.
+    /// The state machine intelligently handles different scenarios:
+    ///
+    /// # State Transition Logic
+    ///
+    /// * **Start → First**: When receiving the very first block height
+    /// * **Ignore stale updates**: If the new latest is older than or equal to the current latest
+    /// * **Transition to BlocksAvailable**: When there's a gap between streamed and new latest
+    /// * **Stay in current state**: When the update doesn't change the streaming situation
+    ///
+    /// # Examples
+    ///
+    /// ```rust, ignore
+    /// use tendermint::block;
+    /// 
+    /// // Starting fresh
+    /// let state = StreamState::Start;
+    /// let state = state.update_latest(block::Height::from(100u32));
+    /// // Now: First { first: 100, streamed: false }
+    ///
+    /// // Gap detected
+    /// let state = StreamState::First { first: block::Height::from(100u32), streamed: true };
+    /// let state = state.update_latest(block::Height::from(105u32));
+    /// // Now: BlocksAvailable { streamed: 100, latest: 105 }
+    ///
+    /// // Stale update ignored
+    /// let state = StreamState::CaughtUp(block::Height::from(200u32));
+    /// let state = state.update_latest(block::Height::from(199u32));
+    /// // Still: CaughtUp(200) - no change
+    /// ```
+    ///
+    /// # Parameters
+    ///
+    /// * `new_latest` - The latest block height received from the blockchain
+    ///
+    /// # Returns
+    ///
+    /// The new state after processing the latest block height information.
     pub fn update_latest(self, new_latest: block::Height) -> Self {
         match self {
             StreamState::Start => StreamState::First {
@@ -263,6 +406,54 @@ impl StreamState {
         }
     }
 
+    /// Attempts to stream the next block height and updates the internal state.
+    ///
+    /// This is the core method that yields block heights for streaming while maintaining
+    /// the state machine's integrity. It implements the gap-filling logic that ensures
+    /// no blocks are skipped in the sequence.
+    ///
+    /// # Behavior by State
+    ///
+    /// * **Start**: Returns `None` - no blocks available to stream yet
+    /// * **CaughtUp**: Returns `None` - waiting for new blocks from blockchain
+    /// * **First**: Returns the first block once, then marks it as streamed
+    /// * **BlocksAvailable**: Returns the next sequential block and updates state
+    ///
+    /// # State Transitions
+    ///
+    /// * **First → First** (streamed=true): After yielding the first block
+    /// * **BlocksAvailable → BlocksAvailable**: While more blocks remain to stream
+    /// * **BlocksAvailable → CaughtUp**: When the last available block is streamed
+    ///
+    /// # Examples
+    ///
+    /// ```rust, ignore
+    /// use tendermint::block;
+    /// 
+    /// // Stream first block
+    /// let mut state = StreamState::First { 
+    ///     first: block::Height::from(100u32), 
+    ///     streamed: false 
+    /// };
+    /// assert_eq!(state.stream(), Some(block::Height::from(100u32)));
+    /// // State is now First { first: 100, streamed: true }
+    ///
+    /// // Stream gaps sequentially
+    /// let mut state = StreamState::BlocksAvailable {
+    ///     streamed: block::Height::from(100u32),
+    ///     latest: block::Height::from(103u32)
+    /// };
+    /// assert_eq!(state.stream(), Some(block::Height::from(101u32)));
+    /// assert_eq!(state.stream(), Some(block::Height::from(102u32)));
+    /// assert_eq!(state.stream(), Some(block::Height::from(103u32)));
+    /// // State is now CaughtUp(103)
+    /// assert_eq!(state.stream(), None);
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * `Some(block::Height)` - The next block height to stream
+    /// * `None` - No blocks available to stream in the current state
     pub fn stream(&mut self) -> Option<block::Height> {
         match *self {
             StreamState::Start | StreamState::CaughtUp(_) => None,

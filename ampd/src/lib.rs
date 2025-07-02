@@ -37,7 +37,7 @@ pub mod commands;
 pub mod config;
 mod cosmos;
 mod event_processor;
-mod event_sub;
+pub mod event_sub;
 mod evm;
 mod grpc;
 mod handlers;
