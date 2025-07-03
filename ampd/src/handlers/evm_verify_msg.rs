@@ -399,4 +399,27 @@ mod tests {
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
+
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let rpc_client = MockEthereumClient::new();
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let (_, rx) = watch::channel(100u64);
+
+        let handler = super::Handler::new(
+            verifier.clone(),
+            voting_verifier_contract,
+            ChainName::from_str("ethereum").unwrap(),
+            Finalization::RPCFinalizedBlock,
+            rpc_client,
+            rx,
+        );
+
+        let handler_info = handler.handler_info();
+
+        assert_eq!(handler_info.chain_name, "ethereum");
+        assert_eq!(handler_info.verifier_id, verifier.to_string());
+        assert!(handler_info.cast_votes);
+    }
 }

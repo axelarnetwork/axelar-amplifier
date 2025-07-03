@@ -314,6 +314,24 @@ mod tests {
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
     }
 
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let verifier = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+        let handler = super::Handler::new(
+            verifier.clone(),
+            voting_verifier,
+            MockMvxProxy::new(),
+            watch::channel(0).1,
+        );
+
+        let info = handler.handler_info();
+
+        assert_eq!(info.chain_name, "multiversx");
+        assert_eq!(info.verifier_id, verifier.to_string());
+        assert!(info.cast_votes);
+    }
+
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,

@@ -357,6 +357,26 @@ mod test {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let verifier = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+        let chain_name = ChainName::from_str("solana").unwrap();
+        let handler = super::Handler::new(
+            chain_name.clone(),
+            verifier.clone(),
+            voting_verifier,
+            EmptyResponseSolanaRpc,
+            watch::channel(0).1,
+        );
+
+        let info = handler.handler_info();
+
+        assert_eq!(info.chain_name, chain_name.to_string());
+        assert_eq!(info.verifier_id, verifier.to_string());
+        assert!(info.cast_votes);
+    }
+
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
         let event_idx_1 = 10_u32;

@@ -439,4 +439,24 @@ mod test {
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
+
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let verifier = TMAddress::random(PREFIX);
+        let multisig = TMAddress::random(PREFIX);
+        let chain: ChainName = "xrpl".parse().unwrap();
+        let handler = super::Handler::new(
+            verifier.clone(),
+            multisig,
+            chain.clone(),
+            MockMultisig::default(),
+            watch::channel(0).1,
+        );
+
+        let info = handler.handler_info();
+
+        assert_eq!(info.chain_name, chain.to_string());
+        assert_eq!(info.verifier_id, verifier.to_string());
+        assert!(!info.cast_votes);
+    }
 }

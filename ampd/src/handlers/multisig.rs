@@ -508,4 +508,26 @@ mod test {
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
+
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let signer = MockMultisig::default();
+        let verifier = TMAddress::random(PREFIX);
+        let multisig = TMAddress::random(PREFIX);
+        let (_, rx) = watch::channel(100u64);
+
+        let handler = Handler::new(
+            verifier.clone(),
+            multisig,
+            "Ethereum".parse().unwrap(),
+            signer,
+            rx,
+        );
+
+        let handler_info = handler.handler_info();
+
+        assert_eq!(handler_info.chain_name, "ethereum");
+        assert_eq!(handler_info.verifier_id, verifier.to_string());
+        assert!(!handler_info.cast_votes);
+    }
 }
