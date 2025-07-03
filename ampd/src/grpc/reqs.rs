@@ -582,42 +582,48 @@ mod tests {
     }
 
     #[test]
-    fn validate_key_id_should_handle_ed25519_algorithm() {
+    fn validate_key_should_handle_ed25519_algorithm() {
         let key_id = "test_key";
         let algorithm = ampd_proto::Algorithm::Ed25519;
 
-        let key_id_obj = KeyId {
-            id: key_id.to_string(),
-            algorithm: algorithm.into(),
-        };
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+        });
 
-        let (result_id, result_algorithm) = validate_key_id(key_id_obj).unwrap();
+        let (result_id, result_algorithm) = req.validate().unwrap();
         assert_eq!(result_id.as_str(), key_id);
         assert_eq!(result_algorithm, tofnd::Algorithm::Ed25519);
     }
 
     #[test]
-    fn validate_key_id_should_fail_with_empty_key_id() {
-        let key_id_obj = KeyId {
-            id: "".to_string(),
-            algorithm: ampd_proto::Algorithm::Ecdsa.into(),
-        };
+    fn validate_key_should_fail_with_empty_key_id() {
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: "".to_string(),
+                algorithm: ampd_proto::Algorithm::Ecdsa.into(),
+            }),
+        });
 
-        let result = validate_key_id(key_id_obj);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::EmptyKeyId);
     }
 
     #[test]
-    fn validate_key_id_should_fail_with_invalid_algorithm() {
+    fn validate_key_should_fail_with_invalid_algorithm() {
         let key_id = "test_key";
         let invalid_algorithm = 999; // some invalid algorithm value
 
-        let key_id_obj = KeyId {
-            id: key_id.to_string(),
-            algorithm: invalid_algorithm,
-        };
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: invalid_algorithm,
+            }),
+        });
 
-        let result = validate_key_id(key_id_obj);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidCryptoAlgorithm(_));
     }
 
@@ -651,6 +657,60 @@ mod tests {
 
         let result = req.validate();
         assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_sign_should_handle_ed25519_algorithm() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ed25519;
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: message.clone(),
+        });
+
+        let (result_id, result_algorithm, result_msg) = req.validate().unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ed25519);
+        assert_eq!(result_msg.to_vec(), message);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_empty_key_id() {
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: "".to_string(),
+                algorithm: ampd_proto::Algorithm::Ecdsa.into(),
+            }),
+            msg: message,
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_invalid_algorithm() {
+        let key_id = "test_key";
+        let invalid_algorithm = 999; // some invalid algorithm value
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: invalid_algorithm,
+            }),
+            msg: message,
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::InvalidCryptoAlgorithm(_));
     }
 
     #[test]
