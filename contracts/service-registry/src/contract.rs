@@ -737,7 +737,7 @@ mod test {
         let params_override =
             execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
 
-        let res: ServiceParamsOverride = from_json(
+        let res: Option<ServiceParamsOverride> = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),
@@ -750,7 +750,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(res, params_override);
+        assert_eq!(res, Some(params_override));
     }
 
     #[test]
