@@ -4,6 +4,7 @@ use prometheus::{Encoder, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, T
 use thiserror::Error;
 
 #[derive(Clone)]
+#[allow(clippy::enum_variant_names)] // will add other msg types that doesnt start with 'inc' in the future 
 pub enum MetricsMsg {
     IncBlockReceived,
     IncSuccessVoteCasted {
@@ -236,21 +237,13 @@ fn create_verifier_votes_casted_metrics(
 }
 
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
-<<<<<<< HEAD
     match render_metrics(registry) {
-=======
-    match gather(registry) {
->>>>>>> 94bcfc7d (update style)
         Ok(metrics) => (StatusCode::OK, metrics),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     }
 }
 
-<<<<<<< HEAD
 fn render_metrics(registry: &Registry) -> Result<String, MetricsError> {
-=======
-fn gather(registry: &Registry) -> Result<String, MetricsError> {
->>>>>>> 94bcfc7d (update style)
     let mut buffer = Vec::new();
     let encoder = TextEncoder::new();
     let metric_families = registry.gather();
@@ -264,6 +257,7 @@ fn gather(registry: &Registry) -> Result<String, MetricsError> {
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::assert_err_contains;
     use prometheus::Registry;
 
     use super::*;
@@ -325,10 +319,7 @@ mod tests {
         metrics.block_received.total.inc_by(u64::MAX);
         let result = metrics.handle_message(MetricsMsg::IncBlockReceived);
         assert!(result.is_err(), "should fail on overfow ");
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("metric value overflow"));
+        assert_err_contains!(result, MetricsError, MetricsError::MetricValueOverflow);
     }
 
     #[tokio::test]

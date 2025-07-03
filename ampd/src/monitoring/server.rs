@@ -167,10 +167,7 @@ impl Server {
 pub mod test_utils {
     use std::net::{SocketAddr, TcpListener};
 
-    use tokio_util::sync::CancellationToken;
-
     use super::*;
-    use crate::monitoring::endpoints::status::Status;
 
     fn test_bind_addr() -> SocketAddrV4 {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -181,7 +178,7 @@ pub mod test_utils {
         }
     }
 
-    fn test_metrics_server_setup() -> (
+    pub fn test_metrics_server_setup() -> (
         Option<SocketAddrV4>,
         Server,
         MonitoringClient,

@@ -54,7 +54,6 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use std::net::{Ipv4Addr, SocketAddrV4};
-    use std::net::{Ipv4Addr, SocketAddrV4};
     use std::path::PathBuf;
     use std::str::FromStr;
     use std::time::Duration;
@@ -599,16 +598,6 @@ mod tests {
             cfg.monitoring_server.bind_addr(),
             Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
         );
-    }
-
-    #[test]
-    fn deserialize_monitoring_server_config_disabled() {
-        let config_str = "
-            [monitoring_server]
-            enabled = false
-            ";
-        let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.monitoring_server.bind_addr(), None);
     }
 
     #[test]

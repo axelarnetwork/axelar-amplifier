@@ -145,7 +145,7 @@ where
             let handler_info = handler.handler_info();
             for msg in msgs {
                 let broadcast_result = broadcaster.broadcast(msg.clone()).await;
-                record_vote_metrics(&monitoring_client, &handler_info, &broadcast_result);
+                record_vote_metrics(&monitoring_client, handler_info.clone(), &broadcast_result);
                 if let Err(err) = broadcast_result {
                     warn!(
                         err = LoggableError::from(&err).as_value(),
@@ -167,7 +167,7 @@ where
 
 fn record_vote_metrics(
     monitoring_client: &MonitoringClient,
-    handler_info: &HandlerInfo,
+    handler_info: HandlerInfo,
     result: &std::result::Result<(), error_stack::Report<crate::queue::queued_broadcaster::Error>>,
 ) {
     if !handler_info.cast_votes {
