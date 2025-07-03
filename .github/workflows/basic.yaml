@@ -179,8 +179,7 @@ jobs:
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
-          command: fmt
-          args: --all -- --check
+          command: fmt-check # alias
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -193,14 +192,12 @@ jobs:
       - name: Run cargo sort
         uses: actions-rs/cargo@v1
         with:
-          command: sort
-          args: --workspace --check --check-format
+          command: sort-check # alias
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
-          command: clippy
-          args: --all-targets -- -D warnings -A deprecated
+          command: clippy-check # alias
 
       - name: Check Diff
         # fails if any changes not committed
