@@ -162,7 +162,7 @@ mod tests {
 
     use super::*;
     use crate::msg::ChainContractsKey;
-    use crate::state::{load_prover_by_chain, ChainContractsRecord};
+    use crate::state::ChainContractsRecord;
 
     struct TestSetup {
         admin_addr: Addr,
@@ -259,15 +259,15 @@ mod tests {
             )
             .is_ok());
 
-        let chain_prover = load_prover_by_chain(
-            test_setup
+        let chain_prover = state::contracts_by_chain(
+            &*test_setup
                 .app
-                .contract_storage(&test_setup.coordinator_addr)
-                .as_ref(),
+                .contract_storage(&test_setup.coordinator_addr),
             test_setup.chain_name.clone(),
         );
         assert!(chain_prover.is_ok(), "{:?}", chain_prover);
-        assert_eq!(chain_prover.unwrap(), new_prover);
+        let chain_prover = chain_prover.unwrap();
+        assert_eq!(chain_prover.prover_address, new_prover);
     }
 
     #[test]

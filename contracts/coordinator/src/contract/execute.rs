@@ -47,7 +47,7 @@ pub fn register_chain(
     state::save_chain_contracts(
         deps.storage,
         chain_name.clone(),
-        prover_addr.clone(),
+        prover_addr,
         gateway_addr,
         voting_verifier_address,
     )
