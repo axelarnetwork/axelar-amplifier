@@ -1,6 +1,8 @@
 use axelar_wasm_std::{nonempty, IntoEvent};
 use cosmwasm_std::Uint256;
-use interchain_token_service_std::{Message, TokenId};
+use interchain_token_service_std::{
+    DeployInterchainToken, InterchainTransfer, LinkToken, Message, TokenId,
+};
 use router_api::{Address, ChainNameRaw, CrossChainId};
 use sha3::{Digest, Keccak256};
 
@@ -60,30 +62,46 @@ pub enum Event {
 
 pub fn make_message_event(destination_chain: ChainNameRaw, message: Message) -> Event {
     match message {
-        Message::InterchainTransfer(transfer) => Event::InterchainTransfer {
-            token_id: transfer.token_id,
-            source_address: transfer.source_address,
+        Message::InterchainTransfer(InterchainTransfer {
+            token_id,
+            source_address,
+            destination_address,
+            amount,
+            data,
+        }) => Event::InterchainTransfer {
+            token_id,
+            source_address,
             destination_chain,
-            destination_address: transfer.destination_address,
-            amount: transfer.amount,
-            data_hash: transfer
-                .data
-                .map(|data| Keccak256::digest(data.as_ref()).into()),
+            destination_address,
+            amount,
+            data_hash: data.map(|data| Keccak256::digest(data.as_ref()).into()),
         },
-        Message::LinkToken(link_token) => Event::LinkTokenStarted {
-            token_id: link_token.token_id,
+        Message::LinkToken(LinkToken {
+            token_id,
+            token_manager_type,
+            source_token_address,
+            destination_token_address,
+            params,
+        }) => Event::LinkTokenStarted {
+            token_id,
             destination_chain,
-            token_manager_type: link_token.token_manager_type,
-            source_token_address: link_token.source_token_address,
-            destination_token_address: link_token.destination_token_address,
-            params: link_token.params,
+            token_manager_type,
+            source_token_address,
+            destination_token_address,
+            params,
         },
-        Message::DeployInterchainToken(deploy_token) => Event::InterchainTokenDeploymentStarted {
-            token_id: deploy_token.token_id,
-            token_name: deploy_token.name,
-            token_symbol: deploy_token.symbol,
-            token_decimals: deploy_token.decimals,
-            minter: deploy_token.minter,
+        Message::DeployInterchainToken(DeployInterchainToken {
+            token_id,
+            name,
+            symbol,
+            decimals,
+            minter,
+        }) => Event::InterchainTokenDeploymentStarted {
+            token_id,
+            token_name: name,
+            token_symbol: symbol,
+            token_decimals: decimals,
+            minter,
             destination_chain,
         },
     }
