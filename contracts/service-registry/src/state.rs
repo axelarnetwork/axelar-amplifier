@@ -1226,7 +1226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_number_of_authorized_return_err_verifiers_service_not_found() {
+    fn test_number_of_authorized_verifiers_return_err_when_service_not_found() {
         let deps = mock_dependencies();
         let nonexistent_service = "nonexistent_service".to_string();
         let result = number_of_authorized_verifiers(deps.as_ref().storage, &nonexistent_service);
@@ -1235,7 +1235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_auth_verifier_count_change_succeed() {
+    fn test_calculate_auth_verifier_count_change_succeed() {
         let test_cases = vec![
             // (previous_state, new_state, expected_change, description)
             (

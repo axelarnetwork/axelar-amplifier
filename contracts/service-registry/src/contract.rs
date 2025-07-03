@@ -253,7 +253,7 @@ mod test {
         deps
     }
 
-    fn assert_authorized_counter_is_valid(
+    fn assert_auth_verifier_count_is_valid(
         deps: &OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         service_name: &String,
         expected: u16,
@@ -273,15 +273,11 @@ mod test {
 
         assert_eq!(
             stored_count, expected,
-            "Stored count doesn't match expected"
+            "authorized verifier counter doesn't match expected"
         );
         assert_eq!(
             actual_count, expected,
-            "Actual count doesn't match expected"
-        );
-        assert_eq!(
-            stored_count, actual_count,
-            "Stored count doesn't match actual count"
+            "actual authorized verifier count doesn't match expected"
         );
     }
 
@@ -347,7 +343,7 @@ mod test {
         service_params_override
     }
 
-    fn setup_and_authorize_5_verifiers() -> (
+    fn setup_service_with_5_verifiers() -> (
         OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
         MockApi,
         String,
@@ -393,7 +389,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        assert_authorized_counter_is_valid(&deps, &service_name.to_string(), 5);
+        assert_auth_verifier_count_is_valid(&deps, &service_name.to_string(), 5);
 
         (deps, api, service_name.into(), verifiers)
     }
@@ -2906,7 +2902,7 @@ mod test {
     }
 
     #[test]
-    fn update_service_max_verifiers_only_if_below_current_authoried_verifier() {
+    fn update_service_max_verifiers_only_succeed_if_below_current_authorized_verifier() {
         let mut deps = setup();
         let api = deps.api;
 
@@ -2977,7 +2973,7 @@ mod test {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
                     min_num_verifiers: None,
-                    max_num_verifiers: Some(Some(4)), // Set max to 4
+                    max_num_verifiers: Some(Some(4)),
                     min_verifier_bond: None,
                     unbonding_period_days: None,
                 },
@@ -3009,14 +3005,14 @@ mod test {
         );
         assert!(res.is_ok());
 
-        assert_authorized_counter_is_valid(&deps, &service_name.to_string(), 0);
+        assert_auth_verifier_count_is_valid(&deps, &service_name.to_string(), 0);
     }
 
     #[test]
     fn re_authorizing_same_verifiers_does_not_increase_count() {
-        let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
+        let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
-        assert_authorized_counter_is_valid(&deps, &service_name.clone(), 5);
+        assert_auth_verifier_count_is_valid(&deps, &service_name.clone(), 5);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -3030,12 +3026,12 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        assert_authorized_counter_is_valid(&deps, &service_name, 5);
+        assert_auth_verifier_count_is_valid(&deps, &service_name, 5);
     }
 
     #[test]
     fn unauthorize_verifiers_reduces_count() {
-        let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
+        let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
         let res = execute(
             deps.as_mut(),
@@ -3050,12 +3046,12 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        assert_authorized_counter_is_valid(&deps, &service_name, 3);
+        assert_auth_verifier_count_is_valid(&deps, &service_name, 3);
     }
 
     #[test]
     fn jailing_and_unjailing_authorized_verifier_affects_authorized_count() {
-        let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
+        let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
         let res = execute(
             deps.as_mut(),
@@ -3067,7 +3063,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        assert_authorized_counter_is_valid(&deps, &service_name.clone(), 4);
+        assert_auth_verifier_count_is_valid(&deps, &service_name.clone(), 4);
 
         let res = execute(
             deps.as_mut(),
@@ -3079,12 +3075,12 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        assert_authorized_counter_is_valid(&deps, &service_name, 5);
+        assert_auth_verifier_count_is_valid(&deps, &service_name, 5);
     }
 
     #[test]
     fn jailing_from_none_does_not_affect_count() {
-        let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
+        let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
         let new_verifier = api.addr_make("verifier6").to_string();
         let res = execute(
@@ -3097,12 +3093,12 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        assert_authorized_counter_is_valid(&deps, &service_name, 5);
+        assert_auth_verifier_count_is_valid(&deps, &service_name, 5);
     }
 
     #[test]
     fn jailing_unauthorized_verifier_does_not_affect_authorized_count() {
-        let (mut deps, api, service_name, _verifiers) = setup_and_authorize_5_verifiers();
+        let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
         let new_verifier = api.addr_make("verifier6").to_string();
         let res = execute(
@@ -3115,6 +3111,6 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        assert_authorized_counter_is_valid(&deps, &service_name, 5);
+        assert_auth_verifier_count_is_valid(&deps, &service_name, 5);
     }
 }
