@@ -384,8 +384,9 @@ fn calculate_auth_verifier_count_change(
     auth_state: &AuthorizationState,
 ) -> i16 {
     match (previous_state, auth_state) {
-        (Some(NotAuthorized) | Some(Jailed), Authorized) | (None, Authorized) => 1,
-        (Some(Authorized), NotAuthorized) | (Some(Authorized), Jailed) => -1,
+        (Some(Authorized), Authorized) => 0,
+        (Some(Authorized), _) => -1,
+        (_, Authorized) => 1,
         _ => 0,
     }
 }
