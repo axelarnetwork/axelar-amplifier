@@ -53,13 +53,8 @@ cosmwasm_contract=[verifier contract address]
 type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier]
 
 [monitoring_server]
-<<<<<<< HEAD
 enabled=[whether to enable the monitoring server]
 bind_address=[the /status and /metrics endpoints bind address i.e. "127.0.0.1:3000"]
-=======
-enabled=[whether to enable the monitoring server with /status and /metrics endpoints]
-bind_address=[the bind address for the monitoring server i.e "127.0.0.1:3000"]
->>>>>>> e23b998c (rebased ad resolve conflicts)
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions

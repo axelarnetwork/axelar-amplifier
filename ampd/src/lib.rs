@@ -749,7 +749,7 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("metrics monitor failed")]
+    #[error("monitoring server failed")]
     Monitor,
     #[error("gRPC server failed")]
     GrpcServer,

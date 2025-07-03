@@ -249,7 +249,7 @@ mod tests {
     use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler, HandlerInfo};
     use crate::monitoring::server::test_utils::{
-        test_dummy_server_setup, test_metrics_server_setup,
+        test_dummy_server_setup, test_monitoring_server_setup,
     };
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
 
@@ -619,7 +619,8 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (bind_address, server, monitoring_client, cancel_token) = test_metrics_server_setup();
+        let (bind_address, server, monitoring_client, cancel_token) =
+            test_monitoring_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(
@@ -675,7 +676,8 @@ mod tests {
             .times(2)
             .returning(|_| Ok(()));
 
-        let (bind_address, server, monitoring_client, cancel_token) = test_metrics_server_setup();
+        let (bind_address, server, monitoring_client, cancel_token) =
+            test_monitoring_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(
@@ -754,7 +756,8 @@ mod tests {
             }
         });
 
-        let (bind_address, server, monitoring_client, cancel_token) = test_metrics_server_setup();
+        let (bind_address, server, monitoring_client, cancel_token) =
+            test_monitoring_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(

@@ -4,7 +4,7 @@ use prometheus::{Encoder, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, T
 use thiserror::Error;
 
 #[derive(Clone)]
-#[allow(clippy::enum_variant_names)] // will add other msg types that doesnt start with 'inc' in the future 
+#[allow(clippy::enum_variant_names)] // will add other msg enum variants that dont start with 'inc'
 pub enum MetricsMsg {
     IncBlockReceived,
     IncSuccessVoteCasted {
@@ -116,7 +116,36 @@ impl BlockReceivedMetrics {
 
 impl VotesCastedMetrics {
     fn new() -> Result<Self, MetricsError> {
-        let (succeed, failed, success_rate) = create_verifier_votes_casted_metrics()?;
+        let succeed = IntCounterVec::new(
+            Opts::new(
+                "verifier_votes_casted_successful",
+                "number of successful votes casted",
+            )
+            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+            &["verifier_id", "chain_name"],
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
+
+        let failed = IntCounterVec::new(
+            Opts::new(
+                "verifier_votes_casted_failed",
+                "number of failed votes casted",
+            )
+            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+            &["verifier_id", "chain_name"],
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
+
+        let success_rate = GaugeVec::new(
+            Opts::new(
+                "verifier_votes_casted_success_rate",
+                "success rate of votes casted",
+            )
+            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+            &["verifier_id", "chain_name"],
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
+
         Ok(Self {
             succeed,
             failed,
@@ -195,45 +224,6 @@ impl VotesCastedMetrics {
             .set(success_rate);
         Ok(())
     }
-}
-
-fn create_verifier_votes_casted_metrics(
-) -> Result<(IntCounterVec, IntCounterVec, GaugeVec), MetricsError> {
-    let verifier_votes_casted_successful = IntCounterVec::new(
-        Opts::new(
-            "verifier_votes_casted_successful",
-            "number of successful votes casted",
-        )
-        .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
-        &["verifier_id", "chain_name"],
-    )
-    .change_context(MetricsError::MetricSpawnFailed)?;
-
-    let verifier_votes_casted_failed = IntCounterVec::new(
-        Opts::new(
-            "verifier_votes_casted_failed",
-            "number of failed votes casted",
-        )
-        .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
-        &["verifier_id", "chain_name"],
-    )
-    .change_context(MetricsError::MetricSpawnFailed)?;
-
-    let verifier_votes_casted_success_rate = GaugeVec::new(
-        Opts::new(
-            "verifier_votes_casted_success_rate",
-            "success rate of votes casted",
-        )
-        .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
-        &["verifier_id", "chain_name"],
-    )
-    .change_context(MetricsError::MetricSpawnFailed)?;
-
-    Ok((
-        verifier_votes_casted_successful,
-        verifier_votes_casted_failed,
-        verifier_votes_casted_success_rate,
-    ))
 }
 
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {

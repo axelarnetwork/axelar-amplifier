@@ -178,7 +178,7 @@ pub mod test_utils {
         }
     }
 
-    pub fn test_metrics_server_setup() -> (
+    pub fn test_monitoring_server_setup() -> (
         Option<SocketAddrV4>,
         Server,
         MonitoringClient,
@@ -249,8 +249,8 @@ mod tests {
     }
 
     #[async_test(start_paused = true)]
-    async fn metrics_server_should_respond_to_status_and_shutdown_gracefully() {
-        let (bind_address, server, _, cancel) = test_metrics_server_setup();
+    async fn monitoring_server_should_respond_to_status_and_shutdown_gracefully() {
+        let (bind_address, server, _, cancel) = test_monitoring_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
 
@@ -276,8 +276,8 @@ mod tests {
     }
 
     #[async_test(start_paused = true)]
-    async fn test_metrics_server_handles_all_clients_dropped() {
-        let (bind_address, server, monitoring_client, cancel) = test_metrics_server_setup();
+    async fn test_monitoring_server_handles_all_clients_dropped() {
+        let (bind_address, server, monitoring_client, cancel) = test_monitoring_server_setup();
         tokio::spawn(server.run(cancel.clone()));
         send_mutiple_metrics(&monitoring_client, MetricsMsg::IncBlockReceived, 3);
         drop(monitoring_client);
@@ -287,7 +287,7 @@ mod tests {
         let response = reqwest::get(metrics_url.clone()).await;
         assert!(
             response.is_ok(),
-            "metrics server still running after client dropped"
+            "monitoring server still running after client dropped"
         );
         cancel.cancel();
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -299,7 +299,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_should_reflect_message_counts() {
-        let (bind_address, server, monitoring_client, cancel) = test_metrics_server_setup();
+        let (bind_address, server, monitoring_client, cancel) = test_monitoring_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
         let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
@@ -324,7 +324,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn server_shuts_down_gracefully_when_token_is_cancelled() {
-        let (_, server, monitoring_client, cancel) = test_metrics_server_setup();
+        let (_, server, monitoring_client, cancel) = test_monitoring_server_setup();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
@@ -401,8 +401,8 @@ mod tests {
     }
 
     #[async_test(start_paused = true)]
-    async fn metrics_server_handle_concurrent_requests_sucessfully() {
-        let (bind_address, server, original_client, cancel) = test_metrics_server_setup();
+    async fn monitoring_server_handle_concurrent_requests_sucessfully() {
+        let (bind_address, server, original_client, cancel) = test_monitoring_server_setup();
 
         tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(100)).await;
