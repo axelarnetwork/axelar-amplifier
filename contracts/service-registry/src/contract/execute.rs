@@ -6,7 +6,7 @@ use state::VERIFIERS;
 
 use super::*;
 use crate::events::Event;
-use crate::state::{self, save_new_service, ServiceParamsOverride, UpdatedServiceParams};
+use crate::state::{self, ServiceParamsOverride, UpdatedServiceParams};
 
 #[allow(clippy::too_many_arguments)]
 pub fn register_service(
@@ -20,7 +20,7 @@ pub fn register_service(
     unbonding_period_days: u16,
     description: String,
 ) -> Result<Response, ContractError> {
-    save_new_service(
+    state::save_new_service(
         deps.storage,
         &service_name,
         Service {
@@ -47,9 +47,9 @@ pub fn update_verifier_authorization_status(
 
     state::update_verifier_authorization_status(
         deps.storage,
-        &service_name,
-        &auth_state,
-        &verifiers,
+        service_name.clone(),
+        auth_state.clone(),
+        verifiers,
     )?;
 
     if auth_state == AuthorizationState::Authorized {
