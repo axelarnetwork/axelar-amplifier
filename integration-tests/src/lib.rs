@@ -1,3 +1,7 @@
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(ensure_msg_has_permissions))]
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(restrict_cosmwasm_addr_in_msg_struct))]
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(warn_on_unwraps))]
+
 pub mod contract;
 pub mod coordinator_contract;
 pub mod gateway_contract;
