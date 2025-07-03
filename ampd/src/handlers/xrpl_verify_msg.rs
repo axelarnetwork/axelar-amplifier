@@ -194,3 +194,30 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use tokio::sync::watch;
+
+    use super::*;
+    use crate::xrpl::json_rpc::MockXRPLClient;
+    const PREFIX: &str = "axelar";
+
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let verifier = TMAddress::random(PREFIX);
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let handler = Handler::new(
+            verifier.clone(),
+            voting_verifier_contract,
+            MockXRPLClient::default(),
+            watch::channel(0).1,
+        );
+
+        let info = handler.handler_info();
+
+        assert_eq!(info.chain_name, "xrpl");
+        assert_eq!(info.verifier_id, verifier.to_string());
+        assert!(info.cast_votes);
+    }
+}

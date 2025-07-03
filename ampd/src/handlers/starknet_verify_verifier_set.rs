@@ -229,6 +229,24 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
+    #[test]
+    fn handler_info_should_return_correct_info() {
+        let verifier = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+        let handler = super::Handler::new(
+            verifier.clone(),
+            voting_verifier,
+            MockStarknetClient::new(),
+            watch::channel(0).1,
+        );
+
+        let info = handler.handler_info();
+
+        assert_eq!(info.chain_name, "starknet");
+        assert_eq!(info.verifier_id, verifier.to_string());
+        assert!(info.cast_votes);
+    }
+
     fn random_hash() -> String {
         // Generate a random 256-bit value
         let mut rng = rand::thread_rng();
