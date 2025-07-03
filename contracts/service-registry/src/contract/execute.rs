@@ -34,6 +34,7 @@ pub fn register_service(
             description,
         },
     )?;
+    
     Ok(Response::new())
 }
 
