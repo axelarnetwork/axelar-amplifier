@@ -148,7 +148,7 @@ mod tests {
         );
         assert_eq!(ethereum_config.truncation.max_decimals_when_truncating, 18);
         assert_eq!(ethereum_config.its_address, address!("ethereum-its"));
-        assert_eq!(ethereum_config.frozen, false);
+        assert!(!ethereum_config.frozen);
         assert_eq!(
             ethereum_config.msg_translator,
             cosmos_addr!("global_translation")
@@ -161,7 +161,7 @@ mod tests {
         );
         assert_eq!(polygon_config.truncation.max_decimals_when_truncating, 18);
         assert_eq!(polygon_config.its_address, address!("polygon-its"));
-        assert_eq!(polygon_config.frozen, true);
+        assert!(polygon_config.frozen);
         assert_eq!(
             polygon_config.msg_translator,
             cosmos_addr!("global_translation")
@@ -215,7 +215,7 @@ mod tests {
         );
         assert_eq!(migrated_config.truncation.max_decimals_when_truncating, 6);
         assert_eq!(migrated_config.its_address, address!("ethereum-its"));
-        assert_eq!(migrated_config.frozen, false);
+        assert!(!migrated_config.frozen);
         assert_eq!(
             migrated_config.msg_translator,
             cosmos_addr!("single_translation")
