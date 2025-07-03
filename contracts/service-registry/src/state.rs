@@ -6,7 +6,7 @@ use error_stack::{bail, report, ResultExt as _};
 use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
-use service_registry_api::AuthorizationState::{Authorized, Jailed, NotAuthorized};
+use service_registry_api::AuthorizationState::Authorized;
 use service_registry_api::{AuthorizationState, BondingState, Service, Verifier};
 type ServiceName = String;
 type VerifierAddress = Addr;
