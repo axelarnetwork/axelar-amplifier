@@ -30,9 +30,9 @@ pub enum Error {
     },
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
-        match value {
+impl Error {
+    pub(crate) fn from_msg(msg: QueryMsg) -> Self {
+        match msg {
             QueryMsg::ActiveVerifiers {
                 service_name,
                 chain_name,
@@ -84,7 +84,9 @@ impl Client<'_> {
             service_name,
             chain_name,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::from_msg(msg))
     }
 
     pub fn service(&self, service_name: String, chain_name: Option<ChainName>) -> Result<Service> {
@@ -94,7 +96,7 @@ impl Client<'_> {
         };
         self.client
             .query(&msg)
-            .change_context_lazy(|| msg.into())
+            .change_context_lazy(|| Error::from_msg(msg))
             .attach_printable_lazy(|| format!("chain_name: {:?}", chain_name))
     }
 
@@ -107,7 +109,9 @@ impl Client<'_> {
             service_name,
             chain_name,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::from_msg(msg))
     }
 
     pub fn verifier(&self, service_name: String, verifier: String) -> Result<VerifierDetails> {
@@ -115,7 +119,9 @@ impl Client<'_> {
             service_name,
             verifier,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::from_msg(msg))
     }
 }
 
