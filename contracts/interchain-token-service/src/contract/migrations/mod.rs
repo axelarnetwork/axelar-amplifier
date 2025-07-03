@@ -34,8 +34,7 @@ pub fn migrate(
         .change_context(Error::LoadOldChainConfigs)?;
 
     // Validate the translation contract address once
-    let validated_translator =
-        validate_cosmwasm_address(deps.api, &msg.msg_translator.to_string())?;
+    let msg_translator = validate_cosmwasm_address(deps.api, &msg.msg_translator.to_string())?;
 
     for (chain, old_chain_state) in existing_chains {
         let new_chain_state = NewChainConfig {
@@ -47,7 +46,7 @@ pub fn migrate(
             },
             its_address: old_chain_state.its_address,
             frozen: old_chain_state.frozen,
-            msg_translator: validated_translator.clone(),
+            msg_translator: msg_translator.clone(),
         };
 
         save_chain_config(deps.storage, &chain, &new_chain_state)?;
@@ -59,7 +58,8 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use router_api::{address, cosmos_addr, cosmos_address};
 
     use super::*;
     use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
@@ -78,8 +78,8 @@ mod tests {
 
         // Save config first
         let config = Config {
-            axelarnet_gateway: MockApi::default().addr_make("gateway"),
-            operator: MockApi::default().addr_make("operator"),
+            axelarnet_gateway: cosmos_addr!("gateway"),
+            operator: cosmos_addr!("operator"),
         };
         save_config(deps.as_mut().storage, &config).unwrap();
 
@@ -92,10 +92,7 @@ mod tests {
                 max_uint_bits: NumBits::try_from(256u32).unwrap(),
                 max_decimals_when_truncating: 18,
             },
-            its_address: Address::try_from(
-                MockApi::default().addr_make("ethereum_its").to_string(),
-            )
-            .unwrap(),
+            its_address: address!("ethereum-its"),
             frozen: false,
         };
 
@@ -104,8 +101,7 @@ mod tests {
                 max_uint_bits: NumBits::try_from(256u32).unwrap(),
                 max_decimals_when_truncating: 18,
             },
-            its_address: Address::try_from(MockApi::default().addr_make("polygon_its").to_string())
-                .unwrap(),
+            its_address: address!("polygon-its"),
             frozen: true, // Test with frozen chain
         };
 
@@ -125,12 +121,7 @@ mod tests {
 
         setup_test_chains_old_format(&mut deps);
 
-        let translation_contract = Address::try_from(
-            MockApi::default()
-                .addr_make("global_translation")
-                .to_string(),
-        )
-        .unwrap();
+        let translation_contract = cosmos_address!("global_translation");
 
         let msg = MigrateMsg {
             msg_translator: translation_contract.clone(),
@@ -156,14 +147,11 @@ mod tests {
             NumBits::try_from(256u32).unwrap()
         );
         assert_eq!(ethereum_config.truncation.max_decimals_when_truncating, 18);
-        assert_eq!(
-            ethereum_config.its_address,
-            Address::try_from(MockApi::default().addr_make("ethereum_its").to_string()).unwrap()
-        );
+        assert_eq!(ethereum_config.its_address, address!("ethereum-its"));
         assert_eq!(ethereum_config.frozen, false);
         assert_eq!(
             ethereum_config.msg_translator,
-            MockApi::default().addr_make("global_translation")
+            cosmos_addr!("global_translation")
         );
 
         // Check polygon config
@@ -172,14 +160,11 @@ mod tests {
             NumBits::try_from(256u32).unwrap()
         );
         assert_eq!(polygon_config.truncation.max_decimals_when_truncating, 18);
-        assert_eq!(
-            polygon_config.its_address,
-            Address::try_from(MockApi::default().addr_make("polygon_its").to_string()).unwrap()
-        );
+        assert_eq!(polygon_config.its_address, address!("polygon-its"));
         assert_eq!(polygon_config.frozen, true);
         assert_eq!(
             polygon_config.msg_translator,
-            MockApi::default().addr_make("global_translation")
+            cosmos_addr!("global_translation")
         );
     }
 
@@ -192,8 +177,8 @@ mod tests {
         cw2::set_contract_version(&mut deps.storage, CONTRACT_NAME, CONTRACT_VERSION).unwrap();
 
         let config = Config {
-            axelarnet_gateway: MockApi::default().addr_make("gateway"),
-            operator: MockApi::default().addr_make("operator"),
+            axelarnet_gateway: cosmos_addr!("gateway"),
+            operator: cosmos_addr!("operator"),
         };
         save_config(deps.as_mut().storage, &config).unwrap();
 
@@ -204,10 +189,7 @@ mod tests {
                 max_uint_bits: NumBits::try_from(128u32).unwrap(),
                 max_decimals_when_truncating: 6,
             },
-            its_address: Address::try_from(
-                MockApi::default().addr_make("ethereum_its").to_string(),
-            )
-            .unwrap(),
+            its_address: address!("ethereum-its"),
             frozen: false,
         };
 
@@ -216,12 +198,7 @@ mod tests {
             .unwrap();
 
         let msg = MigrateMsg {
-            msg_translator: Address::try_from(
-                MockApi::default()
-                    .addr_make("single_translation")
-                    .to_string(),
-            )
-            .unwrap(),
+            msg_translator: cosmos_address!("single_translation"),
         };
 
         assert_ok!(migrate(deps.as_mut(), env, msg));
@@ -237,14 +214,11 @@ mod tests {
             NumBits::try_from(128u32).unwrap()
         );
         assert_eq!(migrated_config.truncation.max_decimals_when_truncating, 6);
-        assert_eq!(
-            migrated_config.its_address,
-            Address::try_from(MockApi::default().addr_make("ethereum_its").to_string()).unwrap()
-        );
+        assert_eq!(migrated_config.its_address, address!("ethereum-its"));
         assert_eq!(migrated_config.frozen, false);
         assert_eq!(
             migrated_config.msg_translator,
-            MockApi::default().addr_make("single_translation")
+            cosmos_addr!("single_translation")
         );
     }
 
@@ -257,8 +231,8 @@ mod tests {
         cw2::set_contract_version(&mut deps.storage, CONTRACT_NAME, CONTRACT_VERSION).unwrap();
 
         let config = Config {
-            axelarnet_gateway: MockApi::default().addr_make("gateway"),
-            operator: MockApi::default().addr_make("operator"),
+            axelarnet_gateway: cosmos_addr!("gateway"),
+            operator: cosmos_addr!("operator"),
         };
         save_config(deps.as_mut().storage, &config).unwrap();
 
@@ -271,10 +245,7 @@ mod tests {
                 max_uint_bits: NumBits::try_from(256u32).unwrap(),
                 max_decimals_when_truncating: 18,
             },
-            its_address: Address::try_from(
-                MockApi::default().addr_make("ethereum_its").to_string(),
-            )
-            .unwrap(),
+            its_address: address!("ethereum-its"),
             frozen: false,
         };
 
@@ -283,8 +254,7 @@ mod tests {
                 max_uint_bits: NumBits::try_from(128u32).unwrap(),
                 max_decimals_when_truncating: 6,
             },
-            its_address: Address::try_from(MockApi::default().addr_make("polygon_its").to_string())
-                .unwrap(),
+            its_address: address!("polygon-its"),
             frozen: true,
         };
 
@@ -296,12 +266,7 @@ mod tests {
             .unwrap();
 
         let msg = MigrateMsg {
-            msg_translator: Address::try_from(
-                MockApi::default()
-                    .addr_make("shared_translation")
-                    .to_string(),
-            )
-            .unwrap(),
+            msg_translator: cosmos_address!("shared_translation"),
         };
 
         assert_ok!(migrate(deps.as_mut(), env, msg));
@@ -335,11 +300,11 @@ mod tests {
         // Both should have the same translation contract
         assert_eq!(
             ethereum_migrated.msg_translator,
-            MockApi::default().addr_make("shared_translation")
+            cosmos_addr!("shared_translation")
         );
         assert_eq!(
             polygon_migrated.msg_translator,
-            MockApi::default().addr_make("shared_translation")
+            cosmos_addr!("shared_translation")
         );
     }
 }

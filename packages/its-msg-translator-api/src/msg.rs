@@ -7,6 +7,7 @@ use interchain_token_service_std::primitives::HubMessage;
 pub enum QueryMsg {
     #[returns(HubMessage)]
     FromBytes { payload: HexBinary },
+
     #[returns(HexBinary)]
     ToBytes { message: HubMessage },
 }
