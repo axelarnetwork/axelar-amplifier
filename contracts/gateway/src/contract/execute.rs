@@ -117,14 +117,7 @@ fn route(
             )
         })
         .then(flat_unzip)
-        .then(|(msgs, events)| {
-            Ok((
-                router
-                    .route(msgs)
-                    .change_context(Error::RouteIncomingMessages)?,
-                events,
-            ))
-        })
+        .then(|(msgs, events)| Ok((router.route(msgs), events)))
 }
 
 // not all messages are verifiable, so it's better to only take a reference and allocate a vector on demand

@@ -319,14 +319,12 @@ pub fn register_deployment(
     let router = router_api::client::Router::new(protocol_contracts.router);
 
     Ok(Response::new().add_message(
-        router
-            .register_chain(
-                original_sender,
-                deployed_contracts.chain_name,
-                router_api::Address::try_from(deployed_contracts.gateway.to_string())
-                    .change_context(Error::ChainContractsInfo)?,
-                deployed_contracts.msg_id_format,
-            )
-            .change_context(Error::RouterClient)?,
+        router.register_chain(
+            original_sender,
+            deployed_contracts.chain_name,
+            router_api::Address::try_from(deployed_contracts.gateway.to_string())
+                .change_context(Error::ChainContractsInfo)?,
+            deployed_contracts.msg_id_format,
+        ),
     ))
 }

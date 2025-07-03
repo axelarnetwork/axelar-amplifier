@@ -51,7 +51,6 @@ pub trait MessageId: FromStr + Display {}
 
 /// enum to pass to the router when registering a new chain
 #[cw_serde]
-#[derive(Eq, Hash)]
 pub enum MessageIdFormat {
     FieldElementAndEventIndex,
     HexTxHashAndEventIndex,
