@@ -29,6 +29,5 @@ pub fn load_all_chain_configs(
 ) -> Result<HashMap<ChainNameRaw, ChainConfig>, cosmwasm_std::StdError> {
     CHAIN_CONFIGS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .map(|res| res.map(|(chain, config)| (chain, config)))
         .collect::<Result<HashMap<_, _>, _>>()
 }
