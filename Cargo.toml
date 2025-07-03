@@ -66,8 +66,11 @@ hex = "0.4.3"
 humantime-serde = "1.1.1"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
 interchain-token-service = { version = "^1.2.1", path = "contracts/interchain-token-service" }
+interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain-token-service-std" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
+its-abi-translator = { version = "^1.0.0", path = "contracts/its-abi-translator" }
+its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
