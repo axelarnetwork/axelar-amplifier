@@ -14,6 +14,10 @@ use tonic::Request;
 use crate::types::TMAddress;
 use crate::{tofnd, PREFIX};
 
+type ContractQuery = Vec<u8>;
+type KeyIdString = nonempty::String;
+type SignMessage = [u8; 32];
+
 pub trait Validate {
     type Output;
 
@@ -44,7 +48,7 @@ impl Validate for Request<BroadcastRequest> {
 }
 
 impl Validate for Request<ContractStateRequest> {
-    type Output = (TMAddress, Vec<u8>);
+    type Output = (TMAddress, ContractQuery);
 
     fn validate(self) -> Result<Self::Output, Error> {
         let ContractStateRequest { contract, query } = self.into_inner();
@@ -69,7 +73,7 @@ fn validate_address(address: &str) -> Result<TMAddress, Error> {
 }
 
 impl Validate for Request<KeyRequest> {
-    type Output = (nonempty::String, tofnd::Algorithm);
+    type Output = (KeyIdString, tofnd::Algorithm);
 
     fn validate(self) -> Result<Self::Output, Error> {
         let KeyRequest { key_id } = self.into_inner();
@@ -79,7 +83,7 @@ impl Validate for Request<KeyRequest> {
 }
 
 impl Validate for Request<SignRequest> {
-    type Output = (nonempty::String, tofnd::Algorithm, [u8; 32]);
+    type Output = (KeyIdString, tofnd::Algorithm, SignMessage);
 
     fn validate(self) -> Result<Self::Output, Error> {
         let SignRequest { key_id, msg } = self.into_inner();
@@ -93,7 +97,7 @@ impl Validate for Request<SignRequest> {
     }
 }
 
-fn validate_key_id(key_id: KeyId) -> Result<(nonempty::String, tofnd::Algorithm), Error> {
+fn validate_key_id(key_id: KeyId) -> Result<(KeyIdString, tofnd::Algorithm), Error> {
     let KeyId { id, algorithm } = key_id;
 
     let id = nonempty::String::try_from(id).change_context(Error::EmptyKeyId)?;
