@@ -22,9 +22,9 @@ pub fn register_service(
 ) -> Result<Response, ContractError> {
     state::save_new_service(
         deps.storage,
-        &service_name,
+        &service_name.clone(),
         Service {
-            name: service_name.clone(),
+            name: service_name,
             coordinator_contract,
             min_num_verifiers,
             max_num_verifiers,
