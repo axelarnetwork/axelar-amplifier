@@ -14,6 +14,7 @@ pub struct AxelarExecutableMsg {
 /// By convention, amplifier-compatible contracts must expose this `Execute` variant.
 /// The actual message type would be defined in the respective contracts, but due to identical json serialization
 /// it can be imitated here to provide a strong type for this gateway to call.
+#[cfg_attr(dylint_lib = "amplifier_lints", allow(ensure_msg_has_permissions))]
 #[cw_serde]
 enum ExecuteMsg {
     /// Execute the message at the destination contract with the corresponding payload.
