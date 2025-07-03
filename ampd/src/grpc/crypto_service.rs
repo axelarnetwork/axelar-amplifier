@@ -35,7 +35,7 @@ where
             .0
             .keygen(&id, algorithm)
             .await
-            .inspect_err(status::log("query key error"))
+            .inspect_err(status::log("querying the public key of the signer failed"))
             .map_err(status::StatusExt::into_status)?;
 
         self.0
@@ -43,7 +43,7 @@ where
             .await
             .map(|signature| SignResponse { signature })
             .map(Response::new)
-            .inspect_err(status::log("sign error"))
+            .inspect_err(status::log("signing failed"))
             .map_err(status::StatusExt::into_status)
     }
 
@@ -60,7 +60,7 @@ where
                 pub_key: pub_key.to_bytes(),
             })
             .map(Response::new)
-            .inspect_err(status::log("query key error"))
+            .inspect_err(status::log("querying the public key failed"))
             .map_err(status::StatusExt::into_status)
     }
 }
@@ -139,7 +139,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn key_should_propagate_tofnd_errors() {
+    async fn key_should_return_internal_error_when_tofnd_errors() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
 
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sign_should_propagate_keygen_errors() {
+    async fn sign_should_return_internal_error_when_tofnd_keygen_errors() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
         let message = vec![0; 32];
@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sign_should_propagate_sign_errors() {
+    async fn sign_should_return_internal_error_when_tofnd_sign_errors() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
         let message = vec![0; 32];
