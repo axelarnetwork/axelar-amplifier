@@ -16,7 +16,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
@@ -147,14 +147,6 @@ where
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
-    }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: "sui".to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: true,
-        }
     }
 }
 
@@ -333,24 +325,6 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let verifier = TMAddress::random(PREFIX);
-        let voting_verifier = TMAddress::random(PREFIX);
-        let handler = super::Handler::new(
-            verifier.clone(),
-            voting_verifier,
-            MockSuiClient::new(),
-            watch::channel(0).1,
-        );
-
-        let info = handler.handler_info();
-
-        assert_eq!(info.chain_name, "sui");
-        assert_eq!(info.verifier_id, verifier.to_string());
-        assert!(info.cast_votes);
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {

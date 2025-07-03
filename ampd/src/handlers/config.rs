@@ -11,6 +11,14 @@ use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
+#[derive(Clone, Debug)]
+pub struct HandlerInfo {
+    pub chain_name: String,
+    pub verifier_id: String,
+    pub cast_votes: bool,
+    pub label: String,
+}
+
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct Chain {
     pub name: ChainName,
@@ -107,6 +115,161 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+}
+
+impl Config {
+    pub fn handler_info(&self) -> HandlerInfo {
+        match self {
+            Config::EvmMsgVerifier {
+                chain,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain.name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: format!("{}-msg-verifier", chain.name),
+            },
+
+            Config::EvmVerifierSetVerifier {
+                chain,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain.name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: format!("{}-verifier-set-verifier", chain.name),
+            },
+
+            Config::MultisigSigner {
+                chain_name,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain_name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: false,
+                label: format!("{}-multisig-signer", chain_name),
+            },
+
+            Config::SuiMsgVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "sui".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "sui-msg-verifier".to_string(),
+            },
+
+            Config::SuiVerifierSetVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "sui".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "sui-verifier-set-verifier".to_string(),
+            },
+
+            Config::XRPLMsgVerifier {
+                chain_name,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain_name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: format!("{}-msg-verifier", chain_name),
+            },
+
+            Config::XRPLMultisigSigner {
+                chain_name,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain_name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: false,
+                label: "xrpl-multisig-signer".to_string(),
+            },
+
+            Config::MvxMsgVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "multiversx".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "mvx-msg-verifier".to_string(),
+            },
+
+            Config::MvxVerifierSetVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "multiversx".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "mvx-verifier-set-verifier".to_string(),
+            },
+
+            Config::StellarMsgVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "stellar".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "stellar-msg-verifier".to_string(),
+            },
+
+            Config::StellarVerifierSetVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "stellar".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "stellar-verifier-set-verifier".to_string(),
+            },
+
+            Config::StarknetMsgVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "starknet".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "starknet-msg-verifier".to_string(),
+            },
+
+            Config::StarknetVerifierSetVerifier {
+                cosmwasm_contract, ..
+            } => HandlerInfo {
+                chain_name: "starknet".to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "starknet-verifier-set-verifier".to_string(),
+            },
+
+            Config::SolanaMsgVerifier {
+                chain_name,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain_name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "solana-msg-verifier".to_string(),
+            },
+
+            Config::SolanaVerifierSetVerifier {
+                chain_name,
+                cosmwasm_contract,
+                ..
+            } => HandlerInfo {
+                chain_name: chain_name.to_string(),
+                verifier_id: cosmwasm_contract.to_string(),
+                cast_votes: true,
+                label: "solana-verifier-set-verifier".to_string(),
+            },
+        }
+    }
 }
 
 fn validate_starknet_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -397,6 +560,7 @@ mod tests {
             )
         );
     }
+
     #[test]
     fn test_chain_struct_debug_redacts_url() {
         let chain = Chain {
@@ -409,5 +573,224 @@ mod tests {
         assert!(debug_output.contains(REDACTED_VALUE));
         assert!(!debug_output.contains("API_KEY"));
         assert!(debug_output.contains("RPCFinalizedBlock"));
+    }
+
+    #[test]
+    fn test_handler_info_all_config_variants() {
+        let evm_contract = TMAddress::random(PREFIX);
+        let evm_msg_config = Config::EvmMsgVerifier {
+            cosmwasm_contract: evm_contract.clone(),
+            chain: Chain {
+                name: ChainName::from_str("ethereum").unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:8545").unwrap(),
+                finalization: Finalization::RPCFinalizedBlock,
+            },
+            rpc_timeout: None,
+        };
+
+        let evm_verifier_set_contract = TMAddress::random(PREFIX);
+        let evm_verifier_set_config = Config::EvmVerifierSetVerifier {
+            cosmwasm_contract: evm_verifier_set_contract.clone(),
+            chain: Chain {
+                name: ChainName::from_str("polygon").unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:8545").unwrap(),
+                finalization: Finalization::RPCFinalizedBlock,
+            },
+            rpc_timeout: None,
+        };
+
+        let handler_info = evm_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "ethereum");
+        assert_eq!(handler_info.verifier_id, evm_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "ethereum-msg-verifier");
+
+        let handler_info = evm_verifier_set_config.handler_info();
+        assert_eq!(handler_info.chain_name, "polygon");
+        assert_eq!(
+            handler_info.verifier_id,
+            evm_verifier_set_contract.to_string()
+        );
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "polygon-verifier-set-verifier");
+
+        let multisig_contract = TMAddress::random(PREFIX);
+        let multisig_config = Config::MultisigSigner {
+            cosmwasm_contract: multisig_contract.clone(),
+            chain_name: ChainName::from_str("ethereum").unwrap(),
+        };
+
+        let handler_info = multisig_config.handler_info();
+        assert_eq!(handler_info.chain_name, "ethereum");
+        assert_eq!(handler_info.verifier_id, multisig_contract.to_string());
+        assert!(!handler_info.cast_votes);
+        assert_eq!(handler_info.label, "ethereum-multisig-signer");
+
+        let solana_contract = TMAddress::random(PREFIX);
+        let solana_msg_config = Config::SolanaMsgVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
+            cosmwasm_contract: solana_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:8899").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let solana_verifier_set_contract = TMAddress::random(PREFIX);
+        let solana_verifier_set_config = Config::SolanaVerifierSetVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
+            cosmwasm_contract: solana_verifier_set_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:8899").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let handler_info = solana_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "solana");
+        assert_eq!(handler_info.verifier_id, solana_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "solana-msg-verifier");
+
+        let handler_info = solana_verifier_set_config.handler_info();
+        assert_eq!(handler_info.chain_name, "solana");
+        assert_eq!(
+            handler_info.verifier_id,
+            solana_verifier_set_contract.to_string()
+        );
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "solana-verifier-set-verifier");
+
+        let xrpl_contract = TMAddress::random(PREFIX);
+        let xrpl_msg_config = Config::XRPLMsgVerifier {
+            cosmwasm_contract: xrpl_contract.clone(),
+            chain_name: ChainName::from_str("xrpl").unwrap(),
+            chain_rpc_url: Url::new_non_sensitive("http://localhost:6006").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let xrpl_multisig_contract = TMAddress::random(PREFIX);
+        let xrpl_multisig_config = Config::XRPLMultisigSigner {
+            cosmwasm_contract: xrpl_multisig_contract.clone(),
+            chain_name: ChainName::from_str("xrpl").unwrap(),
+        };
+
+        let handler_info = xrpl_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "xrpl");
+        assert_eq!(handler_info.verifier_id, xrpl_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "xrpl-msg-verifier");
+
+        let handler_info = xrpl_multisig_config.handler_info();
+        assert_eq!(handler_info.chain_name, "xrpl");
+        assert_eq!(handler_info.verifier_id, xrpl_multisig_contract.to_string());
+        assert!(!handler_info.cast_votes);
+        assert_eq!(handler_info.label, "xrpl-multisig-signer");
+
+        let sui_contract = TMAddress::random(PREFIX);
+        let sui_msg_config = Config::SuiMsgVerifier {
+            cosmwasm_contract: sui_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:9000").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let sui_verifier_set_contract = TMAddress::random(PREFIX);
+        let sui_verifier_set_config = Config::SuiVerifierSetVerifier {
+            cosmwasm_contract: sui_verifier_set_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:9000").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let handler_info = sui_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "sui");
+        assert_eq!(handler_info.verifier_id, sui_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "sui-msg-verifier");
+
+        let handler_info = sui_verifier_set_config.handler_info();
+        assert_eq!(handler_info.chain_name, "sui");
+        assert_eq!(
+            handler_info.verifier_id,
+            sui_verifier_set_contract.to_string()
+        );
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "sui-verifier-set-verifier");
+
+        let mvx_contract = TMAddress::random(PREFIX);
+        let mvx_msg_config = Config::MvxMsgVerifier {
+            cosmwasm_contract: mvx_contract.clone(),
+            proxy_url: Url::new_non_sensitive("http://localhost:7950").unwrap(),
+        };
+
+        let mvx_verifier_set_contract = TMAddress::random(PREFIX);
+        let mvx_verifier_set_config = Config::MvxVerifierSetVerifier {
+            cosmwasm_contract: mvx_verifier_set_contract.clone(),
+            proxy_url: Url::new_non_sensitive("http://localhost:7950").unwrap(),
+        };
+
+        let handler_info = mvx_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "multiversx");
+        assert_eq!(handler_info.verifier_id, mvx_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "mvx-msg-verifier");
+
+        let handler_info = mvx_verifier_set_config.handler_info();
+        assert_eq!(handler_info.chain_name, "multiversx");
+        assert_eq!(
+            handler_info.verifier_id,
+            mvx_verifier_set_contract.to_string()
+        );
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "mvx-verifier-set-verifier");
+
+        let stellar_contract = TMAddress::random(PREFIX);
+        let stellar_msg_config = Config::StellarMsgVerifier {
+            cosmwasm_contract: stellar_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:8000").unwrap(),
+        };
+
+        let stellar_verifier_set_contract = TMAddress::random(PREFIX);
+        let stellar_verifier_set_config = Config::StellarVerifierSetVerifier {
+            cosmwasm_contract: stellar_verifier_set_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:8000").unwrap(),
+        };
+
+        let handler_info = stellar_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "stellar");
+        assert_eq!(handler_info.verifier_id, stellar_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "stellar-msg-verifier");
+
+        let handler_info = stellar_verifier_set_config.handler_info();
+        assert_eq!(handler_info.chain_name, "stellar");
+        assert_eq!(
+            handler_info.verifier_id,
+            stellar_verifier_set_contract.to_string()
+        );
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "stellar-verifier-set-verifier");
+
+        let starknet_contract = TMAddress::random(PREFIX);
+        let starknet_msg_config = Config::StarknetMsgVerifier {
+            cosmwasm_contract: starknet_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:5050").unwrap(),
+        };
+
+        let starknet_verifier_set_contract = TMAddress::random(PREFIX);
+        let starknet_verifier_set_config = Config::StarknetVerifierSetVerifier {
+            cosmwasm_contract: starknet_verifier_set_contract.clone(),
+            rpc_url: Url::new_non_sensitive("http://localhost:5050").unwrap(),
+        };
+
+        let handler_info = starknet_msg_config.handler_info();
+        assert_eq!(handler_info.chain_name, "starknet");
+        assert_eq!(handler_info.verifier_id, starknet_contract.to_string());
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "starknet-msg-verifier");
+
+        let handler_info = starknet_verifier_set_config.handler_info();
+        assert_eq!(handler_info.chain_name, "starknet");
+        assert_eq!(
+            handler_info.verifier_id,
+            starknet_verifier_set_contract.to_string()
+        );
+        assert!(handler_info.cast_votes);
+        assert_eq!(handler_info.label, "starknet-verifier-set-verifier");
     }
 }

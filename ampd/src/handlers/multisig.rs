@@ -17,7 +17,7 @@ use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
 use tracing::info;
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{self, MessageDigest};
@@ -177,14 +177,6 @@ where
 
                 Ok(vec![])
             }
-        }
-    }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: self.chain.to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: false,
         }
     }
 }
@@ -507,27 +499,5 @@ mod test {
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let signer = MockMultisig::default();
-        let verifier = TMAddress::random(PREFIX);
-        let multisig = TMAddress::random(PREFIX);
-        let (_, rx) = watch::channel(100u64);
-
-        let handler = Handler::new(
-            verifier.clone(),
-            multisig,
-            "Ethereum".parse().unwrap(),
-            signer,
-            rx,
-        );
-
-        let handler_info = handler.handler_info();
-
-        assert_eq!(handler_info.chain_name, "ethereum");
-        assert_eq!(handler_info.verifier_id, verifier.to_string());
-        assert!(!handler_info.cast_votes);
     }
 }

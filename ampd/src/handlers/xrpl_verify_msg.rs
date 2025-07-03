@@ -22,7 +22,7 @@ use xrpl_http_client::Transaction;
 use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
@@ -184,40 +184,5 @@ where
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
-    }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: "xrpl".to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: true,
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use tokio::sync::watch;
-
-    use super::*;
-    use crate::xrpl::json_rpc::MockXRPLClient;
-    const PREFIX: &str = "axelar";
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let verifier = TMAddress::random(PREFIX);
-        let voting_verifier_contract = TMAddress::random(PREFIX);
-        let handler = Handler::new(
-            verifier.clone(),
-            voting_verifier_contract,
-            MockXRPLClient::default(),
-            watch::channel(0).1,
-        );
-
-        let info = handler.handler_info();
-
-        assert_eq!(info.chain_name, "xrpl");
-        assert_eq!(info.verifier_id, verifier.to_string());
-        assert!(info.cast_votes);
     }
 }
