@@ -8,7 +8,7 @@ use interchain_token_service_std::{
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
-use crate::events::Event;
+use crate::events::{make_message_event, Event};
 use crate::msg::SupplyModifier;
 use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{msg, state};
@@ -177,10 +177,11 @@ fn execute_message_on_hub(
         destination_payload,
     )?
     .add_event(Event::MessageReceived {
-        cc_id,
-        destination_chain,
-        message,
-    }))
+        cc_id: cc_id.clone(),
+        destination_chain: destination_chain.clone(),
+        message: message.clone(),
+    })
+    .add_event(make_message_event(destination_chain, message)))
 }
 
 fn execute_register_token_metadata(

@@ -19,6 +19,35 @@
           }
         ],
         "type": "message_received"
+      },
+      {
+        "attributes": [
+          {
+            "key": "token_id",
+            "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+          },
+          {
+            "key": "source_address",
+            "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+          },
+          {
+            "key": "destination_chain",
+            "value": "\"dest-its-chain\""
+          },
+          {
+            "key": "destination_address",
+            "value": "\"0202020202020202020202020202020202020202020202020202020202020202\""
+          },
+          {
+            "key": "amount",
+            "value": "\"1000000\""
+          },
+          {
+            "key": "data_hash",
+            "value": "null"
+          }
+        ],
+        "type": "interchain_transfer"
       }
     ],
     "messages": [
@@ -59,6 +88,35 @@
           }
         ],
         "type": "message_received"
+      },
+      {
+        "attributes": [
+          {
+            "key": "token_id",
+            "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+          },
+          {
+            "key": "source_address",
+            "value": "\"0202020202020202020202020202020202020202020202020202020202020202\""
+          },
+          {
+            "key": "destination_chain",
+            "value": "\"source-its-chain\""
+          },
+          {
+            "key": "destination_address",
+            "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+          },
+          {
+            "key": "amount",
+            "value": "\"1000000000000000000\""
+          },
+          {
+            "key": "data_hash",
+            "value": "null"
+          }
+        ],
+        "type": "interchain_transfer"
       }
     ],
     "messages": [

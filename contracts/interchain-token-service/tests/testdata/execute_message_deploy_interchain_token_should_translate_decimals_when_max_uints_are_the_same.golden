@@ -25,6 +25,35 @@
           }
         ],
         "type": "message_received"
+      },
+      {
+        "attributes": [
+          {
+            "key": "token_id",
+            "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+          },
+          {
+            "key": "token_name",
+            "value": "\"Test\""
+          },
+          {
+            "key": "token_symbol",
+            "value": "\"TST\""
+          },
+          {
+            "key": "token_decimals",
+            "value": "18"
+          },
+          {
+            "key": "minter",
+            "value": "null"
+          },
+          {
+            "key": "destination_chain",
+            "value": "\"dest-its-chain\""
+          }
+        ],
+        "type": "interchain_token_deployment_started"
       }
     ],
     "messages": [
