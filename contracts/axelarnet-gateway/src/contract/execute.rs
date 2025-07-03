@@ -202,11 +202,7 @@ pub fn route_messages_from_nexus(
 
     let router = Router::new(state::load_config(storage).router);
 
-    Ok(Response::new().add_messages(
-        router
-            .route(msgs)
-            .change_context(Error::InvalidNexusMessageForRouter)?,
-    ))
+    Ok(Response::new().add_messages(router.route(msgs)))
 }
 
 fn ensure_same_payload_hash(
@@ -263,11 +259,7 @@ fn route_to_router(
     msgs: Vec<Message>,
 ) -> Result<CosmosMsgWithEvent> {
     Ok((
-        router
-            .route(msgs.clone())
-            .change_context(Error::InvalidNexusMessageForRouter)?
-            .into_iter()
-            .collect(),
+        router.route(msgs.clone()).into_iter().collect(),
         msgs.into_iter()
             .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
             .collect(),

@@ -8,6 +8,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, Response};
 use cw_storage_plus::Item;
 use error_stack::{report, ResultExt};
+use itertools::Itertools;
 use router_api::ChainName;
 
 use crate::contract::errors::Error;
@@ -34,7 +35,6 @@ pub struct OldChainContracts {
 }
 
 #[cw_serde]
-#[derive(Eq, Hash)]
 pub struct ChainContractsDetails {
     pub deployment_name: nonempty::String,
     pub chain_name: ChainName,
@@ -76,25 +76,30 @@ pub fn migrate(
     state::save_protocol_contracts(deps.storage, protocol)
         .change_context(Error::UnableToPersistProtocol)?;
 
-    let mut chain_contracts: HashMap<nonempty::String, ChainContractsDetails> = HashMap::new();
-
-    for cc in msg.chain_contracts {
-        if chain_contracts
-            .insert(cc.deployment_name.clone(), cc.clone())
-            .is_some()
-        {
-            return Err(MigrationError::DuplicateDeployment(cc.deployment_name.clone()).into());
-        }
+    let duplicates: Vec<_> = msg
+        .chain_contracts
+        .iter()
+        .map(|details| details.deployment_name.clone())
+        .duplicates()
+        .collect();
+    if let Some(duplicate) = duplicates.first() {
+        return Err(MigrationError::DuplicateDeployment(duplicate.clone()).into());
     }
+
+    let chain_contracts = msg
+        .chain_contracts
+        .into_iter()
+        .map(|contract_details| (contract_details.deployment_name.clone(), contract_details))
+        .collect::<HashMap<_, _>>();
 
     // Since this state has not yet been set or used, we can clear
     // it and repopulate it.
     state::DEPLOYED_CHAINS.clear(deps.storage);
 
-    for (deployement, contracts) in chain_contracts {
+    for (deployment, contracts) in chain_contracts {
         state::save_deployed_contracts(
             deps.storage,
-            deployement,
+            deployment,
             state::ChainContracts {
                 chain_name: contracts.chain_name.clone(),
                 msg_id_format: contracts.msg_id_format.clone(),

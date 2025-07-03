@@ -6,7 +6,7 @@ This document provides instructions for building Amplifier components, including
 
 - Rust and Cargo (check the current rust version in the `workspace.package` of root [Cargo.toml](Cargo.toml) file)
 - Docker (for reproducible optimized contract builds)
-- cargo-run-script (for running optimization scripts)
+- [just](https://crates.io/crates/just) cargo crate (for running the optimizer and other useful project specific commands)
 
 ## Building the Project
 
@@ -38,16 +38,16 @@ cargo test
 
 CosmWasm contracts need to be built for the WebAssembly target and optimized for deployment. The optimization process is essential for reducing contract size and gas costs.
 
-Install the cargo-run-script tool:
+Install the [just](https://crates.io/crates/just) cargo crate
+
 ```bash
-cargo install cargo-run-script
+cargo install just
 ```
 
 To create a reproducible wasm build for a contract via the cosmwasm [optimizer](https://github.com/CosmWasm/optimizer):
 
 ```bash
-cd contracts/<contract-name>
-cargo run-script optimize
+just optimize
 ```
 
 This command:
