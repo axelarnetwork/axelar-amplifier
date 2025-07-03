@@ -215,7 +215,7 @@ mod test {
     use std::str::FromStr;
 
     use axelar_wasm_std::error::err_contains;
-    use axelar_wasm_std::{assert_err_contains, nonempty};
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
@@ -754,22 +754,26 @@ mod test {
     }
 
     #[test]
-    fn query_service_params_override_fails_if_does_not_exist() {
+    fn query_service_params_override_returns_none_if_does_not_exist() {
         let deps = setup();
 
         let service_name = "verifiers";
         let chain_name: ChainName = "solana".parse().unwrap();
 
-        let res = query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::ServiceParamsOverride {
-                service_name: service_name.into(),
-                chain_name: chain_name.clone(),
-            },
-        );
+        let res: Option<ServiceParamsOverride> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::ServiceParamsOverride {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
 
-        assert_err_contains!(res, ContractError, ContractError::ServiceOverrideNotFound);
+        assert_eq!(res, None);
     }
 
     #[test]

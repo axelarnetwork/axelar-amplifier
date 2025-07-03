@@ -85,6 +85,7 @@ pub fn service_params_override(
     deps: Deps,
     service_name: String,
     chain_name: ChainName,
-) -> error_stack::Result<ServiceParamsOverride, ContractError> {
-    state::service_params_override(deps.storage, &service_name, &chain_name).map(Into::into)
+) -> error_stack::Result<Option<ServiceParamsOverride>, ContractError> {
+    state::may_load_service_params_override(deps.storage, &service_name, &chain_name)
+        .map(|o| o.map(Into::into))
 }

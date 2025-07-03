@@ -99,7 +99,7 @@ pub enum QueryMsg {
         chain_name: Option<ChainName>,
     },
 
-    #[returns(ServiceParamsOverride)]
+    #[returns(Option<ServiceParamsOverride>)]
     ServiceParamsOverride {
         service_name: String,
         chain_name: ChainName,

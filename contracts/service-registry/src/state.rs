@@ -204,15 +204,14 @@ pub fn remove_service_override(
     Ok(())
 }
 
-pub fn service_params_override(
+pub fn may_load_service_params_override(
     storage: &dyn Storage,
     service_name: &ServiceName,
     chain: &ChainName,
-) -> error_stack::Result<ServiceParamsOverride, ContractError> {
+) -> error_stack::Result<Option<ServiceParamsOverride>, ContractError> {
     SERVICE_OVERRIDES
         .may_load(storage, (service_name, chain))
-        .change_context(ContractError::StorageError)?
-        .ok_or(report!(ContractError::ServiceOverrideNotFound))
+        .change_context(ContractError::StorageError)
 }
 
 pub fn bond_verifier(
@@ -517,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn load_service_params_override_succeeds() {
+    fn may_load_service_params_override_succeeds() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
         let chain_name = "solana".parse().unwrap();
@@ -535,22 +534,29 @@ mod tests {
         )
         .unwrap();
 
-        let loaded_override =
-            service_params_override(deps.as_ref().storage, &stored_service.name, &chain_name)
-                .unwrap();
+        let loaded_override = may_load_service_params_override(
+            deps.as_ref().storage,
+            &stored_service.name,
+            &chain_name,
+        )
+        .unwrap();
 
-        assert_eq!(loaded_override, params_override);
+        assert_eq!(loaded_override, Some(params_override));
     }
 
     #[test]
-    fn load_service_params_override_fails_if_service_override_does_not_exist() {
+    fn may_load_service_params_override_returns_none_if_service_override_does_not_exist() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
         let chain_name = "solana".parse().unwrap();
 
-        let res = service_params_override(deps.as_mut().storage, &stored_service.name, &chain_name);
+        let res = may_load_service_params_override(
+            deps.as_mut().storage,
+            &stored_service.name,
+            &chain_name,
+        );
 
-        assert_err_contains!(res, ContractError, ContractError::ServiceOverrideNotFound);
+        assert_eq!(res.unwrap(), None);
     }
 
     #[test]

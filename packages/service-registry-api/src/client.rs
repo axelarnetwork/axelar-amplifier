@@ -102,7 +102,7 @@ impl Client<'_> {
         &self,
         service_name: String,
         chain_name: ChainName,
-    ) -> Result<ServiceParamsOverride> {
+    ) -> Result<Option<ServiceParamsOverride>> {
         let msg = QueryMsg::ServiceParamsOverride {
             service_name,
             chain_name,
@@ -247,16 +247,16 @@ mod test {
     }
 
     #[test]
-    fn query_service_params_override_returns_error_when_query_fails() {
-        let (querier, addr) = setup_queries_to_fail();
+    fn query_service_params_override_returns_none_when_does_not_exist() {
+        let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = "ethereum".try_into().unwrap();
+        let chain_name = "no-override".try_into().unwrap();
         let res = client.service_params_override(service_name, chain_name);
 
-        assert!(res.is_err(), "{:?}", res.unwrap());
-        goldie::assert!(res.unwrap_err().to_string());
+        assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
+        assert_eq!(res.unwrap(), None);
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
@@ -324,11 +324,17 @@ mod test {
                         .into(),
                     QueryMsg::ServiceParamsOverride {
                         service_name: _,
+                        chain_name,
+                    } if chain_name == "no-override" => {
+                        Ok(to_json_binary(&None::<ServiceParamsOverride>).into()).into()
+                    }
+                    QueryMsg::ServiceParamsOverride {
+                        service_name: _,
                         chain_name: _,
-                    } => Ok(to_json_binary(&ServiceParamsOverride {
+                    } => Ok(to_json_binary(&Some(ServiceParamsOverride {
                         min_num_verifiers: Some(2),
                         max_num_verifiers: None,
-                    })
+                    }))
                     .into())
                     .into(),
                     QueryMsg::Verifier {
