@@ -41,6 +41,9 @@ pub enum Error {
 
     #[error("deployment name {0} is in use")]
     DeploymentNameInUse(nonempty::String),
+
+    #[error("deployment name {0} not found")]
+    DeploymentNameNotFound(nonempty::String),
 }
 
 #[cw_serde]
@@ -222,7 +225,7 @@ pub fn deployed_contracts(
     DEPLOYED_CHAINS
         .may_load(storage, deployment_name.to_string())
         .change_context(Error::StateParseFailed)?
-        .ok_or(report!(Error::DeploymentNameInUse(deployment_name)))
+        .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
 }
 
 // Legacy prover storage - maintained for backward compatibility

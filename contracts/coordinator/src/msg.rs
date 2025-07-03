@@ -60,6 +60,9 @@ pub enum ExecuteMsg {
         params: Box<DeploymentParams>,
     },
 
+    /// `RegisterDeployment` calls the router using `ExecuteMsgFromProxy`
+    /// Consequently, the router will enforce that the original sender has
+    /// permission to register the deployment.
     #[permission(Any)]
     RegisterDeployment { deployment_name: nonempty::String },
 }
