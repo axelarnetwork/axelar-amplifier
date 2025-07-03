@@ -19,7 +19,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 use xrpl_types::types::XRPLAccountId;
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::grpc::Multisig;
 use crate::tofnd::{Algorithm, MessageDigest};
@@ -180,14 +180,6 @@ where
 
                 Ok(vec![])
             }
-        }
-    }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: self.chain.to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: false,
         }
     }
 }
@@ -438,25 +430,5 @@ mod test {
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let verifier = TMAddress::random(PREFIX);
-        let multisig = TMAddress::random(PREFIX);
-        let chain: ChainName = "xrpl".parse().unwrap();
-        let handler = super::Handler::new(
-            verifier.clone(),
-            multisig,
-            chain.clone(),
-            MockMultisig::default(),
-            watch::channel(0).1,
-        );
-
-        let info = handler.handler_info();
-
-        assert_eq!(info.chain_name, chain.to_string());
-        assert_eq!(info.verifier_id, verifier.to_string());
-        assert!(!info.cast_votes);
     }
 }

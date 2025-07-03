@@ -20,7 +20,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
@@ -156,14 +156,6 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: "starknet".to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: true,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -227,24 +219,6 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let verifier = TMAddress::random(PREFIX);
-        let voting_verifier = TMAddress::random(PREFIX);
-        let handler = super::Handler::new(
-            verifier.clone(),
-            voting_verifier,
-            MockStarknetClient::new(),
-            watch::channel(0).1,
-        );
-
-        let info = handler.handler_info();
-
-        assert_eq!(info.chain_name, "starknet");
-        assert_eq!(info.verifier_id, verifier.to_string());
-        assert!(info.cast_votes);
     }
 
     fn random_hash() -> String {

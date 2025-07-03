@@ -18,7 +18,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::solana::verifier_set_verifier::verify_verifier_set;
 use crate::solana::SolanaRpcClientProxy;
@@ -164,14 +164,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .vote_msg(poll_id, vote)
             .into_any()
             .expect("vote msg should serialize")])
-    }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: self.chain_name.to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: true,
-        }
     }
 }
 
@@ -363,32 +355,6 @@ mod tests {
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
-    }
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let verifier = TMAddress::random(PREFIX);
-        let voting_verifier = TMAddress::random(PREFIX);
-        let chain_name = ChainName::from_str("solana").unwrap();
-
-        // Note: This test needs to be async since Handler::new is async
-        // We'll use tokio::test to handle this
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let handler = super::Handler::new(
-                chain_name.clone(),
-                verifier.clone(),
-                voting_verifier,
-                EmptyResponseSolanaRpc,
-                watch::channel(0).1,
-            )
-            .await;
-
-            let info = handler.handler_info();
-
-            assert_eq!(info.chain_name, chain_name.to_string());
-            assert_eq!(info.verifier_id, verifier.to_string());
-            assert!(info.cast_votes);
-        });
     }
 
     fn verifier_set_poll_started_event(

@@ -18,7 +18,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::{EventHandler, HandlerInfo};
+use crate::event_processor::EventHandler;
 use crate::evm::finalizer;
 use crate::evm::finalizer::Finalization;
 use crate::evm::json_rpc::EthereumClient;
@@ -193,14 +193,6 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-
-    fn handler_info(&self) -> HandlerInfo {
-        HandlerInfo {
-            chain_name: self.chain.to_string(),
-            verifier_id: self.verifier.to_string(),
-            cast_votes: true,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -301,28 +293,5 @@ mod tests {
                     .collect(),
             },
         }
-    }
-
-    #[test]
-    fn handler_info_should_return_correct_info() {
-        let rpc_client = MockEthereumClient::new();
-        let voting_verifier_contract = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let (_, rx) = watch::channel(100u64);
-
-        let handler = super::Handler::new(
-            verifier.clone(),
-            voting_verifier_contract,
-            ChainName::from_str("ethereum").unwrap(),
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            rx,
-        );
-
-        let handler_info = handler.handler_info();
-
-        assert_eq!(handler_info.chain_name, "ethereum");
-        assert_eq!(handler_info.verifier_id, verifier.to_string());
-        assert!(handler_info.cast_votes);
     }
 }

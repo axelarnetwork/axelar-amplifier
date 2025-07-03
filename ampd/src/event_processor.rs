@@ -17,22 +17,15 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::handlers::config::HandlerInfo;
 use crate::monitoring::endpoints::metrics::MetricsMsg;
 use crate::monitoring::server::MonitoringClient;
 use crate::queue::queued_broadcaster::BroadcasterClient;
-
-#[derive(Clone, Debug)]
-pub struct HandlerInfo {
-    pub chain_name: String,
-    pub verifier_id: String,
-    pub cast_votes: bool,
-}
 
 #[async_trait]
 pub trait EventHandler {
     type Err: Context;
     async fn handle(&self, event: &Event) -> Result<Vec<Any>, Self::Err>;
-    fn handler_info(&self) -> HandlerInfo;
 }
 
 #[derive(Error, Debug)]
@@ -71,13 +64,13 @@ impl Default for Config {
 /// at the end of each consumed block or when the `event_stream` times out. If the token is cancelled or the
 /// `event_stream` is closed, the function returns
 pub async fn consume_events<H, B, S, E>(
-    handler_label: String,
     handler: H,
     broadcaster: B,
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
     monitoring_client: MonitoringClient,
+    handler_info: HandlerInfo,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -85,7 +78,9 @@ where
     S: Stream<Item = Result<Event, E>>,
     E: Context,
 {
+    let handler_label = &handler_info.label;
     let mut event_stream = Box::pin(event_stream);
+
     loop {
         let stream_status =
             retrieve_next_event(&mut event_stream, event_processor_config.stream_timeout)
@@ -102,6 +97,7 @@ where
                     max_attempts: event_processor_config.retry_max_attempts,
                 },
                 monitoring_client.clone(),
+                handler_info.clone(),
             )
             .await?;
         }
@@ -134,6 +130,7 @@ async fn handle_event<H, B>(
     event: &Event,
     retry_policy: RetryPolicy,
     monitoring_client: MonitoringClient,
+    handler_info: HandlerInfo,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -142,7 +139,6 @@ where
     // if handlers run into errors we log them and then move on to the next event
     match future::with_retry(|| handler.handle(event), retry_policy).await {
         Ok(msgs) => {
-            let handler_info = handler.handler_info();
             for msg in msgs {
                 let broadcast_result = broadcaster.broadcast(msg.clone()).await;
                 record_vote_metrics(&monitoring_client, handler_info.clone(), &broadcast_result);
@@ -176,12 +172,12 @@ fn record_vote_metrics(
 
     let metric = match result {
         Ok(()) => MetricsMsg::IncSuccessVoteCasted {
-            verifier_id: handler_info.verifier_id.clone(),
-            chain_name: handler_info.chain_name.clone(),
+            verifier_id: handler_info.verifier_id,
+            chain_name: handler_info.chain_name,
         },
         Err(_) => MetricsMsg::IncFailedVoteCasted {
-            verifier_id: handler_info.verifier_id.clone(),
-            chain_name: handler_info.chain_name.clone(),
+            verifier_id: handler_info.verifier_id,
+            chain_name: handler_info.chain_name,
         },
     };
 
@@ -272,6 +268,7 @@ mod tests {
             chain_name: "chain".to_string(),
             verifier_id: "verifier".to_string(),
             cast_votes: false,
+            label: "handler".to_string(),
         }
     }
 
@@ -288,10 +285,6 @@ mod tests {
             .expect_handle()
             .times(events.len())
             .returning(|_| Ok(vec![]));
-        handler
-            .expect_handler_info()
-            .times(events.len())
-            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -301,17 +294,18 @@ mod tests {
         );
 
         let (_, monitoring_client, _) = test_dummy_server_setup();
+        let handler_info = create_test_handler_info();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -329,10 +323,6 @@ mod tests {
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().times(1).returning(|_| Ok(vec![]));
-        handler
-            .expect_handler_info()
-            .times(1)
-            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -341,17 +331,18 @@ mod tests {
             Duration::from_secs(1),
         );
         let (_, monitoring_client, _) = test_dummy_server_setup();
+        let handler_info = create_test_handler_info();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -378,17 +369,18 @@ mod tests {
             Duration::from_secs(1),
         );
         let (_, monitoring_client, _) = test_dummy_server_setup();
+        let handler_info = create_test_handler_info();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -407,10 +399,6 @@ mod tests {
             .expect_handle()
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
-        handler
-            .expect_handler_info()
-            .times(events.len())
-            .returning(create_test_handler_info);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -424,16 +412,17 @@ mod tests {
             .returning(|_| Ok(()));
         let (_, monitoring_client, _) = test_dummy_server_setup();
 
+        let handler_info = create_test_handler_info();
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -452,10 +441,6 @@ mod tests {
             .expect_handle()
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
-        handler
-            .expect_handler_info()
-            .times(events.len())
-            .returning(create_test_handler_info);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -468,17 +453,18 @@ mod tests {
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
         let (_, monitoring_client, _) = test_dummy_server_setup();
+        let handler_info = create_test_handler_info();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -498,10 +484,6 @@ mod tests {
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().times(4).returning(|_| Ok(vec![]));
-        handler
-            .expect_handler_info()
-            .times(4)
-            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -513,16 +495,18 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
         let (_, monitoring_client, _) = test_dummy_server_setup();
+        let handler_info = create_test_handler_info();
+
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 token,
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -545,16 +529,18 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
         let (_, monitoring_client, _) = test_dummy_server_setup();
+        let handler_info = create_test_handler_info();
+
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 event_config,
                 token,
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -577,7 +563,6 @@ mod tests {
                 type Err = EventHandlerError;
 
                 async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
-                fn handler_info(&self) -> HandlerInfo;
             }
     }
 
@@ -608,10 +593,6 @@ mod tests {
             .expect_handle()
             .times(events.len())
             .returning(|_| Ok(vec![]));
-        handler
-            .expect_handler_info()
-            .times(events.len())
-            .returning(create_test_handler_info);
 
         let broadcaster = MockBroadcasterClient::new();
         let event_config = setup_event_config(
@@ -623,16 +604,18 @@ mod tests {
             test_monitoring_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
+        let handler_info = create_test_handler_info();
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -659,11 +642,6 @@ mod tests {
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
-        handler
-            .expect_handler_info()
-            .once()
-            .returning(create_test_handler_info);
-
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -680,16 +658,18 @@ mod tests {
             test_monitoring_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
+        let handler_info = create_test_handler_info();
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
@@ -728,15 +708,6 @@ mod tests {
             .once()
             .returning(|_| Ok(vec![dummy_msg(), dummy_msg(), dummy_msg()]));
 
-        handler
-            .expect_handler_info()
-            .once()
-            .returning(|| HandlerInfo {
-                chain_name: "ethereum".to_string(),
-                verifier_id: "axelar1abc".to_string(),
-                cast_votes: true,
-            });
-
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -760,16 +731,23 @@ mod tests {
             test_monitoring_server_setup();
         tokio::spawn(server.run(cancel_token.clone()));
 
+        let handler_info = HandlerInfo {
+            chain_name: "ethereum".to_string(),
+            verifier_id: "axelar1abc".to_string(),
+            cast_votes: true,
+            label: "handler".to_string(),
+        };
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
-                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
                 monitoring_client,
+                handler_info,
             ),
         )
         .await;
