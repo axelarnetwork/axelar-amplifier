@@ -41,9 +41,11 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &CoordinatorExecuteMsg::RegisterProverContract {
+        &CoordinatorExecuteMsg::RegisterChain {
             chain_name: chain_name.clone(),
-            new_prover_addr: MockApi::default().addr_make("random_address").to_string(),
+            prover_address: MockApi::default().addr_make("random_address").to_string(),
+            gateway_address: MockApi::default().addr_make("random_address").to_string(),
+            voting_verifier_address: MockApi::default().addr_make("random_address").to_string(),
         },
     );
     assert!(response.is_ok());

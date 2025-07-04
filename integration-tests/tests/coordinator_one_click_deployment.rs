@@ -136,10 +136,24 @@ fn deploy_chains(
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &coordinator::msg::ExecuteMsg::RegisterProverContract {
+        &coordinator::msg::ExecuteMsg::RegisterChain {
             chain_name: chain_name.parse().unwrap(),
-            new_prover_addr: contracts
+            prover_address: contracts
                 .multisig_prover
+                .contract_addr
+                .to_string()
+                .trim_matches(|c| c == '"' || c == '/')
+                .parse()
+                .unwrap(),
+            gateway_address: contracts
+                .gateway
+                .contract_addr
+                .to_string()
+                .trim_matches(|c| c == '"' || c == '/')
+                .parse()
+                .unwrap(),
+            voting_verifier_address: contracts
+                .voting_verifier
                 .contract_addr
                 .to_string()
                 .trim_matches(|c| c == '"' || c == '/')

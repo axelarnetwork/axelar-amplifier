@@ -162,7 +162,7 @@ mod tests {
 
     use super::*;
     use crate::msg::ChainContractsKey;
-    use crate::state::{load_prover_by_chain, ChainContractsRecord};
+    use crate::state::ChainContractsRecord;
 
     struct TestSetup {
         admin_addr: Addr,
@@ -238,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn add_prover_from_governance_succeeds() {
+    fn add_deprecated_prover_from_governance_succeeds() {
         let mut test_setup = setup();
         let new_prover = test_setup.app.api().addr_make("new_eth_prover");
 
@@ -249,13 +249,13 @@ mod tests {
                 test_setup.coordinator_addr.clone(),
                 &ExecuteMsg::RegisterProverContract {
                     chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: new_prover.to_string(),
+                    new_prover_addr: new_prover.to_string()
                 },
                 &[]
             )
             .is_ok());
 
-        let chain_prover = load_prover_by_chain(
+        let chain_prover = state::contracts_by_chain(
             test_setup
                 .app
                 .contract_storage(&test_setup.coordinator_addr)
@@ -263,11 +263,12 @@ mod tests {
             test_setup.chain_name.clone(),
         );
         assert!(chain_prover.is_ok(), "{:?}", chain_prover);
-        assert_eq!(chain_prover.unwrap(), new_prover);
+        let chain_prover = chain_prover.unwrap();
+        assert_eq!(chain_prover.prover_address, new_prover);
     }
 
     #[test]
-    fn add_prover_from_random_address_fails() {
+    fn add_deprecated_prover_from_random_address_fails() {
         let mut test_setup = setup();
         let new_prover = test_setup.app.api().addr_make("new_eth_prover");
         let random_addr = test_setup.app.api().addr_make("random_address");
@@ -278,6 +279,71 @@ mod tests {
             &ExecuteMsg::RegisterProverContract {
                 chain_name: test_setup.chain_name.clone(),
                 new_prover_addr: new_prover.to_string(),
+            },
+            &[],
+        );
+
+        assert!(res.unwrap_err().root_cause().to_string().contains(
+            &axelar_wasm_std::error::ContractError::from(
+                permission_control::Error::PermissionDenied {
+                    expected: Permission::Governance.into(),
+                    actual: Permission::NoPrivilege.into()
+                }
+            )
+            .to_string()
+        ));
+    }
+
+    #[test]
+    fn add_prover_from_governance_succeeds() {
+        let mut test_setup = setup();
+        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
+        let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
+        let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
+
+        assert!(test_setup
+            .app
+            .execute_contract(
+                test_setup.admin_addr.clone(),
+                test_setup.coordinator_addr.clone(),
+                &ExecuteMsg::RegisterChain {
+                    chain_name: test_setup.chain_name.clone(),
+                    prover_address: new_prover.to_string(),
+                    gateway_address: new_gateway.to_string(),
+                    voting_verifier_address: new_verifier.to_string(),
+                },
+                &[]
+            )
+            .is_ok());
+
+        let chain_prover = state::contracts_by_chain(
+            test_setup
+                .app
+                .contract_storage(&test_setup.coordinator_addr)
+                .as_ref(),
+            test_setup.chain_name.clone(),
+        );
+        assert!(chain_prover.is_ok(), "{:?}", chain_prover);
+        let chain_prover = chain_prover.unwrap();
+        assert_eq!(chain_prover.prover_address, new_prover);
+    }
+
+    #[test]
+    fn add_prover_from_random_address_fails() {
+        let mut test_setup = setup();
+        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
+        let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
+        let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
+        let random_addr = test_setup.app.api().addr_make("random_address");
+
+        let res = test_setup.app.execute_contract(
+            random_addr.clone(),
+            test_setup.coordinator_addr.clone(),
+            &ExecuteMsg::RegisterChain {
+                chain_name: test_setup.chain_name.clone(),
+                prover_address: new_prover.to_string(),
+                gateway_address: new_gateway.to_string(),
+                voting_verifier_address: new_verifier.to_string(),
             },
             &[],
         );
