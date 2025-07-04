@@ -119,6 +119,7 @@ random-string = "1.0.0"
 tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
+axum-test = "15.7.4"
 
 [lints]
 workspace = true
