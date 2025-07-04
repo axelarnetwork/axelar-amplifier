@@ -246,7 +246,7 @@ impl HttpServer {
 mod tests {
     use std::env;
     use std::time::Duration;
-
+    use rand::random;
     use tokio::test as async_test;
 
     use super::*;
@@ -353,7 +353,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_responds_to_status_endpoint_and_shuts_down_gracefully() {
-        let bind_address = Config::enabled().bind_address;
+        let bind_address = localhost_with_random_port();
         let (server, _) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
@@ -380,7 +380,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_continues_serving_after_all_metrics_clients_dropped() {
-        let bind_address = Config::enabled().bind_address;
+        let bind_address = localhost_with_random_port();
         let (server, monitoring_client) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
@@ -409,7 +409,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_increments_counters_when_messages_sent() {
-        let bind_address = Config::enabled().bind_address;
+        let bind_address = localhost_with_random_port();
         let (server, monitoring_client) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
@@ -441,7 +441,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_shuts_down_gracefully_when_cancellation_token_triggered() {
-        let (server, monitoring_client) = Server::new(Config::enabled().bind_address).unwrap();
+        let (server, monitoring_client) = Server::new(localhost_with_random_port()).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -482,7 +482,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_handles_concurrent_metrics_requests_correctly() {
-        let bind_address = Config::enabled().bind_address;
+        let bind_address = localhost_with_random_port();
         let (server, original_client) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
@@ -517,6 +517,11 @@ mod tests {
 
         cancel.cancel();
         _ = server_handle.await;
+    }
+
+    /// Helper function to create test configuration with OS-selected port
+    fn localhost_with_random_port() -> Option<SocketAddrV4> {
+        Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), random()))
     }
 
     fn create_endpoint_url(bind_address: Option<SocketAddrV4>, endpoint: &str) -> String {
