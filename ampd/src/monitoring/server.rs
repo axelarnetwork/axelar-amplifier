@@ -357,7 +357,7 @@ mod tests {
         let (server, _) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
-        tokio::spawn(server.run(cancel.clone()));
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
 
         let status_url = create_endpoint_url(bind_address, "status");
 
@@ -370,8 +370,7 @@ mod tests {
         assert!(status.ok);
 
         cancel.cancel();
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        _ = server_handle.await;
 
         assert!(
             reqwest::get(status_url).await.unwrap_err().is_connect(),
@@ -385,7 +384,7 @@ mod tests {
         let (server, monitoring_client) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
-        tokio::spawn(server.run(cancel.clone()));
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
 
         send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 3);
         drop(monitoring_client);
@@ -400,7 +399,7 @@ mod tests {
         );
 
         cancel.cancel();
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        _ = server_handle.await;
 
         assert!(
             reqwest::get(metrics_url).await.unwrap_err().is_connect(),
@@ -414,7 +413,7 @@ mod tests {
         let (server, monitoring_client) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
-        tokio::spawn(server.run(cancel.clone()));
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
         let metrics_url = create_endpoint_url(bind_address, "metrics");
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -437,6 +436,7 @@ mod tests {
 
         goldie::assert!(output);
         cancel.cancel();
+        _ = server_handle.await
     }
 
     #[async_test(start_paused = true)]
@@ -486,7 +486,7 @@ mod tests {
         let (server, original_client) = Server::new(bind_address).unwrap();
         let cancel = CancellationToken::new();
 
-        tokio::spawn(server.run(cancel.clone()));
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let client1 = original_client.clone();
@@ -516,6 +516,7 @@ mod tests {
         assert!(metrics_text.contains("blocks_received 15"));
 
         cancel.cancel();
+        _ = server_handle.await;
     }
 
     fn create_endpoint_url(bind_address: Option<SocketAddrV4>, endpoint: &str) -> String {
