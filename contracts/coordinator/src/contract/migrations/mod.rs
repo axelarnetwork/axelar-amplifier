@@ -309,7 +309,7 @@ mod tests {
                     ChainContractsDetails {
                         gateway,
                         deployment_name: nonempty_str!("deployment"),
-                        chain_name: chain_name.clone(),
+                        chain_name,
                         msg_id_format: MessageIdFormat::HexTxHash,
                         voting_verifier,
                         multisig_prover,
