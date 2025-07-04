@@ -5,10 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
-use crate::monitoring::server::Config as MonitoringConfig;
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor, grpc};
+use crate::{broadcaster, event_processor, grpc, monitoring};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -27,7 +26,7 @@ pub struct Config {
     pub rewards: RewardsConfig,
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
-    pub monitoring_server: MonitoringConfig,
+    pub monitoring_server: monitoring::Config,
 }
 
 impl Default for Config {
@@ -43,7 +42,7 @@ impl Default for Config {
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
-            monitoring_server: MonitoringConfig::default(),
+            monitoring_server: monitoring::Config::default(),
         }
     }
 }
@@ -582,7 +581,7 @@ mod tests {
         );
         let cfg: Config = toml::from_str(&config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server.bind_addr(),
+            cfg.monitoring_server.bind_address,
             Some(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001))
         );
     }
@@ -595,7 +594,7 @@ mod tests {
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server.bind_addr(),
+            cfg.monitoring_server.bind_address,
             Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
         );
     }
@@ -607,6 +606,6 @@ mod tests {
             enabled = false
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.monitoring_server.bind_addr(), None);
+        assert_eq!(cfg.monitoring_server.bind_address, None);
     }
 }

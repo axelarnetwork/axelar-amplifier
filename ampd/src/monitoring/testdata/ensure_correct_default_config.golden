@@ -1,0 +1,14 @@
+Enabled Config:
+Config { bind_address: Some(127.0.0.1:3000) }
+
+Disabled Config:
+Config { bind_address: None }
+
+Enabled Serialized:
+enabled = true
+bind_address = "127.0.0.1:3000"
+
+
+Disabled Serialized:
+enabled = false
+bind_address = "127.0.0.1:3000"
