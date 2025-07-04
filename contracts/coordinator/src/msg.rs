@@ -59,6 +59,12 @@ pub enum ExecuteMsg {
         // Such an error will be flagged by "cargo clippy..."
         params: Box<DeploymentParams>,
     },
+
+    /// `RegisterDeployment` calls the router using `ExecuteMsgFromProxy`.
+    /// Consequently, the router will enforce that the original sender has
+    /// permission to register the deployment.
+    #[permission(Any)]
+    RegisterDeployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]
