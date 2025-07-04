@@ -446,6 +446,7 @@ impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
     }
 }
 
+#[cfg(test)]
 mod test {
     use std::str::FromStr;
 
