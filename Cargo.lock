@@ -9565,9 +9565,11 @@ dependencies = [
 name = "signature-verifier-api"
 version = "1.0.0"
 dependencies = [
+ "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
+ "msgs-derive",
  "thiserror 1.0.69",
 ]
 
