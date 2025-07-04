@@ -194,12 +194,12 @@ struct Metrics {
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
-        let block_received = Counter::default();
-        registry.register(
-            "blocks_received",
-            "number of blocks received",
-            block_received.clone(),
-        );
+        let block_received = IntCounter::new("blocks_received", "number of blocks received")
+            .expect("failed to create blocks_received counter");
+
+        registry
+            .register(Box::new(block_received.clone()))
+            .expect("failed to register blocks_received counter");
 
         Self { block_received }
     }
