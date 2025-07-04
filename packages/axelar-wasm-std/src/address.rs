@@ -54,6 +54,9 @@ pub fn validate_cosmwasm_address(api: &dyn Api, addr: &str) -> Result<Addr, Erro
         .change_context(Error::InvalidAddress(addr.to_string()))
 }
 
+/// Type alias for contract addresses. Used to avoid suffixing variables with _contract
+pub type ContractAddr = Addr;
+
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
