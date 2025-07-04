@@ -1,0 +1,26 @@
+[
+    (
+        Unavailable,
+        LatestBlockQuery,
+    ),
+    (
+        Unavailable,
+        BlockResultsQuery {
+            block: block::Height(1),
+        },
+    ),
+    (
+        Internal,
+        EventDecoding {
+            block: block::Height(1),
+        },
+    ),
+    (
+        DataLoss,
+        BroadcastStreamRecv(
+            Lagged(
+                10,
+            ),
+        ),
+    ),
+]

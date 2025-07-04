@@ -139,6 +139,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .event_sub(event_subscriber.clone())
         .msg_queue_client(msg_queue_client)
         .cosmos_grpc_client(cosmos_client.clone())
+        .multisig_client(multisig_client.clone())
         .build();
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
