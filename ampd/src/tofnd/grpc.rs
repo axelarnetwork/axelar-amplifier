@@ -5,8 +5,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use error_stack::{report, ResultExt};
 use mockall::automock;
-use report::ErrorExt;
+use report::{ErrorExt, LoggableError};
 use tonic::transport::Channel;
+use tracing::{error, instrument};
+use valuable::Valuable;
 
 use super::proto::keygen_response::KeygenResponse;
 use super::proto::sign_response::SignResponse;
@@ -55,6 +57,7 @@ impl MultisigClient {
 
 #[async_trait]
 impl Multisig for MultisigClient {
+    #[instrument]
     async fn keygen(&self, key_uid: &str, algorithm: Algorithm) -> Result<PublicKey> {
         let request = KeygenRequest {
             key_uid: key_uid.to_string(),
@@ -72,7 +75,14 @@ impl Multisig for MultisigClient {
 
                 res.clone()
                     .keygen_response
-                    .ok_or(report!(Error::InvalidKeygenResponse).attach(res))
+                    .ok_or(report!(Error::InvalidKeygenResponse))
+                    .inspect_err(|err| {
+                        error!(
+                            err = LoggableError::from(err).as_value(),
+                            res = ?res,
+                            "invalid keygen response"
+                        )
+                    })
             })
             .and_then(|res| match &res {
                 KeygenResponse::PubKey(pub_key) => match algorithm {
@@ -80,11 +90,18 @@ impl Multisig for MultisigClient {
                     Algorithm::Ed25519 => PublicKey::new_ed25519(pub_key),
                 }
                 .change_context(Error::InvalidKeygenResponse)
-                .attach(res),
+                .inspect_err(|err| {
+                    error!(
+                        err = LoggableError::from(err).as_value(),
+                        res = ?res,
+                        "invalid keygen response"
+                    )
+                }),
                 KeygenResponse::Error(error) => Err(report!(Error::ExecutionFailed(error.clone()))),
             })
     }
 
+    #[instrument]
     async fn sign(
         &self,
         key_uid: &str,
@@ -110,7 +127,14 @@ impl Multisig for MultisigClient {
 
                 res.clone()
                     .sign_response
-                    .ok_or(report!(Error::InvalidSignResponse).attach(res))
+                    .ok_or(report!(Error::InvalidSignResponse))
+                    .inspect_err(|err| {
+                        error!(
+                            err = LoggableError::from(err).as_value(),
+                            res = ?res,
+                            "invalid sign response"
+                        )
+                    })
             })
             .and_then(|res| match &res {
                 SignResponse::Signature(signature) => match algorithm {
@@ -122,7 +146,13 @@ impl Multisig for MultisigClient {
                     }
                 }
                 .change_context(Error::InvalidSignResponse)
-                .attach(res),
+                .inspect_err(|err| {
+                    error!(
+                        err = LoggableError::from(err).as_value(),
+                        res = ?res,
+                        "invalid sign response"
+                    )
+                }),
                 SignResponse::Error(error) => Err(report!(Error::ExecutionFailed(error.clone()))),
             })
     }

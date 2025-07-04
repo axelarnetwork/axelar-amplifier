@@ -10,7 +10,7 @@ use ampd::commands::{
     SubCommand,
 };
 use ampd::config::Config;
-use ampd::{install_debug_hooks, Error};
+use ampd::Error;
 use axelar_wasm_std::FnExt;
 use clap::{arg, command, Parser, ValueEnum};
 use config::ConfigError;
@@ -46,8 +46,6 @@ enum Output {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    install_debug_hooks();
-
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 

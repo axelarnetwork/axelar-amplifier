@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use error_stack::Report;
-use proto::{KeygenResponse, SignResponse};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -13,15 +11,6 @@ mod grpc;
 pub use grpc::MockMultisig;
 pub use grpc::{Multisig, MultisigClient};
 pub use proto::Algorithm;
-
-pub fn install_debug_hooks() {
-    Report::install_debug_hook::<KeygenResponse>(|value, context| {
-        context.push_body(format!("KeygenResponse: {:?}", value));
-    });
-    Report::install_debug_hook::<SignResponse>(|value, context| {
-        context.push_body(format!("SignResponse: {:?}", value));
-    });
-}
 
 #[derive(Error, Debug)]
 pub enum Error {

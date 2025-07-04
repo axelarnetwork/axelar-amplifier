@@ -1,5 +1,4 @@
 use std::pin::Pin;
-use std::sync::Once;
 use std::time::Duration;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
@@ -75,14 +74,6 @@ use crate::broadcaster::confirm_tx::TxConfirmer;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
-
-static INSTALL_DEBUG_HOOKS: Once = Once::new();
-
-pub fn install_debug_hooks() {
-    INSTALL_DEBUG_HOOKS.call_once(|| {
-        tofnd::install_debug_hooks();
-    });
-}
 
 #[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {
