@@ -346,7 +346,9 @@ mod tests {
         );
 
         let error = result.unwrap_err();
-        goldie::assert!(format!("{error:#}"));
+
+        // lower level errors can contain os error codes that are different on different platforms, so only check the current context
+        goldie::assert!(error.current_context().to_string());
     }
 
     #[async_test(start_paused = true)]
@@ -359,7 +361,7 @@ mod tests {
 
         let status_url = create_endpoint_url(bind_address, "status");
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let response = reqwest::get(status_url.clone()).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, response.status());
@@ -369,7 +371,7 @@ mod tests {
 
         cancel.cancel();
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         assert!(
             reqwest::get(status_url).await.unwrap_err().is_connect(),
