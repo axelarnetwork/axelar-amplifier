@@ -1,10 +1,11 @@
 use axum::http::StatusCode;
 use error_stack::{ensure, Result, ResultExt};
-use prometheus::{Encoder, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, GaugeVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder,
+};
 use thiserror::Error;
 
 #[derive(Clone)]
-#[allow(clippy::enum_variant_names)] // will add other msg enum variants that dont start with 'inc'
 pub enum MetricsMsg {
     IncBlockReceived,
     IncSuccessVoteCasted {
@@ -14,6 +15,9 @@ pub enum MetricsMsg {
     IncFailedVoteCasted {
         verifier_id: String,
         chain_name: String,
+    },
+    SetChainsConnected {
+        count: usize,
     },
 }
 
@@ -42,6 +46,7 @@ pub enum MetricsError {
 pub struct Metrics {
     block_received: BlockReceivedMetrics,
     votes_casted: VotesCastedMetrics,
+    chains_connected: ConnectedChainsMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -54,17 +59,24 @@ struct VotesCastedMetrics {
     success_rate: GaugeVec,
 }
 
+struct ConnectedChainsMetrics {
+    total: IntGauge,
+}
+
 impl Metrics {
     pub fn new(registry: &Registry) -> Result<Self, MetricsError> {
         let block_received = BlockReceivedMetrics::new()?;
         let votes_casted = VotesCastedMetrics::new()?;
+        let chains_connected = ConnectedChainsMetrics::new()?;
 
         block_received.register(registry)?;
         votes_casted.register(registry)?;
+        chains_connected.register(registry)?;
 
         Ok(Self {
             block_received,
             votes_casted,
+            chains_connected,
         })
     }
 
@@ -86,6 +98,9 @@ impl Metrics {
             } => {
                 self.votes_casted
                     .record_failure(&verifier_id, &chain_name)?;
+            }
+            MetricsMsg::SetChainsConnected { count } => {
+                self.chains_connected.set(count)?;
             }
         }
         Ok(())
@@ -226,6 +241,26 @@ impl VotesCastedMetrics {
     }
 }
 
+impl ConnectedChainsMetrics {
+    fn new() -> Result<Self, MetricsError> {
+        let total = IntGauge::new("chains_connected", "number of chains connected vis ampd")
+            .change_context(MetricsError::MetricSpawnFailed)?;
+        Ok(Self { total })
+    }
+
+    fn register(&self, registry: &Registry) -> Result<(), MetricsError> {
+        registry
+            .register(Box::new(self.total.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+        Ok(())
+    }
+
+    fn set(&self, count: usize) -> Result<(), MetricsError> {
+        self.total.set(count as i64);
+        Ok(())
+    }
+}
+
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
     match render_metrics(registry) {
         Ok(metrics) => (StatusCode::OK, metrics),
@@ -321,5 +356,20 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains("blocks_received 0"));
         assert!(body.contains("# HELP blocks_received"));
+    }
+
+    #[test]
+    fn metrics_handle_message_sets_chains_connected_metric_successfully() {
+        let registry = Registry::new();
+        let metrics = Metrics::new(&registry).unwrap();
+        metrics
+            .handle_message(MetricsMsg::SetChainsConnected { count: 10 })
+            .unwrap();
+
+        let final_metrics = render_metrics(&registry).unwrap();
+        assert!(final_metrics.contains("chains_connected 10"));
+        assert!(
+            final_metrics.contains("# HELP chains_connected number of chains connected vis ampd")
+        );
     }
 }

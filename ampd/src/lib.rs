@@ -12,6 +12,7 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use handlers::config::HandlerInfo;
+use monitoring::endpoints::metrics::MetricsMsg;
 use monitoring::server::{MonitoringClient, Server as MonitoringServer};
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
@@ -283,6 +284,8 @@ where
         handler_configs: Vec<handlers::config::Config>,
         event_processor_config: event_processor::Config,
     ) -> Result<App<T>, Error> {
+        let mut connected_chains = std::collections::HashSet::new();
+
         for config in handler_configs {
             match self
                 .try_create_handler_task(&config, &verifier, &event_processor_config)
@@ -290,6 +293,7 @@ where
             {
                 Ok(task) => {
                     self.event_processor = self.event_processor.add_task(task);
+                    connected_chains.insert(config.handler_info().chain_name);
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, config = ?config,
@@ -297,6 +301,17 @@ where
                     );
                 }
             };
+        }
+
+        if let Err(err) =
+            self.monitoring_client
+                .clone()
+                .record_metric(MetricsMsg::SetChainsConnected {
+                    count: connected_chains.len(),
+                })
+        {
+            tracing::warn!(error = %err,
+                "Failed to record connected chains metric");
         }
 
         Ok(self)
@@ -758,8 +773,12 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use reqwest::Url as ReqwestUrl;
 
     use super::*;
+    use crate::monitoring::server::test_utils::test_monitoring_server_setup;
     use crate::url::Url;
 
     #[test]
@@ -864,5 +883,62 @@ mod tests {
         // Test error message
         let error_string = format!("{}", connection_error);
         assert!(error_string.contains("connection failed"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_configure_handlers_records_chains_connected_metric() {
+        // Test the metrics recording logic from configure_handlers
+        // Simulate the connected_chains HashSet after handler processing
+        let (bind_address, server, monitoring_client, cancel_token) =
+            test_monitoring_server_setup();
+
+        tokio::spawn(server.run(cancel_token.clone()));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let handler_results = vec![
+            (Ok("MultisigSigner created successfully"), "ethereum"),
+            (
+                Err("Connection failed: invalid-stellar-host unreachable"),
+                "stellar",
+            ),
+            (Ok("Verify msg handler created successfully"), "polygon"),
+            (
+                Err("Connection failed: invalid-ethereum-host unreachable"),
+                "ethereum",
+            ),
+            (
+                Ok("Verify verifier set handler created successfully"),
+                "ethereum",
+            ),
+        ];
+
+        let mut connected_chains = std::collections::HashSet::new();
+
+        for (result, chain_name) in handler_results {
+            match result {
+                Ok(_) => {
+                    connected_chains.insert(chain_name.to_string());
+                }
+                Err(_) => {}
+            }
+        }
+        let result = monitoring_client.record_metric(MetricsMsg::SetChainsConnected {
+            count: connected_chains.len(),
+        });
+        assert!(result.is_ok(), "Should successfully record metric");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let base_url = ReqwestUrl::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+
+        assert!(
+            metrics_text.contains("chains_connected 2"),
+            "Should record 2 unique chains, got: {}",
+            metrics_text
+        );
+
+        cancel_token.cancel();
     }
 }
