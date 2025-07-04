@@ -131,6 +131,8 @@ impl Display for Address {
     }
 }
 
+/// Generates an Address from a string literal. If this address gets converted to a cosmwasm_std::Addr in the contract,
+/// it will NOT pass validation. In that case, use cosmos_address!() instead.
 #[macro_export]
 macro_rules! address {
     ($s:literal) => {{
@@ -143,6 +145,64 @@ macro_rules! address {
         };
 
         $crate::Address::from_str($s).expect("string literal was already checked")
+    }};
+}
+
+/// Generates a valid cosmos address from a string literal. This address will pass validation in the contract.
+///
+/// # Returns
+/// A `cosmwasm_std::Addr` that is properly formatted and will pass contract validation.
+///
+/// # Examples
+/// ```
+/// use router_api::cosmos_addr;
+/// let addr = cosmos_addr!("user1");
+/// // addr is now a properly formatted cosmos address like "cosmos1..."
+/// ```
+#[macro_export]
+macro_rules! cosmos_addr {
+    // Addr
+    ($s:literal) => {{
+        use cosmwasm_std::testing::MockApi;
+
+        const _: () = {
+            if $s.is_empty() {
+                panic!("address string cannot be empty");
+            }
+        };
+
+        MockApi::default().addr_make($s)
+    }};
+}
+
+/// Generates a valid cosmos address from a string literal, and then converts it to an Address.
+/// This address will pass validation in the contract.
+///
+/// # Returns
+/// A `router_api::Address` that was created from a valid cosmos address format.
+///
+/// # Examples
+/// ```
+/// use router_api::cosmos_address;
+/// let addr = cosmos_address!("user1");
+/// // addr is a router_api::Address created from a valid cosmos address
+/// ```
+#[macro_export]
+macro_rules! cosmos_address {
+    // Address
+    ($s:literal) => {{
+        use std::str::FromStr as _;
+
+        use cosmwasm_std::testing::MockApi;
+
+        const _: () = {
+            if $s.is_empty() {
+                panic!("address string cannot be empty");
+            }
+        };
+
+        let cosmos_addr = MockApi::default().addr_make($s);
+        $crate::Address::from_str(&cosmos_addr.to_string()).expect("cosmos address should be valid")
     }};
 }
 
