@@ -1,10 +1,13 @@
 use axum::http::StatusCode;
 use error_stack::{ensure, Result, ResultExt};
-use prometheus::{Encoder, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, Gauge, GaugeVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder,
+};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessToUpdate, RefreshKind, System};
+use std::time::Instant;
 use thiserror::Error;
 
 #[derive(Clone)]
-#[allow(clippy::enum_variant_names)] // will add other msg enum variants that dont start with 'inc' when implementing other metrics in the future
 pub enum MetricsMsg {
     IncBlockReceived,
     IncSuccessVoteCasted {
@@ -14,6 +17,13 @@ pub enum MetricsMsg {
     IncFailedVoteCasted {
         verifier_id: String,
         chain_name: String,
+    },
+    SetNumOfConnectedChains {
+        count: u64,
+    },
+    SetSystemMetrics {
+        cpu_usage: f64,
+        memory_usage: u64,
     },
 }
 
@@ -42,6 +52,7 @@ pub enum MetricsError {
 pub struct Metrics {
     block_received: BlockReceivedMetrics,
     votes_casted: VotesCastedMetrics,
+    system_metrics: SystemMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -54,17 +65,30 @@ struct VotesCastedMetrics {
     success_rate: GaugeVec,
 }
 
+struct SystemMetrics {
+    cpu_usage: Gauge,
+    memory_usage: Gauge,
+}
+
+struct SystemInfoCollectorStatus {
+    system: System,
+    pid: Pid,
+}
+
 impl Metrics {
     pub fn new(registry: &Registry) -> Result<Self, MetricsError> {
         let block_received = BlockReceivedMetrics::new()?;
         let votes_casted = VotesCastedMetrics::new()?;
+        let system_metrics = SystemMetrics::new()?;
 
         block_received.register(registry)?;
         votes_casted.register(registry)?;
+        system_metrics.register(registry)?;
 
         Ok(Self {
             block_received,
             votes_casted,
+            system_metrics,
         })
     }
 
@@ -86,6 +110,12 @@ impl Metrics {
             } => {
                 self.votes_casted
                     .record_failure(&verifier_id, &chain_name)?;
+            }
+            MetricsMsg::SetNumOfConnectedChains { count } => {
+                self.chains_connected.set_count(count)?;
+            }
+            MetricsMsg::SetSystemMetrics { cpu_usage, memory_usage } => {
+                self.system_metrics.set_system_metrics(cpu_usage, memory_usage)?;
             }
         }
         Ok(())
@@ -226,6 +256,34 @@ impl VotesCastedMetrics {
     }
 }
 
+impl SystemMetrics {
+    fn new() -> Result<Self, MetricsError> {
+        let cpu_usage = Gauge::new("ampd_cpu_usage_percent", "current CPU usage percentage of the ampd service")?;
+        let memory_usage = Gauge::new("ampd_memory_usage_bytes", "current memory usage in bytes of the ampd service")?;
+        Ok(Self {
+            cpu_usage,
+            memory_usage,
+        })
+    }
+
+    fn register(&self, registry: &Registry) -> Result<(), MetricsError> {
+        registry
+            .register(Box::new(self.cpu_usage.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+        registry
+            .register(Box::new(self.memory_usage.clone()))
+            .change_context(MetricsError::MetricRegisterFailed)?;
+        Ok(())
+    }
+
+    fn set_system_metrics(&self, cpu_usage: f64, memory_usage: u64) -> Result<(), MetricsError> {
+        self.cpu_usage.set(cpu_usage);
+        self.memory_usage.set(memory_usage as f64);
+        Ok(())
+    }
+}
+
+
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
     match render_metrics(registry) {
         Ok(metrics) => (StatusCode::OK, metrics),
@@ -310,6 +368,22 @@ mod tests {
         let result = metrics.handle_message(MetricsMsg::IncBlockReceived);
         assert!(result.is_err(), "should fail on overfow ");
         assert_err_contains!(result, MetricsError, MetricsError::MetricValueOverflow);
+    }
+
+    #[test]
+    fn metrics_handle_message_sets_connected_chains_count_successfully() {
+        let registry = Registry::new();
+        let metrics = Metrics::new(&registry).unwrap();
+
+        let initial_metrics = render_metrics(&registry).unwrap();
+        assert!(initial_metrics.contains("chains_connected 0"));
+
+        metrics
+            .handle_message(MetricsMsg::SetNumOfConnectedChains { count: 5 })
+            .expect("handle message should not fail");
+
+        let final_metrics = render_metrics(&registry).unwrap();
+        assert!(final_metrics.contains("chains_connected 5"));
     }
 
     #[tokio::test]
