@@ -1,8 +1,11 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
+use msgs_derive::EnsurePermissions;
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
+    #[permission(Any)]
     VerifySignature {
         signature: HexBinary,
         message: HexBinary,

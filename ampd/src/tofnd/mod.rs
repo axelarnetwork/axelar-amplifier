@@ -43,7 +43,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            url: Url::new_non_sensitive("http://localhost:50051/").unwrap(),
+            url: Url::new_non_sensitive("http://localhost:50051/").expect("Url should be created validly"),
             party_uid: "ampd".into(),
             key_uid: "axelar".into(),
             timeout: Duration::from_secs(3),
