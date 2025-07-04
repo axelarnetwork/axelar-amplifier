@@ -57,7 +57,7 @@ pub fn register_chain(
         gateway_addr,
         voting_verifier_address,
     )
-    .change_context(Error::ChainNotRegistered(chain_name.clone()))?;
+    .change_context(Error::ChainNotRegistered(chain_name))?;
 
     Ok(Response::new())
 }

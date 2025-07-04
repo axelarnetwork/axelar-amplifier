@@ -260,9 +260,10 @@ mod tests {
             .is_ok());
 
         let chain_prover = state::contracts_by_chain(
-            &*test_setup
+            test_setup
                 .app
-                .contract_storage(&test_setup.coordinator_addr),
+                .contract_storage(&test_setup.coordinator_addr)
+                .as_ref(),
             test_setup.chain_name.clone(),
         );
         assert!(chain_prover.is_ok(), "{:?}", chain_prover);
