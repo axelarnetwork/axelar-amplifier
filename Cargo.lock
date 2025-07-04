@@ -5125,8 +5125,6 @@ dependencies = [
 name = "interchain-token-service"
 version = "1.2.1"
 dependencies = [
- "alloy-primitives",
- "alloy-sol-types",
  "assert_ok",
  "axelar-core-std",
  "axelar-wasm-std",
@@ -5139,7 +5137,10 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
+ "interchain-token-service-std",
  "itertools 0.11.0",
+ "its-abi-translator",
+ "its-msg-translator-api",
  "msgs-derive",
  "report",
  "router-api",
@@ -5148,6 +5149,24 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "strum 0.25.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "interchain-token-service-std"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "error-stack",
+ "hex",
+ "report",
+ "router-api",
+ "schemars",
  "strum 0.25.0",
  "thiserror 1.0.69",
 ]
@@ -5236,6 +5255,42 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "its-abi-translator"
+version = "1.0.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "assert_ok",
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "error-stack",
+ "goldie",
+ "hex",
+ "interchain-token-service",
+ "interchain-token-service-std",
+ "its-msg-translator-api",
+ "router-api",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "its-msg-translator-api"
+version = "1.0.0"
+dependencies = [
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "interchain-token-service-std",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "jni"
