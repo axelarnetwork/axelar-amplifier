@@ -1,10 +1,8 @@
 use axum::http::StatusCode;
 use error_stack::{ensure, Result, ResultExt};
 use prometheus::{
-    Encoder, Gauge, GaugeVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder,
+    Encoder, Gauge, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder,
 };
-use sysinfo::{Pid, ProcessRefreshKind, ProcessToUpdate, RefreshKind, System};
-use std::time::Instant;
 use thiserror::Error;
 
 #[derive(Clone)]
@@ -18,11 +16,8 @@ pub enum MetricsMsg {
         verifier_id: String,
         chain_name: String,
     },
-    SetNumOfConnectedChains {
-        count: u64,
-    },
     SetSystemMetrics {
-        cpu_usage: f64,
+        cpu_usage: f32,
         memory_usage: u64,
     },
 }
@@ -70,11 +65,6 @@ struct SystemMetrics {
     memory_usage: Gauge,
 }
 
-struct SystemInfoCollectorStatus {
-    system: System,
-    pid: Pid,
-}
-
 impl Metrics {
     pub fn new(registry: &Registry) -> Result<Self, MetricsError> {
         let block_received = BlockReceivedMetrics::new()?;
@@ -111,11 +101,12 @@ impl Metrics {
                 self.votes_casted
                     .record_failure(&verifier_id, &chain_name)?;
             }
-            MetricsMsg::SetNumOfConnectedChains { count } => {
-                self.chains_connected.set_count(count)?;
-            }
-            MetricsMsg::SetSystemMetrics { cpu_usage, memory_usage } => {
-                self.system_metrics.set_system_metrics(cpu_usage, memory_usage)?;
+            MetricsMsg::SetSystemMetrics {
+                cpu_usage,
+                memory_usage,
+            } => {
+                self.system_metrics
+                    .set_system_metrics(cpu_usage, memory_usage)?;
             }
         }
         Ok(())
@@ -258,8 +249,16 @@ impl VotesCastedMetrics {
 
 impl SystemMetrics {
     fn new() -> Result<Self, MetricsError> {
-        let cpu_usage = Gauge::new("ampd_cpu_usage_percent", "current CPU usage percentage of the ampd service")?;
-        let memory_usage = Gauge::new("ampd_memory_usage_bytes", "current memory usage in bytes of the ampd service")?;
+        let cpu_usage = Gauge::new(
+            "ampd_cpu_usage_percent",
+            "current CPU usage percentage of the ampd service",
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
+        let memory_usage = Gauge::new(
+            "ampd_memory_usage_bytes",
+            "current memory usage in bytes of the ampd service",
+        )
+        .change_context(MetricsError::MetricSpawnFailed)?;
         Ok(Self {
             cpu_usage,
             memory_usage,
@@ -276,13 +275,12 @@ impl SystemMetrics {
         Ok(())
     }
 
-    fn set_system_metrics(&self, cpu_usage: f64, memory_usage: u64) -> Result<(), MetricsError> {
-        self.cpu_usage.set(cpu_usage);
+    fn set_system_metrics(&self, cpu_usage: f32, memory_usage: u64) -> Result<(), MetricsError> {
+        self.cpu_usage.set(cpu_usage as f64);
         self.memory_usage.set(memory_usage as f64);
         Ok(())
     }
 }
-
 
 pub async fn gather_metrics(registry: &Registry) -> (StatusCode, String) {
     match render_metrics(registry) {
@@ -371,19 +369,18 @@ mod tests {
     }
 
     #[test]
-    fn metrics_handle_message_sets_connected_chains_count_successfully() {
+    fn metrics_handle_message_sets_system_metrics_successfully() {
         let registry = Registry::new();
         let metrics = Metrics::new(&registry).unwrap();
-
-        let initial_metrics = render_metrics(&registry).unwrap();
-        assert!(initial_metrics.contains("chains_connected 0"));
-
         metrics
-            .handle_message(MetricsMsg::SetNumOfConnectedChains { count: 5 })
+            .handle_message(MetricsMsg::SetSystemMetrics {
+                cpu_usage: 10.0,
+                memory_usage: 1000000,
+            })
             .expect("handle message should not fail");
-
         let final_metrics = render_metrics(&registry).unwrap();
-        assert!(final_metrics.contains("chains_connected 5"));
+        assert!(final_metrics.contains("ampd_cpu_usage_percent 10"));
+        assert!(final_metrics.contains("ampd_memory_usage_bytes 1000000"));
     }
 
     #[tokio::test]

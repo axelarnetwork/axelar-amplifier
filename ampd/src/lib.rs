@@ -13,6 +13,7 @@ use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use handlers::config::HandlerInfo;
 use monitoring::server::{MonitoringClient, Server as MonitoringServer};
+use monitoring::system_metrics_collector::SystemMetricsCollector;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
@@ -99,6 +100,9 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
 
     let (monitoring_server, monitoring_client) =
         MonitoringServer::new(monitoring_server.bind_addr());
+    let system_metrics_collector = 
+        SystemMetricsCollector::new(Duration::from_millis(100), monitoring_client.clone())
+        .change_context(Error::Monitor)?;
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -197,6 +201,7 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         grpc_server,
         broadcaster_task,
         monitoring_client,
+        system_metrics_collector,
     )
     .configure_handlers(verifier, handlers, event_processor)
     .await
@@ -237,6 +242,7 @@ where
         MultisigClient,
     >,
     monitoring_client: MonitoringClient,
+    system_metrics_collector: SystemMetricsCollector,
 }
 
 impl<T> App<T>
@@ -259,6 +265,7 @@ where
             MultisigClient,
         >,
         monitoring_client: MonitoringClient,
+        system_metrics_collector: SystemMetricsCollector,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -274,6 +281,7 @@ where
             grpc_server,
             broadcaster_task,
             monitoring_client,
+            system_metrics_collector,
         }
     }
 
@@ -672,6 +680,7 @@ where
             monitoring_server,
             grpc_server,
             broadcaster_task,
+            system_metrics_collector,
             ..
         } = self;
 
@@ -718,6 +727,9 @@ where
             }))
             .add_task(CancellableTask::create(|_| {
                 broadcaster_task.run().change_context(Error::Broadcaster)
+            }))
+            .add_task(CancellableTask::create(|token| {
+                system_metrics_collector.run(token).change_context(Error::Monitor)
             }))
             .run(main_token)
             .await
