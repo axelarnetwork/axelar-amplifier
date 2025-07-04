@@ -152,8 +152,7 @@ impl Server {
 
     fn create_server(bind_address: SocketAddrV4) -> Result<(Server, Client), Error> {
         let status_router = status::create_endpoint();
-        let (metrics_router, metrics_process, metrics_client) =
-            metrics::create_endpoint();
+        let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
 
         let server = Server::Enabled {
             server: HttpServer {
@@ -245,10 +244,11 @@ impl HttpServer {
 
 #[cfg(test)]
 mod tests {
-    use error_stack::fmt::{Charset, ColorMode};
-    use error_stack::Report;
     use std::env;
     use std::time::Duration;
+
+    use error_stack::fmt::{Charset, ColorMode};
+    use error_stack::Report;
     use tokio::test as async_test;
 
     use super::*;
@@ -285,7 +285,10 @@ mod tests {
             .unwrap()
             .try_deserialize()
             .unwrap();
-        assert_eq!(enabled_config.bind_address, Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 4000)));
+        assert_eq!(
+            enabled_config.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 4000))
+        );
 
         // Test parsing disabled config from environment variable
         env::set_var("TEST_MONITORING_ENABLED", "false");

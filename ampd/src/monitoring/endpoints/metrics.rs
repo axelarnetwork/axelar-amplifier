@@ -186,7 +186,8 @@ impl Metrics {
         let block_received = IntCounter::new("blocks_received", "number of blocks received")
             .expect("failed to create blocks_received counter");
 
-        registry.register(Box::new(block_received.clone()))
+        registry
+            .register(Box::new(block_received.clone()))
             .expect("failed to register blocks_received counter");
 
         Self { block_received }
