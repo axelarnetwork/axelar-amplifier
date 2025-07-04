@@ -576,7 +576,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handler_info_all_config_variants() {
+    fn handler_info_provides_correct_info_for_all_chain_config() {
         let evm_contract = TMAddress::random(PREFIX);
         let evm_msg_config = Config::EvmMsgVerifier {
             cosmwasm_contract: evm_contract.clone(),

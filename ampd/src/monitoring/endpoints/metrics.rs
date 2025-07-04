@@ -4,7 +4,7 @@ use prometheus::{Encoder, GaugeVec, IntCounter, IntCounterVec, Opts, Registry, T
 use thiserror::Error;
 
 #[derive(Clone)]
-#[allow(clippy::enum_variant_names)] // will add other msg enum variants that dont start with 'inc'
+#[allow(clippy::enum_variant_names)] // will add other msg enum variants that dont start with 'inc' when implementing other metrics in the future
 pub enum MetricsMsg {
     IncBlockReceived,
     IncSuccessVoteCasted {
@@ -33,9 +33,9 @@ pub enum MetricsError {
     MetricRegisterFailed,
     #[error("failed to spawn metric")]
     MetricSpawnFailed,
-    #[error("metric value overflow, value is larger than 1.7976931348623157e+308")]
+    #[error("failed to increment metric counter, value is larger than 1.7976931348623157e+308")]
     MetricValueOverflow,
-    #[error("no vote is recorded but success rate is updated")]
+    #[error("failed to calculate vote casted success rate")]
     InvalidVoteMetricsUpdate,
 }
 
