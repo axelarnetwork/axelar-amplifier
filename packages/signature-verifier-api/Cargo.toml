@@ -7,9 +7,11 @@ edition = { workspace = true }
 
 [dependencies]
 client = { workspace = true }
+axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
+msgs-derive = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]
