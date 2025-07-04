@@ -1,4 +1,3 @@
-prometheus_monitor_bind_addr = '0.0.0.0:3000'
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
 
@@ -159,3 +158,7 @@ port = 9090
 global_concurrency_limit = 1024
 concurrency_limit_per_connection = 32
 request_timeout = '30s'
+
+[monitoring_server]
+enabled = false
+bind_address = '127.0.0.1:3000'
