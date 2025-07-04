@@ -1,0 +1,38 @@
+[
+    (
+        Unavailable,
+        GrpcRequest(
+            Status {
+                code: Unavailable,
+                message: "service unavailable",
+                source: None,
+            },
+        ),
+    ),
+    (
+        Unknown,
+        QueryContractState(
+            "contract execution error",
+        ),
+    ),
+    (
+        Internal,
+        GasInfoMissing,
+    ),
+    (
+        Internal,
+        AccountMissing,
+    ),
+    (
+        Internal,
+        TxResponseMissing,
+    ),
+    (
+        Internal,
+        MalformedResponse,
+    ),
+    (
+        Internal,
+        TxBuilding,
+    ),
+]
