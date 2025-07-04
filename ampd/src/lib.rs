@@ -53,7 +53,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
 use thiserror::Error;
-use tofnd::grpc::{Multisig, MultisigClient};
+use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::interval;
