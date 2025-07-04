@@ -28,13 +28,10 @@ pub enum Msg {
 /// Errors that can occur in metrics processing
 #[derive(Debug, Error)]
 pub enum Error {
-    /// UTF-8 conversion error when formatting metrics
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
-    /// Prometheus library error
     #[error(transparent)]
     Prometheus(#[from] prometheus::Error),
-    /// Failed to update metric (e.g., channel full or closed)
     #[error("failed to update metric")]
     MetricUpdateFailed,
 }
