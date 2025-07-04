@@ -5,8 +5,8 @@ use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint256;
-use msgs_derive::Permissions;
 use interchain_token_service_std::TokenId;
+use msgs_derive::Permissions;
 use router_api::{Address, ChainNameRaw};
 
 pub use crate::contract::migrations::MigrateMsg;
