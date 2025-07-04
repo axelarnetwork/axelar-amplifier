@@ -246,6 +246,7 @@ impl HttpServer {
 mod tests {
     use std::env;
     use std::time::Duration;
+
     use rand::random;
     use tokio::test as async_test;
 
@@ -436,7 +437,7 @@ mod tests {
 
         goldie::assert!(output);
         cancel.cancel();
-        _ = server_handle.await
+        _ = server_handle.await;
     }
 
     #[async_test(start_paused = true)]
@@ -462,7 +463,6 @@ mod tests {
             "server should shut down without panicking"
         );
 
-        println!("{:?}", shutdown_result);
         assert!(
             shutdown_result.unwrap().is_ok(),
             "server should shut down without errors"
@@ -512,7 +512,6 @@ mod tests {
 
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        println!("Metrics:\n{}", metrics_text);
         assert!(metrics_text.contains("blocks_received 15"));
 
         cancel.cancel();
