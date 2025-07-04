@@ -461,6 +461,8 @@ mod tests {
             shutdown_result.is_ok(),
             "server should shut down without panicking"
         );
+
+        println!("{:?}", shutdown_result);
         assert!(
             shutdown_result.unwrap().is_ok(),
             "server should shut down without errors"
@@ -510,6 +512,7 @@ mod tests {
 
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
+        println!("Metrics:\n{}", metrics_text);
         assert!(metrics_text.contains("blocks_received 15"));
 
         cancel.cancel();
