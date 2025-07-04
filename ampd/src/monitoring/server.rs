@@ -330,6 +330,25 @@ mod tests {
     }
 
     #[async_test]
+    async fn disabled_server_shuts_down_when_cancelled() {
+        let (server, _) = Server::new(None).unwrap(); // Creates disabled server
+        let cancel = CancellationToken::new();
+
+        let handle = tokio::spawn(server.run(cancel.clone()));
+        cancel.cancel();
+        let result = handle.await;
+
+        assert!(
+            result.is_ok(),
+            "disabled server should shut down without panicking"
+        );
+        assert!(
+            result.unwrap().is_ok(),
+            "disabled server should shut down without errors"
+        );
+    }
+
+    #[async_test]
     async fn server_startup_fails_when_address_unavailable() {
         // First, bind to a specific port to make it unavailable
         let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3001);
