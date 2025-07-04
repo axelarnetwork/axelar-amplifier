@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
@@ -76,30 +74,24 @@ pub fn migrate(
     state::save_protocol_contracts(deps.storage, protocol)
         .change_context(Error::UnableToPersistProtocol)?;
 
-    let duplicates: Vec<_> = msg
+    if let Some(duplicate) = msg
         .chain_contracts
         .iter()
         .map(|details| details.deployment_name.clone())
         .duplicates()
-        .collect();
-    if let Some(duplicate) = duplicates.first() {
+        .next()
+    {
         return Err(MigrationError::DuplicateDeployment(duplicate.clone()).into());
     }
-
-    let chain_contracts = msg
-        .chain_contracts
-        .into_iter()
-        .map(|contract_details| (contract_details.deployment_name.clone(), contract_details))
-        .collect::<HashMap<_, _>>();
 
     // Since this state has not yet been set or used, we can clear
     // it and repopulate it.
     state::DEPLOYED_CHAINS.clear(deps.storage);
 
-    for (deployment, contracts) in chain_contracts {
+    for contracts in msg.chain_contracts {
         state::save_deployed_contracts(
             deps.storage,
-            deployment,
+            contracts.deployment_name,
             state::ChainContracts {
                 chain_name: contracts.chain_name.clone(),
                 msg_id_format: contracts.msg_id_format.clone(),
