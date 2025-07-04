@@ -450,9 +450,8 @@ impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
 mod test {
     use std::str::FromStr;
 
-    use crate::error::XRPLError;
-
     use super::XRPLMessageType;
+    use crate::error::XRPLError;
 
     #[test]
     fn test_xrpl_message_type_from_string() {
