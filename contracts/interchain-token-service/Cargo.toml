@@ -11,13 +11,6 @@ exclude = [
     "hash.txt",
 ]
 
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -30,10 +23,8 @@ path = "src/bin/schema.rs"
 library = []
 
 [dependencies]
-alloy-primitives = { workspace = true }
-alloy-sol-types = { workspace = true }
 axelar-core-std = { workspace = true }
-axelar-wasm-std = { workspace = true, features = ["derive"] }
+axelar-wasm-std = { workspace = true }
 axelarnet-gateway = { workspace = true, features = ["library"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
@@ -42,7 +33,9 @@ cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = { workspace = true }
+interchain-token-service-std = { workspace = true }
 itertools = "0.11.0"
+its-msg-translator-api = { workspace = true }
 msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
@@ -57,6 +50,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 assert_ok = { workspace = true }
 goldie = { workspace = true }
+its-abi-translator = { workspace = true }
 
 [lints]
 workspace = true
