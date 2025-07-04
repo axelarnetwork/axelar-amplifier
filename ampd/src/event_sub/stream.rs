@@ -163,7 +163,7 @@ pin_project! {
     {
         #[pin]
         stream: S,
-        previous: Option<S::Ok>,
+        last_streamed: Option<S::Ok>,
     }
 }
 
@@ -172,7 +172,7 @@ trait StrictlyIncreasingExt: TryStream + Sized {
     fn strictly_increasing_values(self) -> StrictlyIncreasing<Self> {
         StrictlyIncreasing {
             stream: self,
-            previous: None,
+            last_streamed: None,
         }
     }
 }
@@ -197,13 +197,12 @@ where
         loop {
             match me.stream.as_mut().try_poll_next(cx) {
                 Poll::Ready(Some(Ok(current))) => {
-                    let previous = me.previous.replace(current.clone());
+                    let last_streamed = me.last_streamed.replace(current.clone());
 
-                    match previous {
-                        Some(previous) if previous >= current => {
-                            // revert update of the previous value, must use previous and not current
-                            // because current could potentially be smaller and would mess up the monotonicity invariant of the stream
-                            me.previous.replace(previous.clone());
+                    match last_streamed {
+                        Some(last_streamed) if last_streamed >= current => {
+                            // need to revert the previous swap, because current is not strictly increasing
+                            me.last_streamed.replace(last_streamed);
                             continue;
                         }
                         _ => return Poll::Ready(Some(Ok(current))),
