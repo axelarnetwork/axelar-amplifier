@@ -97,7 +97,7 @@ pub fn verifier_set_status(
     let loaded_poll_content = poll_verifier_sets()
         .may_load(
             deps.storage,
-            &verifier_set.hash().as_slice().try_into().unwrap(),
+            &verifier_set.hash().as_slice().try_into().expect("verifier set hash should be valid key"),
         )
         .change_context(ContractError::StorageError)?;
 

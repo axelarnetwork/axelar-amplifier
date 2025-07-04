@@ -1,0 +1,69 @@
+Building workspace metadata entry `amplifier_lints`
+    Finished `release` profile [optimized] target(s) in 0.06s
+Checking with toolchain `nightly-2025-04-03-aarch64-apple-darwin`
+warning: all ExecuteMsg enums should derive `EnsurePermissions`
+  --> packages/signature-verifier-api/src/msg.rs:5:1
+   |
+5  | / pub enum ExecuteMsg {
+6  | |     VerifySignature {
+7  | |         signature: HexBinary,
+8  | |         message: HexBinary,
+...  |
+12 | |     },
+13 | | }
+   | |_^
+   |
+   = note: `#[warn(ensure_msg_has_permissions)]` on by default
+
+warning: `signature-verifier-api` (lib) generated 1 warning
+warning: use of deprecated variant `msg::ExecuteMsg::RegisterProverContract`: Use RegisterChain instead which supports registering all contract addresses at once
+  --> contracts/coordinator/src/client.rs:56:42
+   |
+56 |         self.client.execute(&ExecuteMsg::RegisterProverContract {
+   |                                          ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated variant `msg::ExecuteMsg::RegisterProverContract`: Use RegisterChain instead which supports registering all contract addresses at once
+  --> contracts/coordinator/src/contract.rs:63:21
+   |
+63 |         ExecuteMsg::RegisterProverContract {
+   |                     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated variant `msg::ExecuteMsg::RegisterProverContract`: Use RegisterChain instead which supports registering all contract addresses at once
+  --> contracts/coordinator/src/msg.rs:40:5
+   |
+40 |     RegisterProverContract {
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated field `msg::ExecuteMsg::RegisterProverContract::chain_name`: Use RegisterChain instead which supports registering all contract addresses at once
+  --> contracts/coordinator/src/contract.rs:64:13
+   |
+64 |             chain_name,
+   |             ^^^^^^^^^^
+
+warning: use of deprecated field `msg::ExecuteMsg::RegisterProverContract::new_prover_addr`: Use RegisterChain instead which supports registering all contract addresses at once
+  --> contracts/coordinator/src/contract.rs:65:13
+   |
+65 |             new_prover_addr,
+   |             ^^^^^^^^^^^^^^^
+
+warning: `coordinator` (lib) generated 9 warnings (4 duplicates)
+warning: avoid using `unwrap` if possible
+  --> ampd/src/main.rs:34:36
+   |
+34 |     #[arg(short, long, value_enum, default_value_t = Output::Text)]
+   |                                    ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(warn_on_unwraps)]` on by default
+
+warning: avoid using `unwrap` if possible
+  --> ampd/src/main.rs:34:36
+   |
+34 |     #[arg(short, long, value_enum, default_value_t = Output::Text)]
+   |                                    ^^^^^^^^^^^^^^^
+
+warning: `ampd` (bin "ampd") generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.01s
+warning: the following packages contain code that will be rejected by a future version of Rust: size-of v0.1.5
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

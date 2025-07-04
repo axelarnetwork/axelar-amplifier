@@ -41,7 +41,7 @@ impl From<router_api::Message> for Message {
     fn from(msg: router_api::Message) -> Self {
         // fallback to using all 0's as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
-            parse_message_id(&msg.cc_id.message_id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
+            parse_message_id(&msg.cc_id.message_id).unwrap_or((vec![0; 32].try_into().expect("conversion should not fail"), 0));
 
         Self {
             source_chain: msg.cc_id.source_chain,
