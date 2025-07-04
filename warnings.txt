@@ -1,21 +1,6 @@
 Building workspace metadata entry `amplifier_lints`
-    Finished `release` profile [optimized] target(s) in 0.06s
+    Finished `release` profile [optimized] target(s) in 0.07s
 Checking with toolchain `nightly-2025-04-03-aarch64-apple-darwin`
-warning: all ExecuteMsg enums should derive `EnsurePermissions`
-  --> packages/signature-verifier-api/src/msg.rs:5:1
-   |
-5  | / pub enum ExecuteMsg {
-6  | |     VerifySignature {
-7  | |         signature: HexBinary,
-8  | |         message: HexBinary,
-...  |
-12 | |     },
-13 | | }
-   | |_^
-   |
-   = note: `#[warn(ensure_msg_has_permissions)]` on by default
-
-warning: `signature-verifier-api` (lib) generated 1 warning
 warning: use of deprecated variant `msg::ExecuteMsg::RegisterProverContract`: Use RegisterChain instead which supports registering all contract addresses at once
   --> contracts/coordinator/src/client.rs:56:42
    |
@@ -64,6 +49,6 @@ warning: avoid using `unwrap` if possible
    |                                    ^^^^^^^^^^^^^^^
 
 warning: `ampd` (bin "ampd") generated 2 warnings
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.01s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.23s
 warning: the following packages contain code that will be rejected by a future version of Rust: size-of v0.1.5
 note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
