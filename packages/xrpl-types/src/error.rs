@@ -83,6 +83,9 @@ pub enum XRPLError {
 
     #[error("unsupported key type")]
     UnsupportedKeyType,
+
+    #[error("unsupported message type")]
+    UnsupportedMessageType,
 }
 
 impl From<XRPLError> for StdError {
