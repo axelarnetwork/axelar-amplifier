@@ -247,8 +247,6 @@ mod tests {
     use std::env;
     use std::time::Duration;
 
-    use error_stack::fmt::{Charset, ColorMode};
-    use error_stack::Report;
     use tokio::test as async_test;
 
     use super::*;

@@ -637,7 +637,7 @@ where
 
     fn create_broadcaster_task(
         broadcaster: QueuedBroadcaster<T>,
-        confirmer: TxConfirmer<CosmosGrpcClient>,
+        confirmer: TxConfirmer<cosmos::CosmosGrpcClient>,
     ) -> TaskGroup<Error> {
         let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
         let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);
