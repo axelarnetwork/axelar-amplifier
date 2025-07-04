@@ -107,6 +107,7 @@ tonic-build = "0.13.0"
 
 [dev-dependencies]
 assert_ok = { workspace = true }
+axum-test = "15.7.4"
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
 faux = "0.1.10"
@@ -118,7 +119,6 @@ random-string = "1.0.0"
 tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
-axum-test = "15.7.4"
 
 [lints]
 workspace = true
