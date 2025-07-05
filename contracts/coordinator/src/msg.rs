@@ -6,7 +6,7 @@ use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
@@ -24,7 +24,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// After the contract is instantiated, this should be the first call to execute
     #[permission(Governance)]
