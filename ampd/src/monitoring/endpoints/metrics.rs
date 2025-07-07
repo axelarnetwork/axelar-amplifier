@@ -37,7 +37,7 @@ pub enum Msg {
         verifier_id: String,
         chain_name: String,
     },
-    VoteCastFailed {
+    VoteFailed {
         verifier_id: String,
         chain_name: String,
     },
@@ -197,14 +197,14 @@ async fn serve_metrics(
 
 struct Metrics {
     blocks_received: BlockReceivedMetrics,
-    casted_votes: CastedVotesMetrics,
+    casted_votes: VoteMetrics,
 }
 
 struct BlockReceivedMetrics {
     total: IntCounter,
 }
 
-struct CastedVotesMetrics {
+struct VoteMetrics {
     succeeded: IntCounterVec,
     failed: IntCounterVec,
     success_rate: GaugeVec,
@@ -213,15 +213,15 @@ struct CastedVotesMetrics {
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
-        let block_received = BlockReceivedMetrics::new();
-        let votes_casted = CastedVotesMetrics::new();
+        let blocks_received = BlockReceivedMetrics::new();
+        let casted_votes = VoteMetrics::new();
 
-        block_received.register(registry);
-        votes_casted.register(registry);
+        blocks_received.register(registry);
+        casted_votes.register(registry);
 
         Self {
-            blocks_received: block_received,
-            casted_votes: votes_casted,
+            blocks_received,
+            casted_votes,
         }
     }
 
@@ -237,7 +237,7 @@ impl Metrics {
             } => {
                 self.casted_votes.record_success(&verifier_id, &chain_name);
             }
-            Msg::VoteCastFailed {
+            Msg::VoteFailed {
                 verifier_id,
                 chain_name,
             } => {
@@ -265,12 +265,12 @@ impl BlockReceivedMetrics {
     }
 }
 
-impl CastedVotesMetrics {
+impl VoteMetrics {
     fn new() -> Self {
         let succeeded = IntCounterVec::new(
             Opts::new(
                 "verifier_votes_cast_successful_total",
-                "number of succeeded votes broadcasts by verifier",
+                "number of succeeded votes casts by verifier",
             )
             .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
             &["verifier_id", "chain_name"],
@@ -279,18 +279,18 @@ impl CastedVotesMetrics {
 
         let failed = IntCounterVec::new(
             Opts::new(
-                "verifier_votes_cast_failed_total",
-                "number of failed votes broadcasts by verifier",
+                "verifier_votes_failed_total",
+                "number of failed votes by verifier",
             )
             .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
             &["verifier_id", "chain_name"],
         )
-        .expect("failed to create verifier_votes_cast_failed_total counter");
+        .expect("failed to create verifier_votes_failed_total counter");
 
         let success_rate = GaugeVec::new(
             Opts::new(
                 "verifier_votes_cast_success_rate",
-                "success rate of votes broadcasts by verifier",
+                "success rate of votes casts by verifier",
             )
             .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
             &["verifier_id", "chain_name"],
@@ -311,7 +311,7 @@ impl CastedVotesMetrics {
 
         registry
             .register(Box::new(self.failed.clone()))
-            .expect("failed to register verifier_votes_cast_failed_total counter");
+            .expect("failed to register verifier_votes_failed_total counter");
 
         registry
             .register(Box::new(self.success_rate.clone()))
@@ -409,7 +409,7 @@ mod tests {
                 .unwrap();
 
             client
-                .record_metric(Msg::VoteCastFailed {
+                .record_metric(Msg::VoteFailed {
                     chain_name: "ethereum".to_string(),
                     verifier_id: "axelar1abc".to_string(),
                 })
@@ -425,19 +425,6 @@ mod tests {
 
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
-        final_metrics.assert_text_contains("verifier_votes_cast_successful_total{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 2");
-        final_metrics.assert_text_contains("verifier_votes_cast_failed_total{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 2");
-        final_metrics.assert_text_contains("verifier_votes_cast_success_rate{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 0.5");
-
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_successful_total{chain_name=\"sui\",verifier_id=\"suiabc\"} 1",
-        );
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_failed_total{chain_name=\"sui\",verifier_id=\"suiabc\"} 0",
-        );
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_success_rate{chain_name=\"sui\",verifier_id=\"suiabc\"} 1",
-        );
         final_metrics.assert_status_ok();
 
         goldie::assert!(final_metrics.text())
