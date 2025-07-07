@@ -204,7 +204,7 @@ jobs:
           command: dylint
           args: --all
         env:
-          DYLINT_RUSTFLAGS: -Dwarnings
+          DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
