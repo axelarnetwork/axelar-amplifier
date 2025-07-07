@@ -58,7 +58,9 @@ pub struct ServiceRegistryConfig {
 impl Default for ServiceRegistryConfig {
     fn default() -> Self {
         Self {
-            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).expect("AccountId should be created validly").into(),
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
         }
     }
 }
@@ -71,7 +73,9 @@ pub struct RewardsConfig {
 impl Default for RewardsConfig {
     fn default() -> Self {
         Self {
-            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).expect("AccountId should be created validly").into(),
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
         }
     }
 }

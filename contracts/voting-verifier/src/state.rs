@@ -63,7 +63,9 @@ impl PollContent<Message> {
         Self {
             content: message,
             poll_id,
-            index_in_poll: index_in_poll.try_into().expect("usize should convert to u32 successfully"),
+            index_in_poll: index_in_poll
+                .try_into()
+                .expect("usize should convert to u32 successfully"),
         }
     }
 }

@@ -10,7 +10,8 @@ use syn::{DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
 
 #[proc_macro_derive(IntoContractError)]
 pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
-    let ast: DeriveInput = syn::parse(input).expect("input for into_contract_error_derive should be valid");
+    let ast: DeriveInput =
+        syn::parse(input).expect("input for into_contract_error_derive should be valid");
 
     let name = &ast.ident;
 
