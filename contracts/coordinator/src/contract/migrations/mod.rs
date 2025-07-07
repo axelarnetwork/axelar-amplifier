@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Env, Response};
-use cw_storage_plus::Item;
+use cosmwasm_std::{Addr, DepsMut, Env, Order, Response};
+use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 use router_api::ChainName;
@@ -16,6 +18,16 @@ use crate::state;
 enum MigrationError {
     #[error("cannot have duplicate deployment name '{0}' in migration msg")]
     DuplicateDeployment(nonempty::String),
+    #[error("cannot deserialize provers")]
+    DeserializeProvers,
+    #[error("missing prover to register for chain {0}")]
+    MissingProver(ChainName),
+    #[error("expected prover address {0} but saw {1}")]
+    IncorrectProver(Addr, Addr),
+    #[error("chain {0} not found in contract state")]
+    ExtraProver(ChainName),
+    #[error("chain contracts provided for chain {0} do not match with current state")]
+    IncorrectContracts(ChainName),
 }
 
 #[cw_serde]
@@ -24,6 +36,21 @@ pub struct OldConfig {
 }
 
 pub const OLD_CONFIG: Item<OldConfig> = Item::new("config");
+
+type ProverAddress = Addr;
+// Legacy prover storage - maintained for backward compatibility
+#[index_list(ProverAddress)]
+struct ChainProverIndexes<'a> {
+    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
+}
+
+const OLD_CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
+    IndexedMap::new(
+        "chain_prover_map",
+        ChainProverIndexes {
+            by_prover: UniqueIndex::new(|prover| prover.clone(), "chain_prover_map_by_prover"),
+        },
+    );
 
 #[cw_serde]
 pub struct OldChainContracts {
@@ -46,7 +73,8 @@ pub struct ChainContractsDetails {
 pub struct MigrateMsg {
     pub router: String,
     pub multisig: String,
-    pub chain_contracts: Vec<ChainContractsDetails>,
+    pub chain_deployments: Vec<ChainContractsDetails>,
+    pub chain_contracts: Vec<state::ChainContractsRecord>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -75,7 +103,7 @@ pub fn migrate(
         .change_context(Error::UnableToPersistProtocol)?;
 
     if let Some(duplicate) = msg
-        .chain_contracts
+        .chain_deployments
         .iter()
         .map(|details| details.deployment_name.clone())
         .duplicates()
@@ -88,7 +116,7 @@ pub fn migrate(
     // it and repopulate it.
     state::DEPLOYED_CHAINS.clear(deps.storage);
 
-    for contracts in msg.chain_contracts {
+    for contracts in msg.chain_deployments {
         state::save_deployed_contracts(
             deps.storage,
             contracts.deployment_name,
@@ -99,6 +127,67 @@ pub fn migrate(
                 voting_verifier: contracts.voting_verifier,
                 multisig_prover: contracts.multisig_prover,
             },
+        )?;
+    }
+
+    // Check that all provers in migration have a corresponding registered prover in state.
+    // Also check that if the chain/prover combo has been registered using RegisterChain,
+    // the mapping between chain name and prover address is the same.
+    let contracts_to_migrate = msg
+        .chain_contracts
+        .into_iter()
+        .map(|contracts| {
+            if !OLD_CHAIN_PROVER_INDEXED_MAP.has(deps.storage, contracts.chain_name.clone()) {
+                Err(MigrationError::ExtraProver(contracts.chain_name.clone()))
+            } else {
+                match state::contracts_by_chain(deps.storage, contracts.chain_name.clone()) {
+                    Ok(chain_contracts_in_state)
+                        if (chain_contracts_in_state.prover_address
+                            != contracts.prover_address)
+                            || (chain_contracts_in_state.gateway_address
+                                != contracts.gateway_address)
+                            || (chain_contracts_in_state.verifier_address
+                                != contracts.verifier_address) =>
+                    {
+                        Err(MigrationError::IncorrectContracts(
+                            contracts.chain_name.clone(),
+                        ))
+                    }
+                    _ => Ok((contracts.chain_name.clone(), contracts.clone())),
+                }
+            }
+        })
+        .collect::<Result<HashMap<ChainName, state::ChainContractsRecord>, MigrationError>>()?;
+
+    // Check that all registered provers are present in migration message
+    for entry in OLD_CHAIN_PROVER_INDEXED_MAP.range(deps.storage, None, None, Order::Ascending) {
+        match entry {
+            Ok((chain_name, prover_addr)) => {
+                let migration_prover = match contracts_to_migrate.get(&chain_name) {
+                    Some(record) => Ok::<Addr, MigrationError>(record.prover_address.clone()),
+                    None => Err(MigrationError::MissingProver(chain_name)),
+                }?;
+
+                if migration_prover.clone() != prover_addr.clone() {
+                    return Err(MigrationError::IncorrectProver(
+                        prover_addr.clone(),
+                        migration_prover.clone(),
+                    )
+                    .into());
+                }
+            }
+            Err(..) => return Err(MigrationError::DeserializeProvers.into()),
+        }
+    }
+
+    // Store provers from migration message
+    for (_, contracts) in contracts_to_migrate {
+        state::save_chain_contracts(
+            deps.storage,
+            contracts.chain_name,
+            contracts.prover_address,
+            contracts.gateway_address,
+            contracts.verifier_address,
         )?;
     }
 
@@ -118,7 +207,8 @@ mod tests {
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{
-        ChainContractsDetails, MigrationError, OldChainContracts, OldConfig, OLD_CONFIG,
+        ChainContractsDetails, MigrationError, OldChainContracts, OldConfig, ProverAddress,
+        OLD_CONFIG,
     };
     use crate::contract::{migrate, MigrateMsg};
     use crate::state;
@@ -128,6 +218,7 @@ mod tests {
     const OLD_CONTRACT_VERSION: &str = "1.1.0";
 
     pub const OLD_DEPLOYED_CHAINS: Map<String, OldChainContracts> = Map::new("deployed_chains");
+    use super::OLD_CHAIN_PROVER_INDEXED_MAP;
 
     #[cw_serde]
     pub struct OldInstantiateMsg {
@@ -162,6 +253,19 @@ mod tests {
         OLD_DEPLOYED_CHAINS
             .save(deps.storage, deployment_name.to_string(), &old_contracts)
             .map_err(|_| Error::UnableToPersistProtocol)?;
+
+        Ok(())
+    }
+
+    fn add_old_prover_registration(
+        deps: DepsMut,
+        provers: Vec<(ChainName, ProverAddress)>,
+    ) -> Result<(), Error> {
+        for (chain_name, prover_addr) in provers {
+            OLD_CHAIN_PROVER_INDEXED_MAP
+                .save(deps.storage, chain_name, &prover_addr)
+                .map_err(|_| Error::UnableToPersistProtocol)?;
+        }
 
         Ok(())
     }
@@ -212,7 +316,7 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![ChainContractsDetails {
+                chain_deployments: vec![ChainContractsDetails {
                     gateway: gateway.clone(),
                     deployment_name: nonempty_str!("deployment"),
                     chain_name: chain_name.clone(),
@@ -220,6 +324,7 @@ mod tests {
                     voting_verifier: voting_verifier.clone(),
                     multisig_prover: multisig_prover.clone(),
                 },],
+                chain_contracts: vec![],
             },
         )
         .is_ok());
@@ -297,7 +402,7 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![
+                chain_deployments: vec![
                     ChainContractsDetails {
                         gateway: gateway.clone(),
                         deployment_name: nonempty_str!("deployment"),
@@ -315,6 +420,7 @@ mod tests {
                         multisig_prover,
                     },
                 ],
+                chain_contracts: vec![],
             },
         );
 
@@ -322,5 +428,420 @@ mod tests {
         assert!(res.unwrap_err().to_string().contains(
             &MigrationError::DuplicateDeployment(nonempty_str!("deployment")).to_string()
         ));
+    }
+
+    #[test]
+    fn migrate_properly_registers_provers() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        // Register old provers using the helper function
+        let chain_name = ChainName::try_from("axelar").unwrap();
+        let prover_addr = api.addr_make("prover");
+        let gateway_addr = api.addr_make("gateway");
+        let verifier_addr = api.addr_make("verifier");
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![(chain_name.clone(), prover_addr.clone())]
+        )
+        .is_ok());
+
+        // Verify the old prover is registered
+        let old_prover_registration =
+            OLD_CHAIN_PROVER_INDEXED_MAP.load(&deps.storage, chain_name.clone());
+        assert!(old_prover_registration.is_ok());
+        let old_prover_registration = old_prover_registration.unwrap();
+        assert_eq!(old_prover_registration, prover_addr);
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+
+        // Create migration message with matching chain contracts
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_deployments: vec![],
+                chain_contracts: vec![state::ChainContractsRecord {
+                    chain_name: chain_name.clone(),
+                    prover_address: prover_addr.clone(),
+                    gateway_address: gateway_addr.clone(),
+                    verifier_address: verifier_addr.clone(),
+                }],
+            },
+        );
+
+        assert!(res.is_ok());
+
+        // Verify the prover is now registered in the new state
+        let contracts = state::contracts_by_chain(&deps.storage, chain_name.clone());
+        assert!(contracts.is_ok());
+        let contracts = contracts.unwrap();
+
+        assert_eq!(contracts.chain_name, chain_name);
+        assert_eq!(contracts.prover_address, prover_addr);
+        assert_eq!(contracts.gateway_address, gateway_addr);
+        assert_eq!(contracts.verifier_address, verifier_addr);
+
+        // Verify we can also look up by prover address
+        let contracts_by_prover = state::contracts_by_prover(&deps.storage, prover_addr.clone());
+        assert!(contracts_by_prover.is_ok());
+        let contracts_by_prover = contracts_by_prover.unwrap();
+        assert_eq!(contracts_by_prover.chain_name, chain_name);
+    }
+
+    #[test]
+    fn migrate_fails_with_incorrect_prover_address() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        // Register old provers using the helper function
+        let chain_name = ChainName::try_from("axelar").unwrap();
+        let prover_addr1 = api.addr_make("prover1");
+        let prover_addr2 = api.addr_make("prover2");
+        let gateway_addr = api.addr_make("gateway");
+        let verifier_addr = api.addr_make("verifier");
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![(chain_name.clone(), prover_addr2.clone())]
+        )
+        .is_ok());
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+
+        // Create migration message with matching chain contracts
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_deployments: vec![],
+                chain_contracts: vec![state::ChainContractsRecord {
+                    chain_name: chain_name.clone(),
+                    prover_address: prover_addr1.clone(),
+                    gateway_address: gateway_addr.clone(),
+                    verifier_address: verifier_addr.clone(),
+                }],
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&MigrationError::IncorrectProver(prover_addr2, prover_addr1).to_string()));
+    }
+
+    #[test]
+    fn migrate_fails_to_migrate_all_registered_provers() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        // Register old provers using the helper function
+        let chain_name1 = ChainName::try_from("axelar").unwrap();
+        let chain_name2 = ChainName::try_from("cosmos").unwrap();
+        let prover_addr1 = api.addr_make("prover1");
+        let prover_addr2 = api.addr_make("prover2");
+        let gateway_addr = api.addr_make("gateway");
+        let verifier_addr = api.addr_make("verifier");
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![
+                (chain_name1.clone(), prover_addr1.clone()),
+                (chain_name2.clone(), prover_addr2.clone())
+            ]
+        )
+        .is_ok());
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+
+        // Create migration message with matching chain contracts
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_deployments: vec![],
+                chain_contracts: vec![state::ChainContractsRecord {
+                    chain_name: chain_name1.clone(),
+                    prover_address: prover_addr1.clone(),
+                    gateway_address: gateway_addr.clone(),
+                    verifier_address: verifier_addr.clone(),
+                }],
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&MigrationError::MissingProver(chain_name2).to_string()));
+    }
+
+    #[test]
+    fn migrate_fails_with_extra_prover_in_migration_msg() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        // Register old provers using the helper function
+        let chain_name = ChainName::try_from("axelar").unwrap();
+        let prover_addr = api.addr_make("prover");
+        let gateway_addr = api.addr_make("gateway");
+        let verifier_addr = api.addr_make("verifier");
+
+        // Only register one chain in the old state
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![(chain_name.clone(), prover_addr.clone())]
+        )
+        .is_ok());
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+
+        // Create migration message with an extra chain that wasn't registered
+        let extra_chain_name = ChainName::try_from("cosmos").unwrap();
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_deployments: vec![],
+                chain_contracts: vec![
+                    state::ChainContractsRecord {
+                        chain_name: chain_name.clone(),
+                        prover_address: prover_addr.clone(),
+                        gateway_address: gateway_addr.clone(),
+                        verifier_address: verifier_addr.clone(),
+                    },
+                    state::ChainContractsRecord {
+                        chain_name: extra_chain_name.clone(),
+                        prover_address: api.addr_make("extra_prover"),
+                        gateway_address: api.addr_make("extra_gateway"),
+                        verifier_address: api.addr_make("extra_verifier"),
+                    },
+                ],
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&MigrationError::ExtraProver(extra_chain_name).to_string()));
+    }
+
+    #[test]
+    fn migrate_fails_with_incorrect_contracts_in_migration_msg() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        // Register old provers using the helper function
+        let chain_name = ChainName::try_from("axelar").unwrap();
+        let prover_addr = api.addr_make("prover");
+        let gateway_addr = api.addr_make("gateway");
+        let verifier_addr = api.addr_make("verifier");
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![(chain_name.clone(), prover_addr.clone())]
+        )
+        .is_ok());
+
+        // Save chain contracts in the new state (simulating previous registration)
+        state::save_chain_contracts(
+            deps.as_mut().storage,
+            chain_name.clone(),
+            prover_addr.clone(),
+            gateway_addr.clone(),
+            verifier_addr.clone(),
+        )
+        .unwrap();
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+
+        // Create migration message with different contract addresses
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_deployments: vec![],
+                chain_contracts: vec![state::ChainContractsRecord {
+                    chain_name: chain_name.clone(),
+                    prover_address: prover_addr.clone(),
+                    gateway_address: api.addr_make("different_gateway"), // Different gateway
+                    verifier_address: verifier_addr.clone(),
+                }],
+            },
+        );
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains(&MigrationError::IncorrectContracts(chain_name).to_string()));
+    }
+
+    #[test]
+    fn migrate_succeeds_with_matching_contracts_in_state() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+
+        let service_registry = api.addr_make("service_registry");
+        old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make("governance").to_string(),
+                service_registry: service_registry.to_string(),
+            },
+        )
+        .unwrap();
+
+        // Register old provers using the helper function
+        let chain_name = ChainName::try_from("axelar").unwrap();
+        let prover_addr = api.addr_make("prover");
+        let gateway_addr = api.addr_make("gateway");
+        let verifier_addr = api.addr_make("verifier");
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![(chain_name.clone(), prover_addr.clone())]
+        )
+        .is_ok());
+
+        // Save chain contracts in the new state (simulating previous registration)
+        state::save_chain_contracts(
+            deps.as_mut().storage,
+            chain_name.clone(),
+            prover_addr.clone(),
+            gateway_addr.clone(),
+            verifier_addr.clone(),
+        )
+        .unwrap();
+
+        let router = api.addr_make("router");
+        let multisig = api.addr_make("multisig");
+
+        // Create migration message with matching contract addresses
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: router.to_string(),
+                multisig: multisig.to_string(),
+                chain_deployments: vec![],
+                chain_contracts: vec![state::ChainContractsRecord {
+                    chain_name: chain_name.clone(),
+                    prover_address: prover_addr.clone(),
+                    gateway_address: gateway_addr.clone(),
+                    verifier_address: verifier_addr.clone(),
+                }],
+            },
+        );
+
+        assert!(res.is_ok());
+
+        // Verify the contracts are still correctly stored after migration
+        let contracts = state::contracts_by_chain(&deps.storage, chain_name.clone());
+        assert!(contracts.is_ok());
+        let contracts = contracts.unwrap();
+
+        assert_eq!(contracts.chain_name, chain_name);
+        assert_eq!(contracts.prover_address, prover_addr);
+        assert_eq!(contracts.gateway_address, gateway_addr);
+        assert_eq!(contracts.verifier_address, verifier_addr);
+
+        // Verify we can also look up by prover address
+        let contracts_by_prover = state::contracts_by_prover(&deps.storage, prover_addr.clone());
+        assert!(contracts_by_prover.is_ok());
+        let contracts_by_prover = contracts_by_prover.unwrap();
+        assert_eq!(contracts_by_prover.chain_name, chain_name);
     }
 }
