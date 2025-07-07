@@ -1,9 +1,9 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     #[permission(Any)]
     VerifySignature {
@@ -14,6 +14,7 @@ pub enum ExecuteMsg {
         session_id: Uint64,
     },
 }
+
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {

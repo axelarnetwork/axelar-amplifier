@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(warn_on_unwraps))]
+
 use std::fmt::Debug;
 use std::fs::canonicalize;
 use std::path::{Path, PathBuf};
