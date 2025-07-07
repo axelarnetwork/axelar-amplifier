@@ -32,8 +32,10 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            tm_jsonrpc: Url::new_non_sensitive("http://localhost:26657").expect("Url should be created validly"),
-            tm_grpc: Url::new_non_sensitive("tcp://localhost:9090").expect("Url should be created validly"),
+            tm_jsonrpc: Url::new_non_sensitive("http://localhost:26657")
+                .expect("Url should be created validly"),
+            tm_grpc: Url::new_non_sensitive("tcp://localhost:9090")
+                .expect("Url should be created validly"),
             tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcaster_v2::Config::default(),
             handlers: vec![],
