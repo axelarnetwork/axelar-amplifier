@@ -1,0 +1,26 @@
+[
+    (
+        PermissionDenied,
+        GrpcRequest(
+            Status {
+                code: PermissionDenied,
+                message: "permission denied",
+                source: None,
+            },
+        ),
+    ),
+    (
+        Internal,
+        InvalidKeygenResponse,
+    ),
+    (
+        Internal,
+        InvalidSignResponse,
+    ),
+    (
+        Internal,
+        ExecutionFailed(
+            "key generation failed",
+        ),
+    ),
+]

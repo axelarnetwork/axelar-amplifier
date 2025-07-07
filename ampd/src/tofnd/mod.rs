@@ -1,19 +1,35 @@
 use std::time::Duration;
 
-use hex::{self, FromHex};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::url::Url;
 
-pub mod error;
-pub mod grpc;
+mod grpc;
+
+#[cfg(test)]
+pub use grpc::MockMultisig;
+pub use grpc::{Multisig, MultisigClient};
+pub use proto::Algorithm;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error(transparent)]
+    GrpcConnection(#[from] tonic::transport::Error),
+    #[error(transparent)]
+    GrpcRequest(#[from] tonic::Status),
+    #[error("invalid keygen response")]
+    InvalidKeygenResponse,
+    #[error("invalid sign response")]
+    InvalidSignResponse,
+    #[error("tofnd failed with error {0}")]
+    ExecutionFailed(String),
+}
 
 #[allow(non_snake_case)]
 mod proto {
     tonic::include_proto!("tofnd");
 }
-
-pub use proto::Algorithm;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
@@ -32,37 +48,5 @@ impl Default for Config {
             key_uid: "axelar".into(),
             timeout: Duration::from_secs(3),
         }
-    }
-}
-
-// Signature is an alias for signature in raw bytes
-pub type Signature = Vec<u8>;
-
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct MessageDigest([u8; 32]);
-
-impl FromHex for MessageDigest {
-    type Error = error::Error;
-
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
-        Ok(MessageDigest(<[u8; 32]>::from_hex(hex)?))
-    }
-}
-
-impl From<MessageDigest> for Vec<u8> {
-    fn from(val: MessageDigest) -> Vec<u8> {
-        val.0.into()
-    }
-}
-
-impl From<[u8; 32]> for MessageDigest {
-    fn from(digest: [u8; 32]) -> Self {
-        MessageDigest(digest)
-    }
-}
-
-impl AsRef<[u8]> for MessageDigest {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
     }
 }
