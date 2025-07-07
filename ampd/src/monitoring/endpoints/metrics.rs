@@ -47,6 +47,9 @@ pub enum Msg {
         verifier_id: String,
         chain_name: String,
     },
+    ChainConfigured {
+        chain_name: String,
+    },
 }
 
 /// Errors that can occur in metrics processing
@@ -205,6 +208,7 @@ async fn serve_metrics(
 struct Metrics {
     blocks_received: BlockReceivedMetrics,
     votes: VoteMetrics,
+    chains_configured: ChainsConfiguredMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -223,18 +227,27 @@ struct VoteMetrics {
     success_rate: Family<VoteLabel, Gauge<f64, AtomicU64>>,
 }
 
+struct ChainsConfiguredMetrics {
+    total: Counter,
+    chain: Family<VoteLabel, Gauge<f64, AtomicU64>>,
+}
+
+
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
         let blocks_received = BlockReceivedMetrics::new();
         let votes = VoteMetrics::new();
+        let chains_configured = ChainsConfiguredMetrics::new();
 
         blocks_received.register(registry);
         votes.register(registry);
+        chains_configured.register(registry);
 
         Self {
             blocks_received,
             votes,
+            chains_configured,
         }
     }
 
@@ -255,6 +268,9 @@ impl Metrics {
                 chain_name,
             } => {
                 self.votes.record_vote(verifier_id, chain_name, false);
+            }
+            Msg::ChainConfigured { chain_name } => {
+                self.chains_configured.record_configured(&chain_name);
             }
         }
     }
@@ -348,6 +364,48 @@ impl VoteLabel {
     }
 }
 
+impl ChainsConfiguredMetrics {
+    fn new() -> Self {
+        let total = IntCounter::new(
+            "chains_configured_total",
+            "number of chains with configured handlers",
+        )
+        .expect("failed to create chains_configured_total counter");
+
+        let chains = GaugeVec::new(
+            Opts::new(
+                "chain_handler_status",
+                "handler configuration status per chain (up: 1, down: 0)",
+            )
+            .variable_labels(vec!["chain_name".to_string()]),
+            &["chain_name"],
+        )
+        .expect("failed to create chain_handler_status gauge");
+
+        Self {
+            total,
+            chain: chains,
+        }
+    }
+
+    fn register(&self, registry: &Registry) {
+        registry
+            .register(Box::new(self.total.clone()))
+            .expect("failed to register chains_configured_total counter");
+
+        registry
+            .register(Box::new(self.chain.clone()))
+            .expect("failed to register chain_handler_status gauge");
+    }
+
+    fn record_configured(&self, chain_name: &str) {
+        if self.chain.with_label_values(&[chain_name]).get() == 0.0 {
+            self.total.inc();
+            self.chain.with_label_values(&[chain_name]).set(1.0);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -434,5 +492,88 @@ mod tests {
         let mut lines: Vec<&str> = metrics_text.lines().collect();
         lines.sort();
         lines.join("\n")
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn metrics_handle_chain_handler_configuration_and_increment_counter_successfully() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
+            })
+            .unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "sui".to_string(),
+            })
+            .unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
+            })
+            .unwrap();
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_successful_total{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
+        );
+        final_metrics.assert_text_contains("verifier_votes_cast_failed_total{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 2");
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
+        );
+
+        final_metrics.assert_status_ok();
+
+        final_metrics.assert_text_contains("chains_configured_total 2");
+        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"ethereum\"} 1");
+        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"sui\"} 1");
+
+        goldie::assert!(final_metrics.text())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn metrics_handle_chain_handler_configuration_and_increment_counter_successfully() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
+            })
+            .unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "sui".to_string(),
+            })
+            .unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
+            })
+            .unwrap();
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+
+        final_metrics.assert_text_contains("chains_configured_total 2");
+        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"ethereum\"} 1");
+        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"sui\"} 1");
+
+        goldie::assert!(final_metrics.text())
     }
 }
