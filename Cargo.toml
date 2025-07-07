@@ -21,13 +21,6 @@ license = "MIT OR Apache-2.0"
 git = "https://github.com/axelarnetwork/axelar-lints"
 pattern = "amplifier-lints"
 
-[workspace.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
-
 [workspace.dependencies]
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
