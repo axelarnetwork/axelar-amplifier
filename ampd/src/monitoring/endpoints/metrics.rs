@@ -32,7 +32,15 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 #[derive(Clone)]
 pub enum Msg {
     /// Increment the count of blocks received
-    IncBlockReceived,
+    BlockReceived,
+    VoteCastSucceeded {
+        verifier_id: String,
+        chain_name: String,
+    },
+    VoteCastFailed {
+        verifier_id: String,
+        chain_name: String,
+    },
 }
 
 /// Errors that can occur in metrics processing
@@ -188,31 +196,165 @@ async fn serve_metrics(
 }
 
 struct Metrics {
-    block_received: Counter,
+    blocks_received: BlockReceivedMetrics,
+    casted_votes: CastedVotesMetrics,
+}
+
+struct BlockReceivedMetrics {
+    total: IntCounter,
+}
+
+struct CastedVotesMetrics {
+    succeeded: IntCounterVec,
+    failed: IntCounterVec,
+    success_rate: GaugeVec,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
-        let block_received = IntCounter::new("blocks_received", "number of blocks received")
-            .expect("failed to create blocks_received counter");
+        let block_received = BlockReceivedMetrics::new();
+        let votes_casted = CastedVotesMetrics::new();
 
-        registry
-            .register(Box::new(block_received.clone()))
-            .expect("failed to register blocks_received counter");
+        block_received.register(registry);
+        votes_casted.register(registry);
 
-        Self { block_received }
+        Self {
+            blocks_received: block_received,
+            casted_votes: votes_casted,
+        }
     }
 
     pub fn handle_message(&self, msg: Msg) {
         match msg {
-            Msg::IncBlockReceived => {
-                self.block_received.inc();
+            Msg::BlockReceived => {
+                self.blocks_received.increment();
+            }
+
+            Msg::VoteCastSucceeded {
+                verifier_id,
+                chain_name,
+            } => {
+                self.casted_votes.record_success(&verifier_id, &chain_name);
+            }
+            Msg::VoteCastFailed {
+                verifier_id,
+                chain_name,
+            } => {
+                self.casted_votes.record_failure(&verifier_id, &chain_name);
             }
         }
     }
 }
 
+impl BlockReceivedMetrics {
+    fn new() -> Self {
+        let counter = IntCounter::new("blocks_received", "number of blocks received")
+            .expect("failed to create blocks_received counter");
+        Self { total: counter }
+    }
+
+    fn register(&self, registry: &Registry) {
+        registry
+            .register(Box::new(self.total.clone()))
+            .expect("failed to register blocks_received counter");
+    }
+
+    fn increment(&self) {
+        self.total.inc();
+    }
+}
+
+impl CastedVotesMetrics {
+    fn new() -> Self {
+        let succeeded = IntCounterVec::new(
+            Opts::new(
+                "verifier_votes_cast_successful_total",
+                "number of succeeded votes broadcasts by verifier",
+            )
+            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+            &["verifier_id", "chain_name"],
+        )
+        .expect("failed to create verifier_votes_cast_successful_total counter");
+
+        let failed = IntCounterVec::new(
+            Opts::new(
+                "verifier_votes_cast_failed_total",
+                "number of failed votes broadcasts by verifier",
+            )
+            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+            &["verifier_id", "chain_name"],
+        )
+        .expect("failed to create verifier_votes_cast_failed_total counter");
+
+        let success_rate = GaugeVec::new(
+            Opts::new(
+                "verifier_votes_cast_success_rate",
+                "success rate of votes broadcasts by verifier",
+            )
+            .variable_labels(vec!["verifier_id".to_string(), "chain_name".to_string()]),
+            &["verifier_id", "chain_name"],
+        )
+        .expect("failed to create verifier_votes_cast_success_rate gauge");
+
+        Self {
+            succeeded,
+            failed,
+            success_rate,
+        }
+    }
+
+    fn register(&self, registry: &Registry) {
+        registry
+            .register(Box::new(self.succeeded.clone()))
+            .expect("failed to register verifier_votes_cast_successful_total counter");
+
+        registry
+            .register(Box::new(self.failed.clone()))
+            .expect("failed to register verifier_votes_cast_failed_total counter");
+
+        registry
+            .register(Box::new(self.success_rate.clone()))
+            .expect("failed to register verifier_votes_cast_success_rate gauge");
+    }
+
+    fn record_success(&self, verifier_id: &str, chain_name: &str) {
+        self.succeeded
+            .with_label_values(&[verifier_id, chain_name])
+            .inc();
+        self.update_success_rate(verifier_id, chain_name);
+    }
+
+    fn record_failure(&self, verifier_id: &str, chain_name: &str) {
+        self.failed
+            .with_label_values(&[verifier_id, chain_name])
+            .inc();
+        self.update_success_rate(verifier_id, chain_name);
+    }
+
+    fn update_success_rate(&self, verifier_id: &str, chain_name: &str) {
+        let succeeded_votes = self
+            .succeeded
+            .with_label_values(&[verifier_id, chain_name])
+            .get();
+
+        let failed_votes = self
+            .failed
+            .with_label_values(&[verifier_id, chain_name])
+            .get();
+
+        let total_votes = succeeded_votes.wrapping_add(failed_votes);
+
+        let success_rate = match total_votes {
+            0 => 0.0, // would only happens in overflow case
+            _ => succeeded_votes as f64 / total_votes as f64,
+        };
+
+        self.success_rate
+            .with_label_values(&[verifier_id, chain_name])
+            .set(success_rate);
+    }
+}
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -236,9 +378,9 @@ mod tests {
         initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
-        client.record_metric(Msg::IncBlockReceived).unwrap();
-        client.record_metric(Msg::IncBlockReceived).unwrap();
-        client.record_metric(Msg::IncBlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
 
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
@@ -247,6 +389,57 @@ mod tests {
         final_metrics.assert_status_ok();
 
         // Ensure the final metrics are in the expected format
+        goldie::assert!(final_metrics.text())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn metrics_handle_multiple_chains_vote_casting_and_increment_counter_successfully() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        for _ in 0..2 {
+            client
+                .record_metric(Msg::VoteCastSucceeded {
+                    chain_name: "ethereum".to_string(),
+                    verifier_id: "axelar1abc".to_string(),
+                })
+                .unwrap();
+
+            client
+                .record_metric(Msg::VoteCastFailed {
+                    chain_name: "ethereum".to_string(),
+                    verifier_id: "axelar1abc".to_string(),
+                })
+                .unwrap();
+        }
+
+        client
+            .record_metric(Msg::VoteCastSucceeded {
+                chain_name: "sui".to_string(),
+                verifier_id: "suiabc".to_string(),
+            })
+            .unwrap();
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_text_contains("verifier_votes_cast_successful_total{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 2");
+        final_metrics.assert_text_contains("verifier_votes_cast_failed_total{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 2");
+        final_metrics.assert_text_contains("verifier_votes_cast_success_rate{chain_name=\"ethereum\",verifier_id=\"axelar1abc\"} 0.5");
+
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_successful_total{chain_name=\"sui\",verifier_id=\"suiabc\"} 1",
+        );
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_failed_total{chain_name=\"sui\",verifier_id=\"suiabc\"} 0",
+        );
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_success_rate{chain_name=\"sui\",verifier_id=\"suiabc\"} 1",
+        );
+        final_metrics.assert_status_ok();
+
         goldie::assert!(final_metrics.text())
     }
 }
