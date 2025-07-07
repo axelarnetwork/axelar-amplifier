@@ -5213,7 +5213,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "its-abi-translator"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
