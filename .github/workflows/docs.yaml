@@ -38,7 +38,7 @@ jobs:
 
       - name: Install mdBook and plugins
         run: |
-          cargo install mdbook@0.4.51 mdbook-mermaid@0.15.0 mdbook-linkcheck@0.7.7
+          cargo install --locked --force mdbook@0.4.40 mdbook-mermaid@0.15.0 mdbook-linkcheck@0.7.7
 
       - name: Build documentation
         run: |
