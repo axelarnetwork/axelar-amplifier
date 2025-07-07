@@ -1,15 +1,15 @@
 # HELP blocks_received number of blocks received
 # TYPE blocks_received counter
 blocks_received 0
-# HELP verifier_votes_cast_failed_total number of failed votes broadcasts by verifier
-# TYPE verifier_votes_cast_failed_total counter
-verifier_votes_cast_failed_total{chain_name="ethereum",verifier_id="axelar1abc"} 2
-verifier_votes_cast_failed_total{chain_name="sui",verifier_id="suiabc"} 0
-# HELP verifier_votes_cast_success_rate success rate of votes broadcasts by verifier
+# HELP verifier_votes_cast_success_rate success rate of votes casts by verifier
 # TYPE verifier_votes_cast_success_rate gauge
 verifier_votes_cast_success_rate{chain_name="ethereum",verifier_id="axelar1abc"} 0.5
 verifier_votes_cast_success_rate{chain_name="sui",verifier_id="suiabc"} 1
-# HELP verifier_votes_cast_successful_total number of succeeded votes broadcasts by verifier
+# HELP verifier_votes_cast_successful_total number of succeeded votes casts by verifier
 # TYPE verifier_votes_cast_successful_total counter
 verifier_votes_cast_successful_total{chain_name="ethereum",verifier_id="axelar1abc"} 2
 verifier_votes_cast_successful_total{chain_name="sui",verifier_id="suiabc"} 1
+# HELP verifier_votes_failed_total number of failed votes by verifier
+# TYPE verifier_votes_failed_total counter
+verifier_votes_failed_total{chain_name="ethereum",verifier_id="axelar1abc"} 2
+verifier_votes_failed_total{chain_name="sui",verifier_id="suiabc"} 0

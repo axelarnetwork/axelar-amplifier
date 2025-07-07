@@ -154,6 +154,7 @@ where
             }
         }
         Err(err) => {
+            record_vote_failure(monitoring_client, handler_info.clone());
             warn!(
                 err = LoggableError::from(&err).as_value(),
                 "handler failed to process event {}", event,
@@ -206,7 +207,7 @@ fn record_vote_metrics(
             verifier_id: handler_info.verifier_id,
             chain_name: handler_info.chain_name,
         },
-        Err(_) => Msg::VoteCastFailed {
+        Err(_) => Msg::VoteFailed {
             verifier_id: handler_info.verifier_id,
             chain_name: handler_info.chain_name,
         },
@@ -220,8 +221,24 @@ fn record_vote_metrics(
         };
         warn!(
             err = %metric_error,
-             "failed to record {} vote cast metric",
+             "failed to record {} vote metrics",
              metric_type,
+        );
+    }
+}
+
+fn record_vote_failure(monitoring_client: &monitoring::Client, handler_info: HandlerInfo) {
+    if !handler_info.cast_votes {
+        return;
+    }
+
+    if let Err(metric_error) = monitoring_client.metrics().record_metric(Msg::VoteFailed {
+        verifier_id: handler_info.verifier_id,
+        chain_name: handler_info.chain_name,
+    }) {
+        warn!(
+            err = %metric_error,
+            "failed to record failed vote metric",
         );
     }
 }
@@ -823,5 +840,65 @@ mod tests {
         assert!(result_with_timeout.unwrap().is_ok());
 
         cancel.cancel();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn voting_handler_failure_records_vote_failure_metrics_correctly() {
+        let events: Vec<Result<Event, event_processor::Error>> =
+            vec![Ok(Event::BlockEnd(0_u32.into()))];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(3)
+            .returning(|_| Err(report!(EventHandlerError::Failed)));
+
+        let broadcaster = MockBroadcasterClient::new();
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+
+        let bind_addr = localhost_with_random_port();
+        let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
+        let cancel_token = CancellationToken::new();
+        tokio::spawn(server.run(cancel_token.clone()));
+
+        let result_with_timeout = timeout(
+            Duration::from_secs(3),
+            consume_events(
+                handler,
+                broadcaster,
+                stream::iter(events),
+                event_config,
+                CancellationToken::new(),
+                monitoring_client,
+                setup_handler_info(true),
+            ),
+        )
+        .await;
+
+        assert!(result_with_timeout.is_ok());
+        assert!(result_with_timeout.unwrap().is_ok());
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+
+        assert!(metrics_text.contains(
+            "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"
+        ));
+        assert!(metrics_text.contains(
+            "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0"
+        ));
+        assert!(metrics_text.contains(
+            "verifier_votes_cast_successful_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0"
+        ));
+
+        cancel_token.cancel();
     }
 }
