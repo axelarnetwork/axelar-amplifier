@@ -22,7 +22,7 @@ axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
-config = "0.13.2"
+config = "0.15.11"
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 der = { version = "0.7.9", features = ["derive"] }
@@ -53,7 +53,7 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
-prometheus = "0.13"
+prometheus = { workspace = true }
 prost = "0.13.5"
 prost-types = "0.13.5"
 report = { workspace = true }

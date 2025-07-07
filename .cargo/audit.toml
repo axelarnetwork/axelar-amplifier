@@ -1,0 +1,17 @@
+[advisories]
+# Ignore vulnerabilities that we cannot immediately fix due to dependencies
+ignore = [
+    "RUSTSEC-2024-0344",  # curve25519-dalek timing issue in Solana dependencies - waiting for upstream fix
+    "RUSTSEC-2022-0093",  # ed25519-dalek oracle attack in Solana dependencies - waiting for upstream fix
+    "RUSTSEC-2024-0437",  # protobuf recursion crash in Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2025-0009",  # ring AES panic in ethers-providers and Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2023-0071",  # rsa timing attack in Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2024-0336",  # rustls infinite loop in Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2024-0320",  # yaml-rust unmaintained in Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2024-0388",  # derivative unmaintained in Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2020-0095",  # difference unmaintained in Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2024-0384",  # instant unmaintained in ethers-providers - waiting for upstream fix
+    "RUSTSEC-2024-0436",  # paste unmaintained in alloy and CosmWasm dependencies - waiting for upstream fix
+    "RUSTSEC-2024-0370",  # proc-macro-error unmaintained in alloy and Sui dependencies - waiting for upstream fix
+    "RUSTSEC-2025-0010",  # ring unmaintained (pre-0.17) in ethers-providers and Sui dependencies - waiting for upstream fix
+]
