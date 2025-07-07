@@ -60,14 +60,6 @@ pub fn execute(
             execute::register_protocol(deps, service_registry_addr, router_addr, multisig_addr)
                 .change_context(Error::RegisterProtocol)
         }
-        ExecuteMsg::RegisterProverContract {
-            chain_name,
-            new_prover_addr,
-        } => {
-            let new_prover_addr = address::validate_cosmwasm_address(deps.api, &new_prover_addr)?;
-            execute::register_prover(deps, chain_name, new_prover_addr.clone())
-                .change_context(Error::RegisterProverContract(new_prover_addr))
-        }
         ExecuteMsg::RegisterChain {
             chain_name,
             prover_address,
@@ -235,63 +227,6 @@ mod tests {
             gateway: gateway.clone(),
             verifier: verifier.clone(),
         }
-    }
-
-    #[test]
-    fn add_deprecated_prover_from_governance_succeeds() {
-        let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
-
-        assert!(test_setup
-            .app
-            .execute_contract(
-                test_setup.admin_addr.clone(),
-                test_setup.coordinator_addr.clone(),
-                &ExecuteMsg::RegisterProverContract {
-                    chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: new_prover.to_string()
-                },
-                &[]
-            )
-            .is_ok());
-
-        let chain_prover = state::contracts_by_chain(
-            test_setup
-                .app
-                .contract_storage(&test_setup.coordinator_addr)
-                .as_ref(),
-            test_setup.chain_name.clone(),
-        );
-        assert!(chain_prover.is_ok(), "{:?}", chain_prover);
-        let chain_prover = chain_prover.unwrap();
-        assert_eq!(chain_prover.prover_address, new_prover);
-    }
-
-    #[test]
-    fn add_deprecated_prover_from_random_address_fails() {
-        let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
-        let random_addr = test_setup.app.api().addr_make("random_address");
-
-        let res = test_setup.app.execute_contract(
-            random_addr.clone(),
-            test_setup.coordinator_addr.clone(),
-            &ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: new_prover.to_string(),
-            },
-            &[],
-        );
-
-        assert!(res.unwrap_err().root_cause().to_string().contains(
-            &axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::PermissionDenied {
-                    expected: Permission::Governance.into(),
-                    actual: Permission::NoPrivilege.into()
-                }
-            )
-            .to_string()
-        ));
     }
 
     #[test]
