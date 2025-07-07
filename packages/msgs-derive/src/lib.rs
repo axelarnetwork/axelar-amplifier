@@ -31,10 +31,10 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
 /// use cosmwasm_std::testing::MockApi;
 /// use axelar_wasm_std::permission_control::Permission;
-/// use msgs_derive::EnsurePermissions;
+/// use msgs_derive::Permissions;
 ///
 /// #[cw_serde]
-/// #[derive(EnsurePermissions)]
+/// #[derive(Permissions)]
 /// pub enum ExecuteMsg {
 ///     #[permission(NoPrivilege, Admin)]
 ///     AnyoneButGovernanceCanCallThis,
@@ -83,7 +83,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
 /// # }
 /// ```
-#[proc_macro_derive(EnsurePermissions, attributes(permission))]
+#[proc_macro_derive(Permissions, attributes(permission))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     // This will trigger a compile time error if the parse failed. In other words,
     // this macro can only be used on an enum.
@@ -638,10 +638,10 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 ///
 /// for addresses. The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
-pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
     if execute_fn.sig.ident != format_ident!("execute") {
-        panic!("external_execute macro can only be used with execute endpoint")
+        panic!("ensure_permissions macro can only be used with execute endpoint")
     }
 
     let all_permissions = syn::parse_macro_input!(attr as AllPermissions);

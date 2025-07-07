@@ -7,13 +7,14 @@ use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
 use interchain_token_service::events::Event;
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
-use interchain_token_service::{
-    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, RegisterTokenMetadata,
-    TokenId,
+use interchain_token_service_std::{
+    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
+    RegisterTokenMetadata, TokenId,
 };
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use its_abi_translator::abi::hub_message_abi_encode;
+use router_api::{cosmos_address, Address, ChainName, ChainNameRaw, CrossChainId};
 use serde_json::json;
-use utils::{make_deps, params, register_chains, TestMessage};
+use utils::{make_deps, params, TestMessage};
 
 mod utils;
 
@@ -28,13 +29,15 @@ fn register_update_its_contract_succeeds() {
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
+    let translation_contract: Address = cosmos_address!("translation_contract");
 
-    assert_ok!(utils::register_chain(
+    assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
         address.clone(),
         256.try_into().unwrap(),
-        u8::MAX
+        u8::MAX,
+        translation_contract.clone()
     ));
 
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
@@ -43,12 +46,13 @@ fn register_update_its_contract_succeeds() {
     let new_address: Address = "0x9999999990123456789012345678901234567890"
         .parse()
         .unwrap();
-    assert_ok!(utils::update_chain(
+    assert_ok!(utils::update_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
         new_address.clone(),
         128.try_into().unwrap(),
-        18u8
+        18u8,
+        translation_contract.clone()
     ));
     let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(res.unwrap().its_edge_contract, new_address);
@@ -58,27 +62,29 @@ fn register_update_its_contract_succeeds() {
 fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
-
     let chain: ChainNameRaw = "ethereum".parse().unwrap();
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
+    let translation_contract: Address = cosmos_address!("translation_contract");
 
-    assert_ok!(utils::register_chain(
+    assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
         address.clone(),
         256.try_into().unwrap(),
-        u8::MAX
+        u8::MAX,
+        translation_contract.clone()
     ));
 
     assert_err_contains!(
-        utils::register_chain(
+        utils::register_chain_with_translation(
             deps.as_mut(),
             chain.clone(),
             address.clone(),
             256.try_into().unwrap(),
-            u8::MAX
+            u8::MAX,
+            translation_contract.clone()
         ),
         Error,
         Error::RegisterChains
@@ -119,9 +125,10 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
+            msg_translator: cosmos_address!("translation_contract"),
         })
         .collect();
-    assert_ok!(register_chains(deps.as_mut(), chains.clone()));
+    assert_ok!(utils::register_chains(deps.as_mut(), chains.clone()));
 
     for chain in chains {
         let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.chain.clone()));
@@ -141,11 +148,12 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
+            msg_translator: cosmos_address!("translation_contract"),
         })
         .collect();
-    assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
+    assert_ok!(utils::register_chains(deps.as_mut(), chains[0..1].to_vec()));
     assert_err_contains!(
-        register_chains(deps.as_mut(), chains.clone()),
+        utils::register_chains(deps.as_mut(), chains.clone()),
         Error,
         Error::RegisterChains
     );
@@ -186,16 +194,11 @@ fn execute_hub_message_succeeds() {
 
     let responses: Vec<_> = test_messages
         .into_iter()
-        .map(|message| {
+        .map(|message: Message| {
             let hub_message = HubMessage::SendToHub {
                 destination_chain: destination_its_chain.clone(),
-                message,
+                message: message.clone(),
             };
-            let receive_payload = HubMessage::ReceiveFromHub {
-                source_chain: source_its_chain.clone(),
-                message: hub_message.message().clone(),
-            }
-            .abi_encode();
 
             let response = assert_ok!(utils::execute_hub_message(
                 deps.as_mut(),
@@ -205,12 +208,33 @@ fn execute_hub_message_succeeds() {
             ));
             let msg: AxelarnetGatewayExecuteMsg =
                 assert_ok!(inspect_response_msg(response.clone()));
-            let expected_msg = AxelarnetGatewayExecuteMsg::CallContract {
-                destination_chain: ChainName::try_from(destination_its_chain.to_string()).unwrap(),
-                destination_address: destination_its_contract.clone(),
-                payload: receive_payload,
+
+            // Create the expected ReceiveFromHub message that should be sent to the destination
+            let expected_receive_hub_message = HubMessage::ReceiveFromHub {
+                source_chain: source_its_chain.clone(),
+                message: message.clone(),
             };
-            assert_eq!(msg, expected_msg);
+
+            // Encode the expected message using the translation contract
+            let expected_payload =
+                its_abi_translator::abi::hub_message_abi_encode(expected_receive_hub_message);
+
+            // Verify the message structure and payload are correct
+            match msg {
+                AxelarnetGatewayExecuteMsg::CallContract {
+                    destination_chain,
+                    destination_address,
+                    payload,
+                } => {
+                    assert_eq!(
+                        destination_chain,
+                        ChainName::try_from(destination_its_chain.to_string()).unwrap()
+                    );
+                    assert_eq!(destination_address, destination_its_contract);
+                    assert_eq!(payload, expected_payload);
+                }
+                _ => panic!("Expected CallContract message"),
+            }
 
             let expected_event = Event::MessageReceived {
                 cc_id: router_message.cc_id.clone(),
@@ -870,7 +894,7 @@ fn execute_message_when_unknown_source_address_fails() {
         deps.as_mut(),
         router_message.cc_id.clone(),
         unknown_address,
-        hub_message.abi_encode(),
+        hub_message_abi_encode(hub_message),
     );
     assert_err_contains!(
         result,
@@ -881,7 +905,7 @@ fn execute_message_when_unknown_source_address_fails() {
 
 #[test]
 fn execute_message_when_invalid_payload_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
@@ -927,7 +951,7 @@ fn execute_message_when_unknown_chain_fails() {
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        hub_message.clone().abi_encode(),
+        hub_message_abi_encode(hub_message.clone()),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::State);
 
@@ -944,7 +968,7 @@ fn execute_message_when_unknown_chain_fails() {
         deps.as_mut(),
         router_message.cc_id,
         source_its_contract,
-        hub_message.abi_encode(),
+        hub_message_abi_encode(hub_message),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::State);
 }
@@ -979,7 +1003,7 @@ fn execute_message_when_invalid_message_type_fails() {
         deps.as_mut(),
         router_message.cc_id,
         source_its_contract,
-        invalid_hub_message.abi_encode(),
+        hub_message_abi_encode(invalid_hub_message),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
 }

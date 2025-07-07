@@ -5,10 +5,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockStorage};
 use cosmwasm_std::{Addr, DepsMut, MessageInfo, Storage};
 use error_stack::{report, Report};
-use msgs_derive::{external_execute, EnsurePermissions};
+use msgs_derive::{ensure_permissions, Permissions};
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 #[allow(dead_code)] // the msg fields are only defined to make sure the derive attribute can handle fields correctly
 enum TestMsg {
     #[permission(NoPrivilege)]
@@ -26,7 +26,7 @@ enum TestMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 enum TestMsg2 {
     #[permission(Any)]
     Any,
@@ -47,7 +47,7 @@ pub enum ExecuteError {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum TestMsg3 {
     #[permission(Any, Proxy(gateway1))]
     Any,
@@ -80,7 +80,7 @@ pub fn specific_permission(
     move |_, _| error_stack::Result::Ok(MockApi::default().addr_make(specific_name))
 }
 
-#[external_execute(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1"), gateway2 = specific_permission("gateway2")))]
+#[ensure_permissions(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1"), gateway2 = specific_permission("gateway2")))]
 pub fn execute(
     deps: DepsMut,
     info: MessageInfo,

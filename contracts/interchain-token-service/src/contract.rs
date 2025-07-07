@@ -13,7 +13,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
 
 mod execute;
-mod migrations;
+pub mod migrations;
 mod query;
 
 pub use execute::Error as ExecuteError;
