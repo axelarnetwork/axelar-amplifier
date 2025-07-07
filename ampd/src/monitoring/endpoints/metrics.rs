@@ -346,7 +346,7 @@ impl VoteMetrics {
         let total_votes = succeeded_votes.wrapping_add(failed_votes);
 
         let success_rate = match total_votes {
-            0 => 0.0, // would only happens if overflow 
+            0 => 0.0, // would only happens if overflow
             _ => succeeded_votes as f64 / total_votes as f64,
         };
 
