@@ -274,7 +274,7 @@ mod tests {
             label: "handler".to_string(),
             verifier_id: "verifier_id".to_string(),
             chain_name: "chain_name".to_string(),
-            cast_votes: cast_votes,
+            cast_votes,
         }
     }
 
