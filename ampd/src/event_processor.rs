@@ -445,7 +445,7 @@ mod tests {
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
-                setup_handler_info(true),
+                setup_handler_info(false),
             ),
         )
         .await;
@@ -486,7 +486,7 @@ mod tests {
                 event_config,
                 CancellationToken::new(),
                 monitoring_client,
-                setup_handler_info(true),
+                setup_handler_info(false),
             ),
         )
         .await;
@@ -709,7 +709,7 @@ mod tests {
              "verifier_votes_casted_successful{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
          ));
         assert!(!metrics_text.contains(
-            "verifier_votes_casted_failed{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
+            "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
         ));
         assert!(!metrics_text.contains(
             "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
@@ -780,9 +780,7 @@ mod tests {
         let metrics_text = response.text().await.unwrap();
 
         assert!(metrics_text.contains("verifier_votes_cast_successful_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 2"));
-        assert!(metrics_text.contains(
-            "verifier_votes_cast_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"
-        ));
+        assert!(metrics_text.contains("verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"));
         assert!(metrics_text.contains(
             "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0.6666666666666666"
         ));
@@ -889,9 +887,7 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains(
-            "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"
-        ));
+        assert!(metrics_text.contains("verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"));
         assert!(metrics_text.contains(
             "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0"
         ));
