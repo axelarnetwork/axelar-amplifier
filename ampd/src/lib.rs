@@ -46,6 +46,7 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use handlers::config::HandlerInfo;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
@@ -302,6 +303,8 @@ where
         verifier: &TMAddress,
         event_processor_config: &event_processor::Config,
     ) -> Result<CancellableTask<Result<(), event_processor::Error>>, Error> {
+        let handler_info = config.handler_info();
+
         match config {
             handlers::config::Config::EvmMsgVerifier {
                 chain,
@@ -320,7 +323,6 @@ where
                 check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
                 Ok(self.create_handler_task(
-                    format!("{}-msg-verifier", chain.name),
                     handlers::evm_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract.clone(),
@@ -331,6 +333,7 @@ where
                     ),
                     event_processor_config.clone(),
                     self.monitoring_client.clone(),
+                    handler_info,
                 ))
             }
             handlers::config::Config::EvmVerifierSetVerifier {
@@ -350,7 +353,6 @@ where
                 check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
                 Ok(self.create_handler_task(
-                    format!("{}-verifier-set-verifier", chain.name),
                     handlers::evm_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract.clone(),
@@ -361,13 +363,13 @@ where
                     ),
                     event_processor_config.clone(),
                     self.monitoring_client.clone(),
+                    handler_info,
                 ))
             }
             handlers::config::Config::MultisigSigner {
                 cosmwasm_contract,
                 chain_name,
             } => Ok(self.create_handler_task(
-                "multisig-signer",
                 handlers::multisig::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -377,13 +379,13 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::SuiMsgVerifier {
                 cosmwasm_contract,
                 rpc_url,
                 rpc_timeout,
             } => Ok(self.create_handler_task(
-                "sui-msg-verifier",
                 handlers::sui_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -399,10 +401,11 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::XRPLMsgVerifier {
                 cosmwasm_contract,
-                chain_name,
+                chain_name: _,
                 chain_rpc_url,
                 rpc_timeout,
             } => {
@@ -418,7 +421,6 @@ where
                     .build();
 
                 Ok(self.create_handler_task(
-                    format!("{}-msg-verifier", chain_name),
                     handlers::xrpl_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract.clone(),
@@ -427,13 +429,13 @@ where
                     ),
                     event_processor_config.clone(),
                     self.monitoring_client.clone(),
+                    handler_info,
                 ))
             }
             handlers::config::Config::XRPLMultisigSigner {
                 cosmwasm_contract,
                 chain_name,
             } => Ok(self.create_handler_task(
-                "xrpl-multisig-signer",
                 handlers::xrpl_multisig::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -443,13 +445,13 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::SuiVerifierSetVerifier {
                 cosmwasm_contract,
                 rpc_url,
                 rpc_timeout,
             } => Ok(self.create_handler_task(
-                "sui-verifier-set-verifier",
                 handlers::sui_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -465,12 +467,12 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::MvxMsgVerifier {
                 cosmwasm_contract,
                 proxy_url,
             } => Ok(self.create_handler_task(
-                "mvx-msg-verifier",
                 handlers::mvx_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -479,12 +481,12 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::MvxVerifierSetVerifier {
                 cosmwasm_contract,
                 proxy_url,
             } => Ok(self.create_handler_task(
-                "mvx-worker-set-verifier",
                 handlers::mvx_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -493,12 +495,12 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::StellarMsgVerifier {
                 cosmwasm_contract,
                 rpc_url,
             } => Ok(self.create_handler_task(
-                "stellar-msg-verifier",
                 handlers::stellar_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -510,12 +512,12 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::StellarVerifierSetVerifier {
                 cosmwasm_contract,
                 rpc_url,
             } => Ok(self.create_handler_task(
-                "stellar-verifier-set-verifier",
                 handlers::stellar_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -527,12 +529,12 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::StarknetMsgVerifier {
                 cosmwasm_contract,
                 rpc_url,
             } => Ok(self.create_handler_task(
-                "starknet-msg-verifier",
                 handlers::starknet_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -544,12 +546,12 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::StarknetVerifierSetVerifier {
                 cosmwasm_contract,
                 rpc_url,
             } => Ok(self.create_handler_task(
-                "starknet-verifier-set-verifier",
                 handlers::starknet_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
@@ -561,6 +563,7 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::SolanaMsgVerifier {
                 chain_name,
@@ -568,7 +571,6 @@ where
                 rpc_url,
                 rpc_timeout,
             } => Ok(self.create_handler_task(
-                "solana-msg-verifier",
                 handlers::solana_verify_msg::Handler::new(
                     chain_name.clone(),
                     verifier.clone(),
@@ -582,6 +584,7 @@ where
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
             handlers::config::Config::SolanaVerifierSetVerifier {
                 chain_name,
@@ -589,7 +592,6 @@ where
                 rpc_url,
                 rpc_timeout,
             } => Ok(self.create_handler_task(
-                "solana-verifier-set-verifier",
                 handlers::solana_verify_verifier_set::Handler::new(
                     chain_name.clone(),
                     verifier.clone(),
@@ -604,34 +606,33 @@ where
                 .await,
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
+                handler_info,
             )),
         }
     }
 
-    fn create_handler_task<L, H>(
+    fn create_handler_task<H>(
         &mut self,
-        label: L,
         handler: H,
         event_processor_config: event_processor::Config,
         monitoring_client: monitoring::Client,
+        handler_info: HandlerInfo,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
-        L: AsRef<str>,
         H: EventHandler + Send + Sync + 'static,
     {
-        let label = label.as_ref().to_string();
         let broadcaster = self.broadcaster.client();
         let sub = self.event_subscriber.subscribe();
 
         CancellableTask::create(move |token| {
             event_processor::consume_events(
-                label,
                 handler,
                 broadcaster,
                 sub,
                 event_processor_config,
                 token,
                 monitoring_client,
+                handler_info,
             )
         })
     }
