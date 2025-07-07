@@ -568,50 +568,64 @@ impl Parse for AllPermissions {
 }
 
 fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
-    let fs: Vec<_> = (0..contracts.len())
-        .map(|i| format_ident!("F{}", i))
-        .collect();
+    if !contracts.is_empty() {
+        let fs: Vec<_> = (0..contracts.len())
+            .map(|i| format_ident!("F{}", i))
+            .collect();
 
-    let cs: Vec<_> = (0..contracts.len())
-        .map(|i| format_ident!("C{}", i))
-        .collect();
+        let cs: Vec<_> = (0..contracts.len())
+            .map(|i| format_ident!("C{}", i))
+            .collect();
 
-    let contract_names: Vec<_> = contracts
-        .iter()
-        .map(|c| {
-            let mut new_arg = c.to_string().clone();
-            new_arg.push_str("_str");
-            Ident::new(new_arg.as_str(), Span::call_site())
+        let contract_names: Vec<_> = contracts
+            .iter()
+            .map(|c| {
+                let mut new_arg = c.to_string().clone();
+                new_arg.push_str("_str");
+                Ident::new(new_arg.as_str(), Span::call_site())
+            })
+            .collect();
+
+        TokenStream::from(quote! {
+            // this function can be called with a lot of arguments, so we suppress the warning
+            #[allow(clippy::too_many_arguments)]
+            fn validate_external_contract<#(#fs),*, #(#cs),*>(
+                    storage: &dyn cosmwasm_std::Storage,
+                    contract_addr: Addr,
+                    #(#contracts: #fs),*,
+                    #(#contract_names: String),*
+                ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
+                where
+                #(#fs:FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+                #(#cs: error_stack::Context),*
+                    {
+                    #(
+                        match #contracts(storage) {
+                            Ok(stored_addr) => {
+                                if stored_addr == contract_addr {
+                                    return Ok(#contract_names);
+                                }
+                            },
+                            Err(_) => {},
+                        }
+                    )*
+
+                Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
+            }
         })
-        .collect();
-
-    TokenStream::from(quote! {
-        // this function can be called with a lot of arguments, so we suppress the warning
-        #[allow(clippy::too_many_arguments)]
-        fn validate_external_contract<#(#fs),*, #(#cs),*>(
-                storage: &dyn cosmwasm_std::Storage,
-                contract_addr: Addr,
-                #(#contracts: #fs),*,
-                #(#contract_names: String),*
-            ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
-            where
-            #(#fs:FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
-            #(#cs: error_stack::Context),*
-                {
-                #(
-                    match #contracts(storage) {
-                        Ok(stored_addr) => {
-                            if stored_addr == contract_addr {
-                                return Ok(#contract_names);
-                            }
-                        },
-                        Err(_) => {},
-                    }
-                )*
-
-            Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
-        }
-    })
+    } else {
+        TokenStream::from(quote! {
+            fn validate_external_contract(
+                    storage: &dyn cosmwasm_std::Storage,
+                    contract_addr: Addr,
+                ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
+                    {
+                // This is only called when a relay message is executed. Since no proxy contract has
+                // permission to execute a message, this will always be an error.
+                Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
+            }
+        })
+    }
 }
 
 /// This macro enforces two requirements:
@@ -686,6 +700,22 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let validate_fn = validate_external_contract_function(contract_names.clone());
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
+    let validate_external_contract_call = if contract_permissions.is_empty() {
+        quote!(validate_external_contract(
+            deps.storage,
+            info.sender.clone()
+        )?)
+    } else {
+        quote!(
+            validate_external_contract(
+                deps.storage,
+                info.sender.clone(),
+                #(#contract_permissions),*,
+                #(#contract_names_literals.to_string()),*
+            )?
+        )
+    };
+
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
@@ -694,12 +724,7 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
                         msg,
-                        validate_external_contract(
-                            deps.storage,
-                            info.sender.clone(),
-                            #(#contract_permissions),*,
-                            #(#contract_names_literals.to_string()),*
-                        )?,
+                        #validate_external_contract_call,
                     )?, cosmwasm_std::MessageInfo {
                         sender: sender,
                         funds: info.funds,
