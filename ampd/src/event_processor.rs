@@ -706,7 +706,7 @@ mod tests {
         let metrics_text = response.text().await.unwrap();
 
         assert!(!metrics_text.contains(
-             "verifier_votes_casted_successful{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
+             "verifier_votes_casted_successful_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
          ));
         assert!(!metrics_text.contains(
             "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
