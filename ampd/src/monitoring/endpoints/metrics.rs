@@ -197,7 +197,7 @@ async fn serve_metrics(
 
 struct Metrics {
     blocks_received: BlockReceivedMetrics,
-    casted_votes: VoteMetrics,
+    votes: VoteMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -214,14 +214,14 @@ impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
         let blocks_received = BlockReceivedMetrics::new();
-        let casted_votes = VoteMetrics::new();
+        let votes = VoteMetrics::new();
 
         blocks_received.register(registry);
-        casted_votes.register(registry);
+        votes.register(registry);
 
         Self {
             blocks_received,
-            casted_votes,
+            votes,
         }
     }
 
@@ -235,13 +235,13 @@ impl Metrics {
                 verifier_id,
                 chain_name,
             } => {
-                self.casted_votes.record_success(&verifier_id, &chain_name);
+                self.votes.record_success(&verifier_id, &chain_name);
             }
             Msg::VoteFailed {
                 verifier_id,
                 chain_name,
             } => {
-                self.casted_votes.record_failure(&verifier_id, &chain_name);
+                self.votes.record_failure(&verifier_id, &chain_name);
             }
         }
     }
@@ -346,7 +346,7 @@ impl VoteMetrics {
         let total_votes = succeeded_votes.wrapping_add(failed_votes);
 
         let success_rate = match total_votes {
-            0 => 0.0, // would only happens in overflow case
+            0 => 0.0, // would only happens if overflow 
             _ => succeeded_votes as f64 / total_votes as f64,
         };
 
