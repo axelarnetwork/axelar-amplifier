@@ -135,6 +135,78 @@ runs:
           echo "Release from main branch. OK to proceed"
         fi
 
+    - name: Validate semantic version matches cargo release expectations
+      id: validate-version-match
+      shell: bash
+      if: steps.semantic-version.outputs.changed == 'true'
+      run: |
+        # Get what cargo release would do with the current Cargo.toml
+        cargo_release_output=$(cargo release -p ${{ inputs.binary-to-release }} ${{ steps.semantic-version.outputs.version_type }} --allow-branch "main,releases/*" -v 2>&1 || true)
+
+        # Extract the version that cargo release would create
+        upgrade_line=$(echo "$cargo_release_output" | grep -E "Upgrading ${{ inputs.binary-to-release }} from.*to" | head -1)
+        # Extract semantic version from "Upgrading package from X.Y.Z to A.B.C" text
+        # Captures: major.minor.patch with optional pre-release suffix (-alpha.N, -beta.N, -rc.N)
+        cargo_version=$(echo "$upgrade_line" | sed -E 's/.*to ([0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+|-beta\.[0-9]+|-rc\.[0-9]+)?).*/\1/')
+
+        # Validate that parsing worked
+        if [[ -z "$cargo_version" ]]; then
+          cat << EOF
+        ERROR: Failed to parse version from cargo release output!
+
+        Upgrade line: $upgrade_line
+
+        This indicates either:
+        1. Cargo release output format changed
+        2. Unexpected version format encountered
+        3. Grep pattern didn't match the expected line
+
+        Please check the cargo release output above and update the parsing logic.
+        EOF
+          exit 1
+        fi
+
+        # Validate version format (should match semver with optional pre-release)
+        if [[ ! "$cargo_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+|-beta\.[0-9]+|-rc\.[0-9]+)?$ ]]; then
+          cat << EOF
+        ERROR: Parsed version has unexpected format!
+
+        Parsed version: $cargo_version
+        Expected format: X.Y.Z or X.Y.Z-{alpha|beta|rc}.N
+
+        Only alpha, beta, and rc pre-releases with numeric suffixes are supported.
+        EOF
+          exit 1
+        fi
+
+        # Compare with semantic version output
+        semantic_version="${{ steps.semantic-version.outputs.version }}"
+
+        echo "Semantic version determined: $semantic_version"
+        echo "Cargo release would create: $cargo_version"
+
+        if [ "$semantic_version" != "$cargo_version" ]; then
+          cat << EOF
+        ERROR: Version mismatch detected!
+
+        Semantic version analysis suggests: $semantic_version
+        Cargo release would create: $cargo_version
+
+        This typically happens when:
+        1. A new crate has no previous git tags (semantic version defaults to 1.0.0)
+        2. But the Cargo.toml already has version 1.0.0 (cargo release would bump to 2.0.0)
+
+        Please either:
+        1. Update the Cargo.toml version to match the expected semantic version, or
+        2. Create an initial git tag for this crate if this is the first release
+
+        For new crates, you may want to set the Cargo.toml version to 0.1.0 initially.
+        EOF
+          exit 1
+        else
+          echo "✅ Version match confirmed: $semantic_version"
+        fi
+
     - name: Install cargo-release
       shell: bash
       working-directory: ${{ runner.temp }}
