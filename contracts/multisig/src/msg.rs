@@ -20,6 +20,8 @@ pub struct InstantiateMsg {
     pub rewards_address: String,
     /// number of blocks after which a signing session expires
     pub block_expiry: nonempty::Uint64,
+    /// the coordinator's address can authorize callers
+    pub coordinator_address: Addr,
 }
 
 #[cw_serde]
@@ -54,7 +56,7 @@ pub enum ExecuteMsg {
         signed_sender_address: HexBinary,
     },
     /// Authorizes a set of contracts to call StartSigningSession.
-    #[permission(Governance)]
+    #[permission(Governance, Proxy(coordinator))]
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,
     },

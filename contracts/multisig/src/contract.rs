@@ -49,6 +49,7 @@ pub fn instantiate(
     let config = Config {
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         block_expiry: msg.block_expiry,
+        coordinator: msg.coordinator_address,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -57,7 +58,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(direct(authorized = can_start_signing_session(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -137,6 +138,13 @@ fn can_start_signing_session(
     }
 }
 
+fn find_coordinator(storage: &dyn Storage) -> error_stack::Result<Addr, ContractError> {
+    Ok(CONFIG
+        .load(storage)
+        .map_err(|e| error_stack::report!(ContractError::from(e)))?
+        .coordinator)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
@@ -198,6 +206,7 @@ mod tests {
     const REWARDS_CONTRACT: &str = "rewards";
     const GOVERNANCE: &str = "governance";
     const ADMIN: &str = "admin";
+    const COORDINATOR: &str = "coordinator";
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
@@ -207,6 +216,7 @@ mod tests {
         let governance = api.addr_make(GOVERNANCE);
         let admin = api.addr_make(ADMIN);
         let rewards = api.addr_make(REWARDS_CONTRACT);
+        let coordinator = api.addr_make(COORDINATOR);
 
         let info = message_info(&instantiator, &[]);
         let env = mock_env();
@@ -216,6 +226,7 @@ mod tests {
             admin_address: admin.into_string(),
             rewards_address: rewards.into_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
+            coordinator_address: coordinator,
         };
 
         instantiate(deps, env, info, msg)
