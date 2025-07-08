@@ -883,15 +883,18 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_configure_handlers_records_chain_configured_metric() {
-        // Test the metrics recording logic from configure_handlers
-        // simulate the handler results and handler info result
-        // record the metrics
+        // Test that successful handler configuration records metrics correctly
+        // This simulates the configure_handlers logic where:
+        // - Successful handler creation records ChainConfigured metrics
+        // - Failed handler creation skips metric recording
+        // - Only unique chains increment the total counter
 
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
-
+        
+        // Simulate handler creation results and handler info result 
         let handler_results = vec![
             (
                 Ok("MultisigSigner created successfully"),
@@ -914,25 +917,17 @@ mod tests {
                 "ethereum".to_string(),
             ),
         ];
-
+        
         for (result, chain_name) in handler_results {
-            match result {
-                Ok(_) => {
-                    if let Err(metric_error) =
-                        monitoring_client
-                            .metrics()
-                            .record_metric(Msg::ChainConfigured {
-                                chain_name: chain_name,
-                            })
-                    {
-                        warn!(
-                            err = %metric_error,
-                            "failed to record chains configured metrics",
-                        );
-                    }
-                }
-                Err(_) => {}
+            if let Ok(_) = result {
+                // Record metric (ignore errors in test - they're not the focus)
+                let _ = monitoring_client
+                    .metrics()
+                    .record_metric(Msg::ChainConfigured {
+                        chain_name,
+                    });
             }
+            // Failed handlers are skipped (no metrics recorded)
         }
 
         tokio::time::sleep(Duration::from_millis(100)).await;
