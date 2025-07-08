@@ -137,7 +137,7 @@ impl Server {
     /// cannot be initialized.
     pub fn new(bind_address: Option<SocketAddrV4>) -> Result<(Server, Client), super::Error> {
         match bind_address {
-            Some(addr) => Self::create_server(addr),
+            Some(addr) => Self::create_server_with_client(addr),
             None => {
                 info!("monitoring server is disabled");
                 Ok((
@@ -150,7 +150,7 @@ impl Server {
         }
     }
 
-    fn create_server(bind_address: SocketAddrV4) -> Result<(Server, Client), Error> {
+    fn create_server_with_client(bind_address: SocketAddrV4) -> Result<(Server, Client), Error> {
         let status_router = status::create_endpoint();
         let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
 
@@ -214,7 +214,7 @@ impl HttpServer {
             .routes
             .into_iter()
             .fold(Router::new(), |router, (path, method_router)| {
-                router.route(path, method_router.clone())
+                router.route(path, method_router)
             });
 
         let server_cancel = cancel.clone();
@@ -236,6 +236,8 @@ impl HttpServer {
             .await
             .change_context(Error::WhileRunning)?;
 
+        // Wait for endpoints to shut down. Otherwise, we lose control over their runtime,
+        // which could lead to undefined behaviour during shutdown
         _ = handles.await;
 
         Ok(())
