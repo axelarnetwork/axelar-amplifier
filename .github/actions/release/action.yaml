@@ -135,6 +135,14 @@ runs:
           echo "Release from main branch. OK to proceed"
         fi
 
+    - name: Install cargo-release
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        wget -q https://github.com/crate-ci/cargo-release/releases/download/v0.25.4/cargo-release-v0.25.4-x86_64-unknown-linux-gnu.tar.gz
+        tar -zxf cargo-release-v0.25.4-x86_64-unknown-linux-gnu.tar.gz
+        mv cargo-release /home/runner/.cargo/bin/cargo-release
+
     - name: Validate semantic version matches cargo release expectations
       id: validate-version-match
       shell: bash
@@ -206,14 +214,6 @@ runs:
         else
           echo "✅ Version match confirmed: $semantic_version"
         fi
-
-    - name: Install cargo-release
-      shell: bash
-      working-directory: ${{ runner.temp }}
-      run: |
-        wget -q https://github.com/crate-ci/cargo-release/releases/download/v0.25.4/cargo-release-v0.25.4-x86_64-unknown-linux-gnu.tar.gz
-        tar -zxf cargo-release-v0.25.4-x86_64-unknown-linux-gnu.tar.gz
-        mv cargo-release /home/runner/.cargo/bin/cargo-release
 
     - name: Release cargo crate (dry run)
       shell: bash
