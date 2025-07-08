@@ -42,7 +42,6 @@ pub fn register_chain(
         voting_verifier_address,
     )
     .change_context(Error::ChainNotRegistered(chain_name))?;
-
     Ok(Response::new())
 }
 

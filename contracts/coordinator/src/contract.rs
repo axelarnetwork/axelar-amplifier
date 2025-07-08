@@ -154,7 +154,7 @@ mod tests {
 
     use super::*;
     use crate::msg::ChainContractsKey;
-    use crate::state::ChainContractsRecord;
+    use crate::state::{contracts_by_chain, ChainContractsRecord};
 
     struct TestSetup {
         admin_addr: Addr,
@@ -251,7 +251,7 @@ mod tests {
             )
             .is_ok());
 
-        let chain_prover = state::contracts_by_chain(
+        let chain_prover = contracts_by_chain(
             test_setup
                 .app
                 .contract_storage(&test_setup.coordinator_addr)
