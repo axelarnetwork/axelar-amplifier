@@ -893,8 +893,8 @@ mod tests {
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
-        
-        // Simulate handler creation results and handler info result 
+
+        // Simulate handler creation results and handler info result
         let handler_results = vec![
             (
                 Ok("MultisigSigner created successfully"),
@@ -917,15 +917,13 @@ mod tests {
                 "ethereum".to_string(),
             ),
         ];
-        
+
         for (result, chain_name) in handler_results {
             if let Ok(_) = result {
                 // Record metric (ignore errors in test - they're not the focus)
                 let _ = monitoring_client
                     .metrics()
-                    .record_metric(Msg::ChainConfigured {
-                        chain_name,
-                    });
+                    .record_metric(Msg::ChainConfigured { chain_name });
             }
             // Failed handlers are skipped (no metrics recorded)
         }
