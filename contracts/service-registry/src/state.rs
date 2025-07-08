@@ -46,6 +46,15 @@ impl From<crate::msg::ServiceParamsOverride> for ServiceParamsOverride {
     }
 }
 
+impl From<ServiceParamsOverride> for crate::msg::ServiceParamsOverride {
+    fn from(params: ServiceParamsOverride) -> Self {
+        crate::msg::ServiceParamsOverride {
+            min_num_verifiers: params.min_num_verifiers,
+            max_num_verifiers: params.max_num_verifiers,
+        }
+    }
+}
+
 pub struct VerifierPerChainIndexes<'a> {
     pub verifier_address: MultiIndex<
         'a,
@@ -212,6 +221,16 @@ pub fn remove_service_override(
     SERVICE_OVERRIDES.remove(storage, (service_name, chain));
 
     Ok(())
+}
+
+pub fn may_load_service_params_override(
+    storage: &dyn Storage,
+    service_name: &ServiceName,
+    chain: &ChainName,
+) -> error_stack::Result<Option<ServiceParamsOverride>, ContractError> {
+    SERVICE_OVERRIDES
+        .may_load(storage, (service_name, chain))
+        .change_context(ContractError::StorageError)
 }
 
 pub fn update_verifier_authorization_status(
@@ -610,6 +629,50 @@ mod tests {
         let res = remove_service_override(deps.as_mut().storage, &stored_service.name, &chain_name);
 
         assert_err_contains!(res, ContractError, ContractError::ServiceOverrideNotFound);
+    }
+
+    #[test]
+    fn may_load_service_params_override_succeeds() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+        let max_verifiers_override = Some(20);
+
+        let params_override = ServiceParamsOverride {
+            min_num_verifiers: None,
+            max_num_verifiers: Some(max_verifiers_override),
+        };
+        save_service_override(
+            deps.as_mut().storage,
+            &stored_service.name,
+            &chain_name,
+            &params_override,
+        )
+        .unwrap();
+
+        let loaded_override = may_load_service_params_override(
+            deps.as_ref().storage,
+            &stored_service.name,
+            &chain_name,
+        )
+        .unwrap();
+
+        assert_eq!(loaded_override, Some(params_override));
+    }
+
+    #[test]
+    fn may_load_service_params_override_returns_none_if_service_override_does_not_exist() {
+        let mut deps = mock_dependencies();
+        let stored_service = save_mock_service(deps.as_mut().storage);
+        let chain_name = "solana".parse().unwrap();
+
+        let res = may_load_service_params_override(
+            deps.as_mut().storage,
+            &stored_service.name,
+            &chain_name,
+        );
+
+        assert_eq!(res.unwrap(), None);
     }
 
     #[test]

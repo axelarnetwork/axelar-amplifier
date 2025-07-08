@@ -197,6 +197,15 @@ pub fn query(
             chain_name,
         } => to_json_binary(&query::service(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
+        QueryMsg::ServiceParamsOverride {
+            service_name,
+            chain_name,
+        } => to_json_binary(&query::service_params_override(
+            deps,
+            service_name,
+            chain_name,
+        )?)
+        .map_err(|err| err.into()),
     }
 }
 
@@ -794,6 +803,56 @@ mod test {
             permission_control::Error,
             permission_control::Error::PermissionDenied { .. }
         ));
+    }
+
+    #[test]
+    fn query_service_params_override_succeeds() {
+        let mut deps = setup();
+
+        let service_name = "verifiers";
+        let chain_name: ChainName = "solana".parse().unwrap();
+
+        execute_register_service(deps.as_mut(), service_name.into());
+        let params_override =
+            execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
+
+        let res: Option<ServiceParamsOverride> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::ServiceParamsOverride {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(res, Some(params_override));
+    }
+
+    #[test]
+    fn query_service_params_override_returns_none_if_does_not_exist() {
+        let deps = setup();
+
+        let service_name = "verifiers";
+        let chain_name: ChainName = "solana".parse().unwrap();
+
+        let res: Option<ServiceParamsOverride> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::ServiceParamsOverride {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(res, None);
     }
 
     #[test]
