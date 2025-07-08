@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::msg_id::MessageIdFormat;
-use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError};
+use axelar_wasm_std::{address, migrate_from_version, IntoContractError};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Env, Order, Response};
+use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
-use error_stack::{report, ResultExt};
+use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
 use router_api::ChainName;
 
@@ -16,12 +15,8 @@ use crate::state;
 
 #[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 enum MigrationError {
-    #[error("cannot have duplicate deployment name '{0}' in migration msg")]
-    DuplicateDeployment(nonempty::String),
-    #[error("cannot deserialize provers")]
-    DeserializeProvers,
-    #[error("missing prover to register for chain {0}")]
-    MissingProver(ChainName),
+    #[error("missing contracts to register for chain {0}")]
+    MissingContracts(ChainName),
     #[error("expected prover address {0} but saw {1}")]
     IncorrectProver(Addr, Addr),
     #[error("chain {0} not found in contract state")]
@@ -60,30 +55,33 @@ pub struct OldChainContracts {
 }
 
 #[cw_serde]
-pub struct ChainContractsDetails {
-    pub deployment_name: nonempty::String,
-    pub chain_name: ChainName,
-    pub msg_id_format: MessageIdFormat,
-    pub gateway: Addr,
-    pub voting_verifier: Addr,
-    pub multisig_prover: Addr,
-}
-
-#[cw_serde]
 pub struct MigrateMsg {
     pub router: String,
     pub multisig: String,
-    pub chain_deployments: Vec<ChainContractsDetails>,
     pub chain_contracts: Vec<state::ChainContractsRecord>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[migrate_from_version("1.1")]
 pub fn migrate(
-    deps: DepsMut,
+    mut deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    migrate_config(&mut deps, &msg)?;
+
+    // Since this state has not yet been set or used, we can just clear it
+    state::DEPLOYED_CHAINS.clear(deps.storage);
+
+    migrate_chain_contracts(deps.storage, msg.chain_contracts)?;
+
+    Ok(Response::default())
+}
+
+fn migrate_config(
+    deps: &mut DepsMut,
+    msg: &MigrateMsg,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
     let old_config = OLD_CONFIG
         .load(deps.storage)
         .change_context(Error::OldConfigNotFound)?;
@@ -101,97 +99,55 @@ pub fn migrate(
 
     state::save_protocol_contracts(deps.storage, protocol)
         .change_context(Error::UnableToPersistProtocol)?;
+    Ok(())
+}
 
-    if let Some(duplicate) = msg
-        .chain_deployments
-        .iter()
-        .map(|details| details.deployment_name.clone())
-        .duplicates()
-        .next()
-    {
-        return Err(MigrationError::DuplicateDeployment(duplicate.clone()).into());
-    }
+fn migrate_chain_contracts(
+    storage: &mut dyn Storage,
+    chain_contracts: Vec<state::ChainContractsRecord>,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
+    let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
+        .range(storage, None, None, Order::Ascending)
+        .try_collect()?;
 
-    // Since this state has not yet been set or used, we can clear
-    // it and repopulate it.
-    state::DEPLOYED_CHAINS.clear(deps.storage);
-
-    for contracts in msg.chain_deployments {
-        state::save_deployed_contracts(
-            deps.storage,
-            contracts.deployment_name,
-            state::ChainContracts {
-                chain_name: contracts.chain_name.clone(),
-                msg_id_format: contracts.msg_id_format.clone(),
-                gateway: contracts.gateway,
-                voting_verifier: contracts.voting_verifier,
-                multisig_prover: contracts.multisig_prover,
-            },
-        )?;
-    }
-
-    // Check that all provers in migration have a corresponding registered prover in state.
-    // Also check that if the chain/prover combo has been registered using RegisterChain,
-    // the mapping between chain name and prover address is the same.
-    let contracts_to_migrate = msg
-        .chain_contracts
+    let mut contracts_by_chain: HashMap<_, _> = chain_contracts
         .into_iter()
-        .map(|contracts| {
-            if !OLD_CHAIN_PROVER_INDEXED_MAP.has(deps.storage, contracts.chain_name.clone()) {
-                Err(MigrationError::ExtraProver(contracts.chain_name.clone()))
-            } else {
-                match state::contracts_by_chain(deps.storage, contracts.chain_name.clone()) {
-                    Ok(chain_contracts_in_state)
-                        if (chain_contracts_in_state.prover_address
-                            != contracts.prover_address)
-                            || (chain_contracts_in_state.gateway_address
-                                != contracts.gateway_address)
-                            || (chain_contracts_in_state.verifier_address
-                                != contracts.verifier_address) =>
-                    {
-                        Err(MigrationError::IncorrectContracts(
-                            contracts.chain_name.clone(),
-                        ))
-                    }
-                    _ => Ok((contracts.chain_name.clone(), contracts.clone())),
-                }
-            }
-        })
-        .collect::<Result<HashMap<ChainName, state::ChainContractsRecord>, MigrationError>>()?;
+        .map(|contracts| (contracts.chain_name.clone(), contracts))
+        .collect();
 
-    // Check that all registered provers are present in migration message
-    for entry in OLD_CHAIN_PROVER_INDEXED_MAP.range(deps.storage, None, None, Order::Ascending) {
-        match entry {
-            Ok((chain_name, prover_addr)) => {
-                let migration_prover = match contracts_to_migrate.get(&chain_name) {
-                    Some(record) => Ok::<Addr, MigrationError>(record.prover_address.clone()),
-                    None => Err(MigrationError::MissingProver(chain_name)),
-                }?;
+    for (chain_name, prover_addr) in provers_by_chain {
+        let contracts = contracts_by_chain
+            .remove(&chain_name)
+            .ok_or_else(|| MigrationError::MissingContracts(chain_name.clone()))?;
 
-                if migration_prover.clone() != prover_addr.clone() {
-                    return Err(MigrationError::IncorrectProver(
-                        prover_addr.clone(),
-                        migration_prover.clone(),
-                    )
-                    .into());
-                }
+        if contracts.prover_address != prover_addr {
+            Err(MigrationError::IncorrectProver(
+                prover_addr,
+                contracts.prover_address.clone(),
+            ))?;
+        }
+
+        match state::contracts_by_chain(storage, contracts.chain_name.clone()) {
+            Ok(existing_contracts) if existing_contracts != contracts => {
+                Err(MigrationError::IncorrectContracts(contracts.chain_name))?;
             }
-            Err(..) => return Err(MigrationError::DeserializeProvers.into()),
+            _ => {
+                state::save_chain_contracts(
+                    storage,
+                    contracts.chain_name,
+                    contracts.prover_address,
+                    contracts.gateway_address,
+                    contracts.verifier_address,
+                )?;
+            }
         }
     }
 
-    // Store provers from migration message
-    for (_, contracts) in contracts_to_migrate {
-        state::save_chain_contracts(
-            deps.storage,
-            contracts.chain_name,
-            contracts.prover_address,
-            contracts.gateway_address,
-            contracts.verifier_address,
-        )?;
+    if let Some(extra_chain) = contracts_by_chain.keys().next() {
+        Err(MigrationError::ExtraProver(extra_chain.clone()))?;
     }
 
-    Ok(Response::default())
+    Ok(())
 }
 
 #[cfg(test)]
@@ -626,7 +582,7 @@ mod tests {
         assert!(res
             .unwrap_err()
             .to_string()
-            .contains(&MigrationError::MissingProver(chain_name2).to_string()));
+            .contains(&MigrationError::MissingContracts(chain_name2).to_string()));
     }
 
     #[test]
