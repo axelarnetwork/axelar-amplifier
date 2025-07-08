@@ -919,8 +919,7 @@ mod tests {
         ];
 
         for (result, chain_name) in handler_results {
-            if let Ok(_) = result {
-                // Record metric (ignore errors in test - they're not the focus)
+            if result.is_ok() {
                 let _ = monitoring_client
                     .metrics()
                     .record_metric(Msg::ChainConfigured { chain_name });
