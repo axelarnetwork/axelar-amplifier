@@ -442,6 +442,11 @@ mod tests {
             "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
         );
 
+        final_metrics.assert_text_contains("verifier_votes_cast_success_rate{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 0.5");
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1.0",
+        );
+
         final_metrics.assert_status_ok();
     }
 }
