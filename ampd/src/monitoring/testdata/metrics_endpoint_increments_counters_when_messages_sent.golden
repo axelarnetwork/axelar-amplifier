@@ -2,6 +2,12 @@ Initial Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 0
+# HELP verifier_votes_cast_successful_total number of succeeded votes casts by verifier.
+# TYPE verifier_votes_cast_successful_total counter
+# HELP verifier_votes_cast_failed_total number of failed votes casts by verifier.
+# TYPE verifier_votes_cast_failed_total counter
+# HELP verifier_votes_cast_success_rate success rate of votes casts by verifier.
+# TYPE verifier_votes_cast_success_rate gauge
 # EOF
 
 
@@ -9,4 +15,13 @@ Updated Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 3
+# HELP verifier_votes_cast_successful_total number of succeeded votes casts by verifier.
+# TYPE verifier_votes_cast_successful_total counter
+verifier_votes_cast_successful_total_total{verifier_id="verifier_id",chain_name="chain_name"} 2
+# HELP verifier_votes_cast_failed_total number of failed votes casts by verifier.
+# TYPE verifier_votes_cast_failed_total counter
+verifier_votes_cast_failed_total_total{verifier_id="verifier_id",chain_name="chain_name"} 1
+# HELP verifier_votes_cast_success_rate success rate of votes casts by verifier.
+# TYPE verifier_votes_cast_success_rate gauge
+verifier_votes_cast_success_rate{verifier_id="verifier_id",chain_name="chain_name"} 0.6666666666666666
 # EOF

@@ -779,19 +779,19 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains("verifier_votes_cast_successful_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 2"));
+        assert!(metrics_text.contains("verifier_votes_cast_successful_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 2"));
         assert!(metrics_text.contains(
-            "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"
+            "verifier_votes_cast_failed_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"
         ));
         assert!(metrics_text.contains(
-            "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0.6666666666666666"
+            "verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0.6666666666666666"
         ));
 
         cancel_token.cancel();
     }
 
     #[tokio::test(start_paused = true)]
-    async fn event_processor_handles_metrics_recording_with_disabled_server() {
+    async fn event_processor_works_when_monitoring_server_is_disabled() {
         let events: Vec<Result<Event, event_processor::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Ok(Event::BlockEnd(1_u32.into())),
@@ -890,13 +890,13 @@ mod tests {
         let metrics_text = response.text().await.unwrap();
 
         assert!(metrics_text.contains(
-            "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 1"
+            "verifier_votes_cast_failed_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"
         ));
         assert!(metrics_text.contains(
-            "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0"
+            "verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
         ));
         assert!(metrics_text.contains(
-            "verifier_votes_cast_successful_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"} 0"
+            "verifier_votes_cast_successful_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
         ));
 
         cancel_token.cancel();
