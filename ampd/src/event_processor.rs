@@ -15,9 +15,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::monitoring;
 use crate::monitoring::metrics::Msg;
-use crate::{broadcaster_v2, cosmos, event_sub};
+use crate::{broadcaster_v2, cosmos, event_sub, monitoring};
 
 // Maximum number of messages to enqueue for broadcasting concurrently.
 // - Controls parallelism when enqueueing messages to the broadcast queue
@@ -164,11 +163,15 @@ fn should_task_stop(token: CancellationToken) -> impl Fn(&StreamStatus) -> futur
     }
 }
 
-fn log_block_end_event(event: &StreamStatus, handler_label: &str, metric_client: &MetricsClient) {
+fn log_block_end_event(
+    event: &StreamStatus,
+    handler_label: &str,
+    metric_client: &monitoring::Client,
+) {
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
         info!(height = height.value(), "handler finished processing block");
 
-        if let Err(err) = metric_client.record_metric(MetricsMsg::IncBlockReceived) {
+        if let Err(err) = metric_client.metrics().record_metric(Msg::IncBlockReceived) {
             warn!( handler = handler_label,
                 height = height.value(),
                 err = %err,
@@ -210,8 +213,7 @@ mod tests {
 
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
     use crate::types::{random_cosmos_public_key, TMAddress};
-    use crate::{broadcaster_v2, cosmos, event_sub, PREFIX};
-    use crate::{event_processor, monitoring};
+    use crate::{broadcaster_v2, cosmos, event_sub, monitoring, PREFIX};
 
     fn setup_event_config(
         retry_delay_value: Duration,
@@ -742,10 +744,13 @@ mod tests {
             100,
             Duration::from_millis(500),
         );
+
         let bind_addr = monitoring::Config::enabled().bind_address;
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -763,11 +768,12 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
+
         let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
+        assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
 
         cancel_token.cancel();
     }

@@ -127,7 +127,7 @@ impl<
 where
     T: cosmos::CosmosClient,
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
-    S: tofnd::grpc::Multisig,
+    S: tofnd::Multisig,
 {
     /// Builds and then validates the broadcaster task configuration by ensuring the account
     /// has sufficient balance.
@@ -1574,7 +1574,7 @@ mod tests {
         mock_signer
             .expect_sign()
             .once()
-            .returning(|_, _, _, _| Err(report!(TofndError::SignFailed)));
+            .returning(|_, _, _, _| Err(report!(tofnd::Error::InvalidSignResponse)));
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();

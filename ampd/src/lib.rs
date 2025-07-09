@@ -1,6 +1,5 @@
 mod asyncutil;
 mod block_height_monitor;
-mod broadcaster;
 #[allow(dead_code)]
 mod broadcaster_v2;
 #[cfg(feature = "commands")]
@@ -20,7 +19,6 @@ mod handlers;
 mod json_rpc;
 mod monitoring;
 mod mvx;
-mod queue;
 mod solana;
 mod starknet;
 mod stellar;
