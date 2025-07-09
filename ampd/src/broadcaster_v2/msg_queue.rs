@@ -736,7 +736,7 @@ mod tests {
         assert_err_contains!(rx.await, Error, Error::ReceiveTxResult(_));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_stream_timeout() {
         let gas_cap = 1000u64;
         let base_account = BaseAccount {
@@ -769,18 +769,18 @@ mod tests {
         .await
         .unwrap();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            gas_cap,
-            time::Duration::from_secs(3),
-        );
+        let timeout = time::Duration::from_secs(3);
+        let (mut msg_queue, mut msg_queue_client) =
+            MsgQueue::new_msg_queue_and_client(broadcaster, 10, gas_cap, timeout);
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
+
+        let start = time::Instant::now();
         let actual = msg_queue.next().await.unwrap();
+        let elapsed = start.elapsed();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cap / 10);
@@ -788,9 +788,13 @@ mod tests {
             actual.as_ref()[0].msg.type_url,
             "/cosmos.bank.v1beta1.MsgSend"
         );
+        assert!(elapsed >= timeout);
+
+        // explicitly keep the stream alive until the end of the test
+        drop(msg_queue_client);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_gas_capacity() {
         let gas_cap = 1000;
         let gas_cost = 100;
@@ -911,7 +915,7 @@ mod tests {
         handle.await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_gas_overflow() {
         let gas_cap = u64::MAX;
         let gas_cost = gas_cap - 1;

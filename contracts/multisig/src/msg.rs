@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use router_api::ChainName;
 
 pub use crate::contract::MigrateMsg;
@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Can only be called by an authorized contract.
     #[permission(Specific(authorized))]

@@ -1,6 +1,3 @@
-use std::fmt;
-use std::fmt::Debug;
-use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -9,14 +6,12 @@ use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
-use crate::types::debug::REDACTED_VALUE;
 use crate::url::Url;
-use crate::{broadcaster_v2, event_processor, grpc};
+use crate::{broadcaster_v2, event_processor, grpc, monitoring};
 
-#[derive(Deserialize, Serialize, PartialEq)]
+#[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
 pub struct Config {
-    pub prometheus_monitor_bind_addr: Option<SocketAddrV4>,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_jsonrpc: Url,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
@@ -31,6 +26,7 @@ pub struct Config {
     pub rewards: RewardsConfig,
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
+    pub monitoring_server: monitoring::Config,
 }
 
 impl Default for Config {
@@ -45,29 +41,9 @@ impl Default for Config {
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
-            prometheus_monitor_bind_addr: Some(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000)),
             grpc: grpc::Config::default(),
+            monitoring_server: monitoring::Config::default(),
         }
-    }
-}
-
-impl Debug for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Config")
-            .field("tm_jsonrpc", &self.tm_jsonrpc)
-            .field("tm_grpc", &self.tm_grpc)
-            .field("tm_grpc_timeout", &self.tm_grpc_timeout)
-            .field("broadcast", &self.broadcast)
-            .field("handlers", &self.handlers)
-            .field("tofnd_config", &self.tofnd_config)
-            .field("event_processor", &self.event_processor)
-            .field("service_registry", &self.service_registry)
-            .field("rewards", &self.rewards)
-            .field("prometheus_monitor_bind_addr", &REDACTED_VALUE)
-            // fmt::Debug is already redacted for field gprc
-            // (@see: src/grpc/mod.rs)
-            .field("grpc", &self.grpc)
-            .finish()
     }
 }
 
@@ -76,6 +52,7 @@ mod tests {
     use std::fs;
     use std::fs::File;
     use std::io::Write;
+    use std::net::{Ipv4Addr, SocketAddrV4};
     use std::path::PathBuf;
     use std::str::FromStr;
     use std::time::Duration;
@@ -590,5 +567,45 @@ mod tests {
             ],
             ..Config::default()
         }
+    }
+
+    #[test]
+    fn deserialize_monitoring_server_config_with_bind_address_and_enabled() {
+        let bind_address = "0.0.0.0:3001";
+        let config_str = format!(
+            "
+            [monitoring_server]
+            enabled = true
+            bind_address = '{bind_address}'
+            ",
+        );
+        let cfg: Config = toml::from_str(&config_str).unwrap();
+        assert_eq!(
+            cfg.monitoring_server.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001))
+        );
+    }
+
+    #[test]
+    fn deserialize_monitoring_server_config_without_bind_address_enabled() {
+        let config_str = "
+            [monitoring_server]
+            enabled = true
+            ";
+        let cfg: Config = toml::from_str(config_str).unwrap();
+        assert_eq!(
+            cfg.monitoring_server.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
+        );
+    }
+
+    #[test]
+    fn deserialize_monitoring_server_config_disabled() {
+        let config_str = "
+            [monitoring_server]
+            enabled = false
+            ";
+        let cfg: Config = toml::from_str(config_str).unwrap();
+        assert_eq!(cfg.monitoring_server.bind_address, None);
     }
 }

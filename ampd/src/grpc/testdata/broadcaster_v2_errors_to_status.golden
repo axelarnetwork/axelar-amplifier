@@ -1,0 +1,46 @@
+[
+    (
+        InvalidArgument,
+        EstimateGas,
+    ),
+    (
+        InvalidArgument,
+        GasExceedsGasCap {
+            msg_type: "test_message",
+            gas: 1000000,
+            gas_cap: 500000,
+        },
+    ),
+    (
+        Unavailable,
+        AccountQuery,
+    ),
+    (
+        Unavailable,
+        BroadcastTx,
+    ),
+    (
+        Unavailable,
+        SignTx,
+    ),
+    (
+        Internal,
+        EnqueueMsg,
+    ),
+    (
+        Internal,
+        FeeAdjustment,
+    ),
+    (
+        Internal,
+        InvalidPubKey,
+    ),
+    (
+        Internal,
+        ReceiveTxResult(
+            RecvError(
+                (),
+            ),
+        ),
+    ),
+]

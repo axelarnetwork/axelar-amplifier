@@ -1,41 +1,64 @@
 use std::str::FromStr;
 
-use ampd_proto::{BroadcastRequest, ContractStateRequest, SubscribeRequest};
+use ampd_proto::{
+    Algorithm, BroadcastRequest, ContractStateRequest, KeyId, KeyRequest, SignRequest,
+    SubscribeRequest,
+};
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
-use error_stack::{ensure, report, Report, Result, ResultExt};
+use error_stack::{bail, ensure, report, Report, Result, ResultExt};
 use report::ResultCompatExt;
 use thiserror::Error;
 use tonic::Request;
 
 use crate::types::TMAddress;
-use crate::PREFIX;
+use crate::{tofnd, PREFIX};
 
-pub fn validate_subscribe(req: Request<SubscribeRequest>) -> Result<EventFilters, Error> {
-    let SubscribeRequest {
-        filters,
-        include_block_begin_end,
-    } = req.into_inner();
+type ContractQuery = Vec<u8>;
+type KeyIdString = nonempty::String;
+type SignMessage = [u8; 32];
 
-    (filters, include_block_begin_end).try_into()
+pub trait Validate {
+    type Output;
+
+    fn validate(self) -> Result<Self::Output, Error>;
 }
 
-pub fn validate_broadcast(req: Request<BroadcastRequest>) -> Result<Any, Error> {
-    req.into_inner()
-        .msg
-        .ok_or(report!(Error::EmptyBroadcastMsg))
+impl Validate for Request<SubscribeRequest> {
+    type Output = EventFilters;
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let SubscribeRequest {
+            filters,
+            include_block_begin_end,
+        } = self.into_inner();
+
+        (filters, include_block_begin_end).try_into()
+    }
 }
 
-pub fn validate_contract_state(
-    req: Request<ContractStateRequest>,
-) -> Result<(TMAddress, Vec<u8>), Error> {
-    let ContractStateRequest { contract, query } = req.into_inner();
+impl Validate for Request<BroadcastRequest> {
+    type Output = Any;
 
-    ensure!(!query.is_empty(), Error::InvalidQuery);
-    let _: serde_json::Value =
-        serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
+    fn validate(self) -> Result<Self::Output, Error> {
+        self.into_inner()
+            .msg
+            .ok_or(report!(Error::EmptyBroadcastMsg))
+    }
+}
 
-    Ok((validate_address(&contract)?, query))
+impl Validate for Request<ContractStateRequest> {
+    type Output = (TMAddress, ContractQuery);
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let ContractStateRequest { contract, query } = self.into_inner();
+
+        ensure!(!query.is_empty(), Error::InvalidQuery);
+        let _: serde_json::Value =
+            serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
+
+        Ok((validate_address(&contract)?, query))
+    }
 }
 
 fn validate_address(address: &str) -> Result<TMAddress, Error> {
@@ -49,6 +72,46 @@ fn validate_address(address: &str) -> Result<TMAddress, Error> {
     Ok(address)
 }
 
+impl Validate for Request<KeyRequest> {
+    type Output = (KeyIdString, tofnd::Algorithm);
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let KeyRequest { key_id } = self.into_inner();
+
+        validate_key_id(key_id.unwrap_or_default())
+    }
+}
+
+impl Validate for Request<SignRequest> {
+    type Output = (KeyIdString, tofnd::Algorithm, SignMessage);
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let SignRequest { key_id, msg } = self.into_inner();
+
+        let (id, algorithm) = validate_key_id(key_id.unwrap_or_default())?;
+        let msg = msg
+            .try_into()
+            .map_err(|msg| report!(Error::InvalidSignMsg(msg)))?;
+
+        Ok((id, algorithm, msg))
+    }
+}
+
+fn validate_key_id(key_id: KeyId) -> Result<(KeyIdString, tofnd::Algorithm), Error> {
+    let KeyId { id, algorithm } = key_id;
+
+    let id = nonempty::String::try_from(id).change_context(Error::EmptyKeyId)?;
+    let algorithm = match algorithm.try_into() {
+        Ok(Algorithm::Ecdsa) => tofnd::Algorithm::Ecdsa,
+        Ok(Algorithm::Ed25519) => tofnd::Algorithm::Ed25519,
+        Ok(Algorithm::Unspecified) | Err(_) => {
+            bail!(Error::InvalidCryptoAlgorithm(algorithm));
+        }
+    };
+
+    Ok((id, algorithm))
+}
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("empty filter")]
@@ -59,6 +122,12 @@ pub enum Error {
     InvalidQuery,
     #[error("empty broadcast message")]
     EmptyBroadcastMsg,
+    #[error("empty key id")]
+    EmptyKeyId,
+    #[error("invalid crypto algorithm {0}")]
+    InvalidCryptoAlgorithm(i32),
+    #[error("invalid 32-byte sign message {0:?}")]
+    InvalidSignMsg(Vec<u8>),
 }
 
 #[derive(Debug)]
@@ -279,7 +348,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert_eq!(filters.filters.len(), 1);
         assert!(filters.include_block_begin_end);
     }
@@ -297,7 +366,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let result = validate_subscribe(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::EmptyFilter);
     }
 
@@ -311,7 +380,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::BlockBegin(100u32.into())));
         assert!(filters.filter(&Event::BlockEnd(100u32.into())));
     }
@@ -326,7 +395,7 @@ mod tests {
             include_block_begin_end: false,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(!filters.filter(&Event::BlockBegin(100u32.into())));
         assert!(!filters.filter(&Event::BlockEnd(100u32.into())));
     }
@@ -341,7 +410,7 @@ mod tests {
             include_block_begin_end: false,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "test_event".to_string(),
             attributes: Map::new(),
@@ -369,7 +438,7 @@ mod tests {
             include_block_begin_end: false,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "event_1".to_string(),
             attributes: Map::new(),
@@ -395,7 +464,7 @@ mod tests {
             include_block_begin_end: true,
         });
 
-        let filters = validate_subscribe(req).unwrap();
+        let filters = req.validate().unwrap();
         assert!(filters.filter(&Event::Abci {
             event_type: "any_event".to_string(),
             attributes: Map::new(),
@@ -410,12 +479,12 @@ mod tests {
                 value: vec![1, 2, 3],
             }),
         });
-        let msg = validate_broadcast(req).unwrap();
+        let msg = req.validate().unwrap();
         assert_eq!(msg.type_url, "/cosmos.bank.v1beta1.MsgSend");
         assert_eq!(msg.value, vec![1, 2, 3]);
 
         let req = Request::new(BroadcastRequest { msg: None });
-        assert_err_contains!(validate_broadcast(req), Error, Error::EmptyBroadcastMsg);
+        assert_err_contains!(req.validate(), Error, Error::EmptyBroadcastMsg);
     }
 
     #[test]
@@ -429,7 +498,7 @@ mod tests {
             query: query_bytes.clone(),
         });
 
-        let (result_address, result_query) = validate_contract_state(req).unwrap();
+        let (result_address, result_query) = req.validate().unwrap();
         assert_eq!(result_address, address);
         assert_eq!(result_query, query_bytes);
     }
@@ -442,7 +511,7 @@ mod tests {
             query: vec![],
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidQuery);
     }
 
@@ -454,7 +523,7 @@ mod tests {
             query: vec![1, 2, 3], // invalid JSON bytes
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidQuery);
     }
 
@@ -468,7 +537,7 @@ mod tests {
             query: query_bytes,
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
     }
 
@@ -483,7 +552,198 @@ mod tests {
             query: query_bytes,
         });
 
-        let result = validate_contract_state(req);
+        let result = req.validate();
         assert_err_contains!(result, Error, Error::InvalidContractAddress(_));
+    }
+
+    #[test]
+    fn validate_key_should_extract_key_id_and_algorithm() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+        });
+
+        let (result_id, result_algorithm) = req.validate().unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
+    }
+
+    #[test]
+    fn validate_key_should_use_default_key_id_when_none_provided() {
+        let req = Request::new(KeyRequest { key_id: None });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_key_should_handle_ed25519_algorithm() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ed25519;
+
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+        });
+
+        let (result_id, result_algorithm) = req.validate().unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ed25519);
+    }
+
+    #[test]
+    fn validate_key_should_fail_with_empty_key_id() {
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: "".to_string(),
+                algorithm: ampd_proto::Algorithm::Ecdsa.into(),
+            }),
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_key_should_fail_with_invalid_algorithm() {
+        let key_id = "test_key";
+        let invalid_algorithm = 999; // some invalid algorithm value
+
+        let req = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: invalid_algorithm,
+            }),
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::InvalidCryptoAlgorithm(_));
+    }
+
+    #[test]
+    fn validate_sign_should_extract_key_id_algorithm_and_message() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: message.clone(),
+        });
+
+        let (result_id, result_algorithm, result_msg) = req.validate().unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ecdsa);
+        assert_eq!(result_msg.to_vec(), message);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_when_no_key_id_is_provided() {
+        let message = vec![1, 2, 3, 4];
+        let req = Request::new(SignRequest {
+            key_id: None,
+            msg: message,
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_sign_should_handle_ed25519_algorithm() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ed25519;
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: message.clone(),
+        });
+
+        let (result_id, result_algorithm, result_msg) = req.validate().unwrap();
+        assert_eq!(result_id.as_str(), key_id);
+        assert_eq!(result_algorithm, tofnd::Algorithm::Ed25519);
+        assert_eq!(result_msg.to_vec(), message);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_empty_key_id() {
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: "".to_string(),
+                algorithm: ampd_proto::Algorithm::Ecdsa.into(),
+            }),
+            msg: message,
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::EmptyKeyId);
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_invalid_algorithm() {
+        let key_id = "test_key";
+        let invalid_algorithm = 999; // some invalid algorithm value
+        let message = vec![0; 32];
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: invalid_algorithm,
+            }),
+            msg: message,
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::InvalidCryptoAlgorithm(_));
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_empty_message() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: vec![],
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::InvalidSignMsg(_));
+    }
+
+    #[test]
+    fn validate_sign_should_fail_with_longer_than_32_byte_message() {
+        let key_id = "test_key";
+        let algorithm = ampd_proto::Algorithm::Ecdsa;
+
+        let req = Request::new(SignRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+            msg: vec![0; 33],
+        });
+
+        let result = req.validate();
+        assert_err_contains!(result, Error, Error::InvalidSignMsg(_));
     }
 }

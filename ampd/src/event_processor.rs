@@ -15,8 +15,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::prometheus_metrics::metrics::MetricsMsg;
-use crate::prometheus_metrics::monitor::MetricsClient;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 // Maximum number of messages to enqueue for broadcasting concurrently.
@@ -76,7 +76,7 @@ pub async fn consume_events<H, S, C>(
     event_processor_config: Config,
     token: CancellationToken,
     msg_queue_client: broadcaster_v2::MsgQueueClient<C>,
-    metric_client: MetricsClient,
+    metric_client: monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -172,7 +172,7 @@ fn log_block_end_event(event: &StreamStatus, handler_label: &str, metric_client:
             warn!( handler = handler_label,
                 height = height.value(),
                 err = %err,
-                "failed to update metrics for block end event"
+                "failed to record block received metric"
             );
         }
     }
@@ -209,12 +209,11 @@ mod tests {
     use tonic::Status;
 
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::prometheus_metrics::monitor::tests::test_metrics_server_setup;
-    use crate::prometheus_metrics::monitor::Server;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{broadcaster_v2, cosmos, event_sub, PREFIX};
+    use crate::{event_processor, monitoring};
 
-    pub fn setup_event_config(
+    fn setup_event_config(
         retry_delay_value: Duration,
         stream_timeout_value: Duration,
         delay: Duration,
@@ -275,7 +274,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -284,7 +283,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         assert!(result.is_ok());
@@ -333,7 +332,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -342,7 +341,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         assert_err_contains!(result, Error, Error::EventStream);
@@ -391,7 +390,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -400,7 +399,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         assert!(result.is_ok());
@@ -462,7 +461,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -471,7 +470,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         assert!(result.is_ok());
@@ -531,7 +530,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -540,7 +539,7 @@ mod tests {
             event_config,
             CancellationToken::new(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         let msgs = msg_queue.collect::<Vec<_>>().await;
@@ -598,7 +597,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
         token.cancel();
         let result = consume_events(
             "handler".to_string(),
@@ -607,7 +606,7 @@ mod tests {
             event_config,
             token.child_token(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         assert!(result.is_ok());
@@ -650,7 +649,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_server, metrics_client) = Server::new(None).expect("failed to create server");
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
         token.cancel();
         let result = consume_events(
             "handler".to_string(),
@@ -659,7 +658,7 @@ mod tests {
             event_config,
             token.child_token(),
             msg_queue_client,
-            metrics_client,
+            monitoring_client,
         )
         .await;
         assert!(result.is_ok());
@@ -743,9 +742,9 @@ mod tests {
             100,
             Duration::from_millis(500),
         );
-
-        let (bind_address, server, metrics_client, cancel_token) = test_metrics_server_setup();
-
+        let bind_addr = monitoring::Config::enabled().bind_address;
+        let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
+        let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
 
         let result_with_timeout = timeout(
@@ -757,14 +756,14 @@ mod tests {
                 event_config,
                 cancel_token.clone(),
                 msg_queue_client,
-                metrics_client,
+                monitoring_client,
             ),
         )
         .await;
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();

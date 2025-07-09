@@ -91,7 +91,7 @@ pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
-    S: tofnd::grpc::Multisig,
+    S: tofnd::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
     msg_queue: Q,
@@ -163,7 +163,7 @@ impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient + Debug,
     Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
-    S: tofnd::grpc::Multisig + Debug,
+    S: tofnd::Multisig + Debug,
 {
     /// Runs the broadcaster task until the message queue is exhausted
     ///
@@ -255,7 +255,7 @@ where
 
                 self.signer.sign(
                     &self.key_id,
-                    sign_digest.into(),
+                    sign_digest,
                     pub_key.into(),
                     tofnd::Algorithm::Ecdsa,
                 )
@@ -345,8 +345,7 @@ mod tests {
     use crate::broadcaster_v2::dec_coin::DecCoin;
     use crate::broadcaster_v2::msg_queue::QueueMsg;
     use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
-    use crate::tofnd::error::Error as TofndError;
-    use crate::tofnd::grpc::MockMultisig;
+    use crate::tofnd::{self, MockMultisig};
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{cosmos, PREFIX};
 
@@ -829,7 +828,7 @@ mod tests {
         mock_signer
             .expect_sign()
             .once()
-            .returning(|_, _, _, _| Err(report!(TofndError::KeygenFailed)));
+            .returning(|_, _, _, _| Err(report!(tofnd::Error::InvalidKeygenResponse)));
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();

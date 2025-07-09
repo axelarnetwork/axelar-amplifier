@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::address::ContractAddr;
 use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint256;
-use msgs_derive::EnsurePermissions;
+use interchain_token_service_std::TokenId;
+use msgs_derive::Permissions;
 use router_api::{Address, ChainNameRaw};
 
-pub use crate::contract::MigrateMsg;
+pub use crate::contract::migrations::MigrateMsg;
 use crate::shared::NumBits;
-use crate::TokenId;
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
@@ -48,7 +49,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]
@@ -127,6 +128,7 @@ pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
+    pub msg_translator: Address,
 }
 
 #[cw_serde]
@@ -141,6 +143,7 @@ pub struct ChainConfigResponse {
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
     pub frozen: bool,
+    pub msg_translator: ContractAddr,
 }
 
 #[cw_serde]

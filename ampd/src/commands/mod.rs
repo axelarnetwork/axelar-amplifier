@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
 use crate::config::{Config as AmpdConfig, Config};
-use crate::tofnd::grpc::{Multisig, MultisigClient};
+use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{broadcaster_v2, cosmos, tofnd, Error, PREFIX};
 
