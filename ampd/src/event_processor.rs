@@ -860,6 +860,8 @@ mod tests {
         let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
 
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
