@@ -442,7 +442,26 @@ mod tests {
         assert_eq!(reqwest::StatusCode::OK, initial_metrics.status());
         let initial_text = initial_metrics.text().await.unwrap();
 
+        let verifier_id = "verifier_id".to_string();
+        let chain_name = "chain_name".to_string();
+
         send_multiple_metrics(&monitoring_client, metrics::Msg::BlockReceived, 3);
+        send_multiple_metrics(
+            &monitoring_client,
+            metrics::Msg::VoteCastSucceeded {
+                verifier_id: verifier_id.clone(),
+                chain_name: chain_name.clone(),
+            },
+            2,
+        );
+        send_multiple_metrics(
+            &monitoring_client,
+            metrics::Msg::VoteFailed {
+                verifier_id: verifier_id.clone(),
+                chain_name: chain_name.clone(),
+            },
+            1,
+        );
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
