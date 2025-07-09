@@ -43,7 +43,7 @@ jobs:
       - name: Build and verify documentation
         run: |
           cd doc && mdbook build
-          if [ ! -d "doc/book" ]; then
+          if [ ! -d "target/book" ]; then
             echo "Error: Documentation build failed - doc/book directory not found"
             exit 1
           fi
