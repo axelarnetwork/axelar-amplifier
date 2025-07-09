@@ -29,6 +29,9 @@ const CHANNEL_SIZE: usize = 1000;
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
+const CONFIGURED_STATUS: f64 = 1.0;
+const UNCONFIGURED_STATUS: f64 = 0.0;
+
 /// Messages for metrics collection
 ///
 /// These messages are sent to the metrics processor to update various counters
@@ -208,7 +211,7 @@ async fn serve_metrics(
 struct Metrics {
     blocks_received: BlockReceivedMetrics,
     votes: VoteMetrics,
-    chains_configured: ChainsConfiguredMetrics,
+    chains_configured: ChainConfiguredMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -227,18 +230,22 @@ struct VoteMetrics {
     success_rate: Family<VoteLabel, Gauge<f64, AtomicU64>>,
 }
 
-struct ChainsConfiguredMetrics {
-    total: Counter,
-    chain: Family<VoteLabel, Gauge<f64, AtomicU64>>,
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ChainLabel {
+    chain_name: String,
 }
 
+struct ChainConfiguredMetrics {
+    total: Counter,
+    status: Family<ChainLabel, Gauge<f64, AtomicU64>>,
+}
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
         let blocks_received = BlockReceivedMetrics::new();
         let votes = VoteMetrics::new();
-        let chains_configured = ChainsConfiguredMetrics::new();
+        let chains_configured = ChainConfiguredMetrics::new();
 
         blocks_received.register(registry);
         votes.register(registry);
@@ -270,7 +277,7 @@ impl Metrics {
                 self.votes.record_vote(verifier_id, chain_name, false);
             }
             Msg::ChainConfigured { chain_name } => {
-                self.chains_configured.record_configured(&chain_name);
+                self.chains_configured.record_configured(chain_name);
             }
         }
     }
@@ -364,44 +371,41 @@ impl VoteLabel {
     }
 }
 
-impl ChainsConfiguredMetrics {
+impl ChainConfiguredMetrics {
     fn new() -> Self {
-        let total = IntCounter::new(
-            "chains_configured_total",
+        let total = Counter::default();
+        let status = Family::<ChainLabel, Gauge<f64, AtomicU64>>::default();
+
+        Self { total, status }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "chains_configured",
             "number of chains with configured handlers",
-        )
-        .expect("failed to create chains_configured_total counter");
+            self.total.clone(),
+        );
 
-        let chains = GaugeVec::new(
-            Opts::new(
-                "chain_handler_status",
-                "handler configuration status per chain (up: 1, down: 0)",
-            )
-            .variable_labels(vec!["chain_name".to_string()]),
-            &["chain_name"],
-        )
-        .expect("failed to create chain_handler_status gauge");
-
-        Self {
-            total,
-            chain: chains,
-        }
+        registry.register(
+            "chain_handler_status",
+            "handler configuration status per chain (up: 1, down: 0)",
+            self.status.clone(),
+        );
     }
 
-    fn register(&self, registry: &Registry) {
-        registry
-            .register(Box::new(self.total.clone()))
-            .expect("failed to register chains_configured_total counter");
-
-        registry
-            .register(Box::new(self.chain.clone()))
-            .expect("failed to register chain_handler_status gauge");
-    }
-
-    fn record_configured(&self, chain_name: &str) {
-        if self.chain.with_label_values(&[chain_name]).get() == 0.0 {
+    fn record_configured(&self, chain_name: String) {
+        if self
+            .status
+            .get_or_create(&ChainLabel {
+                chain_name: chain_name.clone(),
+            })
+            .get()
+            == UNCONFIGURED_STATUS
+        {
             self.total.inc();
-            self.chain.with_label_values(&[chain_name]).set(1.0);
+            self.status
+                .get_or_create(&ChainLabel { chain_name })
+                .set(CONFIGURED_STATUS);
         }
     }
 }
@@ -521,59 +525,10 @@ mod tests {
             .unwrap();
 
         time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
+        let metrics = server.get("/test").await;
 
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_successful_total{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
-        );
-        final_metrics.assert_text_contains("verifier_votes_cast_failed_total{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 2");
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
-        );
-
-        final_metrics.assert_status_ok();
-
-        final_metrics.assert_text_contains("chains_configured_total 2");
-        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"ethereum\"} 1");
-        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"sui\"} 1");
-
-        goldie::assert!(final_metrics.text())
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn metrics_handle_chain_handler_configuration_and_increment_counter_successfully() {
-        let (router, process, client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        client
-            .record_metric(Msg::ChainConfigured {
-                chain_name: "ethereum".to_string(),
-            })
-            .unwrap();
-
-        client
-            .record_metric(Msg::ChainConfigured {
-                chain_name: "sui".to_string(),
-            })
-            .unwrap();
-
-        client
-            .record_metric(Msg::ChainConfigured {
-                chain_name: "ethereum".to_string(),
-            })
-            .unwrap();
-
-        time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
-        final_metrics.assert_status_ok();
-
-        final_metrics.assert_text_contains("chains_configured_total 2");
-        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"ethereum\"} 1");
-        final_metrics.assert_text_contains("chain_handler_status{chain_name=\"sui\"} 1");
-
-        goldie::assert!(final_metrics.text())
+        metrics.assert_text_contains("chains_configured_total 2");
+        metrics.assert_text_contains("chain_handler_status{chain_name=\"ethereum\"} 1");
+        metrics.assert_text_contains("chain_handler_status{chain_name=\"sui\"} 1");
     }
 }

@@ -895,6 +895,8 @@ mod tests {
         tokio::spawn(server.run(cancel_token.clone()));
 
         // Simulate handler creation results and handler info result
+        // only successful handler creation records metrics
+        // only unique chains increment the total counter
         let handler_results = vec![
             (
                 Ok("MultisigSigner created successfully"),
