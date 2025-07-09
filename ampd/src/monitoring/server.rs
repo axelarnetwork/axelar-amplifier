@@ -533,7 +533,7 @@ mod tests {
 
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains("blocks_received 15"));
+        assert!(metrics_text.contains("blocks_received_total 15"));
 
         cancel.cancel();
         _ = server_handle.await;

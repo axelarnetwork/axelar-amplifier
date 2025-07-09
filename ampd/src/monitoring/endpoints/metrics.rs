@@ -1,9 +1,16 @@
-use axum::http::StatusCode;
+use std::sync::Arc;
+
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::header::CONTENT_TYPE;
+use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, MethodRouter};
 use error_stack::{Result, ResultExt};
 use futures::StreamExt;
-use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
+use prometheus_client::encoding::text::encode;
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::registry::Registry;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -14,6 +21,9 @@ use tracing::log::warn;
 // safe upper bound for expected metric throughput;
 // shouldn't exceed 1000 message
 const CHANNEL_SIZE: usize = 1000;
+
+/// content-Type for Prometheus/OpenMetrics text format responses.
+const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
 /// Messages for metrics collection
 ///
@@ -31,7 +41,9 @@ pub enum Error {
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error(transparent)]
-    Prometheus(#[from] prometheus::Error),
+    MetricsEncoding(#[from] std::fmt::Error),
+    #[error(transparent)]
+    HttpResponse(#[from] axum::http::Error),
     #[error("failed to update metric")]
     MetricUpdateFailed,
 }
@@ -102,11 +114,11 @@ impl Client {
 pub fn create_endpoint() -> (MethodRouter, Process, Client) {
     let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
 
-    let registry = Registry::new();
-    let metrics = Metrics::new(&registry);
+    let mut registry = <Registry>::default();
+    let metrics = Metrics::new(&mut registry);
 
     (
-        get(|| async { serve_metrics(registry) }),
+        get(serve_metrics).with_state(Arc::new(registry)),
         Process::new(rx, metrics),
         Client::WithChannel { sender: tx },
     )
@@ -163,29 +175,31 @@ impl Process {
     }
 }
 
-fn serve_metrics(registry: Registry) -> core::result::Result<String, Error> {
-    let mut buffer = Vec::new();
-    let encoder = TextEncoder::new();
-    let metric_families = registry.gather();
-
-    encoder.encode(&metric_families, &mut buffer)?;
-
-    Ok(String::from_utf8(buffer)?)
+async fn serve_metrics(
+    State(registry): State<Arc<Registry>>,
+) -> core::result::Result<Response<Body>, Error> {
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry)?;
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header(CONTENT_TYPE, OPENMETRICS_CONTENT_TYPE)
+        .body(Body::from(buffer))?;
+    Ok(response)
 }
 
 struct Metrics {
-    block_received: IntCounter,
+    block_received: Counter,
 }
 
 impl Metrics {
-    pub fn new(registry: &Registry) -> Self {
+    pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
-        let block_received = IntCounter::new("blocks_received", "number of blocks received")
-            .expect("failed to create blocks_received counter");
-
-        registry
-            .register(Box::new(block_received.clone()))
-            .expect("failed to register blocks_received counter");
+        let block_received = Counter::default();
+        registry.register(
+            "blocks_received",
+            "number of blocks received",
+            block_received.clone(),
+        );
 
         Self { block_received }
     }
@@ -218,7 +232,8 @@ mod tests {
         let server = TestServer::new(router).unwrap();
 
         let initial_metrics = server.get("/test").await;
-        initial_metrics.assert_text_contains("blocks_received 0");
+
+        initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
         client.record_metric(Msg::IncBlockReceived).unwrap();
@@ -228,7 +243,7 @@ mod tests {
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
-        final_metrics.assert_text_contains("blocks_received 3");
+        final_metrics.assert_text_contains("blocks_received_total 3");
         final_metrics.assert_status_ok();
 
         // Ensure the final metrics are in the expected format
