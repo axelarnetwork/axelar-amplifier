@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
@@ -5,6 +7,7 @@ use cosmwasm_std::{Attribute, HexBinary};
 use router_api::{ChainNameRaw, CrossChainId, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 
+use crate::error::XRPLError;
 use crate::types::{xrpl_account_id_string, XRPLAccountId, XRPLPaymentAmount};
 use crate::{hex_option, hex_tx_hash};
 
@@ -53,6 +56,21 @@ impl std::fmt::Display for XRPLMessageType {
             XRPLMessageType::AddReserves => "add_reserves",
         };
         write!(f, "{}", s)
+    }
+}
+
+impl FromStr for XRPLMessageType {
+    type Err = XRPLError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "proof" => Ok(XRPLMessageType::Proof),
+            "interchain_transfer" => Ok(XRPLMessageType::InterchainTransfer),
+            "call_contract" => Ok(XRPLMessageType::CallContract),
+            "add_gas" => Ok(XRPLMessageType::AddGas),
+            "add_reserves" => Ok(XRPLMessageType::AddReserves),
+            _ => Err(XRPLError::UnsupportedMessageType),
+        }
     }
 }
 
@@ -425,5 +443,39 @@ impl WithPayload<XRPLMessage> {
 impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
     fn from(val: WithPayload<T>) -> Self {
         val.message.into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::XRPLMessageType;
+    use crate::error::XRPLError;
+
+    #[test]
+    fn test_xrpl_message_type_from_string() {
+        let msg_type = XRPLMessageType::from_str("interchain_transfer");
+        assert_eq!(msg_type, Ok(XRPLMessageType::InterchainTransfer));
+        assert_eq!(msg_type.unwrap().to_string(), "interchain_transfer");
+
+        let msg_type = XRPLMessageType::from_str("call_contract");
+        assert_eq!(msg_type, Ok(XRPLMessageType::CallContract));
+        assert_eq!(msg_type.unwrap().to_string(), "call_contract");
+
+        let msg_type = XRPLMessageType::from_str("add_gas");
+        assert_eq!(msg_type, Ok(XRPLMessageType::AddGas));
+        assert_eq!(msg_type.unwrap().to_string(), "add_gas");
+
+        let msg_type = XRPLMessageType::from_str("add_reserves");
+        assert_eq!(msg_type, Ok(XRPLMessageType::AddReserves));
+        assert_eq!(msg_type.unwrap().to_string(), "add_reserves");
+
+        let msg_type = XRPLMessageType::from_str("proof");
+        assert_eq!(msg_type, Ok(XRPLMessageType::Proof));
+        assert_eq!(msg_type.unwrap().to_string(), "proof");
+
+        let msg_type = XRPLMessageType::from_str("invalid");
+        assert_eq!(msg_type, Err(XRPLError::UnsupportedMessageType));
     }
 }
