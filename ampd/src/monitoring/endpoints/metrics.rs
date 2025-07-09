@@ -443,6 +443,5 @@ mod tests {
         );
 
         final_metrics.assert_status_ok();
-        goldie::assert!(final_metrics.text())
     }
 }

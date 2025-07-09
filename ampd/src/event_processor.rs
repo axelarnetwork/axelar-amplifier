@@ -252,6 +252,7 @@ enum StreamStatus {
 #[cfg(test)]
 mod tests {
     use std::net::{Ipv4Addr, SocketAddrV4};
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
 
     use assert_ok::assert_ok;
@@ -744,14 +745,12 @@ mod tests {
 
         let mut broadcaster = MockBroadcasterClient::new();
         broadcaster.expect_broadcast().times(3).returning(|_| {
-            static mut COUNTER: u32 = 0;
-            unsafe {
-                COUNTER += 1;
-                if COUNTER == 2 {
-                    Err(report!(BroadcasterError::EstimateFee))
-                } else {
-                    Ok(())
-                }
+            static COUNTER: AtomicU32 = AtomicU32::new(0);
+            let current_count = COUNTER.fetch_add(1, Ordering::SeqCst);
+            if current_count == 1 {
+                Err(report!(BroadcasterError::EstimateFee))
+            } else {
+                Ok(())
             }
         });
 
