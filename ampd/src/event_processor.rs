@@ -541,10 +541,13 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
+
         let bind_addr = monitoring::Config::enabled().bind_address;
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -562,11 +565,12 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
+
         let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
+        assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
 
         cancel_token.cancel();
     }

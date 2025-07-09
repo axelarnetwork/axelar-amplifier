@@ -1,3 +1,4 @@
-# HELP blocks_received number of blocks received
+# HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
-blocks_received 3
+blocks_received_total 3
+# EOF
