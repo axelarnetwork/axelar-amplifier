@@ -6,15 +6,20 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
-use error_stack::{ensure, report, ResultExt};
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 use router_api::ChainName;
 
 use crate::contract::errors::Error;
-use crate::state;
+use crate::state::{
+    contracts_by_chain, save_chain_contracts, save_protocol_contracts, ChainContractsRecord,
+    ProtocolContracts, DEPLOYED_CHAINS,
+};
 
 #[derive(thiserror::Error, Debug, PartialEq, IntoContractError)]
 enum MigrationError {
+    #[error("contract config before migration not found")]
+    OldConfigNotFound,
     #[error("missing contracts to register for chain {0}")]
     MissingContracts(ChainName),
     #[error("expected prover address {0} but saw {1}")]
@@ -58,7 +63,7 @@ pub struct OldChainContracts {
 pub struct MigrateMsg {
     pub router: String,
     pub multisig: String,
-    pub chain_contracts: Vec<state::ChainContractsRecord>,
+    pub chain_contracts: Vec<ChainContractsRecord>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -71,7 +76,7 @@ pub fn migrate(
     migrate_config(&mut deps, &msg)?;
 
     // Since this state has not yet been set or used, we can just clear it
-    state::DEPLOYED_CHAINS.clear(deps.storage);
+    DEPLOYED_CHAINS.clear(deps.storage);
 
     migrate_chain_contracts(deps.storage, msg.chain_contracts)?;
 
@@ -84,96 +89,109 @@ fn migrate_config(
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     let old_config = OLD_CONFIG
         .load(deps.storage)
-        .change_context(Error::OldConfigNotFound)?;
-
-    let router = address::validate_cosmwasm_address(deps.api, &msg.router)?;
-    let multisig = address::validate_cosmwasm_address(deps.api, &msg.multisig)?;
+        .change_context(MigrationError::OldConfigNotFound)?;
 
     OLD_CONFIG.remove(deps.storage);
 
-    let protocol = &state::ProtocolContracts {
+    let protocol = &ProtocolContracts {
         service_registry: old_config.service_registry,
-        router,
-        multisig,
+        router: address::validate_cosmwasm_address(deps.api, &msg.router)?,
+        multisig: address::validate_cosmwasm_address(deps.api, &msg.multisig)?,
     };
 
-    state::save_protocol_contracts(deps.storage, protocol)
-        .change_context(Error::UnableToPersistProtocol)?;
-    Ok(())
+    Ok(save_protocol_contracts(deps.storage, protocol)
+        .change_context(Error::UnableToPersistProtocol)?)
 }
 
 fn migrate_chain_contracts(
     storage: &mut dyn Storage,
-    chain_contracts: Vec<state::ChainContractsRecord>,
+    chain_contracts: Vec<ChainContractsRecord>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
         .range(storage, None, None, Order::Ascending)
         .try_collect()?;
 
-    let mut contracts_by_chain: HashMap<_, _> = chain_contracts
+    let mut cc: HashMap<_, _> = chain_contracts
         .into_iter()
         .map(|contracts| (contracts.chain_name.clone(), contracts))
         .collect();
 
     for (chain_name, prover_addr) in provers_by_chain {
-        let contracts = contracts_by_chain
-            .remove(&chain_name)
-            .ok_or_else(|| MigrationError::MissingContracts(chain_name.clone()))?;
+        let contracts = contracts_for_prover(chain_name.clone(), prover_addr.clone(), &mut cc)?;
 
-        if contracts.prover_address != prover_addr {
-            Err(MigrationError::IncorrectProver(
-                prover_addr,
-                contracts.prover_address.clone(),
-            ))?;
-        }
-
-        match state::contracts_by_chain(storage, contracts.chain_name.clone()) {
-            Ok(existing_contracts) if existing_contracts != contracts => {
-                Err(MigrationError::IncorrectContracts(contracts.chain_name))?;
-            }
-            _ => {
-                state::save_chain_contracts(
-                    storage,
-                    contracts.chain_name,
-                    contracts.prover_address,
-                    contracts.gateway_address,
-                    contracts.verifier_address,
-                )?;
-            }
-        }
+        save_contracts_to_state(storage, contracts)?;
     }
 
-    if let Some(extra_chain) = contracts_by_chain.keys().next() {
-        Err(MigrationError::ExtraProver(extra_chain.clone()))?;
+    ensure_no_extra_provers_given(cc)
+}
+
+fn contracts_for_prover(
+    chain_name: ChainName,
+    prover_addr: Addr,
+    cc: &mut HashMap<ChainName, ChainContractsRecord>,
+) -> Result<ChainContractsRecord, axelar_wasm_std::error::ContractError> {
+    let contracts = cc
+        .remove(&chain_name)
+        .ok_or_else(|| MigrationError::MissingContracts(chain_name.clone()))?;
+
+    if contracts.prover_address != prover_addr {
+        Err(MigrationError::IncorrectProver(
+            prover_addr,
+            contracts.prover_address.clone(),
+        ))?;
     }
 
-    Ok(())
+    Ok(contracts)
+}
+
+fn save_contracts_to_state(
+    storage: &mut dyn Storage,
+    contracts: ChainContractsRecord,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
+    match contracts_by_chain(storage, contracts.chain_name.clone()) {
+        Ok(existing_contracts) if existing_contracts != contracts => {
+            Err(MigrationError::IncorrectContracts(contracts.chain_name).into())
+        }
+        _ => {
+            save_chain_contracts(
+                storage,
+                contracts.chain_name,
+                contracts.prover_address,
+                contracts.gateway_address,
+                contracts.verifier_address,
+            )?;
+
+            Ok(())
+        }
+    }
+}
+
+fn ensure_no_extra_provers_given(
+    cc: HashMap<ChainName, ChainContractsRecord>,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
+    match cc.keys().next() {
+        Some(extra_chain) => Err(MigrationError::ExtraProver(extra_chain.clone()).into()),
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::error::ContractError;
-    use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::{address, nonempty, nonempty_str, permission_control};
+    use axelar_wasm_std::{address, permission_control};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use cw_storage_plus::Map;
     use router_api::ChainName;
 
     use crate::contract::errors::Error;
-    use crate::contract::migrations::{
-        ChainContractsDetails, MigrationError, OldChainContracts, OldConfig, ProverAddress,
-        OLD_CONFIG,
-    };
+    use crate::contract::migrations::{MigrationError, OldConfig, ProverAddress, OLD_CONFIG};
     use crate::contract::{migrate, MigrateMsg};
     use crate::state;
-    use crate::state::ProtocolContracts;
 
     const OLD_CONTRACT_NAME: &str = "coordinator";
     const OLD_CONTRACT_VERSION: &str = "1.1.0";
 
-    pub const OLD_DEPLOYED_CHAINS: Map<String, OldChainContracts> = Map::new("deployed_chains");
     use super::OLD_CHAIN_PROVER_INDEXED_MAP;
 
     #[cw_serde]
@@ -201,18 +219,6 @@ mod tests {
         Ok(Response::default())
     }
 
-    fn add_old_deployment(
-        deps: DepsMut,
-        deployment_name: nonempty::String,
-        old_contracts: OldChainContracts,
-    ) -> Result<(), Error> {
-        OLD_DEPLOYED_CHAINS
-            .save(deps.storage, deployment_name.to_string(), &old_contracts)
-            .map_err(|_| Error::UnableToPersistProtocol)?;
-
-        Ok(())
-    }
-
     fn add_old_prover_registration(
         deps: DepsMut,
         provers: Vec<(ChainName, ProverAddress)>,
@@ -224,166 +230,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[test]
-    fn migrate_sets_contract_addresses_correctly() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
-
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
-            },
-        )
-        .unwrap();
-
-        let gateway = api.addr_make("gateway");
-        let voting_verifier = api.addr_make("verifier");
-        let multisig_prover = api.addr_make("prover");
-        let chain_name = ChainName::try_from("axelar");
-
-        assert!(chain_name.is_ok());
-        let chain_name = chain_name.unwrap();
-
-        assert!(add_old_deployment(
-            deps.as_mut(),
-            nonempty_str!("deployment"),
-            OldChainContracts {
-                gateway: gateway.clone(),
-                voting_verifier: voting_verifier.clone(),
-                multisig_prover: multisig_prover.clone(),
-            }
-        )
-        .is_ok());
-
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-        assert!(migrate(
-            deps.as_mut(),
-            env,
-            MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_deployments: vec![ChainContractsDetails {
-                    gateway: gateway.clone(),
-                    deployment_name: nonempty_str!("deployment"),
-                    chain_name: chain_name.clone(),
-                    msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
-                    voting_verifier: voting_verifier.clone(),
-                    multisig_prover: multisig_prover.clone(),
-                },],
-                chain_contracts: vec![],
-            },
-        )
-        .is_ok());
-
-        assert!(!OLD_CONFIG.exists(&deps.storage));
-
-        assert_eq!(
-            state::protocol_contracts(&deps.storage).ok(),
-            Some(ProtocolContracts {
-                service_registry,
-                router,
-                multisig,
-            })
-        );
-
-        assert!(OLD_DEPLOYED_CHAINS.has(&deps.storage, "deployment".to_string()));
-
-        let deployment = state::deployed_contracts(&deps.storage, nonempty_str!("deployment"));
-        assert!(deployment.is_ok());
-        let deployment = deployment.unwrap();
-
-        assert_eq!(
-            deployment,
-            state::ChainContracts {
-                chain_name: chain_name.clone(),
-                msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
-                gateway,
-                voting_verifier,
-                multisig_prover,
-            }
-        )
-    }
-
-    #[test]
-    fn migrate_fails_with_duplicate_deployment_ids_in_migration_msg() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
-
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
-            },
-        )
-        .unwrap();
-
-        let gateway = api.addr_make("gateway");
-        let voting_verifier = api.addr_make("verifier");
-        let multisig_prover = api.addr_make("prover");
-
-        assert!(add_old_deployment(
-            deps.as_mut(),
-            nonempty_str!("deployment"),
-            OldChainContracts {
-                gateway: gateway.clone(),
-                voting_verifier: voting_verifier.clone(),
-                multisig_prover: multisig_prover.clone(),
-            }
-        )
-        .is_ok());
-
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-        let chain_name = ChainName::try_from("axelar").unwrap();
-
-        let res = migrate(
-            deps.as_mut(),
-            env,
-            MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_deployments: vec![
-                    ChainContractsDetails {
-                        gateway: gateway.clone(),
-                        deployment_name: nonempty_str!("deployment"),
-                        chain_name: chain_name.clone(),
-                        msg_id_format: MessageIdFormat::FieldElementAndEventIndex,
-                        voting_verifier: voting_verifier.clone(),
-                        multisig_prover: multisig_prover.clone(),
-                    },
-                    ChainContractsDetails {
-                        gateway,
-                        deployment_name: nonempty_str!("deployment"),
-                        chain_name,
-                        msg_id_format: MessageIdFormat::HexTxHash,
-                        voting_verifier,
-                        multisig_prover,
-                    },
-                ],
-                chain_contracts: vec![],
-            },
-        );
-
-        assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains(
-            &MigrationError::DuplicateDeployment(nonempty_str!("deployment")).to_string()
-        ));
     }
 
     #[test]
@@ -434,7 +280,6 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_deployments: vec![],
                 chain_contracts: vec![state::ChainContractsRecord {
                     chain_name: chain_name.clone(),
                     prover_address: prover_addr.clone(),
@@ -505,7 +350,6 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_deployments: vec![],
                 chain_contracts: vec![state::ChainContractsRecord {
                     chain_name: chain_name.clone(),
                     prover_address: prover_addr1.clone(),
@@ -568,7 +412,6 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_deployments: vec![],
                 chain_contracts: vec![state::ChainContractsRecord {
                     chain_name: chain_name1.clone(),
                     prover_address: prover_addr1.clone(),
@@ -628,7 +471,6 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_deployments: vec![],
                 chain_contracts: vec![
                     state::ChainContractsRecord {
                         chain_name: chain_name.clone(),
@@ -704,7 +546,6 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_deployments: vec![],
                 chain_contracts: vec![state::ChainContractsRecord {
                     chain_name: chain_name.clone(),
                     prover_address: prover_addr.clone(),
@@ -772,7 +613,6 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_deployments: vec![],
                 chain_contracts: vec![state::ChainContractsRecord {
                     chain_name: chain_name.clone(),
                     prover_address: prover_addr.clone(),
