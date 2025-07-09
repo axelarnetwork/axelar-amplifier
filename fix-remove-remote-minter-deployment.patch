@@ -1,0 +1,34 @@
+From cd8183a68ad066f18186b1b28559f91b93e0d313 Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Wed, 9 Jul 2025 23:28:15 +0000
+Subject: [PATCH] fix: switch to new deployRemoteInterchainToken method without
+ minter
+
+- Replace deprecated deployRemoteInterchainToken2 with deployRemoteInterchainToken
+- Remove minter parameter from remote deployments as per ITS v2.1.0
+- Minter is now only set on source chain, not on remote chains
+- This prevents security issues and complexity with cross-chain minter addresses
+---
+ .../useDeployAndRegisterRemoteInterchainTokenMutation.ts    | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/apps/maestro/src/features/InterchainTokenDeployment/hooks/useDeployAndRegisterRemoteInterchainTokenMutation.ts b/apps/maestro/src/features/InterchainTokenDeployment/hooks/useDeployAndRegisterRemoteInterchainTokenMutation.ts
+index 9c7eadc1..b2d844b9 100644
+--- a/apps/maestro/src/features/InterchainTokenDeployment/hooks/useDeployAndRegisterRemoteInterchainTokenMutation.ts
++++ b/apps/maestro/src/features/InterchainTokenDeployment/hooks/useDeployAndRegisterRemoteInterchainTokenMutation.ts
+@@ -139,10 +139,8 @@ export function useDeployAndRegisterRemoteInterchainTokenMutation(
+     }
+ 
+     const registerTxData = destinationChainIds.map((destinationChain, i) =>
+-      INTERCHAIN_TOKEN_FACTORY_ENCODERS.deployRemoteInterchainToken2.data({
+-        ...commonArgs,
+-        originalChainName: "",
+-        minter: minter as `0x${string}`,
++      INTERCHAIN_TOKEN_FACTORY_ENCODERS.deployRemoteInterchainToken.data({
++        salt: input.salt,
+         destinationChain,
+         gasValue: input.remoteDeploymentGasFees?.gasFees?.[i].fee ?? 0n,
+       })
+-- 
+2.48.1
+
