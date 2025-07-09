@@ -1,0 +1,118 @@
+[
+  {
+    "type": "interchain_transfer",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+      },
+      {
+        "key": "source_address",
+        "value": "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"test-chain\""
+      },
+      {
+        "key": "destination_address",
+        "value": "\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\""
+      },
+      {
+        "key": "amount",
+        "value": "\"1000000\""
+      },
+      {
+        "key": "data_hash",
+        "value": "[212,253,78,24,145,50,39,48,54,68,159,201,225,17,152,199,57,22,27,76,1,22,169,162,220,205,250,28,73,32,6,241]"
+      }
+    ]
+  },
+  {
+    "type": "interchain_transfer",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+      },
+      {
+        "key": "source_address",
+        "value": "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"test-chain\""
+      },
+      {
+        "key": "destination_address",
+        "value": "\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\""
+      },
+      {
+        "key": "amount",
+        "value": "\"1000000\""
+      },
+      {
+        "key": "data_hash",
+        "value": "null"
+      }
+    ]
+  },
+  {
+    "type": "link_token_started",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0202020202020202020202020202020202020202020202020202020202020202\""
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"test-chain\""
+      },
+      {
+        "key": "token_manager_type",
+        "value": "\"1\""
+      },
+      {
+        "key": "source_token_address",
+        "value": "\"1111111111111111111111111111111111111111111111111111111111111111\""
+      },
+      {
+        "key": "destination_token_address",
+        "value": "\"2222222222222222222222222222222222222222222222222222222222222222\""
+      },
+      {
+        "key": "params",
+        "value": "\"010203\""
+      }
+    ]
+  },
+  {
+    "type": "interchain_token_deployment_started",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0303030303030303030303030303030303030303030303030303030303030303\""
+      },
+      {
+        "key": "token_name",
+        "value": "\"Test Function Coverage\""
+      },
+      {
+        "key": "token_symbol",
+        "value": "\"TFC\""
+      },
+      {
+        "key": "token_decimals",
+        "value": "8"
+      },
+      {
+        "key": "minter",
+        "value": "null"
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"test-chain\""
+      }
+    ]
+  }
+]

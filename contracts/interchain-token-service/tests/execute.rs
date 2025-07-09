@@ -5,7 +5,7 @@ use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
-use interchain_token_service::events::Event;
+use interchain_token_service::events::{make_message_event, Event};
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
 use interchain_token_service_std::{
     DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
@@ -236,14 +236,20 @@ fn execute_hub_message_succeeds() {
                 _ => panic!("Expected CallContract message"),
             }
 
-            let expected_event = Event::MessageReceived {
-                cc_id: router_message.cc_id.clone(),
-                destination_chain: destination_its_chain.clone(),
-                message: hub_message.message().clone(),
-            };
+            let expected_events = vec![
+                Event::MessageReceived {
+                    cc_id: router_message.cc_id.clone(),
+                    destination_chain: destination_its_chain.clone(),
+                    message: hub_message.message().clone(),
+                },
+                make_message_event(destination_its_chain.clone(), hub_message.message().clone()),
+            ];
             assert_eq!(
                 response.events,
-                vec![cosmwasm_std::Event::from(expected_event)]
+                expected_events
+                    .into_iter()
+                    .map(cosmwasm_std::Event::from)
+                    .collect::<Vec<_>>()
             );
 
             response
