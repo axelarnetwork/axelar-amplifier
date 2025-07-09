@@ -50,6 +50,7 @@ pub enum Msg {
         verifier_id: String,
         chain_name: String,
     },
+    // Increment the count of chains with configured handlers
     ChainConfigured {
         chain_name: String,
     },
