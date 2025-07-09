@@ -1,5 +1,4 @@
-use cosmwasm_std::Event;
-use cosmwasm_std::Uint64;
+use cosmwasm_std::{Event, Uint64};
 use router_api::{ChainName, CrossChainId};
 
 use crate::payload::PayloadId;
