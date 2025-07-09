@@ -1,10 +1,10 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 3
-# HELP verifier_votes_cast_successful_total number of succeeded votes casts by verifier.
-# TYPE verifier_votes_cast_successful_total counter
-# HELP verifier_votes_cast_failed_total number of failed votes casts by verifier.
-# TYPE verifier_votes_cast_failed_total counter
+# HELP verifier_votes_cast_successful number of succeeded votes casts by verifier.
+# TYPE verifier_votes_cast_successful counter
+# HELP verifier_votes_cast_failed number of failed votes casts by verifier.
+# TYPE verifier_votes_cast_failed counter
 # HELP verifier_votes_cast_success_rate success rate of votes casts by verifier.
 # TYPE verifier_votes_cast_success_rate gauge
 # EOF
