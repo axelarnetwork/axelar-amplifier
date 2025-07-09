@@ -374,7 +374,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(start_paused = true)]
-    async fn metrics_handle_message_increments_counter_successfully() {
+    async fn metrics_handle_blocks_received_message_increments_counter_successfully() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
