@@ -37,12 +37,12 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
-    // increment the count of succeeded votes casts by verifier
+    // Increment the count of succeeded votes casts by verifier
     VoteCastSucceeded {
         verifier_id: String,
         chain_name: String,
     },
-    // increment the count of failed votes (either broadcast or handler error) by verifier
+    // Increment the count of failed votes (either broadcast or handler error) by verifier
     VoteFailed {
         verifier_id: String,
         chain_name: String,
