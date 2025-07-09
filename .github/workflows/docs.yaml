@@ -12,8 +12,9 @@ concurrency:
 
 jobs:
   docs:
-    runs-on: ubuntu-22.04
     name: Build and validate documentation
+    runs-on: ubuntu-22.04
+    
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +23,7 @@ jobs:
         with:
           toolchain: 1.81.0
 
-      - name: "Cache cargo"
+      - name: Cache cargo and tools
         id: cache-cargo
         uses: "actions/cache@v4"
         with:
@@ -34,7 +35,10 @@ jobs:
 
       - name: Install mdBook and plugins
         run: |
-          cargo install --locked mdbook@0.4.40 mdbook-mermaid@0.15.0 mdbook-linkcheck@0.7.7
+          cargo install --locked \
+          mdbook@0.4.40 \
+          mdbook-mermaid@0.15.0 \
+          mdbook-linkcheck@0.7.7
 
       - name: Build documentation
         run: |
