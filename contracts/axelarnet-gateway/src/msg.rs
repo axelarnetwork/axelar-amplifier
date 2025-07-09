@@ -1,8 +1,10 @@
 use axelar_core_std::nexus;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use router_api::{Address, ChainName, CrossChainId, Message};
+
+pub use crate::contract::MigrateMsg;
 
 #[cw_serde]
 pub enum ExecutableMessage {
@@ -23,7 +25,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Forward the given messages to the next step of the routing layer.
     /// Messages initiated via `CallContract` can be forwarded again to the router.

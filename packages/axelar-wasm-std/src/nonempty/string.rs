@@ -13,6 +13,24 @@ use crate::nonempty::Error;
 #[derive(Eq, Hash, Valuable, IntoInner)]
 pub struct String(std::string::String);
 
+impl String {
+    pub const fn is_not_empty(value: &str) -> bool {
+        !value.is_empty()
+    }
+}
+
+impl PartialEq<&str> for &String {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<&str> for String {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
 impl TryFrom<std::string::String> for String {
     type Error = Error;
 
@@ -67,8 +85,24 @@ impl Display for String {
     }
 }
 
+#[macro_export]
+macro_rules! nonempty_str {
+    ($s: literal) => {{
+        use std::str::FromStr;
+        const _: () = {
+            if $s.is_empty() {
+                panic!("string literal must not be empty");
+            }
+        };
+
+        $crate::nonempty::String::from_str($s).expect("nonempty string was already checked")
+    }};
+}
+
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::nonempty;
 
     #[test]
@@ -78,5 +112,13 @@ mod tests {
 
         assert!(nonempty::String::try_from("some string").is_ok());
         assert!(serde_json::from_str::<nonempty::String>("\"some string\"").is_ok());
+    }
+
+    #[test]
+    fn nonempty_str_macro_compiles() {
+        assert_eq!(
+            nonempty_str!("hello world"),
+            nonempty::String::from_str("hello world").unwrap()
+        );
     }
 }

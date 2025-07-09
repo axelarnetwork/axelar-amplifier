@@ -4,7 +4,7 @@ use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, Participant, Threshold};
-use coordinator::msg::{ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
+use coordinator::msg::{ChainContractsResponse, ExecuteMsg as CoordinatorExecuteMsg, VerifierInfo};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
@@ -344,12 +344,27 @@ pub fn assert_verifier_details_are_equal(
         verifier.supported_chains.clone().into_iter().collect();
     assert_eq!(verifier_info_chains, verifier_chains);
 
-    let available_provers: HashSet<Addr> = chains
+    let mut available_provers: Vec<Addr> = chains
         .iter()
         .map(|chain| chain.multisig_prover.contract_addr.clone())
         .collect();
 
+    available_provers.sort();
+
     assert_eq!(verifier_info.actively_signing_for, available_provers);
+}
+
+pub fn chain_contracts_info_from_coordinator(
+    protocol: &mut Protocol,
+    chain_contracts_key: coordinator::msg::ChainContractsKey,
+) -> ChainContractsResponse {
+    let query_response: Result<ChainContractsResponse, StdError> = protocol.coordinator.query(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::ChainContractsInfo(chain_contracts_key),
+    );
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
 }
 
 #[allow(clippy::arithmetic_side_effects)]
@@ -378,7 +393,7 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
         &rewards::msg::ExecuteMsg::DistributeRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: contract_address,
+                contract: contract_address.to_string(),
             },
             epoch_count: None,
         },
@@ -408,11 +423,15 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let governance_address = MockApi::default().addr_make("governance");
     let axelarnet_gateway = MockApi::default().addr_make("axelarnet_gateway");
 
+    let coordinator =
+        CoordinatorContract::instantiate_contract(&mut app, governance_address.clone());
+
     let router = RouterContract::instantiate_contract(
         &mut app,
         admin_address.clone(),
         governance_address.clone(),
         axelarnet_gateway.clone(),
+        coordinator.contract_addr.clone(),
     );
 
     let rewards_params = rewards::msg::Params {
@@ -437,10 +456,12 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
 
-    let coordinator = CoordinatorContract::instantiate_contract(
+    coordinator.register_protocol(
         &mut app,
         governance_address.clone(),
         service_registry.contract_addr.clone(),
+        router.contract_addr.clone(),
+        multisig.contract_addr.clone(),
     );
 
     Protocol {
@@ -723,6 +744,18 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    let response = protocol.coordinator.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &CoordinatorExecuteMsg::RegisterChain {
+            chain_name: chain_name.clone(),
+            prover_address: multisig_prover.contract_addr.to_string(),
+            gateway_address: gateway.contract_addr.to_string(),
+            voting_verifier_address: voting_verifier.contract_addr.to_string(),
+        },
+    );
+    assert!(response.is_ok());
+
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
@@ -765,7 +798,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::CreatePool {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: voting_verifier.contract_addr.clone(),
+                contract: voting_verifier.contract_addr.to_string(),
             },
             params: rewards_params.clone(),
         },
@@ -778,7 +811,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::CreatePool {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: protocol.multisig.contract_addr.clone(),
+                contract: protocol.multisig.contract_addr.to_string(),
             },
             params: rewards_params,
         },
@@ -791,7 +824,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: voting_verifier.contract_addr.clone(),
+                contract: voting_verifier.contract_addr.to_string(),
             },
         },
         &coins(1000, AXL_DENOMINATION),
@@ -804,7 +837,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: protocol.multisig.contract_addr.clone(),
+                contract: protocol.multisig.contract_addr.to_string(),
             },
         },
         &coins(1000, AXL_DENOMINATION),

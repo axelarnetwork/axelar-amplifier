@@ -9,8 +9,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::Event;
-use events_derive::try_from;
+use events::{try_from, Event};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
@@ -44,6 +43,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: SuiClient + Send + Sync,

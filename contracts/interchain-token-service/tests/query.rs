@@ -7,7 +7,7 @@ use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
 };
-use interchain_token_service::TokenId;
+use interchain_token_service_std::TokenId;
 use router_api::{Address, ChainNameRaw};
 
 mod utils;
@@ -51,7 +51,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.eth.chain.clone(),
             self.eth.address.clone(),
-            self.eth.max_uint_bits.clone(),
+            self.eth.max_uint_bits,
             self.eth.max_decimals,
         )
         .unwrap();
@@ -60,7 +60,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.polygon.chain.clone(),
             self.polygon.address.clone(),
-            self.polygon.max_uint_bits.clone(),
+            self.polygon.max_uint_bits,
             self.polygon.max_decimals,
         )
         .unwrap();
@@ -79,6 +79,7 @@ fn query_chain_config() {
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
+        msg_translator: cosmwasm_std::testing::MockApi::default().addr_make("translation_contract"),
     };
 
     let eth_chain_config = assert_ok!(utils::query_its_chain(
@@ -267,7 +268,7 @@ fn query_chains_pagination() {
             test_config.deps.as_mut(),
             chain_name.parse().unwrap(),
             address.parse().unwrap(),
-            test_config.eth.max_uint_bits.clone(),
+            test_config.eth.max_uint_bits,
             test_config.eth.max_decimals,
         )
         .unwrap();

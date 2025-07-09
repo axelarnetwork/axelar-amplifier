@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::address::ContractAddr;
+use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use msgs_derive::EnsurePermissions;
+use cosmwasm_std::Uint256;
+use interchain_token_service_std::TokenId;
+use msgs_derive::Permissions;
 use router_api::{Address, ChainNameRaw};
 
-pub use crate::contract::MigrateMsg;
+pub use crate::contract::migrations::MigrateMsg;
 use crate::shared::NumBits;
-use crate::state::{TokenConfig, TokenInstance};
-use crate::TokenId;
 
 pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
 
@@ -17,19 +19,53 @@ const fn default_pagination_limit() -> u32 {
 }
 
 #[cw_serde]
+pub enum TokenSupply {
+    /// The total token supply bridged to this chain.
+    /// ITS Hub will not allow bridging back more than this amount of the token from the corresponding chain.
+    Tracked(Uint256),
+    /// The token supply bridged to this chain is not tracked.
+    Untracked,
+}
+
+/// Information about a token on a specific chain.
+#[cw_serde]
+pub struct TokenInstance {
+    pub supply: TokenSupply,
+    pub decimals: u8,
+}
+
+#[cw_serde]
+pub struct TokenConfig {
+    pub origin_chain: ChainNameRaw,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
+    pub operator_address: String,
     /// The address of the axelarnet-gateway contract on Amplifier
     pub axelarnet_gateway_address: String,
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// Execute a cross-chain message received by the axelarnet-gateway from another chain
     #[permission(Specific(gateway))]
     Execute(AxelarExecutableMsg),
+
+    /// Registers an existing ITS token with the hub. This is useful for tokens that were deployed
+    /// before the hub existed and have operated in p2p mode. Both instance_chain and origin_chain
+    /// must be registered with the hub.
+    #[permission(Elevated, Specific(operator))]
+    RegisterP2pTokenInstance {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+        origin_chain: ChainNameRaw,
+        decimals: u8,
+        supply: TokenSupply,
+    },
 
     /// For each chain, register the ITS contract and set config parameters.
     /// Each chain's ITS contract has to be whitelisted before
@@ -37,6 +73,17 @@ pub enum ExecuteMsg {
     /// If any chain is already registered, an error is returned.
     #[permission(Governance)]
     RegisterChains { chains: Vec<ChainConfig> },
+
+    // Increase or decrease the supply for a given token and chain.
+    // If the supply is untracked, this command will attempt to set it.
+    // Errors if the token is not deployed to the specified chain, or if
+    // the supply modification overflows or underflows
+    #[permission(Elevated, Specific(operator))]
+    ModifySupply {
+        chain: ChainNameRaw,
+        token_id: TokenId,
+        supply_modifier: SupplyModifier,
+    },
 
     /// For each chain, update the ITS contract and config parameters.
     /// If any chain has not been registered, returns an error
@@ -65,6 +112,12 @@ pub enum ChainStatusFilter {
 }
 
 #[cw_serde]
+pub enum SupplyModifier {
+    IncreaseSupply(nonempty::Uint256),
+    DecreaseSupply(nonempty::Uint256),
+}
+
+#[cw_serde]
 #[derive(Default)]
 pub struct ChainFilter {
     pub status: Option<ChainStatusFilter>,
@@ -75,6 +128,7 @@ pub struct ChainConfig {
     pub chain: ChainNameRaw,
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
+    pub msg_translator: Address,
 }
 
 #[cw_serde]
@@ -89,6 +143,7 @@ pub struct ChainConfigResponse {
     pub its_edge_contract: Address,
     pub truncation: TruncationConfig,
     pub frozen: bool,
+    pub msg_translator: ContractAddr,
 }
 
 #[cw_serde]

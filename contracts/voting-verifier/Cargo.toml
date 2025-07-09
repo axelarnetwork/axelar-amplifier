@@ -2,6 +2,7 @@
 name = "voting-verifier"
 version = "1.1.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Voting verifier contract"
 
@@ -19,13 +20,6 @@ path = "src/bin/schema.rs"
 # use library feature to disable all instantiate/execute/query exports
 library = []
 
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
-
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
@@ -40,11 +34,13 @@ multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 rewards = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
-serde ={ workspace = true }
+serde = { workspace = true }
+semver = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true, features = ["library"] }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier-api = { workspace = true }
 
 [dev-dependencies]
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }

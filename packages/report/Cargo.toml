@@ -2,6 +2,7 @@
 name = "report"
 version = "1.0.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,6 +11,10 @@ error-stack = { workspace = true }
 eyre = "0.6.8"
 itertools = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-core = { workspace = true }
+tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
 valuable = { version = "0.1.0", features = ["derive"] }
 
 [lints]

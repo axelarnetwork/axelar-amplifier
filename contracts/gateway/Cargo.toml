@@ -2,13 +2,11 @@
 name = "gateway"
 version = "1.1.1"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Gateway contract"
 
-exclude = [
-    "contract.wasm",
-    "hash.txt"
-]
+exclude = ["contract.wasm", "hash.txt"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -23,13 +21,6 @@ path = "src/bin/schema.rs"
 library = []
 # generate golden files for the tests
 generate_golden_files = []
-
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }

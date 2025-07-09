@@ -17,6 +17,7 @@ impl RouterContract {
         admin: Addr,
         governance: Addr,
         axelarnet: Addr,
+        coordinator: Addr,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
@@ -29,6 +30,7 @@ impl RouterContract {
                     admin_address: admin.to_string(),
                     governance_address: governance.to_string(),
                     axelarnet_gateway: axelarnet.to_string(),
+                    coordinator_address: coordinator.to_string(),
                 },
                 &[],
                 "router",

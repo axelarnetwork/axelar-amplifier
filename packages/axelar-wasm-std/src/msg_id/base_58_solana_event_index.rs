@@ -5,12 +5,14 @@ use std::str::FromStr;
 use error_stack::{Report, ResultExt};
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde_with::DeserializeFromStr;
 
 use super::Error;
 use crate::nonempty;
 
 type RawSignature = [u8; 64];
 
+#[derive(Debug, Clone, DeserializeFromStr)]
 pub struct Base58SolanaTxSignatureAndEventIndex {
     // Base58 decoded bytes of the Solana signature.
     pub raw_signature: RawSignature,
@@ -121,7 +123,7 @@ mod tests {
             let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
             assert_eq!(parsed.event_index, event_index);
-            assert_eq!(parsed.signature_as_base58(), tx_digest.try_into().unwrap());
+            assert_eq!(parsed.signature_as_base58(), tx_digest.as_str());
             assert_eq!(parsed.to_string(), msg_id);
         }
     }

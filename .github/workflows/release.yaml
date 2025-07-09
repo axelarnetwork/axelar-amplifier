@@ -8,6 +8,7 @@ on:
         type: choice
         options:
           - ampd
+          - ampd-sdk
           - router
           - gateway
           - multisig
@@ -18,6 +19,7 @@ on:
           - coordinator
           - axelarnet-gateway
           - interchain-token-service
+          - its-abi-translator
       dry-run:
         description: Dry run
         type: boolean
@@ -32,7 +34,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
           token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
+      
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
@@ -40,6 +44,7 @@ jobs:
           binary="${{ github.event.inputs.binary-to-release }}"
           declare -A binaries_data=(
             ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
+            ["ampd-sdk"]="ampd-sdk,/\(major\)|\(major-ampd-sdk\)/,/\(minor\)|\(minor-ampd-sdk\)/,packages/ampd-sdk"
             ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
             ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
             ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
@@ -50,6 +55,7 @@ jobs:
             ["coordinator"]="coordinator,/\(major\)|\(major-coordinator\)|\(major-contracts\)/,/\(minor\)|\(minor-coordinator\)|\(minor-contracts\)/,contracts/coordinator packages"
             ["axelarnet-gateway"]="axelarnet-gateway,/\(major\)|\(major-axelarnet-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-axelarnet-gateway\)|\(minor-contracts\)/,contracts/axelarnet-gateway packages"
             ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
+            ["its-abi-translator"]="its-abi-translator,/\(major\)|\(major-its-abi-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-abi-translator\)|\(minor-contracts\)/,contracts/its-abi-translator packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then

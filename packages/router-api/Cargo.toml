@@ -2,12 +2,14 @@
 name = "router-api"
 version = "1.0.0"
 rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
+const-str = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }

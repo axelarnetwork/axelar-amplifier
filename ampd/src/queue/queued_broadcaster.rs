@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use cosmrs::tx::MessageExt;
 use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
@@ -29,8 +28,6 @@ pub enum Error {
     Queue,
     #[error("failed to confirm transaction")]
     TxConfirmation,
-    #[error("failed to decode tx response")]
-    DecodeTxResponse(#[from] prost::DecodeError),
     #[error("no clients for tx broadcasts connected")]
     NoClients,
 }
@@ -41,6 +38,7 @@ pub trait BroadcasterClient {
     async fn broadcast(&self, tx: Any) -> Result;
 }
 
+#[derive(Debug)]
 pub struct QueuedBroadcasterClient {
     sender: mpsc::Sender<MsgAndResponseCallback>,
 }
@@ -137,11 +135,10 @@ where
             n => {
                 info!(message_count = n, "ready to broadcast messages");
 
-                let batch_req = proto::axelar::auxiliary::v1beta1::BatchRequest {
+                let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
                     sender: self.broadcaster.sender_address().as_ref().to_bytes(),
                     messages: msgs,
-                }
-                .to_any()
+                })
                 .expect("failed to serialize proto message for batch request");
 
                 let tx_hash = self
@@ -246,7 +243,7 @@ async fn handle_tx_response(tx_res: TxResponse) -> Result {
 mod test {
     use cosmrs::bank::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-    use cosmrs::tx::{Fee, MessageExt, Msg};
+    use cosmrs::tx::{Fee, Msg};
     use cosmrs::{AccountId, Any};
     use error_stack::Report;
     use futures::StreamExt;
@@ -321,7 +318,7 @@ mod test {
             .returning(move |msgs| {
                 assert_eq!(msgs.len(), 1);
                 let msg = msgs.first().unwrap();
-                let msg = proto::axelar::auxiliary::v1beta1::BatchRequest::from_any(msg).unwrap();
+                let msg: proto::axelar::auxiliary::v1beta1::BatchRequest = msg.to_msg().unwrap();
                 assert_eq!(msg.messages.len(), tx_count);
 
                 tx.try_send(())
@@ -397,7 +394,7 @@ mod test {
 
                 assert_eq!(msgs.len(), 1);
                 let msg = msgs.first().unwrap();
-                let msg = proto::axelar::auxiliary::v1beta1::BatchRequest::from_any(msg).unwrap();
+                let msg: proto::axelar::auxiliary::v1beta1::BatchRequest = msg.to_msg().unwrap();
 
                 if call_count < 3 {
                     assert_eq!(msg.messages.len(), 9);
@@ -467,7 +464,7 @@ mod test {
 
                 assert_eq!(msgs.len(), 1);
                 let msg = msgs.first().unwrap();
-                let msg = proto::axelar::auxiliary::v1beta1::BatchRequest::from_any(msg).unwrap();
+                let msg: proto::axelar::auxiliary::v1beta1::BatchRequest = msg.to_msg().unwrap();
 
                 if broadcast_count == 1 {
                     assert_eq!(msg.messages.len(), tx_count - 1);

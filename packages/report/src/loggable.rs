@@ -7,6 +7,7 @@ use std::panic::Location;
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use itertools::Itertools;
+use tracing_error::SpanTrace;
 use valuable::Valuable;
 
 #[derive(Valuable, PartialEq, Debug, Default)]
@@ -16,6 +17,7 @@ pub struct LoggableError {
     pub location: String,
     pub cause: Option<Box<LoggableError>>,
     pub backtrace: Option<LoggableBacktrace>,
+    pub spantrace: Option<LoggableSpanTrace>,
 }
 
 impl Display for LoggableError {
@@ -73,8 +75,9 @@ impl<T> From<&Report<T>> for LoggableError {
                     }
                     FrameType::Location(loc) => error.location = loc.to_string(),
                     FrameType::Printable(p) => attachments.push(p),
-                    FrameType::Opaque => attachments.push("opaque attachment".to_string()),
                     FrameType::Backtrace(b) => error.backtrace = Some(LoggableBacktrace::from(b)),
+                    FrameType::Spantrace(s) => error.spantrace = Some(LoggableSpanTrace::from(s)),
+                    FrameType::Opaque => attachments.push("opaque attachment".to_string()),
                 }
             }
 
@@ -119,10 +122,28 @@ impl From<&Backtrace> for LoggableBacktrace {
     }
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Valuable)]
+pub struct LoggableSpanTrace {
+    pub lines: Vec<String>,
+}
+
+impl From<&SpanTrace> for LoggableSpanTrace {
+    fn from(spantrace: &SpanTrace) -> Self {
+        LoggableSpanTrace {
+            lines: spantrace
+                .to_string()
+                .split('\n')
+                .map(|s| s.to_string())
+                .collect(),
+        }
+    }
+}
+
 enum FrameType<'a> {
     Context(&'a dyn Context),
     Location(&'a Location<'a>),
     Backtrace(&'a Backtrace),
+    Spantrace(&'a SpanTrace),
     Printable(String),
     Opaque,
 }
@@ -143,6 +164,10 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
                     return FrameType::Backtrace(b);
                 }
 
+                if let Some(s) = f.downcast_ref::<SpanTrace>() {
+                    return FrameType::Spantrace(s);
+                }
+
                 FrameType::Opaque
             }
             Attachment(Printable(p)) => FrameType::Printable(p.to_string()),
@@ -157,7 +182,13 @@ mod tests {
 
     use error_stack::Report;
     use thiserror::Error;
+    use tracing::instrument;
+    use tracing_core::LevelFilter;
+    use tracing_error::ErrorLayer;
+    use tracing_subscriber::prelude::*;
+    use tracing_subscriber::EnvFilter;
 
+    use crate::loggable::LoggableSpanTrace;
     use crate::LoggableError;
 
     #[derive(Error, Debug)]
@@ -201,10 +232,13 @@ mod tests {
                     location: format!("packages/report/src/loggable.rs:{}:22", line_offset + 1),
                     cause: None,
                     backtrace: None,
+                    spantrace: None,
                 })),
                 backtrace: None,
+                spantrace: None,
             })),
             backtrace: None,
+            spantrace: None,
         };
 
         assert_eq!(err, expected_err);
@@ -232,5 +266,37 @@ mod tests {
         assert!(error_msg.contains("value"));
         assert!(error_msg.contains("inner attachment"));
         assert!(error_msg.contains(vec_attachment.as_str()));
+    }
+
+    #[test]
+    /// An instrumented function that creates a report must return
+    /// a valid span trace in the LoggableError
+    fn instrument_should_display_span_trace() {
+        // Configure layers
+        let error_layer = ErrorLayer::default();
+        let filter_layer = EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .from_env_lossy();
+        let fmt_layer = tracing_subscriber::fmt::layer().with_target(false);
+        // Initialize a tracing subscriber
+        tracing_subscriber::registry()
+            .with(error_layer)
+            .with(filter_layer)
+            .with(fmt_layer)
+            .init();
+
+        let report: Report<Error> = instrumented_report();
+        let loggable_error = LoggableError::from(&report);
+        let spantrace: Option<LoggableSpanTrace> = loggable_error.spantrace;
+
+        assert!(spantrace.is_some());
+        assert_eq!(spantrace.clone().unwrap_or_default().lines.len(), 2_usize);
+        assert!(spantrace.unwrap_or_default().lines[0]
+            .contains("report::loggable::tests::instrumented_report"));
+    }
+
+    #[instrument]
+    fn instrumented_report() -> Report<Error> {
+        Report::new(Error::FromString("internal error".to_string()))
     }
 }

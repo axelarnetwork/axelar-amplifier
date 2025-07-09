@@ -5,12 +5,11 @@ use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
+use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::Event;
-use events_derive::try_from;
+use events::{try_from, Event};
 use multisig::verifier_set::VerifierSet;
-use prost_types::Any;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::ScAddress;
@@ -44,6 +43,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,

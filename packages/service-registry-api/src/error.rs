@@ -11,16 +11,22 @@ pub enum ContractError {
 
     #[error(transparent)]
     Overflow(#[from] OverflowError),
-
     #[error(transparent)]
     NonEmpty(#[from] nonempty::Error),
-
+    #[error("not more than 65535 authorized verifiers allowed")]
+    AuthorizedVerifiersIntegerOverflow,
+    #[error("max verifiers limit exceeded")]
+    VerifierLimitExceeded,
+    #[error("max verifiers limit {0} is below current authorized verifiers {1}")]
+    MaxVerifiersSetBelowCurrent(u16, u16),
     #[error("unauthorized")]
     Unauthorized,
     #[error("service name already exists")]
     ServiceAlreadyExists,
     #[error("service not found")]
     ServiceNotFound,
+    #[error("service override not found")]
+    ServiceOverrideNotFound,
     #[error("verifier already authorized")]
     VerifierAlreadyAuthorized,
     #[error("funds are in the wrong denomination")]

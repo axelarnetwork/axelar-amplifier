@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::time::Duration;
 
 use itertools::Itertools;
@@ -10,16 +11,17 @@ use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct Chain {
     pub name: ChainName,
+    #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub rpc_url: Url,
     #[serde(default)]
     pub finalization: Finalization,
 }
 
 with_prefix!(chain "chain_");
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Config {
     EvmMsgVerifier {
@@ -36,40 +38,74 @@ pub enum Config {
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
     },
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
     SuiVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    XRPLMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
+        chain_rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    XRPLMultisigSigner {
+        cosmwasm_contract: TMAddress,
+        chain_name: ChainName,
+    },
     MvxMsgVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         proxy_url: Url,
     },
     MvxVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         proxy_url: Url,
     },
     StellarMsgVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
     },
     StellarVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
     },
     StarknetMsgVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
     },
     StarknetVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+    },
+    SolanaMsgVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    SolanaVerifierSetVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_sensitive")]
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
     },
 }
 
@@ -161,7 +197,7 @@ where
     validate_evm_msg_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
-    ensure_unique_config!(&configs, Config::MultisigSigner, "Multisig signer")?;
+    ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
     ensure_unique_config!(
         &configs,
@@ -184,17 +220,32 @@ where
         Config::StellarVerifierSetVerifier,
         "Stellar verifier set verifier"
     )?;
+    ensure_unique_config!(
+        &configs,
+        Config::SolanaMsgVerifier,
+        "Solana message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::SolanaVerifierSetVerifier,
+        "Solana verifier set verifier"
+    )?;
 
     Ok(configs)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use router_api::ChainName;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
+    use crate::types::debug::REDACTED_VALUE;
     use crate::types::TMAddress;
+    use crate::url::Url;
     use crate::PREFIX;
 
     #[test]
@@ -211,29 +262,14 @@ mod tests {
     #[test]
     fn unique_config_validation() {
         let configs = vec![
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-            },
-            Config::MultisigSigner {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Multisig signer config is allowed")
-            )
-        );
-
-        let configs = vec![
             Config::SuiMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
                 rpc_timeout: None,
             },
             Config::SuiMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
                 rpc_timeout: None,
             },
         ];
@@ -247,12 +283,12 @@ mod tests {
         let configs = vec![
             Config::SuiVerifierSetVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
                 rpc_timeout: None,
             },
             Config::SuiVerifierSetVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
                 rpc_timeout: None,
             },
         ];
@@ -266,11 +302,11 @@ mod tests {
         let configs = vec![
             Config::MvxMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                proxy_url: "http://localhost:7545/".parse().unwrap(),
+                proxy_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
             Config::MvxMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                proxy_url: "http://localhost:7545/".parse().unwrap(),
+                proxy_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
         ];
 
@@ -283,11 +319,11 @@ mod tests {
         let configs = vec![
             Config::MvxVerifierSetVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                proxy_url: "http://localhost:7545/".parse().unwrap(),
+                proxy_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
             Config::MvxVerifierSetVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                proxy_url: "http://localhost:7545/".parse().unwrap(),
+                proxy_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
         ];
 
@@ -300,11 +336,11 @@ mod tests {
         let configs = vec![
             Config::StellarMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
             Config::StellarMsgVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
         ];
 
@@ -317,11 +353,11 @@ mod tests {
         let configs = vec![
             Config::StellarVerifierSetVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
             Config::StellarVerifierSetVerifier {
                 cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: "http://localhost:7545/".parse().unwrap(),
+                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
             },
         ];
 
@@ -330,5 +366,48 @@ mod tests {
                 Err(e) if e.to_string().contains("only one Stellar verifier set verifier config is allowed")
             )
         );
+
+        let sample_config = Config::SolanaMsgVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Solana message verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::SolanaVerifierSetVerifier {
+            chain_name: ChainName::from_str("solana").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
+            )
+        );
+    }
+    #[test]
+    fn test_chain_struct_debug_redacts_url() {
+        let chain = Chain {
+            name: ChainName::from_str("ethereum").unwrap(),
+            rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
+            finalization: Finalization::RPCFinalizedBlock,
+        };
+        let debug_output = format!("{:?}", chain);
+        assert!(debug_output.contains("ethereum"));
+        assert!(debug_output.contains(REDACTED_VALUE));
+        assert!(!debug_output.contains("API_KEY"));
+        assert!(debug_output.contains("RPCFinalizedBlock"));
     }
 }

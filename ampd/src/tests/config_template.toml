@@ -1,12 +1,16 @@
-health_check_bind_addr = '0.0.0.0:3000'
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
+
+[tm_grpc_timeout]
+secs = 5
+nanos = 0
 
 [event_processor]
 retry_delay = '1s'
 retry_max_attempts = 3
 stream_timeout = '15s'
 stream_buffer_size = 100000
+delay = '1s'
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
@@ -43,6 +47,7 @@ nanos = 0
 [[handlers]]
 type = 'MultisigSigner'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+chain_name = 'ethereum'
 
 [[handlers]]
 type = 'SuiMsgVerifier'
@@ -92,13 +97,48 @@ type = 'StarknetVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
 
+[[handlers]]
+type = 'SolanaMsgVerifier'
+chain_name = 'solana'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
+[[handlers]]
+type = 'SolanaVerifierSetVerifier'
+chain_name = 'solana'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
 [tofnd_config]
 url = 'http://localhost:50051/'
 party_uid = 'ampd'
 key_uid = 'axelar'
+
+[tofnd_config.timeout]
+secs = 3
+nanos = 0
 
 [service_registry]
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 
 [rewards]
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[grpc]
+ip_addr = '127.0.0.1'
+port = 9090
+global_concurrency_limit = 1024
+concurrency_limit_per_connection = 32
+request_timeout = '30s'
+
+[monitoring_server]
+enabled = false
+bind_address = '127.0.0.1:3000'

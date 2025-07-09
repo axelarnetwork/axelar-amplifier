@@ -330,7 +330,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(event.message_id, msg_id.to_string().try_into().unwrap());
+        assert_eq!(event.message_id, msg_id.to_string().as_str());
         assert_eq!(event.verifier_set, verifier_set);
     }
 
@@ -352,7 +352,7 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(event.message_id, msg_id.to_string().try_into().unwrap());
+        assert_eq!(event.message_id, msg_id.to_string().as_str());
         assert_eq!(event.verifier_set, verifier_set);
     }
 

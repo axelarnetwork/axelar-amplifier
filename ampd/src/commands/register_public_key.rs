@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -12,8 +12,7 @@ use valuable::Valuable;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
-use crate::tofnd::grpc::{Multisig, MultisigClient};
-use crate::tofnd::{self};
+use crate::tofnd::{self, Multisig, MultisigClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
@@ -53,10 +52,14 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 
     let tofnd_config = config.tofnd_config.clone();
 
-    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url.clone())
-        .await
-        .change_context(Error::Connection)
-        .attach_printable(tofnd_config.url)?;
+    let multisig_client = MultisigClient::new(
+        tofnd_config.party_uid,
+        tofnd_config.url.as_str(),
+        tofnd_config.timeout,
+    )
+    .await
+    .change_context(Error::Connection)
+    .attach_printable(tofnd_config.url)?;
     let multisig_key = multisig_client
         .keygen(&multisig_address.to_string(), args.key_type.into())
         .await
@@ -66,15 +69,11 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 
     let sender = pub_key.account_id(PREFIX).change_context(Error::Tofnd)?;
 
-    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes())
-        .as_slice()
-        .try_into()
-        .expect("wrong length");
-
+    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes()).into();
     let signed_sender_address = multisig_client
         .sign(
             &multisig_address.to_string(),
-            address_hash.into(),
+            address_hash,
             multisig_key,
             args.key_type.into(),
         )
@@ -111,7 +110,10 @@ fn multisig_address(config: &Config) -> Result<TMAddress, Error> {
         .handlers
         .iter()
         .find_map(|config| {
-            if let handlers::config::Config::MultisigSigner { cosmwasm_contract } = config {
+            if let handlers::config::Config::MultisigSigner {
+                cosmwasm_contract, ..
+            } = config
+            {
                 Some(cosmwasm_contract.clone())
             } else {
                 None

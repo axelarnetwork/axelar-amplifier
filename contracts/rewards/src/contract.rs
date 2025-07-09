@@ -2,7 +2,7 @@ use axelar_wasm_std::{address, nonempty, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
 };
 use error_stack::ResultExt;
 use itertools::Itertools;
@@ -16,22 +16,10 @@ mod execute;
 mod migrations;
 mod query;
 
+pub use migrations::{migrate, MigrateMsg};
+
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.2.0";
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _msg: Empty,
-) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -84,8 +72,6 @@ pub fn execute(
             Ok(Response::new())
         }
         ExecuteMsg::AddRewards { pool_id } => {
-            address::validate_cosmwasm_address(deps.api, pool_id.contract.as_str())?;
-
             let amount = info
                 .funds
                 .iter()
@@ -96,7 +82,7 @@ pub fn execute(
 
             execute::add_rewards(
                 deps.storage,
-                pool_id,
+                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
                 nonempty::Uint128::try_from(amount).change_context(ContractError::ZeroRewards)?,
             )?;
 
@@ -106,11 +92,9 @@ pub fn execute(
             pool_id,
             epoch_count,
         } => {
-            address::validate_cosmwasm_address(deps.api, pool_id.contract.as_str())?;
-
             let rewards_distribution = execute::distribute_rewards(
                 deps.storage,
-                pool_id.clone(),
+                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
                 env.block.height,
                 epoch_count,
             )?;
@@ -136,12 +120,23 @@ pub fn execute(
                 .add_event(events::Event::from(rewards_distribution)))
         }
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
-            execute::update_pool_params(deps.storage, &pool_id, params, env.block.height)?;
+            execute::update_pool_params(
+                deps.storage,
+                &PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
+                params,
+                env.block.height,
+            )?;
 
             Ok(Response::new())
         }
         ExecuteMsg::CreatePool { params, pool_id } => {
-            execute::create_pool(deps.storage, params, env.block.height, &pool_id)?;
+            execute::create_pool(
+                deps.storage,
+                params,
+                env.block.height,
+                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
+            )?;
+
             Ok(Response::new())
         }
         ExecuteMsg::SetVerifierProxy { proxy_address } => {
@@ -150,10 +145,12 @@ pub fn execute(
                 &deps.api.addr_validate(&proxy_address)?,
                 &info.sender,
             )?;
+
             Ok(Response::new())
         }
         ExecuteMsg::RemoveVerifierProxy {} => {
             execute::remove_verifier_proxy(deps.storage, &info.sender);
+
             Ok(Response::new())
         }
     }
@@ -167,13 +164,22 @@ pub fn query(
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::RewardsPool { pool_id } => {
-            let pool = query::rewards_pool(deps.storage, pool_id, env.block.height)?;
+            let pool = query::rewards_pool(
+                deps.storage,
+                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
+                env.block.height,
+            )?;
             to_json_binary(&pool)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::error::ContractError::from)
         }
         QueryMsg::VerifierParticipation { pool_id, epoch_num } => {
-            let tally = query::participation(deps.storage, pool_id, epoch_num, env.block.height)?;
+            let tally = query::participation(
+                deps.storage,
+                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
+                epoch_num,
+                env.block.height,
+            )?;
             to_json_binary(&tally)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::error::ContractError::from)
@@ -190,38 +196,13 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
-    use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
 
     use super::*;
-    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPool};
-    use crate::state::PoolId;
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make("instantiator"), &[]);
-        assert_ok!(instantiate(
-            deps.as_mut(),
-            env,
-            info,
-            InstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                rewards_denom: "uaxl".to_string()
-            }
-        ));
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
-    }
+    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
 
     /// Tests that the contract entry points (instantiate, query and execute) work as expected.
     /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.
@@ -266,7 +247,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: pool_contract.clone(),
+            contract: pool_contract.to_string(),
         };
 
         let res = app.execute_contract(
@@ -360,7 +341,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: pool_contract.clone(),
+                    contract: pool_contract.to_string(),
                 },
                 epoch_count: None,
             },
@@ -417,7 +398,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: pool_contract.clone(),
+            contract: pool_contract.to_string(),
         };
 
         app.execute_contract(
@@ -491,7 +472,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: pool_contract.clone(),
+                    contract: pool_contract.to_string(),
                 },
                 epoch_count: None,
             },
@@ -549,7 +530,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: pool_contract.clone(),
+                    contract: pool_contract.to_string(),
                 },
                 epoch_count: None,
             },
@@ -606,7 +587,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: pool_contract.clone(),
+            contract: pool_contract.to_string(),
         };
 
         let res = app.execute_contract(
@@ -701,7 +682,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: pool_contract.clone(),
+                    contract: pool_contract.to_string(),
                 },
                 epoch_count: None,
             },
@@ -760,7 +741,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: pool_contract.clone(),
+            contract: pool_contract.to_string(),
         };
 
         let res = app.execute_contract(
@@ -859,7 +840,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: pool_contract.clone(),
+                    contract: pool_contract.to_string(),
                 },
                 epoch_count: None,
             },
@@ -921,7 +902,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: pool_contract.clone(),
+            contract: pool_contract.to_string(),
         };
 
         let res = app.execute_contract(
@@ -1030,7 +1011,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: pool_contract.clone(),
+                    contract: pool_contract.to_string(),
                 },
                 epoch_count: None,
             },

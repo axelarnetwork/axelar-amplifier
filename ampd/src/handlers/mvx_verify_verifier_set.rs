@@ -8,8 +8,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::Event;
-use events_derive::try_from;
+use events::{try_from, Event};
 use multisig::verifier_set::VerifierSet;
 use multiversx_sdk::data::address::Address;
 use serde::Deserialize;
@@ -40,6 +39,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler<P>
 where
     P: MvxProxy + Send + Sync,
@@ -164,7 +164,7 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::VerifierSetConfirmation;
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
