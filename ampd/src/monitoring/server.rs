@@ -463,6 +463,14 @@ mod tests {
             1,
         );
 
+        send_multiple_metrics(
+            &monitoring_client,
+            metrics::Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
+            },
+            2,
+        );
+
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let updated_metrics = reqwest::get(metrics_url).await.unwrap();
