@@ -111,14 +111,14 @@ pub enum Config {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        http_url: Url,
+        rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
     StacksVerifierSetVerifier {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        http_url: Url,
+        rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
 }
@@ -424,7 +424,7 @@ mod tests {
         let sample_config = Config::StacksMsgVerifier {
             chain_name: ChainName::from_str("stacks").unwrap(),
             cosmwasm_contract: TMAddress::random(PREFIX),
-            http_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
         };
 
@@ -439,7 +439,7 @@ mod tests {
         let sample_config = Config::StacksVerifierSetVerifier {
             chain_name: ChainName::from_str("stacks").unwrap(),
             cosmwasm_contract: TMAddress::random(PREFIX),
-            http_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
         };
 

@@ -610,7 +610,7 @@ where
             handlers::config::Config::StacksMsgVerifier {
                 chain_name,
                 cosmwasm_contract,
-                http_url,
+                rpc_url,
                 rpc_timeout,
             } => Ok(self.create_handler_task(
                 "stacks-msg-verifier",
@@ -618,7 +618,7 @@ where
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    Client::new_http(http_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                     self.block_height_monitor.latest_block_height(),
                 )
                 .change_context(Error::Connection)?,
@@ -628,7 +628,7 @@ where
             handlers::config::Config::StacksVerifierSetVerifier {
                 chain_name,
                 cosmwasm_contract,
-                http_url,
+                rpc_url,
                 rpc_timeout,
             } => Ok(self.create_handler_task(
                 "stacks-verifier-set-verifier",
@@ -636,7 +636,7 @@ where
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    Client::new_http(http_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                     self.block_height_monitor.latest_block_height(),
                 )
                 .change_context(Error::Connection)?,

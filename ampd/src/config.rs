@@ -316,7 +316,7 @@ mod tests {
             type = 'StacksMsgVerifier'
             chain_name = 'stacks'
             cosmwasm_contract = '{}'
-            http_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:8000'
 
             [handlers.rpc_timeout]
             secs = 3
@@ -326,7 +326,7 @@ mod tests {
             type = 'StacksVerifierSetVerifier'
             chain_name = 'stacks'
             cosmwasm_contract = '{}'
-            http_url = 'http://localhost:8000'
+            rpc_url = 'http://localhost:8000'
 
             [handlers.rpc_timeout]
             secs = 3
@@ -591,7 +591,7 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    http_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
@@ -599,7 +599,7 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    http_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],

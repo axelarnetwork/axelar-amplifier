@@ -121,7 +121,7 @@ nanos = 0
 type = 'StacksMsgVerifier'
 chain_name = 'stacks'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-http_url = 'http://127.0.0.1/'
+rpc_url = 'http://127.0.0.1/'
 
 [handlers.rpc_timeout]
 secs = 3
@@ -131,7 +131,7 @@ nanos = 0
 type = 'StacksVerifierSetVerifier'
 chain_name = 'stacks'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-http_url = 'http://127.0.0.1/'
+rpc_url = 'http://127.0.0.1/'
 
 [handlers.rpc_timeout]
 secs = 3
