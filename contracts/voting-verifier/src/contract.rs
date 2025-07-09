@@ -2,7 +2,7 @@ use axelar_wasm_std::address::validate_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Attribute, Binary, Deps, DepsMut, Env, MessageInfo, Response,};
+use cosmwasm_std::{to_json_binary, Attribute, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 
 use crate::error::ContractError;
