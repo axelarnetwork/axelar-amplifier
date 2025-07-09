@@ -408,6 +408,8 @@ mod tests {
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 3);
         drop(monitoring_client);
 
