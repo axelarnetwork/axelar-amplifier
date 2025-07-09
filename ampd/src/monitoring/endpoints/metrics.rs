@@ -294,12 +294,12 @@ impl VoteMetrics {
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "verifier_votes_cast_successful_total",
+            "verifier_votes_cast_successful",
             "number of succeeded votes casts by verifier",
             self.succeeded.clone(),
         );
         registry.register(
-            "verifier_votes_cast_failed_total",
+            "verifier_votes_cast_failed",
             "number of failed votes casts by verifier",
             self.failed.clone(),
         );
@@ -434,8 +434,10 @@ mod tests {
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
 
-        final_metrics.assert_text_contains("verifier_votes_cast_successful_total_total{verifier_id=\"suiabc\",chain_name=\"sui\"} 1");
-        final_metrics.assert_text_contains("verifier_votes_cast_failed_total_total{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 2");
+        final_metrics.assert_text_contains(
+            "verifier_votes_cast_successful_total{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
+        );
+        final_metrics.assert_text_contains("verifier_votes_cast_failed_total{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 2");
         final_metrics.assert_text_contains(
             "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
         );

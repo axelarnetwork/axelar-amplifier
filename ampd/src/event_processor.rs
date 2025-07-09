@@ -779,13 +779,9 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains("verifier_votes_cast_successful_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 2"));
-        assert!(metrics_text.contains(
-            "verifier_votes_cast_failed_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"
-        ));
-        assert!(metrics_text.contains(
-            "verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0.6666666666666666"
-        ));
+        assert!(metrics_text.contains("verifier_votes_cast_successful_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 2"));
+        assert!(metrics_text.contains("verifier_votes_cast_failed_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"));
+        assert!(metrics_text.contains("verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0.6666666666666666"));
 
         cancel_token.cancel();
     }
@@ -889,14 +885,12 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains(
-            "verifier_votes_cast_failed_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"
-        ));
+        assert!(metrics_text.contains("verifier_votes_cast_failed_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"));
         assert!(metrics_text.contains(
             "verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
         ));
         assert!(metrics_text.contains(
-            "verifier_votes_cast_successful_total_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
+            "verifier_votes_cast_successful_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
         ));
 
         cancel_token.cancel();
