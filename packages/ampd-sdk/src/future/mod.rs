@@ -3,21 +3,21 @@ use std::time::Duration;
 use futures::Future;
 use tokio::time;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum RetryPolicy {
     RepeatConstant { sleep: Duration, max_attempts: u64 },
     NoRetry,
 }
 
 impl RetryPolicy {
-    fn max_attempts(&self) -> u64 {
+    pub fn max_attempts(&self) -> u64 {
         match self {
             RetryPolicy::RepeatConstant { max_attempts, .. } => *max_attempts,
             RetryPolicy::NoRetry => 1,
         }
     }
 
-    fn delay(&self) -> Option<Duration> {
+    pub fn delay(&self) -> Option<Duration> {
         match self {
             RetryPolicy::RepeatConstant { sleep, .. } => Some(*sleep),
             RetryPolicy::NoRetry => None,

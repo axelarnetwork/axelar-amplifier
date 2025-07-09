@@ -41,12 +41,21 @@ pub enum AppError {
 
     #[error("invalid byte array")]
     InvalidByteArray,
+
+    #[error("invalid url")]
+    InvalidUrl,
+
+    #[error("connection to the manager is unavailable")]
+    ConnectionUnavailable,
 }
 
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to connect to the grpc endpoint")]
     GrpcConnection(#[from] tonic::transport::Error),
+
+    #[error("failed to reconnect to the manager")]
+    ClientReconnect(#[from] tokio::sync::watch::error::RecvError),
 
     #[error(transparent)]
     Grpc(#[from] GrpcError),
