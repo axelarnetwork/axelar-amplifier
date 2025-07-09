@@ -1,19 +1,39 @@
-use axelar_wasm_std::IntoEvent;
+use cosmwasm_std::Event;
 use cosmwasm_std::Uint64;
 use router_api::{ChainName, CrossChainId};
 
 use crate::payload::PayloadId;
 
-#[derive(IntoEvent)]
-pub enum Event {
-    ProofUnderConstruction {
-        destination_chain: ChainName,
-        payload_id: PayloadId,
-        multisig_session_id: Uint64,
-        msg_ids: Vec<CrossChainId>,
-    },
+pub struct ProofUnderConstruction {
+    pub destination_chain: ChainName,
+    pub payload_id: PayloadId,
+    pub multisig_session_id: Uint64,
+    pub msg_ids: Vec<CrossChainId>,
 }
 
+impl From<ProofUnderConstruction> for Event {
+    fn from(other: ProofUnderConstruction) -> Self {
+        Event::new("proof_under_construction")
+            .add_attribute(
+                "destination_chain",
+                serde_json::to_string(&other.destination_chain)
+                    .expect("failed to serialize destination_chain"),
+            )
+            .add_attribute(
+                "payload_id",
+                serde_json::to_string(&other.payload_id).expect("failed to serialize payload_id"),
+            )
+            .add_attribute(
+                "multisig_session_id",
+                serde_json::to_string(&other.multisig_session_id)
+                    .expect("failed to serialize multisig_session_id"),
+            )
+            .add_attribute(
+                "msg_ids",
+                serde_json::to_string(&other.msg_ids).expect("failed to serialize msg_ids"),
+            )
+    }
+}
 #[cfg(test)]
 mod tests {
     use router_api::Message;
@@ -40,7 +60,7 @@ mod tests {
             },
         ]);
 
-        let event = Event::ProofUnderConstruction {
+        let event = ProofUnderConstruction {
             destination_chain: "avalanche".parse().unwrap(),
             payload_id: payload.id(),
             multisig_session_id: Uint64::new(2),

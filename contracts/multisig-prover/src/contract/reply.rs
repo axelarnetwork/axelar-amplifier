@@ -2,7 +2,7 @@ use cosmwasm_std::{from_json, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseReplyError};
 
 use crate::error::ContractError;
-use crate::events::Event;
+use crate::events::ProofUnderConstruction;
 use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -32,7 +32,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 .message_ids()
                 .unwrap_or_default();
 
-            Ok(Response::new().add_event(Event::ProofUnderConstruction {
+            Ok(Response::new().add_event(ProofUnderConstruction {
                 destination_chain: config.chain_name,
                 msg_ids,
                 payload_id,
