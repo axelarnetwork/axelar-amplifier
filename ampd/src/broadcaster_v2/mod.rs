@@ -192,7 +192,7 @@ where
                         .map(|msg| msg.msg.clone())
                         .collect::<Vec<_>>()
                         .try_into()
-                        .expect("must be non-empty"),
+                        .expect("msgs cannot be empty"),
                 )
                 .await
                 .map(|res| res.txhash);

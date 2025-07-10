@@ -32,7 +32,7 @@ pub enum Error {
     #[error("tx {0} not found on chain")]
     NotFound(String),
     #[error("tx {} failed on chain", .0.txhash)]
-    FailureOnChain(Box<TxResponse>),
+    FailureOnChain(Box<TxResponse>), // It is boxed to reduce the size of the enum.
     #[error("failed to query for tx {0}")]
     TxQuery(String),
 }
