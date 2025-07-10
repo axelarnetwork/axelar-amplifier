@@ -20,10 +20,12 @@ const STATUS_SUCCESS: &str = "success";
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to create client")]
-    Client,
-    #[error("invalid tx hash")]
-    TxHash,
+    #[error("invalid tx hash {endpoint}")]
+    TxHash { endpoint: String },
+    #[error("failed to get latest block {endpoint}")]
+    LatestBlock { endpoint: String },
+    #[error("failed to serialize data as json")]
+    Json,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -114,13 +116,13 @@ impl Client {
         let endpoint = self.endpoint(endpoint.as_str());
 
         self.client
-            .get(endpoint)
+            .get(endpoint.clone())
             .send()
             .await
-            .map_err(|_| Error::Client)?
+            .map_err(|_| Error::LatestBlock { endpoint })?
             .json::<Block>()
             .await
-            .map_err(|_| Error::Client)
+            .map_err(|_| Error::Json)
     }
 
     async fn transaction(&self, tx_id: &str) -> StdResult<Transaction, Error> {
@@ -129,13 +131,13 @@ impl Client {
         let endpoint = self.endpoint(endpoint.as_str());
 
         self.client
-            .get(endpoint)
+            .get(endpoint.clone())
             .send()
             .await
-            .map_err(|_| Error::TxHash)?
+            .map_err(|_| Error::TxHash { endpoint })?
             .json::<Transaction>()
             .await
-            .map_err(|_| Error::Client)
+            .map_err(|_| Error::Json)
     }
 
     fn endpoint(&self, endpoint: &str) -> String {
