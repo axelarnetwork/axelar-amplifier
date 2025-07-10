@@ -9,13 +9,12 @@ use error_stack::{report, Report, ResultExt};
 use futures::{FutureExt, Stream, TryFutureExt};
 use pin_project_lite::pin_project;
 use report::{ErrorExt, LoggableError};
-use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time;
 use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::{instrument, warn};
+use tracing::{error, instrument, warn};
 use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
@@ -117,15 +116,21 @@ where
     /// * `Error::EnqueueMsg` - If enqueueing fails
     /// * `Error::GasExceedsGasCap` - If the message requires more gas than allowed
     /// * `Error::ReceiveTxResult` - If the result channel is closed prematurely
+    #[instrument(skip(self))]
     pub async fn enqueue(
         &mut self,
         msg: Any,
     ) -> Result<impl Future<Output = Result<(String, u64)>> + Send> {
-        let attachment = json!({ "msg": &msg });
         let rx = self
-            .enqueue_with_channel(msg)
+            .enqueue_with_channel(msg.clone())
             .await
-            .map_err(|err| err.attach(attachment.clone()))?;
+            .inspect_err(|err| {
+                error!(
+                    err = LoggableError::from(err).as_value(),
+                    msg = ?msg,
+                    "failed to enqueue message"
+                );
+            })?;
 
         Ok(rx
             .map(|result| match result {
@@ -133,7 +138,13 @@ where
                 Ok(Err(err)) => Err(err),
                 Err(err) => Err(err.into_report()),
             })
-            .map_err(move |err| err.attach(attachment)))
+            .inspect_err(move |err| {
+                error!(
+                    err = LoggableError::from(err).as_value(),
+                    msg = ?msg,
+                    "failed to receive tx result"
+                );
+            }))
     }
 
     /// Enqueues a message without waiting for its result

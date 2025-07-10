@@ -11,6 +11,7 @@ use valuable::Valuable;
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::cosmos;
 
+// TODO: move these constants to the config. In the meantime, these were chosen as reasonable heuristics.
 // Maximum number of transaction confirmations to process concurrently.
 // - Controls parallelism when confirming transactions
 // - Higher values increase throughput for confirming many transactions
