@@ -267,12 +267,6 @@ where
                     msg_count, "successfully broadcasted tx"
                 );
             })
-            .inspect_err(|err| {
-                error!(
-                    err = LoggableError::from(err).as_value(),
-                    "failed to broadcast tx",
-                );
-            })
     }
 
     async fn estimate_fee(&mut self, batch_req: Any) -> Result<Fee> {
@@ -293,13 +287,14 @@ where
         ))
     }
 
+    #[instrument(skip(self))]
     async fn handle_tx_res(
         &self,
         tx_hash: Result<String>,
         msgs: nonempty::Vec<msg_queue::QueueMsg>,
     ) -> Result<()> {
-        if let (Some(confirmer_sender), Ok(tx_hash)) = (&self.tx_confirmer_client, &tx_hash) {
-            confirmer_sender
+        if let (Some(confirmer), Ok(tx_hash)) = (&self.tx_confirmer_client, &tx_hash) {
+            confirmer
                 .send(tx_hash.clone())
                 .await
                 .map_err(|_| Error::ConfirmTx(tx_hash.clone()))?;
@@ -314,9 +309,13 @@ where
                         let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
                     }
                     Err(err) => {
+                        error!(
+                            err = LoggableError::from(err).as_value(),
+                            "failed to broadcast tx"
+                        );
                         let _ = msg
                             .tx_res_callback
-                            .send(Err(report!(err.current_context().clone())));
+                            .send(Err(report!(err.current_context().to_owned())));
                     }
                 };
             });
