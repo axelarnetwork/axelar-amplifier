@@ -110,14 +110,14 @@ pub enum Config {
     StacksMsgVerifier {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
+        #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
     StacksVerifierSetVerifier {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
+        #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
