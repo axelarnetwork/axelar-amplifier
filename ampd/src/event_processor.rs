@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Display;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -22,7 +24,6 @@ use crate::monitoring;
 use crate::monitoring::metrics::Msg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
-#[derive(Debug)]
 enum VoteResult {
     Success,
     Failure,
@@ -151,10 +152,10 @@ where
             for msg in msgs {
                 match broadcaster.broadcast(msg.clone()).await {
                     Ok(()) => {
-                        record_vote_metrics(monitoring_client, &handler_info, VoteResult::Success)
+                        record_vote_metrics(monitoring_client, handler_info, VoteResult::Success)
                     }
                     Err(err) => {
-                        record_vote_metrics(monitoring_client, &handler_info, VoteResult::Failure);
+                        record_vote_metrics(monitoring_client, handler_info, VoteResult::Failure);
 
                         warn!(
                             err = LoggableError::from(&err).as_value(),
@@ -165,7 +166,7 @@ where
             }
         }
         Err(err) => {
-            record_vote_metrics(monitoring_client, &handler_info, VoteResult::Failure);
+            record_vote_metrics(monitoring_client, handler_info, VoteResult::Failure);
 
             warn!(
                 err = LoggableError::from(&err).as_value(),
@@ -226,19 +227,23 @@ fn record_vote_metrics(
     };
 
     if let Err(metric_error) = monitoring_client.metrics().record_metric(metric_msg) {
-        let metric_type = match result {
-            VoteResult::Success => "succeeded",
-            VoteResult::Failure => "failed",
-        };
-
         warn!(
             err = %metric_error,
             handler = %handler_info.label,
             verifier_id = %handler_info.verifier_id,
             chain_name = %handler_info.chain_name,
             "failed to record {} vote metric",
-            metric_type,
+            result,
         );
+    }
+}
+
+impl Display for VoteResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Success => write!(f, "succeeded"),
+            Self::Failure => write!(f, "failed"),
+        }
     }
 }
 

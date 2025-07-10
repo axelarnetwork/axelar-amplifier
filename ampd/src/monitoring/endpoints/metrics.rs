@@ -248,13 +248,13 @@ impl Metrics {
                 verifier_id,
                 chain_name,
             } => {
-                self.votes.record_success(verifier_id, chain_name);
+                self.votes.record_vote(verifier_id, chain_name, true);
             }
             Msg::VoteFailed {
                 verifier_id,
                 chain_name,
             } => {
-                self.votes.record_failure(verifier_id, chain_name);
+                self.votes.record_vote(verifier_id, chain_name, false);
             }
         }
     }
@@ -310,16 +310,16 @@ impl VoteMetrics {
         );
     }
 
-    fn record_success(&self, verifier_id: String, chain_name: String) {
+    fn record_vote(&self, verifier_id: String, chain_name: String, success: bool) {
         let label = VoteLabel::new(verifier_id, chain_name);
-        self.succeeded.get_or_create(&label).inc();
-
-        self.update_success_rate(&label);
-    }
-
-    fn record_failure(&self, verifier_id: String, chain_name: String) {
-        let label = VoteLabel::new(verifier_id, chain_name);
-        self.failed.get_or_create(&label).inc();
+        match success {
+            true => {
+                self.succeeded.get_or_create(&label).inc();
+            }
+            false => {
+                self.failed.get_or_create(&label).inc();
+            }
+        }
 
         self.update_success_rate(&label);
     }
