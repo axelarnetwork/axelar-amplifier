@@ -103,7 +103,7 @@ where
                     max_attempts: event_processor_config.retry_max_attempts,
                 },
                 &monitoring_client,
-                handler_info.clone(),
+                &handler_info,
             )
             .await?;
         }
@@ -139,7 +139,7 @@ async fn handle_event<H, B>(
     event: &Event,
     retry_policy: RetryPolicy,
     monitoring_client: &monitoring::Client,
-    handler_info: HandlerInfo,
+    handler_info: &HandlerInfo,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -644,7 +644,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
-                monitoring_client,
+                monitoring_client.clone(),
                 setup_handler_info(false),
             ),
         )
@@ -701,7 +701,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
-                monitoring_client,
+                monitoring_client.clone(),
                 setup_handler_info(false),
             ),
         )
@@ -767,7 +767,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
-                monitoring_client,
+                monitoring_client.clone(),
                 setup_handler_info(true),
             ),
         )
@@ -830,7 +830,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 cancel.clone(),
-                monitoring_client,
+                monitoring_client.clone(),
                 setup_handler_info(true),
             ),
         )
@@ -876,7 +876,7 @@ mod tests {
                 stream::iter(events),
                 event_config,
                 cancel_token.clone(),
-                monitoring_client,
+                monitoring_client.clone(),
                 setup_handler_info(true),
             ),
         )
@@ -898,5 +898,4 @@ mod tests {
         cancel_token.cancel();
         let _ = server_handle.await;
     }
-
 }
