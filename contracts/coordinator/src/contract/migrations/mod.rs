@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{address, migrate_from_version, IntoContractError};
+use axelar_wasm_std::{address, migrate_from_version, IntoContractError, nonempty};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage};
+use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage, Api};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
@@ -28,6 +28,8 @@ enum MigrationError {
     ExtraProver(ChainName),
     #[error("chain contracts provided for chain {0} do not match with current state")]
     IncorrectContracts(ChainName),
+    #[error("error parsing chain contracts")]
+    InvalidChainContracts,
 }
 
 #[cw_serde]
@@ -60,10 +62,34 @@ pub struct OldChainContracts {
 }
 
 #[cw_serde]
+pub struct ChainContracts {
+    pub chain_name: ChainName,
+    pub prover_address: nonempty::String,
+    pub gateway_address: nonempty::String,
+    pub verifier_address: nonempty::String,
+}
+
+#[cw_serde]
 pub struct MigrateMsg {
     pub router: String,
     pub multisig: String,
-    pub chain_contracts: Vec<ChainContractsRecord>,
+    pub chain_contracts: Vec<ChainContracts>,
+}
+
+impl MigrateMsg {
+    fn chain_contracts_records(&self, api: &dyn Api) -> error_stack::Result<Vec<ChainContractsRecord>, MigrationError> {
+        self.chain_contracts.iter()
+        .map::<error_stack::Result<ChainContractsRecord, MigrationError>, _>(|cc| Ok(ChainContractsRecord {
+            chain_name: cc.chain_name.clone(),
+            prover_address: address::validate_cosmwasm_address(api, &cc.prover_address)
+            .change_context(MigrationError::InvalidChainContracts)?,
+            verifier_address: address::validate_cosmwasm_address(api, &cc.verifier_address)
+            .change_context(MigrationError::InvalidChainContracts)?,
+            gateway_address: address::validate_cosmwasm_address(api, &cc.gateway_address)
+            .change_context(MigrationError::InvalidChainContracts)?,
+        }))
+        .collect::<error_stack::Result<Vec<_>, MigrationError>>()
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -78,7 +104,7 @@ pub fn migrate(
     // Since this state has not yet been set or used, we can just clear it
     DEPLOYED_CHAINS.clear(deps.storage);
 
-    migrate_chain_contracts(deps.storage, msg.chain_contracts)?;
+    migrate_chain_contracts(deps.storage, msg.chain_contracts_records(deps.api)?)?;
 
     Ok(Response::default())
 }
@@ -178,7 +204,7 @@ fn ensure_no_extra_provers_given(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::error::ContractError;
-    use axelar_wasm_std::{address, permission_control};
+    use axelar_wasm_std::{address, nonempty, permission_control};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
@@ -192,7 +218,7 @@ mod tests {
     const OLD_CONTRACT_NAME: &str = "coordinator";
     const OLD_CONTRACT_VERSION: &str = "1.1.0";
 
-    use super::OLD_CHAIN_PROVER_INDEXED_MAP;
+    use super::{OLD_CHAIN_PROVER_INDEXED_MAP, ChainContracts};
 
     #[cw_serde]
     pub struct OldInstantiateMsg {
@@ -280,11 +306,11 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![state::ChainContractsRecord {
+                chain_contracts: vec![ChainContracts{
                     chain_name: chain_name.clone(),
-                    prover_address: prover_addr.clone(),
-                    gateway_address: gateway_addr.clone(),
-                    verifier_address: verifier_addr.clone(),
+                    prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
+                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
                 }],
             },
         );
@@ -350,11 +376,11 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![state::ChainContractsRecord {
+                chain_contracts: vec![ChainContracts{
                     chain_name: chain_name.clone(),
-                    prover_address: prover_addr1.clone(),
-                    gateway_address: gateway_addr.clone(),
-                    verifier_address: verifier_addr.clone(),
+                    prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
+                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
                 }],
             },
         );
@@ -412,11 +438,11 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![state::ChainContractsRecord {
+                chain_contracts: vec![ChainContracts{
                     chain_name: chain_name1.clone(),
-                    prover_address: prover_addr1.clone(),
-                    gateway_address: gateway_addr.clone(),
-                    verifier_address: verifier_addr.clone(),
+                    prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
+                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
                 }],
             },
         );
@@ -472,17 +498,17 @@ mod tests {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
                 chain_contracts: vec![
-                    state::ChainContractsRecord {
+                    ChainContracts{
                         chain_name: chain_name.clone(),
-                        prover_address: prover_addr.clone(),
-                        gateway_address: gateway_addr.clone(),
-                        verifier_address: verifier_addr.clone(),
+                        prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
+                        gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
+                        verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
                     },
-                    state::ChainContractsRecord {
+                    ChainContracts{
                         chain_name: extra_chain_name.clone(),
-                        prover_address: api.addr_make("extra_prover"),
-                        gateway_address: api.addr_make("extra_gateway"),
-                        verifier_address: api.addr_make("extra_verifier"),
+                        prover_address: nonempty::String::try_from(api.addr_make("extra_prover").to_string()).unwrap(),
+                        gateway_address: nonempty::String::try_from(api.addr_make("extra_gateway").to_string()).unwrap(),
+                        verifier_address: nonempty::String::try_from(api.addr_make("extra_verifier").to_string()).unwrap(),
                     },
                 ],
             },
@@ -546,11 +572,11 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![state::ChainContractsRecord {
+                chain_contracts: vec![ChainContracts{
                     chain_name: chain_name.clone(),
-                    prover_address: prover_addr.clone(),
-                    gateway_address: api.addr_make("different_gateway"), // Different gateway
-                    verifier_address: verifier_addr.clone(),
+                    prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
+                    gateway_address: nonempty::String::try_from(api.addr_make("different_gateway").to_string()).unwrap(), // Different gateway
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
                 }],
             },
         );
@@ -613,11 +639,11 @@ mod tests {
             MigrateMsg {
                 router: router.to_string(),
                 multisig: multisig.to_string(),
-                chain_contracts: vec![state::ChainContractsRecord {
+                chain_contracts: vec![ChainContracts{
                     chain_name: chain_name.clone(),
-                    prover_address: prover_addr.clone(),
-                    gateway_address: gateway_addr.clone(),
-                    verifier_address: verifier_addr.clone(),
+                    prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
+                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
                 }],
             },
         );
