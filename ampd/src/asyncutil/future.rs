@@ -70,9 +70,10 @@ mod tests {
 
     #[tokio::test]
     async fn should_return_ok_when_the_internal_future_returns_ok_immediately() {
+        let max_attempts = 3;
         let fut = with_retry(
             || future::ready(Ok::<(), ()>(())),
-            RetryPolicy::repeat_constant(Duration::from_secs(1), 3),
+            RetryPolicy::repeat_constant(Duration::from_secs(1), max_attempts),
         );
         let start = Instant::now();
 
@@ -106,9 +107,10 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn should_return_error_when_the_internal_future_returns_error_after_max_attempts() {
+        let max_attempts = 3;
         let fut = with_retry(
             || future::ready(Err::<(), ()>(())),
-            RetryPolicy::repeat_constant(Duration::from_secs(1), 3),
+            RetryPolicy::repeat_constant(Duration::from_secs(1), max_attempts),
         );
         let start = Instant::now();
 
