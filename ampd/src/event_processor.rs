@@ -273,7 +273,7 @@ mod tests {
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::event_processor::{consume_events, Config, Error, EventHandler, VoteResult};
     use crate::handlers::config::HandlerInfo;
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
     use crate::{event_processor, monitoring};
@@ -912,5 +912,20 @@ mod tests {
 
         cancel_token.cancel();
         let _ = server_handle.await;
+    }
+
+    #[test]
+    fn vote_result_display_trait_works_correctly() {
+        let success_result = VoteResult::Success;
+        let failure_result = VoteResult::Failure;
+
+        assert_eq!(format!("{}", success_result), "succeeded");
+        assert_eq!(format!("{}", failure_result), "failed");
+
+        let success_message = format!("failed to record {} vote metric", success_result);
+        let failure_message = format!("failed to record {} vote metric", failure_result);
+
+        assert_eq!(success_message, "failed to record succeeded vote metric");
+        assert_eq!(failure_message, "failed to record failed vote metric");
     }
 }
