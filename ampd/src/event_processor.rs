@@ -664,6 +664,8 @@ mod tests {
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
 
+        let _ = monitoring_client;
+
         cancel_token.cancel();
         let _ = server_handle.await;
     }
@@ -724,6 +726,8 @@ mod tests {
 
         let sorted_metrics = sort_metrics_text(metrics_text);
         goldie::assert!(sorted_metrics);
+
+        let _ = monitoring_client;
 
         cancel_token.cancel();
         let _ = server_handle.await;
@@ -791,6 +795,8 @@ mod tests {
         let sorted_metrics = sort_metrics_text(metrics_text);
         goldie::assert!(sorted_metrics);
 
+        let _ = monitoring_client;
+
         cancel_token.cancel();
         let _ = server_handle.await;
     }
@@ -843,6 +849,8 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         assert!(result_with_timeout.unwrap().is_ok());
+
+        let _ = monitoring_client;
 
         cancel.cancel();
         let _ = server_handle.await;
@@ -899,6 +907,8 @@ mod tests {
 
         let sorted_metrics = sort_metrics_text(metrics_text);
         goldie::assert!(sorted_metrics);
+
+        let _ = monitoring_client;
 
         cancel_token.cancel();
         let _ = server_handle.await;
