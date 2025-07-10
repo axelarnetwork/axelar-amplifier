@@ -1,0 +1,13 @@
+# EOF
+# HELP blocks_received number of blocks received.
+# HELP verifier_votes_failed number of failed votes by verifier (handler/broadcast errors).
+# HELP verifier_votes_success_rate success rate of votes casts by verifier.
+# HELP verifier_votes_successful number of successful votes casts by verifier.
+# TYPE blocks_received counter
+# TYPE verifier_votes_failed counter
+# TYPE verifier_votes_success_rate gauge
+# TYPE verifier_votes_successful counter
+blocks_received_total 1
+verifier_votes_failed_total{verifier_id="verifier_id",chain_name="chain_name"} 1
+verifier_votes_success_rate{verifier_id="verifier_id",chain_name="chain_name"} 0.6666666666666666
+verifier_votes_successful_total{verifier_id="verifier_id",chain_name="chain_name"} 2

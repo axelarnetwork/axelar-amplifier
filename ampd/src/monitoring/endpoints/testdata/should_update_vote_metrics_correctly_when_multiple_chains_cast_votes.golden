@@ -1,0 +1,16 @@
+# EOF
+# HELP blocks_received number of blocks received.
+# HELP verifier_votes_failed number of failed votes by verifier (handler/broadcast errors).
+# HELP verifier_votes_success_rate success rate of votes casts by verifier.
+# HELP verifier_votes_successful number of successful votes casts by verifier.
+# TYPE blocks_received counter
+# TYPE verifier_votes_failed counter
+# TYPE verifier_votes_success_rate gauge
+# TYPE verifier_votes_successful counter
+blocks_received_total 0
+verifier_votes_failed_total{verifier_id="axelar1abc",chain_name="ethereum"} 2
+verifier_votes_failed_total{verifier_id="suiabc",chain_name="sui"} 0
+verifier_votes_success_rate{verifier_id="axelar1abc",chain_name="ethereum"} 0.5
+verifier_votes_success_rate{verifier_id="suiabc",chain_name="sui"} 1.0
+verifier_votes_successful_total{verifier_id="axelar1abc",chain_name="ethereum"} 2
+verifier_votes_successful_total{verifier_id="suiabc",chain_name="sui"} 1

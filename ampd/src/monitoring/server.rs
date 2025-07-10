@@ -448,7 +448,7 @@ mod tests {
         send_multiple_metrics(&monitoring_client, metrics::Msg::BlockReceived, 3);
         send_multiple_metrics(
             &monitoring_client,
-            metrics::Msg::VoteCastSucceeded {
+            metrics::Msg::VoteSucceeded {
                 verifier_id: verifier_id.clone(),
                 chain_name: chain_name.clone(),
             },

@@ -11,11 +11,16 @@ use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
+/// Information about a blockchain handler for metrics and identification
 #[derive(Clone, Debug)]
 pub struct HandlerInfo {
+    /// The name of the blockchain this handler operates on
     pub chain_name: String,
+    /// The cosmwasm contract address serving as the verifier ID
     pub verifier_id: String,
+    /// Whether this handler is configured to cast votes
     pub cast_votes: bool,
+    /// A label for identifying this handler in logs
     pub label: String,
 }
 
@@ -26,6 +31,41 @@ pub struct Chain {
     pub rpc_url: Url,
     #[serde(default)]
     pub finalization: Finalization,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum HandlerType {
+    MsgVerifier,
+    VerifierSetVerifier,
+    MultisigSigner,
+}
+
+impl HandlerInfo {
+    fn new(chain_name: String, verifier_id: String, handler_type: HandlerType) -> Self {
+        Self {
+            label: format!("{}-{}", chain_name, handler_type.label_suffix()),
+            chain_name,
+            verifier_id,
+            cast_votes: handler_type.casts_votes(),
+        }
+    }
+}
+
+impl HandlerType {
+    fn casts_votes(self) -> bool {
+        match self {
+            HandlerType::MsgVerifier | HandlerType::VerifierSetVerifier => true,
+            HandlerType::MultisigSigner => false,
+        }
+    }
+
+    fn label_suffix(self) -> &'static str {
+        match self {
+            HandlerType::MsgVerifier => "msg-verifier",
+            HandlerType::VerifierSetVerifier => "verifier-set-verifier",
+            HandlerType::MultisigSigner => "multisig-signer",
+        }
+    }
 }
 
 with_prefix!(chain "chain_");
@@ -124,150 +164,135 @@ impl Config {
                 chain,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain.name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: format!("{}-msg-verifier", chain.name),
-            },
+            } => HandlerInfo::new(
+                chain.name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::EvmVerifierSetVerifier {
                 chain,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain.name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: format!("{}-verifier-set-verifier", chain.name),
-            },
+            } => HandlerInfo::new(
+                chain.name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::VerifierSetVerifier,
+            ),
 
             Config::MultisigSigner {
                 chain_name,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain_name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: false,
-                label: format!("{}-multisig-signer", chain_name),
-            },
+            } => HandlerInfo::new(
+                chain_name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MultisigSigner,
+            ),
 
             Config::SuiMsgVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "sui".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "sui-msg-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "sui".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::SuiVerifierSetVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "sui".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "sui-verifier-set-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "sui".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::VerifierSetVerifier,
+            ),
 
             Config::XRPLMsgVerifier {
                 chain_name,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain_name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: format!("{}-msg-verifier", chain_name),
-            },
+            } => HandlerInfo::new(
+                chain_name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::XRPLMultisigSigner {
                 chain_name,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain_name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: false,
-                label: format!("{}-multisig-signer", chain_name),
-            },
+            } => HandlerInfo::new(
+                chain_name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MultisigSigner,
+            ),
 
             Config::MvxMsgVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "multiversx".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "mvx-msg-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "multiversx".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::MvxVerifierSetVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "multiversx".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "mvx-verifier-set-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "multiversx".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::VerifierSetVerifier,
+            ),
 
             Config::StellarMsgVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "stellar".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "stellar-msg-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "stellar".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::StellarVerifierSetVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "stellar".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "stellar-verifier-set-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "stellar".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::VerifierSetVerifier,
+            ),
 
             Config::StarknetMsgVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "starknet".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "starknet-msg-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "starknet".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::StarknetVerifierSetVerifier {
                 cosmwasm_contract, ..
-            } => HandlerInfo {
-                chain_name: "starknet".to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "starknet-verifier-set-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                "starknet".to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::VerifierSetVerifier,
+            ),
 
             Config::SolanaMsgVerifier {
                 chain_name,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain_name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "solana-msg-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                chain_name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::MsgVerifier,
+            ),
 
             Config::SolanaVerifierSetVerifier {
                 chain_name,
                 cosmwasm_contract,
                 ..
-            } => HandlerInfo {
-                chain_name: chain_name.to_string(),
-                verifier_id: cosmwasm_contract.to_string(),
-                cast_votes: true,
-                label: "solana-verifier-set-verifier".to_string(),
-            },
+            } => HandlerInfo::new(
+                chain_name.to_string(),
+                cosmwasm_contract.to_string(),
+                HandlerType::VerifierSetVerifier,
+            ),
         }
     }
 }
@@ -708,7 +733,7 @@ mod tests {
             "multiversx".to_string(),
             mvx_contract.to_string(),
             true,
-            "mvx-msg-verifier".to_string(),
+            "multiversx-msg-verifier".to_string(),
         );
 
         let mvx_verifier_set_contract = TMAddress::random(PREFIX);
@@ -722,7 +747,7 @@ mod tests {
             "multiversx".to_string(),
             mvx_verifier_set_contract.to_string(),
             true,
-            "mvx-verifier-set-verifier".to_string(),
+            "multiversx-verifier-set-verifier".to_string(),
         );
     }
 

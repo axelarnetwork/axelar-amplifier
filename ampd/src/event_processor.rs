@@ -22,6 +22,12 @@ use crate::monitoring;
 use crate::monitoring::metrics::Msg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
+#[derive(Debug)]
+enum VoteResult {
+    Success,
+    Failure,
+}
+
 #[async_trait]
 pub trait EventHandler {
     type Err: Context;
@@ -143,18 +149,24 @@ where
     match future::with_retry(|| handler.handle(event), retry_policy).await {
         Ok(msgs) => {
             for msg in msgs {
-                let broadcast_result = broadcaster.broadcast(msg.clone()).await;
-                record_vote_metrics(monitoring_client, handler_info.clone(), &broadcast_result);
-                if let Err(err) = broadcast_result {
-                    warn!(
-                        err = LoggableError::from(&err).as_value(),
-                        "failed to broadcast message {:?} for event {}", msg, event
-                    )
+                match broadcaster.broadcast(msg.clone()).await {
+                    Ok(()) => {
+                        record_vote_metrics(monitoring_client, &handler_info, VoteResult::Success)
+                    }
+                    Err(err) => {
+                        record_vote_metrics(monitoring_client, &handler_info, VoteResult::Failure);
+
+                        warn!(
+                            err = LoggableError::from(&err).as_value(),
+                            "failed to broadcast message {:?} for event {}", msg, event
+                        )
+                    }
                 }
             }
         }
         Err(err) => {
-            record_vote_failure(monitoring_client, handler_info.clone());
+            record_vote_metrics(monitoring_client, &handler_info, VoteResult::Failure);
+
             warn!(
                 err = LoggableError::from(&err).as_value(),
                 "handler failed to process event {}", event,
@@ -195,50 +207,37 @@ fn should_task_stop(stream_status: StreamStatus, token: &CancellationToken) -> b
 
 fn record_vote_metrics(
     monitoring_client: &monitoring::Client,
-    handler_info: HandlerInfo,
-    result: &std::result::Result<(), error_stack::Report<crate::queue::queued_broadcaster::Error>>,
+    handler_info: &HandlerInfo,
+    result: VoteResult,
 ) {
     if !handler_info.cast_votes {
         return;
     }
 
     let metric_msg = match result {
-        Ok(()) => Msg::VoteCastSucceeded {
-            verifier_id: handler_info.verifier_id,
-            chain_name: handler_info.chain_name,
+        VoteResult::Success => Msg::VoteSucceeded {
+            verifier_id: handler_info.verifier_id.clone(),
+            chain_name: handler_info.chain_name.clone(),
         },
-        Err(_) => Msg::VoteFailed {
-            verifier_id: handler_info.verifier_id,
-            chain_name: handler_info.chain_name,
+        VoteResult::Failure => Msg::VoteFailed {
+            verifier_id: handler_info.verifier_id.clone(),
+            chain_name: handler_info.chain_name.clone(),
         },
     };
 
     if let Err(metric_error) = monitoring_client.metrics().record_metric(metric_msg) {
-        let metric_type = if result.is_ok() {
-            "succeeded"
-        } else {
-            "failed"
+        let metric_type = match result {
+            VoteResult::Success => "succeeded",
+            VoteResult::Failure => "failed",
         };
+
         warn!(
             err = %metric_error,
-             "failed to record {} vote metrics",
-             metric_type,
-        );
-    }
-}
-
-fn record_vote_failure(monitoring_client: &monitoring::Client, handler_info: HandlerInfo) {
-    if !handler_info.cast_votes {
-        return;
-    }
-
-    if let Err(metric_error) = monitoring_client.metrics().record_metric(Msg::VoteFailed {
-        verifier_id: handler_info.verifier_id,
-        chain_name: handler_info.chain_name,
-    }) {
-        warn!(
-            err = %metric_error,
-            "failed to record failed vote metric",
+            handler = %handler_info.label,
+            verifier_id = %handler_info.verifier_id,
+            chain_name = %handler_info.chain_name,
+            "failed to record {} vote metric",
+            metric_type,
         );
     }
 }
@@ -298,6 +297,17 @@ mod tests {
 
     fn localhost_with_random_port() -> Option<SocketAddrV4> {
         Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), random()))
+    }
+
+    /// Sort metrics text alphabetically by line.
+    ///
+    /// The prometheus_client crate returns metrics in non-deterministic order
+    /// when there are metrics with more than one label. We sort them before
+    /// using golden file tests to ensure consistent output.
+    fn sort_metrics_text(metrics_text: String) -> String {
+        let mut lines: Vec<&str> = metrics_text.lines().collect();
+        lines.sort();
+        lines.join("\n")
     }
 
     #[tokio::test]
@@ -622,7 +632,7 @@ mod tests {
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
-        tokio::spawn(server.run(cancel_token.clone()));
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -650,10 +660,11 @@ mod tests {
         assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
 
         cancel_token.cancel();
+        let _ = server_handle.await;
     }
 
     #[tokio::test(start_paused = true)]
-    async fn non_voting_handler_successful_broadcast_does_not_record_vote_metrics() {
+    async fn should_not_record_vote_metrics_when_non_voting_handler_broadcast() {
         let events: Vec<Result<Event, event_processor::Error>> =
             vec![Ok(Event::BlockEnd(0_u32.into()))];
 
@@ -678,7 +689,7 @@ mod tests {
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
-        tokio::spawn(server.run(cancel_token.clone()));
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -706,21 +717,15 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(!metrics_text.contains(
-             "verifier_votes_cast_successful_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
-         ));
-        assert!(!metrics_text.contains(
-            "verifier_votes_failed_total{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
-        ));
-        assert!(!metrics_text.contains(
-            "verifier_votes_cast_success_rate{chain_name=\"chain_name\",verifier_id=\"verifier_id\"}"
-        ));
+        let sorted_metrics = sort_metrics_text(metrics_text);
+        goldie::assert!(sorted_metrics);
 
         cancel_token.cancel();
+        let _ = server_handle.await;
     }
 
     #[tokio::test(start_paused = true)]
-    async fn voting_handler_mixed_success_failure_broadcast_records_correct_metrics() {
+    async fn record_vote_metrics_successfully_when_voting_handler_has_mixed_broadcast_results() {
         let events: Vec<Result<Event, event_processor::Error>> =
             vec![Ok(Event::BlockEnd(0_u32.into()))];
 
@@ -739,7 +744,7 @@ mod tests {
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
-        tokio::spawn(server.run(cancel_token.clone()));
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -778,11 +783,11 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains("verifier_votes_cast_successful_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 2"));
-        assert!(metrics_text.contains("verifier_votes_cast_failed_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"));
-        assert!(metrics_text.contains("verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0.6666666666666666"));
+        let sorted_metrics = sort_metrics_text(metrics_text);
+        goldie::assert!(sorted_metrics);
 
         cancel_token.cancel();
+        let _ = server_handle.await;
     }
 
     #[tokio::test(start_paused = true)]
@@ -813,7 +818,7 @@ mod tests {
 
         let (server, monitoring_client) = monitoring::Server::new(None).unwrap();
         let cancel = CancellationToken::new();
-        tokio::spawn(server.run(cancel.clone()));
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -835,10 +840,11 @@ mod tests {
         assert!(result_with_timeout.unwrap().is_ok());
 
         cancel.cancel();
+        let _ = server_handle.await;
     }
 
     #[tokio::test(start_paused = true)]
-    async fn voting_handler_failure_records_vote_failure_metrics_correctly() {
+    async fn record_vote_metrics_successfully_when_encounters_handler_failure() {
         let events: Vec<Result<Event, event_processor::Error>> =
             vec![Ok(Event::BlockEnd(0_u32.into()))];
 
@@ -858,7 +864,7 @@ mod tests {
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
-        tokio::spawn(server.run(cancel_token.clone()));
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -886,14 +892,11 @@ mod tests {
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains("verifier_votes_cast_failed_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 1"));
-        assert!(metrics_text.contains(
-            "verifier_votes_cast_success_rate{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
-        ));
-        assert!(metrics_text.contains(
-            "verifier_votes_cast_successful_total{verifier_id=\"verifier_id\",chain_name=\"chain_name\"} 0"
-        ));
+        let sorted_metrics = sort_metrics_text(metrics_text);
+        goldie::assert!(sorted_metrics);
 
         cancel_token.cancel();
+        let _ = server_handle.await;
     }
+
 }

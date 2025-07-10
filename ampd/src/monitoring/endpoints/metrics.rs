@@ -37,8 +37,8 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
-    // Increment the count of succeeded votes casts by verifier
-    VoteCastSucceeded {
+    // Increment the count of succeeded votes casted by verifier
+    VoteSucceeded {
         verifier_id: String,
         chain_name: String,
     },
@@ -244,7 +244,7 @@ impl Metrics {
                 self.blocks_received.increment();
             }
 
-            Msg::VoteCastSucceeded {
+            Msg::VoteSucceeded {
                 verifier_id,
                 chain_name,
             } => {
@@ -294,72 +294,57 @@ impl VoteMetrics {
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "verifier_votes_cast_successful",
-            "number of succeeded votes casts by verifier",
+            "verifier_votes_successful",
+            "number of successful votes casts by verifier",
             self.succeeded.clone(),
         );
         registry.register(
-            "verifier_votes_cast_failed",
-            "number of failed votes casts by verifier",
+            "verifier_votes_failed",
+            "number of failed votes by verifier (handler/broadcast errors)",
             self.failed.clone(),
         );
         registry.register(
-            "verifier_votes_cast_success_rate",
+            "verifier_votes_success_rate",
             "success rate of votes casts by verifier",
             self.success_rate.clone(),
         );
     }
 
     fn record_success(&self, verifier_id: String, chain_name: String) {
-        self.succeeded
-            .get_or_create(&VoteLabel {
-                verifier_id: verifier_id.clone(),
-                chain_name: chain_name.clone(),
-            })
-            .inc();
-        self.update_success_rate(verifier_id, chain_name);
+        let label = VoteLabel::new(verifier_id, chain_name);
+        self.succeeded.get_or_create(&label).inc();
+
+        self.update_success_rate(&label);
     }
 
     fn record_failure(&self, verifier_id: String, chain_name: String) {
-        self.failed
-            .get_or_create(&VoteLabel {
-                verifier_id: verifier_id.clone(),
-                chain_name: chain_name.clone(),
-            })
-            .inc();
-        self.update_success_rate(verifier_id, chain_name);
+        let label = VoteLabel::new(verifier_id, chain_name);
+        self.failed.get_or_create(&label).inc();
+
+        self.update_success_rate(&label);
     }
 
-    fn update_success_rate(&self, verifier_id: String, chain_name: String) {
-        let succeeded_votes = self
-            .succeeded
-            .get_or_create(&VoteLabel {
-                verifier_id: verifier_id.clone(),
-                chain_name: chain_name.clone(),
-            })
-            .get();
-
-        let failed_votes = self
-            .failed
-            .get_or_create(&VoteLabel {
-                verifier_id: verifier_id.clone(),
-                chain_name: chain_name.clone(),
-            })
-            .get();
+    fn update_success_rate(&self, label: &VoteLabel) {
+        let succeeded_votes = self.succeeded.get_or_create(label).get();
+        let failed_votes = self.failed.get_or_create(label).get();
 
         let total_votes = succeeded_votes.wrapping_add(failed_votes);
 
         let success_rate = match total_votes {
-            0 => 0.0, // would only happens if overflow
+            0 => 0.0, // avoid division by zero, would only happen if overflow
             _ => succeeded_votes as f64 / total_votes as f64,
         };
 
-        self.success_rate
-            .get_or_create(&VoteLabel {
-                verifier_id,
-                chain_name,
-            })
-            .set(success_rate);
+        self.success_rate.get_or_create(label).set(success_rate);
+    }
+}
+
+impl VoteLabel {
+    fn new(verifier_id: String, chain_name: String) -> Self {
+        Self {
+            verifier_id,
+            chain_name,
+        }
     }
 }
 
@@ -374,7 +359,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(start_paused = true)]
-    async fn metrics_handle_blocks_received_message_increments_counter_successfully() {
+    async fn should_increment_blocks_received_counter_when_message_processed() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -401,7 +386,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn metrics_handle_multiple_chains_vote_casting_and_increment_counter_successfully() {
+    async fn should_update_vote_metrics_correctly_when_multiple_chains_cast_votes() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -410,7 +395,7 @@ mod tests {
 
         for _ in 0..2 {
             client
-                .record_metric(Msg::VoteCastSucceeded {
+                .record_metric(Msg::VoteSucceeded {
                     chain_name: "ethereum".to_string(),
                     verifier_id: "axelar1abc".to_string(),
                 })
@@ -425,28 +410,29 @@ mod tests {
         }
 
         client
-            .record_metric(Msg::VoteCastSucceeded {
+            .record_metric(Msg::VoteSucceeded {
                 chain_name: "sui".to_string(),
                 verifier_id: "suiabc".to_string(),
             })
             .unwrap();
 
         time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
+        let metrics = server.get("/test").await;
 
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_successful_total{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
-        );
-        final_metrics.assert_text_contains("verifier_votes_cast_failed_total{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 2");
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1",
-        );
+        let sorted_metrics = sort_metrics_text(metrics.text());
+        goldie::assert!(sorted_metrics);
 
-        final_metrics.assert_text_contains("verifier_votes_cast_success_rate{verifier_id=\"axelar1abc\",chain_name=\"ethereum\"} 0.5");
-        final_metrics.assert_text_contains(
-            "verifier_votes_cast_success_rate{verifier_id=\"suiabc\",chain_name=\"sui\"} 1.0",
-        );
+        metrics.assert_status_ok();
+    }
 
-        final_metrics.assert_status_ok();
+    /// Sort metrics text alphabetically by line.
+    ///
+    /// The prometheus_client crate returns metrics in non-deterministic order
+    /// when there are metrics with more than one label. We sort them before
+    /// using golden file tests to ensure consistent output.
+    fn sort_metrics_text(metrics_text: String) -> String {
+        let mut lines: Vec<&str> = metrics_text.lines().collect();
+        lines.sort();
+        lines.join("\n")
     }
 }
