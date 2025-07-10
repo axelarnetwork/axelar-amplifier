@@ -183,7 +183,7 @@ mod tests {
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, VerifierSetConfirmation};
 
     use super::*;
     use crate::event_processor::EventHandler;
@@ -360,12 +360,11 @@ mod tests {
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
+    ) -> VotingVerifierEvent {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
         let event_idx_1 = 10_u32;
         let message_id_1 = format!("{signature_1}-{event_idx_1}");
-        PollStarted::VerifierSet {
-            metadata: PollMetadata {
+        VotingVerifierEvent::VerifierSetPollStarted {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "solana".parse().unwrap(),
                 source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
@@ -375,7 +374,6 @@ mod tests {
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
-            },
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: signature_1

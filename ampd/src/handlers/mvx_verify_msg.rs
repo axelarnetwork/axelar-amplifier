@@ -180,7 +180,7 @@ mod tests {
     use hex::ToHex;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, TxEventConfirmation};
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
@@ -323,9 +323,8 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
-        PollStarted::Messages {
-            metadata: PollMetadata {
+    fn poll_started_event(participants: Vec<TMAddress>) -> VotingVerifierEvent {
+        VotingVerifierEvent::MessagesPollStarted {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "multiversx".parse().unwrap(),
                 source_gateway_address:
@@ -335,10 +334,9 @@ mod tests {
                 confirmation_height: 15,
                 expires_at: 100,
                 participants: participants
-                    .into_iter()
+                        .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+                .collect(),
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
                 tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"

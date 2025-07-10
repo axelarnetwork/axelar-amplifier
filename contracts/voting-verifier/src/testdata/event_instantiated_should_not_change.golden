@@ -1,0 +1,45 @@
+{
+  "type": "instantiated",
+  "attributes": [
+    {
+      "key": "service_registry_contract",
+      "value": "\"cosmwasm19d2spdjdycg0tfu27n2zrkwvr25yxwykaxvxwkpnf7hqkka93j4sfp809w\""
+    },
+    {
+      "key": "service_name",
+      "value": "\"serviceName\""
+    },
+    {
+      "key": "source_gateway_address",
+      "value": "\"sourceGatewayAddress\""
+    },
+    {
+      "key": "voting_threshold",
+      "value": "[\"2\",\"3\"]"
+    },
+    {
+      "key": "block_expiry",
+      "value": "\"10\""
+    },
+    {
+      "key": "confirmation_height",
+      "value": "1"
+    },
+    {
+      "key": "source_chain",
+      "value": "\"sourcechain\""
+    },
+    {
+      "key": "rewards_contract",
+      "value": "\"cosmwasm1wyhnds94w36ar6jlz4aaaz75cmypwmr0rqnc92nm5m79ejy04hnsx25urh\""
+    },
+    {
+      "key": "msg_id_format",
+      "value": "\"hex_tx_hash_and_event_index\""
+    },
+    {
+      "key": "address_format",
+      "value": "\"eip55\""
+    }
+  ]
+}
