@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{address, migrate_from_version, IntoContractError, nonempty};
+use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage, Api};
+use cosmwasm_std::{Addr, Api, DepsMut, Env, Order, Response, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
@@ -77,18 +77,24 @@ pub struct MigrateMsg {
 }
 
 impl MigrateMsg {
-    fn chain_contracts_records(&self, api: &dyn Api) -> error_stack::Result<Vec<ChainContractsRecord>, MigrationError> {
-        self.chain_contracts.iter()
-        .map::<error_stack::Result<ChainContractsRecord, MigrationError>, _>(|cc| Ok(ChainContractsRecord {
-            chain_name: cc.chain_name.clone(),
-            prover_address: address::validate_cosmwasm_address(api, &cc.prover_address)
-            .change_context(MigrationError::InvalidChainContracts)?,
-            verifier_address: address::validate_cosmwasm_address(api, &cc.verifier_address)
-            .change_context(MigrationError::InvalidChainContracts)?,
-            gateway_address: address::validate_cosmwasm_address(api, &cc.gateway_address)
-            .change_context(MigrationError::InvalidChainContracts)?,
-        }))
-        .collect::<error_stack::Result<Vec<_>, MigrationError>>()
+    fn chain_contracts_records(
+        &self,
+        api: &dyn Api,
+    ) -> error_stack::Result<Vec<ChainContractsRecord>, MigrationError> {
+        self.chain_contracts
+            .iter()
+            .map::<error_stack::Result<ChainContractsRecord, MigrationError>, _>(|cc| {
+                Ok(ChainContractsRecord {
+                    chain_name: cc.chain_name.clone(),
+                    prover_address: address::validate_cosmwasm_address(api, &cc.prover_address)
+                        .change_context(MigrationError::InvalidChainContracts)?,
+                    verifier_address: address::validate_cosmwasm_address(api, &cc.verifier_address)
+                        .change_context(MigrationError::InvalidChainContracts)?,
+                    gateway_address: address::validate_cosmwasm_address(api, &cc.gateway_address)
+                        .change_context(MigrationError::InvalidChainContracts)?,
+                })
+            })
+            .collect::<error_stack::Result<Vec<_>, MigrationError>>()
     }
 }
 
@@ -137,26 +143,27 @@ fn migrate_chain_contracts(
         .range(storage, None, None, Order::Ascending)
         .try_collect()?;
 
-    let mut cc: HashMap<_, _> = chain_contracts
+    let mut contracts_map: HashMap<_, _> = chain_contracts
         .into_iter()
         .map(|contracts| (contracts.chain_name.clone(), contracts))
         .collect();
 
     for (chain_name, prover_addr) in provers_by_chain {
-        let contracts = contracts_for_prover(chain_name.clone(), prover_addr.clone(), &mut cc)?;
+        let contracts =
+            contracts_for_prover(chain_name.clone(), prover_addr.clone(), &mut contracts_map)?;
 
         save_contracts_to_state(storage, contracts)?;
     }
 
-    ensure_no_extra_provers_given(cc)
+    ensure_no_extra_provers_given(contracts_map)
 }
 
 fn contracts_for_prover(
     chain_name: ChainName,
     prover_addr: Addr,
-    cc: &mut HashMap<ChainName, ChainContractsRecord>,
+    contracts_map: &mut HashMap<ChainName, ChainContractsRecord>,
 ) -> Result<ChainContractsRecord, axelar_wasm_std::error::ContractError> {
-    let contracts = cc
+    let contracts = contracts_map
         .remove(&chain_name)
         .ok_or_else(|| MigrationError::MissingContracts(chain_name.clone()))?;
 
@@ -178,24 +185,20 @@ fn save_contracts_to_state(
         Ok(existing_contracts) if existing_contracts != contracts => {
             Err(MigrationError::IncorrectContracts(contracts.chain_name).into())
         }
-        _ => {
-            save_chain_contracts(
-                storage,
-                contracts.chain_name,
-                contracts.prover_address,
-                contracts.gateway_address,
-                contracts.verifier_address,
-            )?;
-
-            Ok(())
-        }
+        _ => Ok(save_chain_contracts(
+            storage,
+            contracts.chain_name,
+            contracts.prover_address,
+            contracts.gateway_address,
+            contracts.verifier_address,
+        )?),
     }
 }
 
 fn ensure_no_extra_provers_given(
-    cc: HashMap<ChainName, ChainContractsRecord>,
+    contracts_map: HashMap<ChainName, ChainContractsRecord>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
-    match cc.keys().next() {
+    match contracts_map.keys().next() {
         Some(extra_chain) => Err(MigrationError::ExtraProver(extra_chain.clone()).into()),
         _ => Ok(()),
     }
@@ -218,7 +221,21 @@ mod tests {
     const OLD_CONTRACT_NAME: &str = "coordinator";
     const OLD_CONTRACT_VERSION: &str = "1.1.0";
 
-    use super::{OLD_CHAIN_PROVER_INDEXED_MAP, ChainContracts};
+    use super::{ChainContracts, OLD_CHAIN_PROVER_INDEXED_MAP};
+
+    const PROVER_1: &str = "prover";
+    const PROVER_2: &str = "prover2";
+    const GATEWAY: &str = "gateweay";
+    const VERIFIER: &str = "verifier";
+    const CHAIN_1: &str = "axelar";
+    const CHAIN_2: &str = "cosmos";
+
+    const MULTISIG: &str = "multisig";
+    const ROUTER: &str = "router";
+    const SERVICE_REGISTRY: &str = "service_registry";
+    const GOVERNANCE: &str = "governance";
+
+    const SENDER: &str = "sender";
 
     #[cw_serde]
     pub struct OldInstantiateMsg {
@@ -263,25 +280,23 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&api.addr_make(SENDER), &[]);
 
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
+        assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
             },
         )
-        .unwrap();
+        .is_ok());
 
-        // Register old provers using the helper function
-        let chain_name = ChainName::try_from("axelar").unwrap();
-        let prover_addr = api.addr_make("prover");
-        let gateway_addr = api.addr_make("gateway");
-        let verifier_addr = api.addr_make("verifier");
+        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let prover_addr = api.addr_make(PROVER_1);
+        let gateway_addr = api.addr_make(GATEWAY);
+        let verifier_addr = api.addr_make(VERIFIER);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -289,35 +304,28 @@ mod tests {
         )
         .is_ok());
 
-        // Verify the old prover is registered
         let old_prover_registration =
             OLD_CHAIN_PROVER_INDEXED_MAP.load(&deps.storage, chain_name.clone());
         assert!(old_prover_registration.is_ok());
-        let old_prover_registration = old_prover_registration.unwrap();
-        assert_eq!(old_prover_registration, prover_addr);
+        assert_eq!(old_prover_registration.unwrap(), prover_addr);
 
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-
-        // Create migration message with matching chain contracts
-        let res = migrate(
+        assert!(migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_contracts: vec![ChainContracts{
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
+                chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                        .unwrap(),
                 }],
             },
-        );
+        )
+        .is_ok());
 
-        assert!(res.is_ok());
-
-        // Verify the prover is now registered in the new state
         let contracts = state::contracts_by_chain(&deps.storage, chain_name.clone());
         assert!(contracts.is_ok());
         let contracts = contracts.unwrap();
@@ -327,11 +335,9 @@ mod tests {
         assert_eq!(contracts.gateway_address, gateway_addr);
         assert_eq!(contracts.verifier_address, verifier_addr);
 
-        // Verify we can also look up by prover address
         let contracts_by_prover = state::contracts_by_prover(&deps.storage, prover_addr.clone());
         assert!(contracts_by_prover.is_ok());
-        let contracts_by_prover = contracts_by_prover.unwrap();
-        assert_eq!(contracts_by_prover.chain_name, chain_name);
+        assert_eq!(contracts_by_prover.unwrap().chain_name, chain_name);
     }
 
     #[test]
@@ -339,26 +345,24 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&api.addr_make(SENDER), &[]);
 
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
+        assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
             },
         )
-        .unwrap();
+        .is_ok());
 
-        // Register old provers using the helper function
-        let chain_name = ChainName::try_from("axelar").unwrap();
-        let prover_addr1 = api.addr_make("prover1");
-        let prover_addr2 = api.addr_make("prover2");
-        let gateway_addr = api.addr_make("gateway");
-        let verifier_addr = api.addr_make("verifier");
+        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let prover_addr1 = api.addr_make(PROVER_1);
+        let prover_addr2 = api.addr_make(PROVER_2);
+        let gateway_addr = api.addr_make(GATEWAY);
+        let verifier_addr = api.addr_make(VERIFIER);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -366,21 +370,18 @@ mod tests {
         )
         .is_ok());
 
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-
-        // Create migration message with matching chain contracts
         let res = migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_contracts: vec![ChainContracts{
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
+                chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                        .unwrap(),
                 }],
             },
         );
@@ -397,27 +398,25 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&api.addr_make(SENDER), &[]);
 
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
+        assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
             },
         )
-        .unwrap();
+        .is_ok());
 
-        // Register old provers using the helper function
-        let chain_name1 = ChainName::try_from("axelar").unwrap();
-        let chain_name2 = ChainName::try_from("cosmos").unwrap();
-        let prover_addr1 = api.addr_make("prover1");
-        let prover_addr2 = api.addr_make("prover2");
-        let gateway_addr = api.addr_make("gateway");
-        let verifier_addr = api.addr_make("verifier");
+        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
+        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
+        let prover_addr1 = api.addr_make(PROVER_1);
+        let prover_addr2 = api.addr_make(PROVER_2);
+        let gateway_addr = api.addr_make(GATEWAY);
+        let verifier_addr = api.addr_make(VERIFIER);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -428,21 +427,18 @@ mod tests {
         )
         .is_ok());
 
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-
-        // Create migration message with matching chain contracts
         let res = migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_contracts: vec![ChainContracts{
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
+                chain_contracts: vec![ChainContracts {
                     chain_name: chain_name1.clone(),
                     prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                        .unwrap(),
                 }],
             },
         );
@@ -459,56 +455,61 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&api.addr_make(SENDER), &[]);
 
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
+        assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
             },
         )
-        .unwrap();
+        .is_ok());
 
-        // Register old provers using the helper function
-        let chain_name = ChainName::try_from("axelar").unwrap();
-        let prover_addr = api.addr_make("prover");
-        let gateway_addr = api.addr_make("gateway");
-        let verifier_addr = api.addr_make("verifier");
+        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let prover_addr = api.addr_make(PROVER_1);
+        let gateway_addr = api.addr_make(GATEWAY);
+        let verifier_addr = api.addr_make(VERIFIER);
 
-        // Only register one chain in the old state
+        let extra_chain_name = ChainName::try_from(CHAIN_2).unwrap();
+        let extra_prover_addr = api.addr_make(PROVER_2);
+        let extra_gateway_addr = api.addr_make("extra_gateway");
+        let extra_verifier_addr = api.addr_make("extra_verifier");
+
         assert!(add_old_prover_registration(
             deps.as_mut(),
             vec![(chain_name.clone(), prover_addr.clone())]
         )
         .is_ok());
 
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-
-        // Create migration message with an extra chain that wasn't registered
-        let extra_chain_name = ChainName::try_from("cosmos").unwrap();
         let res = migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![
-                    ChainContracts{
+                    ChainContracts {
                         chain_name: chain_name.clone(),
-                        prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
-                        gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                        verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
+                        prover_address: nonempty::String::try_from(prover_addr.to_string())
+                            .unwrap(),
+                        gateway_address: nonempty::String::try_from(gateway_addr.to_string())
+                            .unwrap(),
+                        verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                            .unwrap(),
                     },
-                    ChainContracts{
+                    ChainContracts {
                         chain_name: extra_chain_name.clone(),
-                        prover_address: nonempty::String::try_from(api.addr_make("extra_prover").to_string()).unwrap(),
-                        gateway_address: nonempty::String::try_from(api.addr_make("extra_gateway").to_string()).unwrap(),
-                        verifier_address: nonempty::String::try_from(api.addr_make("extra_verifier").to_string()).unwrap(),
+                        prover_address: nonempty::String::try_from(extra_prover_addr.to_string())
+                            .unwrap(),
+                        gateway_address: nonempty::String::try_from(extra_gateway_addr.to_string())
+                            .unwrap(),
+                        verifier_address: nonempty::String::try_from(
+                            extra_verifier_addr.to_string(),
+                        )
+                        .unwrap(),
                     },
                 ],
             },
@@ -526,25 +527,23 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&api.addr_make(SENDER), &[]);
 
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
+        assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
             },
         )
-        .unwrap();
+        .is_ok());
 
-        // Register old provers using the helper function
-        let chain_name = ChainName::try_from("axelar").unwrap();
-        let prover_addr = api.addr_make("prover");
-        let gateway_addr = api.addr_make("gateway");
-        let verifier_addr = api.addr_make("verifier");
+        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let prover_addr = api.addr_make(PROVER_1);
+        let gateway_addr = api.addr_make(GATEWAY);
+        let verifier_addr = api.addr_make(VERIFIER);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -552,7 +551,6 @@ mod tests {
         )
         .is_ok());
 
-        // Save chain contracts in the new state (simulating previous registration)
         state::save_chain_contracts(
             deps.as_mut().storage,
             chain_name.clone(),
@@ -562,21 +560,21 @@ mod tests {
         )
         .unwrap();
 
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-
-        // Create migration message with different contract addresses
         let res = migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_contracts: vec![ChainContracts{
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
+                chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
-                    gateway_address: nonempty::String::try_from(api.addr_make("different_gateway").to_string()).unwrap(), // Different gateway
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
+                    gateway_address: nonempty::String::try_from(
+                        api.addr_make("different_gateway").to_string(),
+                    )
+                    .unwrap(), // Different gateway
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                        .unwrap(),
                 }],
             },
         );
@@ -593,25 +591,23 @@ mod tests {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&api.addr_make(SENDER), &[]);
 
-        let service_registry = api.addr_make("service_registry");
-        old_instantiate(
+        assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make("governance").to_string(),
-                service_registry: service_registry.to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
             },
         )
-        .unwrap();
+        .is_ok());
 
-        // Register old provers using the helper function
-        let chain_name = ChainName::try_from("axelar").unwrap();
-        let prover_addr = api.addr_make("prover");
-        let gateway_addr = api.addr_make("gateway");
-        let verifier_addr = api.addr_make("verifier");
+        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let prover_addr = api.addr_make(PROVER_1);
+        let gateway_addr = api.addr_make(GATEWAY);
+        let verifier_addr = api.addr_make(VERIFIER);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -619,7 +615,6 @@ mod tests {
         )
         .is_ok());
 
-        // Save chain contracts in the new state (simulating previous registration)
         state::save_chain_contracts(
             deps.as_mut().storage,
             chain_name.clone(),
@@ -629,28 +624,23 @@ mod tests {
         )
         .unwrap();
 
-        let router = api.addr_make("router");
-        let multisig = api.addr_make("multisig");
-
-        // Create migration message with matching contract addresses
-        let res = migrate(
+        assert!(migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: router.to_string(),
-                multisig: multisig.to_string(),
-                chain_contracts: vec![ChainContracts{
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
+                chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                        .unwrap(),
                 }],
             },
-        );
+        )
+        .is_ok());
 
-        assert!(res.is_ok());
-
-        // Verify the contracts are still correctly stored after migration
         let contracts = state::contracts_by_chain(&deps.storage, chain_name.clone());
         assert!(contracts.is_ok());
         let contracts = contracts.unwrap();
@@ -660,10 +650,8 @@ mod tests {
         assert_eq!(contracts.gateway_address, gateway_addr);
         assert_eq!(contracts.verifier_address, verifier_addr);
 
-        // Verify we can also look up by prover address
         let contracts_by_prover = state::contracts_by_prover(&deps.storage, prover_addr.clone());
         assert!(contracts_by_prover.is_ok());
-        let contracts_by_prover = contracts_by_prover.unwrap();
-        assert_eq!(contracts_by_prover.chain_name, chain_name);
+        assert_eq!(contracts_by_prover.unwrap().chain_name, chain_name);
     }
 }
