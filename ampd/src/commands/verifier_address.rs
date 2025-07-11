@@ -10,5 +10,5 @@ pub async fn run(config: TofndConfig) -> Result<Option<String>, Error> {
     verifier_pub_key(config)
         .await
         .and_then(|pub_key| pub_key.account_id(PREFIX).change_context(Error::Tofnd))?
-        .then(|account_id| Ok(Some(format!("verifier address: {}", account_id))))
+        .then(|account_id| Ok(Some(format!("verifier address: {account_id}"))))
 }

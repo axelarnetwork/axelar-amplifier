@@ -17,5 +17,5 @@ where
     D: Deserializer<'de>,
 {
     let hex = HexBinary::deserialize(deserializer)?.to_string();
-    HexTxHash::from_str(&format!("0x{}", hex)).map_err(Error::custom)
+    HexTxHash::from_str(&format!("0x{hex}")).map_err(Error::custom)
 }

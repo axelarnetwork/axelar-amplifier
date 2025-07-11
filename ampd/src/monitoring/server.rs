@@ -336,8 +336,7 @@ mod tests {
         let disabled_serialized = toml::to_string(&disabled_config).unwrap();
 
         let output = format!(
-            "Enabled Config:\n{:?}\n\nDisabled Config:\n{:?}\n\nEnabled Serialized:\n{}\n\nDisabled Serialized:\n{}",
-            enabled_config, disabled_config, enabled_serialized, disabled_serialized
+            "Enabled Config:\n{enabled_config:?}\n\nDisabled Config:\n{disabled_config:?}\n\nEnabled Serialized:\n{enabled_serialized}\n\nDisabled Serialized:\n{disabled_serialized}"
         );
 
         goldie::assert!(output);
@@ -527,10 +526,8 @@ mod tests {
         let updated_metrics = reqwest::get(metrics_url).await.unwrap();
         let updated_text = updated_metrics.text().await.unwrap();
 
-        let output = format!(
-            "Initial Metrics:\n{}\n\nUpdated Metrics:\n{}",
-            initial_text, updated_text
-        );
+        let output =
+            format!("Initial Metrics:\n{initial_text}\n\nUpdated Metrics:\n{updated_text}");
 
         goldie::assert!(output);
         cancel.cancel();
@@ -637,7 +634,7 @@ mod tests {
             monitoring_client
                 .metrics()
                 .record_metric(msg.clone())
-                .unwrap_or_else(|_| panic!("failed to send message {}", i));
+                .unwrap_or_else(|_| panic!("failed to send message {i}"));
         }
     }
 }

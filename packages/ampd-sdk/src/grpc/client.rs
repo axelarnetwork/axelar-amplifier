@@ -332,7 +332,7 @@ mod tests {
             server.serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener));
 
         tokio::spawn(bound_server);
-        let url = format!("http://{}", server_addr);
+        let url = format!("http://{server_addr}");
 
         new_client(&url).await.unwrap()
     }

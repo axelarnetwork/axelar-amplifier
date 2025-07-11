@@ -237,7 +237,7 @@ mod tests {
 
         let result = number.checked_rem(max).expect("modulo operation failed");
 
-        format!("0x{:064x}", result)
+        format!("0x{result:064x}")
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {

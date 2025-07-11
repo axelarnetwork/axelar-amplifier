@@ -25,19 +25,15 @@ impl Display for LoggableError {
         let msg = if self.attachments.is_empty() {
             self.msg.clone()
         } else {
-            let string = self
-                .attachments
-                .iter()
-                .map(|a| format!("{:?}", a))
-                .join(", ");
+            let string = self.attachments.iter().map(|a| format!("{a:?}")).join(", ");
             format!("{} ({})", self.msg, string)
         };
 
         let output = match &self.cause {
             None => msg,
-            Some(cause) => format!("{}: {}", msg, cause),
+            Some(cause) => format!("{msg}: {cause}"),
         };
-        write!(f, "{}", output)
+        write!(f, "{output}")
     }
 }
 
@@ -257,7 +253,7 @@ mod tests {
             .attach_printable(vec_attachment.clone());
 
         let error = LoggableError::from(&report);
-        let error_msg = format!("{}", error);
+        let error_msg = format!("{error}");
 
         assert!(error_msg.contains("internal error"));
         assert!(error_msg.contains("middle error"));

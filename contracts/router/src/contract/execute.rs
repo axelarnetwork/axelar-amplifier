@@ -39,7 +39,7 @@ pub fn register_chain(
         .change_context(Error::Nexus)?
     {
         Err(Report::new(Error::ChainAlreadyExists))
-            .attach_printable(format!("chain {} already exists in core", name))?
+            .attach_printable(format!("chain {name} already exists in core"))?
     }
 
     chain_endpoints().update(storage, name.clone(), |chain| match chain {

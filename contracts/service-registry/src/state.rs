@@ -1267,7 +1267,7 @@ mod tests {
         let service = save_mock_service(deps.as_mut().storage);
 
         let verifiers: Vec<Addr> = (0..5)
-            .map(|i| MockApi::default().addr_make(&format!("verifier{}", i)))
+            .map(|i| MockApi::default().addr_make(&format!("verifier{i}")))
             .collect();
 
         update_verifier_authorization_status(
@@ -1331,7 +1331,7 @@ mod tests {
         for (previous_state, new_state, expected_change, description) in test_cases {
             let change = calculate_auth_verifier_count_change(previous_state.as_ref(), &new_state);
 
-            assert_eq!(change, expected_change, "Test failed for: {}", description,);
+            assert_eq!(change, expected_change, "Test failed for: {description}",);
         }
     }
 

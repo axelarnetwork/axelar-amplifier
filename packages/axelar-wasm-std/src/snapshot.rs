@@ -200,9 +200,7 @@ mod tests {
                 assert_eq!(
                     snapshot.quorum,
                     nonempty::Uint128::try_from(expected_quorum).unwrap(),
-                    "total_weight: {}, expected_quorum: {}",
-                    total_weight,
-                    expected_quorum
+                    "total_weight: {total_weight}, expected_quorum: {expected_quorum}"
                 );
             });
     }

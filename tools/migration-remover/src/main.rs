@@ -47,7 +47,7 @@ fn read_template(contract_root_dir: &Path) -> Result<String, Error> {
         .change_context(Error::Template)?
         .replace(
             r#"#[migrate_from_version("0.0")]"#,
-            &format!(r#"#[migrate_from_version("{}")]"#, from_version),
+            &format!(r#"#[migrate_from_version("{from_version}")]"#),
         );
 
     Ok(template)

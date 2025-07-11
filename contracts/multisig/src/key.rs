@@ -132,7 +132,7 @@ where
 {
     let pk: HexBinary = Deserialize::deserialize(deserializer)?;
     PublicKey::try_from((KeyType::Ecdsa, pk.clone()))
-        .map_err(|err| Error::custom(format!("failed to deserialize public key: {}", err)))?;
+        .map_err(|err| Error::custom(format!("failed to deserialize public key: {err}")))?;
     Ok(pk)
 }
 
@@ -142,7 +142,7 @@ where
 {
     let pk: HexBinary = Deserialize::deserialize(deserializer)?;
     PublicKey::try_from((KeyType::Ed25519, pk.clone()))
-        .map_err(|e| Error::custom(format!("failed to deserialize public key: {}", e)))?;
+        .map_err(|e| Error::custom(format!("failed to deserialize public key: {e}")))?;
     Ok(pk)
 }
 
@@ -426,7 +426,7 @@ mod ecdsa_tests {
         let message = MsgToSign::from(ecdsa_test_data::message());
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
         let result = signature.verify(message, &public_key);
-        assert!(result.is_ok(), "{:?}", result)
+        assert!(result.is_ok(), "{result:?}")
     }
 
     #[test]
@@ -589,7 +589,7 @@ mod ed25519_tests {
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
         let result = signature.verify(message, &public_key);
-        assert!(result.is_ok(), "{:?}", result)
+        assert!(result.is_ok(), "{result:?}")
     }
 
     #[test]

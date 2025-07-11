@@ -29,12 +29,12 @@ impl Display for FlagSet<Permission> {
             .map_or_else(
                 || {
                     self.into_iter()
-                        .map(|permission| format!("{:?}", permission))
+                        .map(|permission| format!("{permission:?}"))
                         .join(" | ")
                 },
-                |permission| format!("{:?}", permission),
+                |permission| format!("{permission:?}"),
             )
-            .then(|permission| write!(f, "{}", permission))
+            .then(|permission| write!(f, "{permission}"))
     }
 }
 

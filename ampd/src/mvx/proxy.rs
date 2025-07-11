@@ -45,7 +45,7 @@ impl MvxProxy for GatewayProxy {
             .filter_map(|(hash, tx)| {
                 tx.as_ref()?;
 
-                Some((hash, tx.unwrap()))
+                Some((hash, tx.expect("tx should be valid")))
             })
             .collect()
     }

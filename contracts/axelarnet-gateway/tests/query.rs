@@ -98,8 +98,8 @@ fn populate_routable_messages(
             let response = utils::call_contract(
                 deps.as_default_mut(),
                 message_info(&api.addr_make("sender"), &[]),
-                format!("destination-chain-{}", i).parse().unwrap(),
-                format!("destination-address-{}", i).parse().unwrap(),
+                format!("destination-chain-{i}").parse().unwrap(),
+                format!("destination-address-{i}").parse().unwrap(),
                 vec![i].into(),
             )
             .unwrap();
@@ -119,7 +119,7 @@ fn populate_executable_messages(
 ) -> Vec<CrossChainId> {
     let msgs: Vec<_> = (0..10)
         .map(|i| Message {
-            cc_id: CrossChainId::new("source-chain", format!("hash-index-{}", i)).unwrap(),
+            cc_id: CrossChainId::new("source-chain", format!("hash-index-{i}")).unwrap(),
             source_address: "source-address".parse().unwrap(),
             destination_chain: params::AXELARNET.parse().unwrap(),
             destination_address: deps

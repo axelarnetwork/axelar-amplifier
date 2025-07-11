@@ -55,7 +55,7 @@ impl std::fmt::Display for XRPLMessageType {
             XRPLMessageType::AddGas => "add_gas",
             XRPLMessageType::AddReserves => "add_reserves",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

@@ -49,7 +49,7 @@ impl Bech32mFormat {
             .captures(message_id)
             .ok_or(Error::InvalidMessageID {
                 id: message_id.to_string(),
-                expected_format: format!("Bech32m with '{}' prefix", prefix),
+                expected_format: format!("Bech32m with '{prefix}' prefix"),
             })?
             .extract();
 

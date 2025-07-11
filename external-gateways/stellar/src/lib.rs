@@ -430,8 +430,8 @@ mod test {
 
         let messages: Messages = (1..=4)
             .map(|i| Message {
-                source_chain: format!("source-{}", i),
-                message_id: format!("test-{}", i),
+                source_chain: format!("source-{i}"),
+                message_id: format!("test-{i}"),
                 source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     .to_string(),
                 contract_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"

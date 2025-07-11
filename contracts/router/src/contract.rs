@@ -298,7 +298,7 @@ mod test {
             ExecuteMsg::RouteMessages(messages.clone()).into(),
         );
 
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
     }
 
     #[test]
@@ -810,7 +810,7 @@ mod test {
     #[test]
     fn invalid_chain_name() {
         assert_contract_err_string_contains(
-            ChainName::from_str(format!("bad{}", FIELD_DELIMITER).as_str()).unwrap_err(),
+            ChainName::from_str(format!("bad{FIELD_DELIMITER}").as_str()).unwrap_err(),
             Error::InvalidChainName,
         );
 

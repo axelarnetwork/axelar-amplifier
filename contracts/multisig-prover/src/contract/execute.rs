@@ -44,7 +44,7 @@ pub fn construct_proof(
         Some(stored_payload) => {
             if stored_payload != payload {
                 return Err(report!(ContractError::PayloadMismatch))
-                    .attach_printable_lazy(|| format!("{:?}", stored_payload));
+                    .attach_printable_lazy(|| format!("{stored_payload:?}"));
             }
         }
         None => {
