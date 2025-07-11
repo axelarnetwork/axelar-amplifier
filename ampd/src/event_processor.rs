@@ -189,6 +189,7 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
     use std::time::Duration;
 
     use assert_ok::assert_ok;
@@ -243,7 +244,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -279,7 +280,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -316,7 +317,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -357,7 +358,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Ok(()));
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -398,7 +399,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -439,7 +440,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -471,7 +472,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
