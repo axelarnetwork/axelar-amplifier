@@ -29,9 +29,6 @@ const CHANNEL_SIZE: usize = 1000;
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
-const CONFIGURED_STATUS: f64 = 1.0;
-const UNCONFIGURED_STATUS: f64 = 0.0;
-
 /// Messages for metrics collection
 ///
 /// These messages are sent to the metrics processor to update various counters
@@ -50,7 +47,7 @@ pub enum Msg {
         verifier_id: String,
         chain_name: String,
     },
-    // Increment the count of chains with configured handlers
+    // Record that a chain has handlers configured
     ChainConfigured {
         chain_name: String,
     },
@@ -238,7 +235,7 @@ struct ChainLabel {
 
 struct ChainConfiguredMetrics {
     total: Counter,
-    status: Family<ChainLabel, Gauge<f64, AtomicU64>>,
+    handler_count: Family<ChainLabel, Counter>,
 }
 
 impl Metrics {
@@ -375,39 +372,43 @@ impl VoteLabel {
 impl ChainConfiguredMetrics {
     fn new() -> Self {
         let total = Counter::default();
-        let status = Family::<ChainLabel, Gauge<f64, AtomicU64>>::default();
+        let handler_count = Family::<ChainLabel, Counter>::default();
 
-        Self { total, status }
+        Self {
+            total,
+            handler_count,
+        }
     }
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
             "chains_configured",
-            "number of chains with configured handlers",
+            "number of unique chains with at least one configured handler",
             self.total.clone(),
         );
 
         registry.register(
-            "chain_handler_status",
-            "handler configuration status per chain (up: 1, down: 0)",
-            self.status.clone(),
+            "chain_handlers",
+            "number of handlers configured for a chain",
+            self.handler_count.clone(),
         );
     }
 
     fn record_configured(&self, chain_name: String) {
-        if self
-            .status
-            .get_or_create(&ChainLabel {
-                chain_name: chain_name.clone(),
-            })
-            .get()
-            == UNCONFIGURED_STATUS
-        {
+        let label = ChainLabel::new(chain_name);
+        let counter = self.handler_count.get_or_create(&label);
+
+        if counter.get() == 0 {
             self.total.inc();
-            self.status
-                .get_or_create(&ChainLabel { chain_name })
-                .set(CONFIGURED_STATUS);
         }
+
+        counter.inc();
+    }
+}
+
+impl ChainLabel {
+    fn new(chain_name: String) -> Self {
+        Self { chain_name }
     }
 }
 
@@ -488,19 +489,9 @@ mod tests {
         metrics.assert_status_ok();
     }
 
-    /// Sort metrics text alphabetically by line.
-    ///
-    /// The prometheus_client crate returns metrics in non-deterministic order
-    /// when there are metrics with more than one label. We sort them before
-    /// using golden file tests to ensure consistent output.
-    fn sort_metrics_text(metrics_text: String) -> String {
-        let mut lines: Vec<&str> = metrics_text.lines().collect();
-        lines.sort();
-        lines.join("\n")
-    }
-
     #[tokio::test(start_paused = true)]
-    async fn metrics_handle_chain_handler_configuration_and_increment_counter_successfully() {
+    async fn should_increment_chain_counter_only_once_when_multiple_handlers_configured_for_one_chain(
+    ) {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -528,8 +519,20 @@ mod tests {
         time::sleep(Duration::from_secs(1)).await;
         let metrics = server.get("/test").await;
 
-        metrics.assert_text_contains("chains_configured_total 2");
-        metrics.assert_text_contains("chain_handler_status{chain_name=\"ethereum\"} 1");
-        metrics.assert_text_contains("chain_handler_status{chain_name=\"sui\"} 1");
+        let sorted_metrics = sort_metrics_text(metrics.text());
+        goldie::assert!(sorted_metrics);
+
+        metrics.assert_status_ok();
+    }
+
+    /// Sort metrics text alphabetically by line.
+    ///
+    /// The prometheus_client crate returns metrics in non-deterministic order
+    /// when there are metrics with more than one label. We sort them before
+    /// using golden file tests to ensure consistent output.
+    fn sort_metrics_text(metrics_text: String) -> String {
+        let mut lines: Vec<&str> = metrics_text.lines().collect();
+        lines.sort();
+        lines.join("\n")
     }
 }

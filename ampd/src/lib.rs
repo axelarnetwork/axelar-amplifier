@@ -286,7 +286,7 @@ where
             {
                 Ok(task) => {
                     self.event_processor = self.event_processor.add_task(task);
-                    self.record_handler_configured_metrics(config.handler_info().chain_name);
+                    self.record_handler_configured_metrics(&config.handler_info());
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, config = ?config,
@@ -720,14 +720,19 @@ where
             .await
     }
 
-    fn record_handler_configured_metrics(&self, chain_name: String) {
+    fn record_handler_configured_metrics(&self, handler_info: &HandlerInfo) {
         if let Err(e) = self
             .monitoring_client
             .metrics()
-            .record_metric(Msg::ChainConfigured { chain_name })
+            .record_metric(Msg::ChainConfigured {
+                chain_name: handler_info.chain_name.clone(),
+            })
         {
             warn!(
                 error = %e,
+                chain_name = %handler_info.chain_name,
+                label = %handler_info.label,
+                verifier = %handler_info.verifier_id,
                 "failed to record chain configured metrics",
             );
         }
@@ -882,7 +887,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_configure_handlers_records_chain_configured_metric() {
+    async fn should_record_chain_metrics_when_handlers_are_configured() {
         // Test that successful handler configuration records metrics correctly
         // This simulates the configure_handlers logic where:
         // - Successful handler creation records ChainConfigured metrics
@@ -892,9 +897,9 @@ mod tests {
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
-        tokio::spawn(server.run(cancel_token.clone()));
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         // Simulate handler creation results and handler info result
         let handler_results = vec![
@@ -933,15 +938,21 @@ mod tests {
 
         let base_url = ReqwestUrl::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
+
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
-        assert!(metrics_text.contains("chains_configured_total 2"));
-        assert!(metrics_text.contains("chain_handler_status{chain_name=\"ethereum\"} 1"));
-        assert!(metrics_text.contains("chain_handler_status{chain_name=\"polygon\"} 1"));
-        assert!(!metrics_text.contains("chain_handler_status{chain_name=\"stellar\"} 1"));
+        let sorted_metrics = sort_metrics_text(metrics_text);
+        goldie::assert!(sorted_metrics);
 
         cancel_token.cancel();
+        _ = server_handle.await;
+    }
+
+    fn sort_metrics_text(metrics_text: String) -> String {
+        let mut lines: Vec<&str> = metrics_text.lines().collect();
+        lines.sort();
+        lines.join("\n")
     }
 
     fn localhost_with_random_port() -> Option<SocketAddrV4> {

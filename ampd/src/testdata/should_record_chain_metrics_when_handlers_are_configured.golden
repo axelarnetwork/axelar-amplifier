@@ -3,16 +3,15 @@
 # HELP chain_handlers number of handlers configured for a chain.
 # HELP chains_configured number of unique chains with at least one configured handler.
 # HELP verifier_votes_failed number of failed votes by verifier (handler/broadcast errors).
-# HELP verifier_votes_success_rate success rate of votes cast by verifier.
-# HELP verifier_votes_successful number of successful votes cast by verifier.
+# HELP verifier_votes_success_rate success rate of votes casts by verifier.
+# HELP verifier_votes_successful number of successful votes casts by verifier.
 # TYPE blocks_received counter
 # TYPE chain_handlers counter
 # TYPE chains_configured counter
 # TYPE verifier_votes_failed counter
 # TYPE verifier_votes_success_rate gauge
 # TYPE verifier_votes_successful counter
-blocks_received_total 1
-chains_configured_total 0
-verifier_votes_failed_total{verifier_id="verifier_id",chain_name="chain_name"} 1
-verifier_votes_success_rate{verifier_id="verifier_id",chain_name="chain_name"} 0.6666666666666666
-verifier_votes_successful_total{verifier_id="verifier_id",chain_name="chain_name"} 2
+blocks_received_total 0
+chain_handlers_total{chain_name="ethereum"} 2
+chain_handlers_total{chain_name="polygon"} 1
+chains_configured_total 2

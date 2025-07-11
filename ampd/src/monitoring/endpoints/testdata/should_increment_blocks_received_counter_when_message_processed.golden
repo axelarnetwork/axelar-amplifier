@@ -7,4 +7,9 @@ blocks_received_total 3
 # TYPE verifier_votes_failed counter
 # HELP verifier_votes_success_rate success rate of votes cast by verifier.
 # TYPE verifier_votes_success_rate gauge
+# HELP chains_configured number of unique chains with at least one configured handler.
+# TYPE chains_configured counter
+chains_configured_total 0
+# HELP chain_handlers number of handlers configured for a chain.
+# TYPE chain_handlers counter
 # EOF
