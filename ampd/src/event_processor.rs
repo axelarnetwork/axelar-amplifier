@@ -304,6 +304,10 @@ mod tests {
         Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), random()))
     }
 
+    fn create_endpoint_url(bind_address: Option<SocketAddrV4>, endpoint: &str) -> String {
+        format!("http://{}/{endpoint}", bind_address.unwrap())
+    }
+
     /// Sort metrics text alphabetically by line.
     ///
     /// The prometheus_client crate returns metrics in non-deterministic order
@@ -639,7 +643,7 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -658,13 +662,11 @@ mod tests {
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+        let metrics_url = create_endpoint_url(bind_addr, "metrics");
+
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
-
-        let _ = monitoring_client;
 
         cancel_token.cancel();
         let _ = server_handle.await;
@@ -696,9 +698,9 @@ mod tests {
         let bind_addr = localhost_with_random_port();
         let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
         let cancel_token = CancellationToken::new();
-        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -717,17 +719,15 @@ mod tests {
         assert!(result_with_timeout.is_ok());
         assert!(result_with_timeout.unwrap().is_ok());
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+        let metrics_url = create_endpoint_url(bind_addr, "metrics");
+
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
         let sorted_metrics = sort_metrics_text(metrics_text);
         goldie::assert!(sorted_metrics);
-
-        let _ = monitoring_client;
 
         cancel_token.cancel();
         let _ = server_handle.await;
@@ -755,7 +755,7 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let mut broadcaster = MockBroadcasterClient::new();
         broadcaster.expect_broadcast().times(3).returning(|_| {
@@ -785,17 +785,15 @@ mod tests {
         assert!(result_with_timeout.is_ok());
         assert!(result_with_timeout.unwrap().is_ok());
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+        let metrics_url = create_endpoint_url(bind_addr, "metrics");
+
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
         let sorted_metrics = sort_metrics_text(metrics_text);
         goldie::assert!(sorted_metrics);
-
-        let _ = monitoring_client;
 
         cancel_token.cancel();
         let _ = server_handle.await;
@@ -831,7 +829,7 @@ mod tests {
         let cancel = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -849,8 +847,6 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         assert!(result_with_timeout.unwrap().is_ok());
-
-        let _ = monitoring_client;
 
         cancel.cancel();
         let _ = server_handle.await;
@@ -879,7 +875,7 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let server_handle = tokio::spawn(server.run(cancel_token.clone()));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -898,17 +894,15 @@ mod tests {
         assert!(result_with_timeout.is_ok());
         assert!(result_with_timeout.unwrap().is_ok());
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+        let metrics_url = create_endpoint_url(bind_addr, "metrics");
+
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
 
         let sorted_metrics = sort_metrics_text(metrics_text);
         goldie::assert!(sorted_metrics);
-
-        let _ = monitoring_client;
 
         cancel_token.cancel();
         let _ = server_handle.await;
