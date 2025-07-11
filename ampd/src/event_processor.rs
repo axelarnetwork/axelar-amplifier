@@ -190,6 +190,7 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
     use std::time::Duration;
 
     use async_trait::async_trait;
@@ -276,7 +277,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -334,7 +335,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -392,7 +393,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -463,7 +464,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -532,7 +533,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let result = consume_events(
             "handler".to_string(),
@@ -599,8 +600,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
         token.cancel();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -651,8 +652,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
         token.cancel();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let result = consume_events(
             "handler".to_string(),
             MockEventHandler::new(),
