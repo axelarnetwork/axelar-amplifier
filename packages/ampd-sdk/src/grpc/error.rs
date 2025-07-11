@@ -41,12 +41,18 @@ pub enum AppError {
 
     #[error("invalid byte array")]
     InvalidByteArray,
+
+    #[error("invalid url")]
+    InvalidUrl,
 }
 
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to connect to the grpc endpoint")]
     GrpcConnection(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    RpcRequestTimeout(#[from] tokio::time::error::Elapsed),
 
     #[error(transparent)]
     Grpc(#[from] GrpcError),
