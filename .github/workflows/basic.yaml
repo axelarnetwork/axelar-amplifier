@@ -181,6 +181,11 @@ jobs:
         with:
           command: fmt-check # alias
 
+      - name: Run cargo sort
+        uses: actions-rs/cargo@v1
+        with:
+          command: sort-check # alias
+
       - name: Install latest stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -205,19 +210,6 @@ jobs:
           args: --all
         env:
           DYLINT_RUSTFLAGS: -D warnings -A deprecated
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.81.0
-          components: clippy
-          override: true
-
-      - name: Run cargo sort
-        uses: actions-rs/cargo@v1
-        with:
-          command: sort-check # alias
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
