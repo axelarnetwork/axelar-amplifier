@@ -99,7 +99,7 @@ where
             Err(_) => StreamStatus::TimedOut,
         })
         .inspect(|event| log_block_end_event(event, &handler_label, &metric_client))
-        .take_while(should_task_stop(token));
+        .take_while(should_task_continue(token));
     pin_mut!(event_stream);
 
     while let Some(event) = event_stream.next().await {
@@ -154,7 +154,7 @@ where
     Ok(())
 }
 
-fn should_task_stop(token: CancellationToken) -> impl Fn(&StreamStatus) -> future::Ready<bool> {
+fn should_task_continue(token: CancellationToken) -> impl Fn(&StreamStatus) -> future::Ready<bool> {
     move |event| match event {
         StreamStatus::Ok(Event::BlockBegin(_)) | StreamStatus::TimedOut => {
             future::ready(!token.is_cancelled())
