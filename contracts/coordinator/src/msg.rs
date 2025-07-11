@@ -33,14 +33,6 @@ pub enum ExecuteMsg {
         router_address: String,
         multisig_address: String,
     },
-    #[deprecated(
-        note = "Use RegisterChain instead which supports registering all contract addresses at once"
-    )]
-    #[permission(Governance)]
-    RegisterProverContract {
-        chain_name: ChainName,
-        new_prover_addr: String,
-    },
     #[permission(Governance)]
     RegisterChain {
         chain_name: ChainName,
