@@ -47,7 +47,7 @@ pub enum Msg {
         verifier_id: String,
         chain_name: String,
     },
-    // Record that a chain has handlers configured
+    // Increment per-chain handler count and update total chains configured number
     ChainConfigured {
         chain_name: String,
     },
