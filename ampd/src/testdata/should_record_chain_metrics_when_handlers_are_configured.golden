@@ -3,8 +3,8 @@
 # HELP chain_handlers number of handlers configured for a chain.
 # HELP chains_configured number of unique chains with at least one configured handler.
 # HELP verifier_votes_failed number of failed votes by verifier (handler/broadcast errors).
-# HELP verifier_votes_success_rate success rate of votes casts by verifier.
-# HELP verifier_votes_successful number of successful votes casts by verifier.
+# HELP verifier_votes_success_rate success rate of votes cast by verifier.
+# HELP verifier_votes_successful number of successful votes cast by verifier.
 # TYPE blocks_received counter
 # TYPE chain_handlers counter
 # TYPE chains_configured counter
