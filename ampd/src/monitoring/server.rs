@@ -199,7 +199,6 @@ impl Server {
     }
 }
 
-
 /// TCP connection abstraction for the monitoring server
 ///
 /// This enum allows the server to be configured with either a socket address
@@ -269,7 +268,6 @@ impl From<TcpListener> for TcpConnector {
         TcpConnector::Listener(listener)
     }
 }
-
 
 /// HTTP server implementation for monitoring endpoints
 ///
