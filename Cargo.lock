@@ -251,6 +251,7 @@ dependencies = [
  "axelar-solana-gateway",
  "axelar-wasm-std",
  "axum 0.7.9",
+ "axum-test",
  "base64 0.21.7",
  "bcs",
  "clap",
@@ -285,7 +286,7 @@ dependencies = [
  "num-traits",
  "openssl",
  "pin-project-lite",
- "prometheus",
+ "prometheus-client",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
@@ -929,6 +930,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
+name = "auto-future"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c1e7e457ea78e524f48639f551fd79703ac3f2237f5ecccdf4708f8a75ad373"
+
+[[package]]
 name = "auto_impl"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1237,6 +1244,34 @@ dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 2.0.101",
+]
+
+[[package]]
+name = "axum-test"
+version = "15.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac63648e380fd001402a02ec804e7686f9c4751f8cad85b7de0b53dae483a128"
+dependencies = [
+ "anyhow",
+ "auto-future",
+ "axum 0.7.9",
+ "bytes",
+ "cookie",
+ "http 1.3.1",
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-util",
+ "mime",
+ "pretty_assertions",
+ "reserve-port",
+ "rust-multipart-rfc7578_2",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "smallvec",
+ "tokio",
+ "tower 0.5.2",
+ "url",
 ]
 
 [[package]]
@@ -2226,6 +2261,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cookie"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747"
+dependencies = [
+ "time",
+ "version_check",
+]
+
+[[package]]
 name = "coordinator"
 version = "1.1.0"
 dependencies = [
@@ -3033,6 +3078,12 @@ name = "downcast"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1435fa1053d8b2fbbe9be7e97eca7f33d37b28409959813daefc1446a14247f1"
+
+[[package]]
+name = "dtoa"
+version = "1.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6add3b8cff394282be81f3fc1a0605db594ed69890078ca6e2cab1c408bcf04"
 
 [[package]]
 name = "dunce"
@@ -7717,6 +7768,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus-client"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf41c1a7c32ed72abe5082fb19505b969095c12da9f5732a4bc9878757fd087c"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode",
+]
+
+[[package]]
+name = "prometheus-client-derive-encode"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "440f724eba9f6996b75d63681b0a92b06947f1457076d503a4d2e2c8f56442b8"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.101",
+]
+
+[[package]]
 name = "prometheus-closure-metric"
 version = "0.1.0"
 source = "git+https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a147185dbeb6402daa43811507e29bc0d5df28"
@@ -8403,6 +8477,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "reserve-port"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21918d6644020c6f6ef1993242989bf6d4952d2e025617744f184c02df51c356"
+dependencies = [
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "rewards"
 version = "1.2.0"
 dependencies = [
@@ -8702,6 +8785,22 @@ checksum = "f6d5f2436026b4f6e79dc829837d467cc7e9a55ee40e750d716713540715a2df"
 dependencies = [
  "cfg-if",
  "ordered-multimap",
+]
+
+[[package]]
+name = "rust-multipart-rfc7578_2"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03b748410c0afdef2ebbe3685a6a862e2ee937127cdaae623336a459451c8d57"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http 0.2.12",
+ "mime",
+ "mime_guess",
+ "rand 0.8.5",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
