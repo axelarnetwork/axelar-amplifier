@@ -233,9 +233,8 @@ mod tests {
             if random_sep == '-' {
                 continue;
             }
-            let res = FieldElementAndEventIndex::from_str(&format!(
-                "{tx_hash}{random_sep}{event_index}"
-            ));
+            let res =
+                FieldElementAndEventIndex::from_str(&format!("{tx_hash}{random_sep}{event_index}"));
             assert!(res.is_err());
         }
     }

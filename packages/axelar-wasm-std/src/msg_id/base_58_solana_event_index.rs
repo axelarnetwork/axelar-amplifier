@@ -149,14 +149,12 @@ mod tests {
         let tx_digest = random_tx_digest();
         let event_index = random_event_index();
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "1{tx_digest}-{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("1{tx_digest}-{event_index}"));
         assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "11{tx_digest}-{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("11{tx_digest}-{event_index}"));
         assert!(res.is_err());
     }
 
@@ -191,9 +189,8 @@ mod tests {
         assert!(tx_digest.len() < 88);
         let event_index = random_event_index();
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{tx_digest}-{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{tx_digest}-{event_index}"));
         assert!(res.is_ok());
     }
 
@@ -256,24 +253,20 @@ mod tests {
         let tx_digest = random_tx_digest();
         let event_index = random_event_index();
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{tx_digest}:{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{tx_digest}:{event_index}"));
         assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{tx_digest}_{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{tx_digest}_{event_index}"));
         assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{tx_digest}+{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{tx_digest}+{event_index}"));
         assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{tx_digest}{event_index}"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{tx_digest}{event_index}"));
         assert!(res.is_err());
 
         for _ in 0..10 {
@@ -318,9 +311,8 @@ mod tests {
     fn should_not_parse_msg_id_with_overflowing_event_index() {
         let event_index: u64 = u64::MAX;
         let tx_digest = random_tx_digest();
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{tx_digest}-{event_index}1"
-        ));
+        let res =
+            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{tx_digest}-{event_index}1"));
         assert!(res.is_err());
     }
 

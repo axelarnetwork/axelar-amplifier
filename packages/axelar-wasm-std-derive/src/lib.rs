@@ -438,9 +438,7 @@ fn validate_migrate_param(param: &syn::FnArg, expected_type: &str) -> syn::Resul
         }
         _ => Err(syn::Error::new(
             ty.span(),
-            format!(
-                "parameter for 'migrate' entry point expected to be of type {expected_type}"
-            ),
+            format!("parameter for 'migrate' entry point expected to be of type {expected_type}"),
         )),
     }
 }

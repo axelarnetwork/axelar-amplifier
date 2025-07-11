@@ -452,9 +452,8 @@ mod tests {
         let updated_metrics = reqwest::get(metrics_url).await.unwrap();
         let updated_text = updated_metrics.text().await.unwrap();
 
-        let output = format!(
-            "Initial Metrics:\n{initial_text}\n\nUpdated Metrics:\n{updated_text}"
-        );
+        let output =
+            format!("Initial Metrics:\n{initial_text}\n\nUpdated Metrics:\n{updated_text}");
 
         goldie::assert!(output);
         cancel.cancel();

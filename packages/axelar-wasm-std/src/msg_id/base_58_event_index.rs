@@ -145,8 +145,7 @@ mod tests {
         let res = Base58TxDigestAndEventIndex::from_str(&format!("1{tx_digest}-{event_index}"));
         assert!(res.is_err());
 
-        let res =
-            Base58TxDigestAndEventIndex::from_str(&format!("11{tx_digest}-{event_index}"));
+        let res = Base58TxDigestAndEventIndex::from_str(&format!("11{tx_digest}-{event_index}"));
         assert!(res.is_err());
     }
 
@@ -211,8 +210,7 @@ mod tests {
             .into_vec()
             .unwrap()
             .encode_hex::<String>();
-        let res =
-            Base58TxDigestAndEventIndex::from_str(&format!("{tx_digest_hex}-{event_index}"));
+        let res = Base58TxDigestAndEventIndex::from_str(&format!("{tx_digest_hex}-{event_index}"));
         assert!(res.is_err());
 
         let res =

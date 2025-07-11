@@ -25,11 +25,7 @@ impl Display for LoggableError {
         let msg = if self.attachments.is_empty() {
             self.msg.clone()
         } else {
-            let string = self
-                .attachments
-                .iter()
-                .map(|a| format!("{a:?}"))
-                .join(", ");
+            let string = self.attachments.iter().map(|a| format!("{a:?}")).join(", ");
             format!("{} ({})", self.msg, string)
         };
 
