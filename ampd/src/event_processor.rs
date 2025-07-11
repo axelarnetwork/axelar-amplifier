@@ -269,7 +269,6 @@ mod tests {
     use futures::stream;
     use mockall::mock;
     use rand::random;
-    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
