@@ -311,9 +311,7 @@ mod tests {
         let (_, client) = Server::new(None).unwrap(); // Creates disabled server and client
 
         // Should succeed without doing anything
-        let result = client
-            .metrics()
-            .record_metric(metrics::Msg::IncBlockReceived);
+        let result = client.metrics().record_metric(metrics::Msg::BlockReceived);
         assert!(
             result.is_ok(),
             "disabled client should discard messages successfully"
@@ -321,9 +319,7 @@ mod tests {
 
         // Multiple messages should also work
         for _ in 0..100 {
-            let result = client
-                .metrics()
-                .record_metric(metrics::Msg::IncBlockReceived);
+            let result = client.metrics().record_metric(metrics::Msg::BlockReceived);
             assert!(
                 result.is_ok(),
                 "disabled client should handle multiple messages"
@@ -410,7 +406,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 3);
+        send_multiple_metrics(&monitoring_client, metrics::Msg::BlockReceived, 3);
         drop(monitoring_client);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -446,7 +442,26 @@ mod tests {
         assert_eq!(reqwest::StatusCode::OK, initial_metrics.status());
         let initial_text = initial_metrics.text().await.unwrap();
 
-        send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 3);
+        let verifier_id = "verifier_id".to_string();
+        let chain_name = "chain_name".to_string();
+
+        send_multiple_metrics(&monitoring_client, metrics::Msg::BlockReceived, 3);
+        send_multiple_metrics(
+            &monitoring_client,
+            metrics::Msg::VoteSucceeded {
+                verifier_id: verifier_id.clone(),
+                chain_name: chain_name.clone(),
+            },
+            2,
+        );
+        send_multiple_metrics(
+            &monitoring_client,
+            metrics::Msg::VoteFailed {
+                verifier_id: verifier_id.clone(),
+                chain_name: chain_name.clone(),
+            },
+            1,
+        );
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -472,7 +487,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 2);
+        send_multiple_metrics(&monitoring_client, metrics::Msg::BlockReceived, 2);
 
         cancel.cancel();
         let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
@@ -496,7 +511,7 @@ mod tests {
         // client should not be able to send message after server shutdown
         let send_result = monitoring_client
             .metrics()
-            .record_metric(metrics::Msg::IncBlockReceived);
+            .record_metric(metrics::Msg::BlockReceived);
         assert!(
             send_result.is_err(),
             "client should not be able to send messages after server shutdown"
@@ -520,7 +535,7 @@ mod tests {
 
         for client in [client1, client2, client3].into_iter() {
             let handle = tokio::spawn(async move {
-                send_multiple_metrics(&client, metrics::Msg::IncBlockReceived, 5);
+                send_multiple_metrics(&client, metrics::Msg::BlockReceived, 5);
             });
             handles.push(handle);
         }
