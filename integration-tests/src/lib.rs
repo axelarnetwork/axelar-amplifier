@@ -1,4 +1,4 @@
-#![cfg_attr(dylint_lib = "amplifier_lints", allow(ensure_msg_has_permissions))]
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(msg_without_explicit_permissions))]
 #![cfg_attr(
     dylint_lib = "amplifier_lints",
     allow(restrict_cosmwasm_addr_in_msg_struct)
