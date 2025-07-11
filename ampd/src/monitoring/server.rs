@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use axum::routing::MethodRouter;
@@ -139,9 +138,7 @@ impl Server {
     ///
     /// Returns an error if the server cannot be created or if metrics endpoints
     /// cannot be initialized.
-    pub fn new(
-        connector: Option<impl Into<TcpConnector>>,
-    ) -> Result<(Server, Client), super::Error> {
+    pub fn new(connector: Option<impl Into<TcpConnector>>) -> Result<(Server, Client), Error> {
         match connector {
             Some(connector) => Self::create_server_with_client(connector.into()),
             None => {
@@ -225,9 +222,11 @@ impl TcpConnector {
     ///
     /// Returns an `io::Error` if binding to the address fails (only applicable
     /// for `Address` variants).
-    pub async fn connect(self) -> io::Result<TcpListener> {
+    pub async fn connect(self) -> Result<TcpListener, Error> {
         match self {
-            TcpConnector::Address(addr) => TcpListener::bind(addr).await,
+            TcpConnector::Address(addr) => {
+                TcpListener::bind(addr).await.change_context(Error::Start)
+            }
             TcpConnector::Listener(listener) => Ok(listener),
         }
     }
@@ -300,11 +299,7 @@ impl HttpServer {
                 .map(|handle| handle(cancel.clone())),
         );
 
-        let listener = self
-            .tcp_connector
-            .connect()
-            .await
-            .change_context(Error::Start)?;
+        let listener = self.tcp_connector.connect().await?;
 
         axum::serve(listener, router)
             .with_graceful_shutdown(async move {
