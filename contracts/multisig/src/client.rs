@@ -123,7 +123,7 @@ impl Client<'_> {
         original_sender: Addr,
         contracts: HashMap<String, ChainName>,
     ) -> CosmosMsg {
-        self.client.execute(&&ExecuteMsgFromProxy::Relay {
+        self.client.execute(&ExecuteMsgFromProxy::Relay {
             sender: original_sender,
             msg: ExecuteMsg::AuthorizeCallers { contracts },
         })
