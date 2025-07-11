@@ -191,6 +191,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          components: clippy
           override: true
 
       - name: Install cargo-dylint
