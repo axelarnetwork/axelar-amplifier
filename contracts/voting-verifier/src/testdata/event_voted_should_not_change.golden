@@ -1,0 +1,17 @@
+{
+  "type": "voted",
+  "attributes": [
+    {
+      "key": "poll_id",
+      "value": "\"1\""
+    },
+    {
+      "key": "voter",
+      "value": "\"cosmwasm12ehr5qctpa78s2r2luz4lqyuzm955nxvj5msmptpatlf3qzj0xds4lvke5\""
+    },
+    {
+      "key": "votes",
+      "value": "[\"succeeded_on_chain\",\"failed_on_chain\",\"not_found\"]"
+    }
+  ]
+}

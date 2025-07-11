@@ -162,7 +162,7 @@ mod tests {
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, TxEventConfirmation};
 
     use super::*;
     use crate::starknet::json_rpc::MockStarknetClient;
@@ -417,19 +417,17 @@ mod tests {
     fn get_two_poll_started_events_within_the_same_tx(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
-                source_gateway_address: "source-gw-addr".parse().unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+    ) -> VotingVerifierEvent {
+        VotingVerifierEvent::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "starknet".parse().unwrap(),
+            source_gateway_address: "source-gw-addr".parse().unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
@@ -484,19 +482,17 @@ mod tests {
     fn get_poll_started_event_with_two_msgs(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
-                source_gateway_address: "source-gw-addr".parse().unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+    ) -> VotingVerifierEvent {
+        VotingVerifierEvent::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "starknet".parse().unwrap(),
+            source_gateway_address: "source-gw-addr".parse().unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
@@ -551,19 +547,17 @@ mod tests {
     fn get_poll_started_event_with_duplicate_msgs(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
-                source_gateway_address: "source-gw-addr".parse().unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+    ) -> VotingVerifierEvent {
+        VotingVerifierEvent::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: "starknet".parse().unwrap(),
+            source_gateway_address: "source-gw-addr".parse().unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {

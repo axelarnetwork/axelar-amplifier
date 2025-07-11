@@ -1,137 +1,71 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::msg_id::{
     Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat,
     FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
 };
 use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{nonempty, VerificationStatus};
+use axelar_wasm_std::{nonempty, IntoEvent, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, Event};
+use cosmwasm_std::{Addr, Empty};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
+use serde::Serialize;
 
 use crate::error::ContractError;
-use crate::state::Config;
 
-impl From<Config> for Vec<Attribute> {
-    fn from(other: Config) -> Self {
-        // destructuring the Config struct so changes to the fields don't go unnoticed
-        let Config {
-            service_name,
-            service_registry_contract,
-            source_gateway_address,
-            voting_threshold,
-            block_expiry,
-            confirmation_height,
-            source_chain,
-            rewards_contract,
-            msg_id_format,
-            address_format,
-        } = other;
-
-        vec![
-            ("service_name", service_name.to_string()),
-            (
-                "service_registry_contract",
-                service_registry_contract.to_string(),
-            ),
-            ("source_gateway_address", source_gateway_address.to_string()),
-            (
-                "voting_threshold",
-                serde_json::to_string(&voting_threshold)
-                    .expect("failed to serialize voting_threshold"),
-            ),
-            ("block_expiry", block_expiry.to_string()),
-            ("confirmation_height", confirmation_height.to_string()),
-            ("source_chain", source_chain.to_string()),
-            ("rewards_contract", rewards_contract.to_string()),
-            (
-                "msg_id_format",
-                serde_json::to_string(&msg_id_format).expect("failed to serialize msg_id_format"),
-            ),
-            (
-                "address_format",
-                serde_json::to_string(&address_format).expect("failed to serialize address_format"),
-            ),
-        ]
-        .into_iter()
-        .map(Attribute::from)
-        .collect()
-    }
-}
-
-pub struct PollMetadata {
-    pub poll_id: PollId,
-    pub source_chain: ChainName,
-    pub source_gateway_address: nonempty::String,
-    pub confirmation_height: u64,
-    pub expires_at: u64,
-    pub participants: Vec<Addr>,
-}
-
-pub enum PollStarted {
-    Messages {
+#[derive(Serialize, IntoEvent)]
+pub enum Event<T = Empty>
+where
+    T: Serialize,
+{
+    Instantiated {
+        service_registry_contract: Addr,
+        service_name: nonempty::String,
+        source_gateway_address: nonempty::String,
+        voting_threshold: MajorityThreshold,
+        block_expiry: nonempty::Uint64,
+        confirmation_height: u64,
+        source_chain: ChainName,
+        rewards_contract: Addr,
+        msg_id_format: MessageIdFormat,
+        address_format: AddressFormat,
+    },
+    MessagesPollStarted {
         messages: Vec<TxEventConfirmation>,
-        metadata: PollMetadata,
+        poll_id: PollId,
+        source_chain: ChainName,
+        source_gateway_address: nonempty::String,
+        confirmation_height: u64,
+        expires_at: u64,
+        participants: Vec<Addr>,
     },
-    VerifierSet {
+    VerifierSetPollStarted {
         verifier_set: VerifierSetConfirmation,
-        metadata: PollMetadata,
+        poll_id: PollId,
+        source_chain: ChainName,
+        source_gateway_address: nonempty::String,
+        confirmation_height: u64,
+        expires_at: u64,
+        participants: Vec<Addr>,
     },
-}
-
-impl From<PollMetadata> for Vec<Attribute> {
-    fn from(value: PollMetadata) -> Self {
-        vec![
-            (
-                "poll_id",
-                &serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
-            ),
-            ("source_chain", &value.source_chain.to_string()),
-            ("source_gateway_address", &value.source_gateway_address),
-            (
-                "confirmation_height",
-                &value.confirmation_height.to_string(),
-            ),
-            ("expires_at", &value.expires_at.to_string()),
-            (
-                "participants",
-                &serde_json::to_string(&value.participants)
-                    .expect("failed to serialize participants"),
-            ),
-        ]
-        .into_iter()
-        .map(Attribute::from)
-        .collect()
-    }
-}
-
-impl From<PollStarted> for Event {
-    fn from(other: PollStarted) -> Self {
-        match other {
-            PollStarted::Messages {
-                messages: data,
-                metadata,
-            } => Event::new("messages_poll_started")
-                .add_attribute(
-                    "messages",
-                    serde_json::to_string(&data).expect("failed to serialize messages"),
-                )
-                .add_attributes(Vec::<_>::from(metadata)),
-            PollStarted::VerifierSet {
-                verifier_set: data,
-                metadata,
-            } => Event::new("verifier_set_poll_started")
-                .add_attribute(
-                    "verifier_set",
-                    serde_json::to_string(&data)
-                        .expect("failed to serialize verifier set confirmation"),
-                )
-                .add_attributes(Vec::<_>::from(metadata)),
-        }
-    }
+    QuorumReached {
+        content: T,
+        status: VerificationStatus,
+        poll_id: PollId,
+    },
+    Voted {
+        poll_id: PollId,
+        voter: Addr,
+        votes: Vec<Vote>,
+    },
+    PollEnded {
+        poll_id: PollId,
+        source_chain: ChainName,
+        results: Vec<Option<Vote>>,
+    },
 }
 
 #[cw_serde]
@@ -261,79 +195,6 @@ impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     }
 }
 
-pub struct Voted {
-    pub poll_id: PollId,
-    pub voter: Addr,
-    pub votes: Vec<Vote>,
-}
-
-impl From<Voted> for Event {
-    fn from(other: Voted) -> Self {
-        Event::new("voted")
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
-            )
-            .add_attribute("voter", other.voter)
-            .add_attribute(
-                "votes",
-                serde_json::to_string(&other.votes).expect("failed to serialize votes"),
-            )
-    }
-}
-
-pub struct PollEnded {
-    pub poll_id: PollId,
-    pub source_chain: ChainName,
-    pub results: Vec<Option<Vote>>,
-}
-
-impl From<PollEnded> for Event {
-    fn from(other: PollEnded) -> Self {
-        Event::new("poll_ended")
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
-            )
-            .add_attribute(
-                "source_chain",
-                serde_json::to_string(&other.source_chain)
-                    .expect("failed to serialize source_chain"),
-            )
-            .add_attribute(
-                "results",
-                serde_json::to_string(&other.results).expect("failed to serialize results"),
-            )
-    }
-}
-
-pub struct QuorumReached<T> {
-    pub content: T,
-    pub status: VerificationStatus,
-    pub poll_id: PollId,
-}
-
-impl<T> From<QuorumReached<T>> for Event
-where
-    T: cosmwasm_schema::serde::Serialize,
-{
-    fn from(value: QuorumReached<T>) -> Self {
-        Event::new("quorum_reached")
-            .add_attribute(
-                "content",
-                serde_json::to_string(&value.content).expect("failed to serialize content"),
-            )
-            .add_attribute(
-                "status",
-                serde_json::to_string(&value.status).expect("failed to serialize status"),
-            )
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
-            )
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
@@ -345,16 +206,14 @@ mod test {
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::MockApi;
-    use cosmwasm_std::{Attribute, Uint128};
+    use cosmwasm_std::Uint128;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
-    use serde_json::json;
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
-    use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
-    use crate::state::Config;
+    use crate::events::Event;
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
@@ -535,12 +394,12 @@ mod test {
 
     #[test]
     #[allow(deprecated)]
-    fn events_should_not_change() {
+    fn event_instantiated_should_not_change() {
         let api = MockApi::default();
 
-        let config = Config {
-            service_name: "serviceName".try_into().unwrap(),
+        let event_instantiated: cosmwasm_std::Event = Event::Instantiated {
             service_registry_contract: api.addr_make("serviceRegistry_contract"),
+            service_name: "serviceName".try_into().unwrap(),
             source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
             voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             block_expiry: 10u64.try_into().unwrap(),
@@ -549,11 +408,19 @@ mod test {
             rewards_contract: api.addr_make("rewardsContract"),
             msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
             address_format: AddressFormat::Eip55,
-        };
-        let event_instantiated =
-            cosmwasm_std::Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config));
+        }
+        .non_generic()
+        .into();
 
-        let event_messages_poll_started: cosmwasm_std::Event = PollStarted::Messages {
+        goldie::assert_json!(event_instantiated);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn event_messages_poll_started_should_not_change() {
+        let api = MockApi::default();
+
+        let event_messages_poll_started: cosmwasm_std::Event = Event::MessagesPollStarted {
             messages: vec![
                 TxEventConfirmation {
                     tx_id: "txId1".try_into().unwrap(),
@@ -574,58 +441,82 @@ mod test {
                     payload_hash: [1; 32],
                 },
             ],
-            metadata: PollMetadata {
-                poll_id: 1.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
-                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
-                confirmation_height: 1,
-                expires_at: 1,
-                participants: vec![
-                    api.addr_make("participant1"),
-                    api.addr_make("participant2"),
-                    api.addr_make("participant3"),
-                ],
-            },
+            poll_id: 1.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+            confirmation_height: 1,
+            expires_at: 1,
+            participants: vec![
+                api.addr_make("participant1"),
+                api.addr_make("participant2"),
+                api.addr_make("participant3"),
+            ],
         }
+        .non_generic()
         .into();
 
-        let event_verifier_set_poll_started: cosmwasm_std::Event = PollStarted::VerifierSet {
+        goldie::assert_json!(event_messages_poll_started);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn event_verifier_set_poll_started_should_not_change() {
+        let api = MockApi::default();
+
+        let event_verifier_set_poll_started: cosmwasm_std::Event = Event::VerifierSetPollStarted {
             verifier_set: VerifierSetConfirmation {
                 tx_id: "txId".try_into().unwrap(),
                 event_index: 1,
                 message_id: "messageId".try_into().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
-            metadata: PollMetadata {
-                poll_id: 2.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
-                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
-                confirmation_height: 1,
-                expires_at: 1,
-                participants: vec![
-                    api.addr_make("participant4"),
-                    api.addr_make("participant5"),
-                    api.addr_make("participant6"),
-                ],
-            },
+            poll_id: 2.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
+            confirmation_height: 1,
+            expires_at: 1,
+            participants: vec![
+                api.addr_make("participant4"),
+                api.addr_make("participant5"),
+                api.addr_make("participant6"),
+            ],
         }
+        .non_generic()
         .into();
 
-        let event_quorum_reached: cosmwasm_std::Event = QuorumReached {
+        goldie::assert_json!(event_verifier_set_poll_started);
+    }
+
+    #[test]
+    fn event_quorum_reached_should_not_change() {
+        let event_quorum_reached: cosmwasm_std::Event = Event::QuorumReached {
             content: "content".to_string(),
             status: VerificationStatus::NotFoundOnSourceChain,
             poll_id: 1.into(),
         }
         .into();
 
-        let event_voted: cosmwasm_std::Event = Voted {
+        goldie::assert_json!(event_quorum_reached);
+    }
+
+    #[test]
+    fn event_voted_should_not_change() {
+        let api = MockApi::default();
+
+        let event_voted: cosmwasm_std::Event = Event::Voted {
             poll_id: 1.into(),
             voter: api.addr_make("voter"),
             votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
         }
+        .non_generic()
         .into();
 
-        let event_poll_ended: cosmwasm_std::Event = PollEnded {
+        goldie::assert_json!(event_voted);
+    }
+
+    #[test]
+    fn event_poll_ended_should_not_change() {
+        let event_poll_ended: cosmwasm_std::Event = Event::PollEnded {
             poll_id: 1.into(),
             source_chain: "sourceChain".try_into().unwrap(),
             results: vec![
@@ -635,15 +526,9 @@ mod test {
                 None,
             ],
         }
+        .non_generic()
         .into();
 
-        goldie::assert_json!(json!({
-            "event_instantiated": event_instantiated,
-            "event_messages_poll_started": event_messages_poll_started,
-            "event_verifier_set_poll_started": event_verifier_set_poll_started,
-            "event_quorum_reached": event_quorum_reached,
-            "event_voted": event_voted,
-            "event_poll_ended": event_poll_ended,
-        }));
+        goldie::assert_json!(event_poll_ended);
     }
 }
