@@ -1,335 +1,478 @@
+use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
-use axum::routing::get;
+use axum::routing::MethodRouter;
 use axum::Router;
 use error_stack::{Result, ResultExt};
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use futures::future::join_all;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use thiserror::Error;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::info;
 
-use crate::monitoring::endpoints::metrics::{gather_metrics, Metrics, MetricsError, MetricsMsg};
-use crate::monitoring::endpoints::status::status;
+use crate::monitoring::endpoints::status;
+use crate::monitoring::metrics;
 
-// safe upper bound for expected metric throughput;
-// shouldnt exceed 1000 message
-const CHANNEL_SIZE: usize = 1000;
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-#[serde(default)]
-pub struct Config {
-    enabled: bool,
-    bind_address: SocketAddrV4,
+/// Errors that can occur during monitoring server operations
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("failed to start monitoring server")]
+    Start,
+    #[error("monitoring server failed while running")]
+    WhileRunning,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
-        }
-    }
+/// Configuration for the monitoring server
+///
+/// Controls whether the monitoring server is enabled and on which address it binds.
+/// When `bind_address` is `None`, the server is disabled.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Config {
+    /// The address to bind the monitoring server to.
+    /// When `None`, the server is disabled.
+    pub bind_address: Option<SocketAddrV4>,
 }
 
 impl Config {
-    pub fn bind_addr(&self) -> Option<SocketAddrV4> {
-        if self.enabled {
-            Some(self.bind_address)
-        } else {
-            None
+    /// Creates a new configuration with monitoring enabled using the default bind address
+    ///
+    /// The default bind address is `127.0.0.1:3000`.
+    pub fn enabled() -> Self {
+        Self {
+            bind_address: Some(Self::default_bind_addr()),
         }
     }
-}
 
-#[derive(Clone)]
-pub struct MonitoringClient {
-    sender: mpsc::Sender<MetricsMsg>,
-}
-
-impl MonitoringClient {
-    fn new(sender: mpsc::Sender<MetricsMsg>) -> Self {
-        Self { sender }
-    }
-
-    pub fn record_metric(&self, msg: MetricsMsg) -> Result<(), MetricsError> {
-        self.sender
-            .try_send(msg)
-            .change_context(MetricsError::MetricUpdateFailed)?;
-        Ok(())
+    fn default_bind_addr() -> SocketAddrV4 {
+        SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)
     }
 }
 
-pub struct Server {
-    bind_address: Option<SocketAddrV4>,
-    metrics_rx: mpsc::Receiver<MetricsMsg>,
-}
+// Custom serialization to make the state of the monitoring server more explicit in a config file
+impl Serialize for Config {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        #[derive(Serialize)]
+        struct ConfigCompat {
+            enabled: bool,
+            bind_address: SocketAddrV4,
+        }
 
-impl Server {
-    pub fn new(bind_address: Option<SocketAddrV4>) -> (Self, MonitoringClient) {
-        let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
-
-        let client = MonitoringClient::new(tx);
-
-        let server = Self {
-            bind_address,
-            metrics_rx: rx,
+        let compat = ConfigCompat {
+            enabled: self.bind_address.is_some(),
+            bind_address: self.bind_address.unwrap_or_else(Self::default_bind_addr),
         };
 
-        (server, client)
+        compat.serialize(serializer)
     }
+}
 
-    pub async fn run(self, cancel: CancellationToken) -> Result<(), MetricsError> {
-        match self.bind_address {
-            Some(addr) => Self::run_server(addr, self.metrics_rx, cancel).await,
-            None => Self::run_dummy(self.metrics_rx, cancel).await,
-        }
-    }
-
-    async fn run_dummy(
-        metrics_rx: mpsc::Receiver<MetricsMsg>,
-        cancel: CancellationToken,
-    ) -> Result<(), MetricsError> {
-        info!("no prometheus endpoint defined, so no metrics will be collected");
-
-        let handle = Self::spawn_metrics_processor(metrics_rx, cancel, |_| {});
-        _ = handle.await;
-        Ok(())
-    }
-
-    async fn run_server(
-        addr: SocketAddrV4,
-        metrics_rx: mpsc::Receiver<MetricsMsg>,
-        cancel: CancellationToken,
-    ) -> Result<(), MetricsError> {
-        let registry = prometheus::Registry::new();
-        let metrics = Metrics::new(&registry)?;
-        let listener = tokio::net::TcpListener::bind(addr)
-            .await
-            .change_context(MetricsError::Start)?;
-
-        info!(address = addr.to_string(), "starting monitoring server");
-
-        let metrics_handle =
-            Self::spawn_metrics_processor(metrics_rx, cancel.clone(), move |msg| {
-                metrics.handle_message(msg)
-            });
-
-        // host the metrics routes, if not available, return 404
-        let app = Router::new().route("/status", get(status)).route(
-            "/metrics",
-            get(move || async move { gather_metrics(&registry).await }),
-        );
-
-        axum::serve(listener, app)
-            .with_graceful_shutdown(async move {
-                cancel.cancelled().await;
-                info!("shutting down monitoring server")
-            })
-            .await
-            .change_context(MetricsError::WhileRunning)?;
-        let _ = metrics_handle.await;
-        Ok(())
-    }
-
-    fn spawn_metrics_processor<F>(
-        mut metrics_rx: mpsc::Receiver<MetricsMsg>,
-        cancel: CancellationToken,
-        message_handler: F,
-    ) -> tokio::task::JoinHandle<()>
+// Custom deserialization to handle the more explicit state of the monitoring server from a config file
+impl<'de> Deserialize<'de> for Config {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        F: Fn(MetricsMsg) + Send + 'static,
+        D: Deserializer<'de>,
     {
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    msg = metrics_rx.recv() => {
-                        match msg {
-                            Some(msg) => {
-                                message_handler(msg)
-                            }
-                            None => {
-                                warn!("all metrics clients disconnected, metrics processing stopped");
-                                break;
-                            }
-                        }
-                    }
-                    _ = cancel.cancelled() => break
-                }
-            }
+        #[derive(Deserialize)]
+        struct ConfigCompat {
+            #[serde(default)]
+            enabled: bool,
+            #[serde(default = "Config::default_bind_addr")]
+            bind_address: SocketAddrV4,
+        }
+
+        let compat = ConfigCompat::deserialize(deserializer)?;
+
+        Ok(Config {
+            bind_address: compat.enabled.then_some(compat.bind_address),
         })
     }
 }
 
-#[cfg(test)]
-pub mod test_utils {
-    use std::net::{SocketAddr, TcpListener};
+/// Client for interacting with the monitoring system
+///
+/// Provides access to metrics collection and other monitoring functionality.
+/// This client can be cloned and used across different parts of the application.
+#[derive(Clone)]
+pub struct Client {
+    metrics_client: metrics::Client,
+}
 
-    use tokio_util::sync::CancellationToken;
+impl Client {
+    /// Returns a reference to the metrics client
+    ///
+    /// Use this to record metrics events throughout the application.
+    pub fn metrics(&self) -> &metrics::Client {
+        &self.metrics_client
+    }
+}
 
-    use super::*;
+/// The monitoring server that can run in either disabled or enabled mode
+///
+/// - `Disabled`: Server is disabled, no HTTP endpoints are exposed
+/// - `Enabled`: Server is enabled and runs HTTP endpoints for metrics and status
+pub enum Server {
+    Disabled,
+    Enabled { server: HttpServer },
+}
 
-    fn test_bind_addr() -> SocketAddrV4 {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-
-        match listener.local_addr().unwrap() {
-            SocketAddr::V4(addr) => addr,
-            SocketAddr::V6(_) => panic!("unexpected address"),
+impl Server {
+    /// Creates a new monitoring server and client pair
+    ///
+    /// # Arguments
+    ///
+    /// * `bind_address` - Optional socket address to bind the server to.
+    ///   If `None`, creates a disabled server that doesn't expose HTTP endpoints.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the server instance and a client for interacting with it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the server cannot be created or if metrics endpoints
+    /// cannot be initialized.
+    pub fn new(bind_address: Option<SocketAddrV4>) -> Result<(Server, Client), super::Error> {
+        match bind_address {
+            Some(addr) => Self::create_server_with_client(addr),
+            None => {
+                info!("monitoring server is disabled");
+                Ok((
+                    Server::Disabled,
+                    Client {
+                        metrics_client: metrics::Client::Disabled,
+                    },
+                ))
+            }
         }
     }
 
-    pub fn test_metrics_server_setup() -> (
-        Option<SocketAddrV4>,
-        Server,
-        MonitoringClient,
-        CancellationToken,
-    ) {
-        let bind_address = test_bind_addr();
-        let (server, monitoring_client) = Server::new(Some(bind_address));
-        let cancel = CancellationToken::new();
-        (Some(bind_address), server, monitoring_client, cancel)
+    fn create_server_with_client(bind_address: SocketAddrV4) -> Result<(Server, Client), Error> {
+        let status_router = status::create_endpoint();
+        let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
+
+        let server = Server::Enabled {
+            server: HttpServer {
+                bind_address,
+                routes: HashMap::from([("/status", status_router), ("/metrics", metrics_router)]),
+                endpoint_handles: vec![Box::new(|cancel| metrics_process.run(cancel))],
+            },
+        };
+
+        let client = Client { metrics_client };
+
+        Ok((server, client))
     }
 
-    pub fn test_dummy_server_setup() -> (Server, MonitoringClient, CancellationToken) {
-        let (server, monitoring_client) = Server::new(None);
-        let cancel = CancellationToken::new();
-        (server, monitoring_client, cancel)
-    }
-
-    pub fn send_mutiple_metrics(
-        monitoring_client: &MonitoringClient,
-        msg: MetricsMsg,
-        number_of_messages: usize,
-    ) {
-        for i in 0..number_of_messages {
-            monitoring_client
-                .record_metric(msg.clone())
-                .unwrap_or_else(|_| panic!("failed to send message {}", i));
+    /// Runs the monitoring server until the cancellation token is triggered
+    ///
+    /// # Arguments
+    ///
+    /// * `cancel` - Cancellation token to gracefully shut down the server
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful shutdown, or an error if the server
+    /// fails to start or encounters an error while running.
+    ///
+    /// # Behavior
+    ///
+    /// - For `Disabled` servers: Simply waits for cancellation
+    /// - For `Enabled` servers: Starts HTTP server and serves requests until cancelled
+    pub async fn run(self, cancel: CancellationToken) -> Result<(), Error> {
+        match self {
+            Server::Disabled => {
+                cancel.cancelled().await;
+                Ok(())
+            }
+            Server::Enabled { server } => server.run_server(cancel).await,
         }
+    }
+}
+
+/// HTTP server implementation for monitoring endpoints
+///
+/// This struct contains the actual HTTP server implementation that serves
+/// monitoring endpoints like `/metrics` and `/status`.
+pub struct HttpServer {
+    bind_address: SocketAddrV4,
+    routes: HashMap<&'static str, MethodRouter>,
+    endpoint_handles: Vec<Box<dyn FnOnce(CancellationToken) -> JoinHandle<()> + Send>>,
+}
+
+impl HttpServer {
+    async fn run_server(self, cancel: CancellationToken) -> Result<(), Error> {
+        info!(
+            address = self.bind_address.to_string(),
+            "starting monitoring server"
+        );
+
+        let router = self
+            .routes
+            .into_iter()
+            .fold(Router::new(), |router, (path, method_router)| {
+                router.route(path, method_router)
+            });
+
+        let server_cancel = cancel.clone();
+        let handles = join_all(
+            self.endpoint_handles
+                .into_iter()
+                .map(|handle| handle(cancel.clone())),
+        );
+
+        let listener = tokio::net::TcpListener::bind(self.bind_address)
+            .await
+            .change_context(Error::Start)?;
+
+        axum::serve(listener, router)
+            .with_graceful_shutdown(async move {
+                server_cancel.cancelled().await;
+                info!("shutting down monitoring server")
+            })
+            .await
+            .change_context(Error::WhileRunning)?;
+
+        // Wait for endpoints to shut down. Otherwise, we lose control over their runtime,
+        // which could lead to undefined behaviour during shutdown
+        _ = handles.await;
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::time::Duration;
 
-    use reqwest::Url;
+    use rand::random;
     use tokio::test as async_test;
 
-    use super::test_utils::*;
     use super::*;
     use crate::monitoring::endpoints::status::Status;
 
     #[test]
-    fn bind_addr_returns_address_when_enabled() {
-        let config = Config {
-            enabled: true,
-            ..Default::default()
-        };
+    fn ensure_correct_default_config() {
+        let enabled_config = Config::enabled();
+        let disabled_config = Config::default();
+
+        let enabled_serialized = toml::to_string(&enabled_config).unwrap();
+        let disabled_serialized = toml::to_string(&disabled_config).unwrap();
+
+        let output = format!(
+            "Enabled Config:\n{:?}\n\nDisabled Config:\n{:?}\n\nEnabled Serialized:\n{}\n\nDisabled Serialized:\n{}",
+            enabled_config, disabled_config, enabled_serialized, disabled_serialized
+        );
+
+        goldie::assert!(output);
+    }
+
+    #[test]
+    // Because this config has custom serialization, we need to ensure it can be parsed correctly event from environment variables
+    fn config_can_be_parsed_from_env_variable() {
+        use config::{Config as cfg, Environment};
+
+        // Test parsing enabled config from environment variable
+        env::set_var("TEST_MONITORING_ENABLED", "true");
+        env::set_var("TEST_MONITORING_BIND_ADDRESS", "127.0.0.1:4000");
+
+        let enabled_config: Config = cfg::builder()
+            .add_source(Environment::with_prefix("TEST_MONITORING"))
+            .build()
+            .unwrap()
+            .try_deserialize()
+            .unwrap();
         assert_eq!(
-            config.bind_addr(),
-            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
+            enabled_config.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 4000))
+        );
+
+        // Test parsing disabled config from environment variable
+        env::set_var("TEST_MONITORING_ENABLED", "false");
+        let disabled_config: Config = cfg::builder()
+            .add_source(Environment::with_prefix("TEST_MONITORING"))
+            .build()
+            .unwrap()
+            .try_deserialize()
+            .unwrap();
+        assert_eq!(disabled_config.bind_address, None);
+
+        // Clean up
+        env::remove_var("TEST_MONITORING_ENABLED");
+        env::remove_var("TEST_MONITORING_BIND_ADDRESS");
+    }
+
+    #[test]
+    fn disabled_client_discards_messages_without_error() {
+        let (_, client) = Server::new(None).unwrap(); // Creates disabled server and client
+
+        // Should succeed without doing anything
+        let result = client
+            .metrics()
+            .record_metric(metrics::Msg::IncBlockReceived);
+        assert!(
+            result.is_ok(),
+            "disabled client should discard messages successfully"
+        );
+
+        // Multiple messages should also work
+        for _ in 0..100 {
+            let result = client
+                .metrics()
+                .record_metric(metrics::Msg::IncBlockReceived);
+            assert!(
+                result.is_ok(),
+                "disabled client should handle multiple messages"
+            );
+        }
+    }
+
+    #[async_test]
+    async fn disabled_server_shuts_down_when_cancelled() {
+        let (server, _) = Server::new(None).unwrap(); // Creates disabled server
+        let cancel = CancellationToken::new();
+
+        let handle = tokio::spawn(server.run(cancel.clone()));
+        cancel.cancel();
+        let result = handle.await;
+
+        assert!(
+            result.is_ok(),
+            "disabled server should shut down without panicking"
+        );
+        assert!(
+            result.unwrap().is_ok(),
+            "disabled server should shut down without errors"
         );
     }
 
-    #[test]
-    fn bind_addr_returns_none_when_disabled() {
-        let config = Config::default();
-        assert_eq!(config.bind_addr(), None);
-    }
+    #[async_test]
+    async fn server_startup_fails_when_address_unavailable() {
+        // First, bind to a specific port to make it unavailable
+        let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3001);
+        let _listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
-    #[test]
-    fn serde_some_address_serializes_to_string() {
-        let config = Config::default();
-        let serialized = toml::to_string(&config).unwrap();
-        assert!(serialized.contains("enabled = false"));
-        assert!(serialized.contains("bind_address = \"127.0.0.1:3000\""));
-        let expected = "enabled = false\nbind_address = \"127.0.0.1:3000\"";
-        assert_eq!(serialized.trim(), expected);
+        // Create a server on the same address - creation should succeed
+        let (server, _) = Server::new(Some(addr)).unwrap();
+
+        // But running the server should fail
+        let cancel = CancellationToken::new();
+        let result = server.run(cancel).await;
+        assert!(
+            result.is_err(),
+            "Server run should fail when address is unavailable"
+        );
+
+        let error = result.unwrap_err();
+
+        // lower level errors can contain os error codes that are different on different platforms, so only check the current context
+        goldie::assert!(error.current_context().to_string());
     }
 
     #[async_test(start_paused = true)]
-    async fn metrics_server_should_respond_to_status_and_shutdown_gracefully() {
-        let (bind_address, server, _, cancel) = test_metrics_server_setup();
+    async fn enabled_server_responds_to_status_endpoint_and_shuts_down_gracefully() {
+        let bind_address = localhost_with_random_port();
+        let (server, _) = Server::new(bind_address).unwrap();
+        let cancel = CancellationToken::new();
 
-        tokio::spawn(server.run(cancel.clone()));
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
 
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
-        let url = base_url.join("status").unwrap();
+        let status_url = create_endpoint_url(bind_address, "status");
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let response = reqwest::get(url.clone()).await.unwrap();
+        let response = reqwest::get(status_url.clone()).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, response.status());
 
         let status = response.json::<Status>().await.unwrap();
         assert!(status.ok);
 
         cancel.cancel();
+        _ = server_handle.await;
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        match reqwest::get(url).await {
-            Ok(_) => panic!("monitor server should be closed by now"),
-            Err(error) => assert!(error.is_connect()),
-        };
+        assert!(
+            reqwest::get(status_url).await.unwrap_err().is_connect(),
+            "monitor server should be closed by now"
+        )
     }
 
     #[async_test(start_paused = true)]
-    async fn test_metrics_server_handles_all_clients_dropped() {
-        let (bind_address, server, monitoring_client, cancel) = test_metrics_server_setup();
-        tokio::spawn(server.run(cancel.clone()));
-        send_mutiple_metrics(&monitoring_client, MetricsMsg::IncBlockReceived, 3);
-        drop(monitoring_client);
+    async fn enabled_server_continues_serving_after_all_metrics_clients_dropped() {
+        let bind_address = localhost_with_random_port();
+        let (server, monitoring_client) = Server::new(bind_address).unwrap();
+        let cancel = CancellationToken::new();
+
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
+
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+
+        send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 3);
+        drop(monitoring_client);
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let metrics_url = create_endpoint_url(bind_address, "metrics");
         let response = reqwest::get(metrics_url.clone()).await;
         assert!(
             response.is_ok(),
-            "metrics server still running after client dropped"
+            "metrics server is not responding after all clients dropped"
         );
+
         cancel.cancel();
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        match reqwest::get(metrics_url).await {
-            Ok(_) => panic!("monitor server should be closed by now"),
-            Err(error) => assert!(error.is_connect()),
-        };
+        _ = server_handle.await;
+
+        assert!(
+            reqwest::get(metrics_url).await.unwrap_err().is_connect(),
+            "monitor server should be closed by now"
+        )
     }
 
     #[async_test(start_paused = true)]
-    async fn metrics_endpoint_should_reflect_message_counts() {
-        let (bind_address, server, monitoring_client, cancel) = test_metrics_server_setup();
+    async fn metrics_endpoint_increments_counters_when_messages_sent() {
+        let bind_address = localhost_with_random_port();
+        let (server, monitoring_client) = Server::new(bind_address).unwrap();
+        let cancel = CancellationToken::new();
 
-        tokio::spawn(server.run(cancel.clone()));
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+        let server_handle = tokio::spawn(server.run(cancel.clone()));
+        let metrics_url = create_endpoint_url(bind_address, "metrics");
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let initial_metrics = reqwest::get(metrics_url.clone()).await.unwrap();
         assert_eq!(reqwest::StatusCode::OK, initial_metrics.status());
         let initial_text = initial_metrics.text().await.unwrap();
-        assert!(initial_text.contains("blocks_received 0"));
 
-        send_mutiple_metrics(&monitoring_client, MetricsMsg::IncBlockReceived, 3);
+        send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 3);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let updated_metrics = reqwest::get(metrics_url).await.unwrap();
         let updated_text = updated_metrics.text().await.unwrap();
-        assert!(updated_text.contains("blocks_received 3"));
+
+        let output = format!(
+            "Initial Metrics:\n{}\n\nUpdated Metrics:\n{}",
+            initial_text, updated_text
+        );
+
+        goldie::assert!(output);
         cancel.cancel();
+        _ = server_handle.await;
     }
 
     #[async_test(start_paused = true)]
-    async fn server_shuts_down_gracefully_when_token_is_cancelled() {
-        let (_, server, monitoring_client, cancel) = test_metrics_server_setup();
+    async fn enabled_server_shuts_down_gracefully_when_cancellation_token_triggered() {
+        let (server, monitoring_client) = Server::new(localhost_with_random_port()).unwrap();
+        let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        send_mutiple_metrics(&monitoring_client, MetricsMsg::IncBlockReceived, 2);
+        send_multiple_metrics(&monitoring_client, metrics::Msg::IncBlockReceived, 2);
 
         cancel.cancel();
         let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
@@ -337,13 +480,23 @@ mod tests {
             shutdown_result.is_ok(),
             "server should shut down gracefully"
         );
+        let shutdown_result = shutdown_result.unwrap();
+        assert!(
+            shutdown_result.is_ok(),
+            "server should shut down without panicking"
+        );
+
         assert!(
             shutdown_result.unwrap().is_ok(),
-            "server should complete without errors"
+            "server should shut down without errors"
         );
+
         tokio::time::sleep(Duration::from_millis(100)).await;
+
         // client should not be able to send message after server shutdown
-        let send_result = monitoring_client.record_metric(MetricsMsg::IncBlockReceived);
+        let send_result = monitoring_client
+            .metrics()
+            .record_metric(metrics::Msg::IncBlockReceived);
         assert!(
             send_result.is_err(),
             "client should not be able to send messages after server shutdown"
@@ -351,59 +504,12 @@ mod tests {
     }
 
     #[async_test(start_paused = true)]
-    async fn dummy_server_exits_when_all_clients_are_dropped() {
-        let (server, monitoring_client, cancel) = test_dummy_server_setup();
+    async fn enabled_server_handles_concurrent_metrics_requests_correctly() {
+        let bind_address = localhost_with_random_port();
+        let (server, original_client) = Server::new(bind_address).unwrap();
+        let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        send_mutiple_metrics(&monitoring_client, MetricsMsg::IncBlockReceived, 5);
-
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        drop(monitoring_client);
-
-        let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
-        assert!(
-            shutdown_result.is_ok(),
-            "dummy server should exit when client is dropped"
-        );
-        assert!(
-            shutdown_result.unwrap().is_ok(),
-            "dummy server should complete without errors"
-        );
-    }
-
-    #[async_test(start_paused = true)]
-    async fn dummy_server_monitoring_client_fails_to_send_metrics_after_cancellation() {
-        let (server, monitoring_client, cancel) = test_dummy_server_setup();
-        let server_handle = tokio::spawn(server.run(cancel.clone()));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        send_mutiple_metrics(&monitoring_client, MetricsMsg::IncBlockReceived, 1);
-        cancel.cancel();
-        let shutdown_result = tokio::time::timeout(Duration::from_secs(2), server_handle).await;
-        assert!(
-            shutdown_result.is_ok(),
-            "dummy server should shut down gracefully when cancelled"
-        );
-        assert!(
-            shutdown_result.unwrap().is_ok(),
-            "dummy server should complete without errors"
-        );
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        let send_result = monitoring_client.record_metric(MetricsMsg::IncBlockReceived);
-        assert!(
-            send_result.is_err(),
-            "client should not be able to send messages after dummy server cancellation"
-        );
-    }
-
-    #[async_test(start_paused = true)]
-    async fn metrics_server_handle_concurrent_requests_sucessfully() {
-        let (bind_address, server, original_client, cancel) = test_metrics_server_setup();
-
-        tokio::spawn(server.run(cancel.clone()));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         let client1 = original_client.clone();
@@ -414,7 +520,7 @@ mod tests {
 
         for client in [client1, client2, client3].into_iter() {
             let handle = tokio::spawn(async move {
-                send_mutiple_metrics(&client, MetricsMsg::IncBlockReceived, 5);
+                send_multiple_metrics(&client, metrics::Msg::IncBlockReceived, 5);
             });
             handles.push(handle);
         }
@@ -425,13 +531,35 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
+        let metrics_url = create_endpoint_url(bind_address, "metrics");
 
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains("blocks_received 15"));
+        assert!(metrics_text.contains("blocks_received_total 15"));
 
         cancel.cancel();
+        _ = server_handle.await;
+    }
+
+    /// Helper function to create test configuration with OS-selected port
+    fn localhost_with_random_port() -> Option<SocketAddrV4> {
+        Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), random()))
+    }
+
+    fn create_endpoint_url(bind_address: Option<SocketAddrV4>, endpoint: &str) -> String {
+        format!("http://{}/{endpoint}", bind_address.unwrap())
+    }
+
+    fn send_multiple_metrics(
+        monitoring_client: &Client,
+        msg: metrics::Msg,
+        number_of_messages: usize,
+    ) {
+        for i in 0..number_of_messages {
+            monitoring_client
+                .metrics()
+                .record_metric(msg.clone())
+                .unwrap_or_else(|_| panic!("failed to send message {}", i));
+        }
     }
 }

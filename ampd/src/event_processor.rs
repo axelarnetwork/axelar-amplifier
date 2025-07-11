@@ -17,8 +17,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::monitoring::endpoints::metrics::MetricsMsg;
-use crate::monitoring::server::MonitoringClient;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -70,7 +70,7 @@ pub async fn consume_events<H, B, S, E>(
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
-    metric_client: MonitoringClient,
+    metric_client: monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -105,7 +105,7 @@ where
                 "handler finished processing block"
             );
 
-            if let Err(err) = metric_client.record_metric(MetricsMsg::IncBlockReceived) {
+            if let Err(err) = metric_client.metrics().record_metric(Msg::IncBlockReceived) {
                 warn!( handler = handler_label,
                     height = height.value(),
                     err = %err,
@@ -204,12 +204,9 @@ mod tests {
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_processor;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::monitoring::server::test_utils::{
-        test_dummy_server_setup, test_metrics_server_setup,
-    };
     use crate::queue::queued_broadcaster::{Error as BroadcasterError, MockBroadcasterClient};
+    use crate::{event_processor, monitoring};
 
     fn setup_event_config(
         retry_delay_value: Duration,
@@ -246,7 +243,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -282,7 +279,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(1),
@@ -319,7 +316,7 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -360,7 +357,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Ok(()));
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -401,7 +398,7 @@ mod tests {
             .expect_broadcast()
             .times(2)
             .returning(|_| Err(report!(BroadcasterError::EstimateFee)));
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -442,7 +439,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -474,7 +471,7 @@ mod tests {
 
         let token = CancellationToken::new();
         token.cancel();
-        let (_, monitoring_client, _) = test_dummy_server_setup();
+        let (_, monitoring_client) = monitoring::Server::new(None).unwrap();
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
@@ -544,8 +541,13 @@ mod tests {
             Duration::from_secs(1000),
             Duration::from_secs(1),
         );
-        let (bind_address, server, monitoring_client, cancel_token) = test_metrics_server_setup();
+
+        let bind_addr = monitoring::Config::enabled().bind_address;
+        let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
+        let cancel_token = CancellationToken::new();
         tokio::spawn(server.run(cancel_token.clone()));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -563,11 +565,12 @@ mod tests {
 
         assert!(result_with_timeout.is_ok());
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let base_url = Url::parse(&format!("http://{}", bind_address.unwrap())).unwrap();
+
+        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
         let metrics_url = base_url.join("metrics").unwrap();
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains(&format!("blocks_received {}", num_block_ends)));
+        assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
 
         cancel_token.cancel();
     }
