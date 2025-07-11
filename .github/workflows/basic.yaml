@@ -215,7 +215,7 @@ jobs:
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
-          command: clippy-check # alias
+          command: clippy
 
       - name: Check Diff
         # fails if any changes not committed
