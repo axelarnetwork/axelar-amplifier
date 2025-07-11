@@ -15,10 +15,10 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// has the required permissions to execute the variant. The permissions are defined using the
 /// `#[permission]` attribute. The attribute can be used in two ways:
 /// - `#[permission(Permission1, Permission2, ...)]` requires the sender to have at least one of
-///     the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
+///   the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
 /// - `#[permission(Specific(Addr1, Addr2, ...))]` requires the sender to be one of the specified
-///     addresses. The macro will generate a function signature that takes closures as arguments to determine
-///     the whitelisted addresses.
+///   addresses. The macro will generate a function signature that takes closures as arguments to determine
+///   the whitelisted addresses.
 ///
 /// Both attributes can be used together, in which case the sender must have at least one of the
 /// specified permissions or be one of the specified addresses.
@@ -658,10 +658,10 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 /// This macro enforces two requirements:
 ///
 /// 1. If a proxy contract wants to execute a message on this contract, that proxy contract
-///     must have permission to do so.
+///    must have permission to do so.
 /// 2. The original sender of a message has permission to execute that message. If the message
-///     is sent by a proxy contract, the original sender is the address that initiated the transaction
-///     on the proxy.
+///    is sent by a proxy contract, the original sender is the address that initiated the transaction
+///    on the proxy.
 ///
 /// This macro takes arguments of the form:
 ///
