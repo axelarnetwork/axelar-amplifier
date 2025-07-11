@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::ops::Mul;
+use std::sync::Arc;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -9,13 +10,12 @@ use dec_coin::DecCoin;
 use error_stack::{ensure, report, ResultExt};
 use k256::sha2::{Digest, Sha256};
 use num_traits::cast;
-use report::{LoggableError, ResultCompatExt};
+use report::ResultCompatExt;
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
-use valuable::Valuable;
 
 use crate::types::TMAddress;
 use crate::{cosmos, tofnd};
@@ -300,6 +300,8 @@ where
                 .map_err(|_| Error::ConfirmTx(tx_hash.clone()))?;
         }
 
+        let tx_hash = tx_hash.map_err(Arc::new);
+
         Vec::from(msgs)
             .into_iter()
             .enumerate()
@@ -309,13 +311,7 @@ where
                         let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
                     }
                     Err(err) => {
-                        error!(
-                            err = LoggableError::from(err).as_value(),
-                            "failed to broadcast tx"
-                        );
-                        let _ = msg
-                            .tx_res_callback
-                            .send(Err(report!(err.current_context().to_owned())));
+                        let _ = msg.tx_res_callback.send(Err(Arc::clone(err)));
                     }
                 };
             });
@@ -326,7 +322,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::assert_err_contains;
+    use axelar_wasm_std::{assert_err_contains, err_contains};
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
@@ -803,7 +799,9 @@ mod tests {
             .await
             .unwrap();
         assert!(result.is_ok());
-        assert_err_contains!(rx.await.unwrap(), Error, Error::BroadcastTx);
+
+        let err = rx.await.unwrap().unwrap_err();
+        assert!(err_contains!(err.as_ref(), Error, Error::BroadcastTx));
     }
 
     #[tokio::test]
@@ -888,7 +886,9 @@ mod tests {
             .await
             .unwrap();
         assert!(result.is_ok());
-        assert_err_contains!(rx.await.unwrap(), Error, Error::SignTx);
+
+        let err = rx.await.unwrap().unwrap_err();
+        assert!(err_contains!(err.as_ref(), Error, Error::SignTx));
     }
 
     #[tokio::test]
@@ -1164,7 +1164,9 @@ mod tests {
 
         let result = rx_1.await.unwrap();
         assert!(result.is_err());
-        assert_err_contains!(result, Error, Error::BroadcastTx);
+
+        let err = result.unwrap_err();
+        assert!(err_contains!(err.as_ref(), Error, Error::BroadcastTx));
 
         let (tx_hash, idx) = rx_2.await.unwrap().unwrap();
         assert_eq!(tx_hash, "tx_hash_second_batch");
