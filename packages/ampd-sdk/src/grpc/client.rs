@@ -312,7 +312,7 @@ mod tests {
             server.serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener));
 
         tokio::spawn(bound_server);
-        let url = format!("https://{}", server_addr);
+        let url = format!("http://{}", server_addr);
 
         let (manager, connection_handle) = ConnectionManager::new(&url).unwrap();
         let manager_task = tokio::spawn(async move { manager.run().await });
