@@ -6,7 +6,7 @@ use tokio::time::Duration;
 use tonic::transport;
 use tracing::{error, info, warn};
 
-use crate::future::RetryPolicy;
+use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::error::{AppError, Error};
 use crate::grpc::utils::{ClientMessage, ConnectionHandle, ConnectionState};
 
@@ -59,14 +59,15 @@ impl ConnectionManager {
     }
 
     pub async fn run(mut self) -> Result<(), Error> {
-        info!("starting the connection manager");
-        let _ = self.connect().await;
+        if let Err(e) = self.connect().await {
+            warn!(err = ?e, "initial connection failed, will retry on client requests");
+        }
 
         while let Some(message) = self.message_receiver.recv().await {
             match message {
                 ClientMessage::ConnectionFailed(details) => {
                     warn!("client reported connection failure: {}", details);
-                    self.handle_connection_failure().await;
+                    self.handle_connection_failure().await?
                 }
             }
         }
@@ -74,7 +75,7 @@ impl ConnectionManager {
         Ok(())
     }
 
-    async fn connect(&mut self) -> Result<(), Error> {
+    async fn connect(&self) -> Result<(), Error> {
         let endpoint: transport::Endpoint = self.url.as_str().parse().into_report()?;
         let endpoint = endpoint
             .connect_timeout(DEFAULT_INITIAL_TIMEOUT)
@@ -85,46 +86,50 @@ impl ConnectionManager {
 
         match endpoint.connect().await {
             Ok(channel) => {
-                info!("successfully connected to ampd gRPC server");
-                let _ = self
-                    .connection_state
-                    .send(ConnectionState::Connected(channel));
+                self.connection_state
+                    .send(ConnectionState::Connected(channel))
+                    .into_report()?;
                 Ok(())
             }
             Err(status) => {
-                let _ = self.connection_state.send(ConnectionState::Disconnected);
-                warn!(err = ?status, "reconnecting to the ampd gRPC server failed");
-                Err(status).into_report()
+                let status_error = Err(status).into_report();
+                if self
+                    .connection_state
+                    .send(ConnectionState::Disconnected)
+                    .is_err()
+                {
+                    return status_error
+                        .attach_printable("connection failed and could not notify clients");
+                };
+                status_error
             }
         }
     }
 
-    async fn handle_connection_failure(&mut self) {
-        let _ = self.connection_state.send(ConnectionState::Reconnecting);
+    async fn handle_connection_failure(&self) -> Result<(), Error> {
+        self.connection_state
+            .send(ConnectionState::Reconnecting)
+            .into_report()?;
 
-        let max_attempts = self.retry_policy.max_attempts();
-        let mut attempts = 0u64;
-
-        while attempts < max_attempts {
-            attempts = attempts.saturating_add(1);
-
-            if let Some(delay) = self.retry_policy.delay() {
-                tokio::time::sleep(delay).await;
+        match with_retry(|| self.connect(), self.retry_policy).await {
+            Ok(()) => {
+                info!("successfully reconnected after failure");
+                Ok(())
             }
-
-            info!("reconnection attempt {} of {}", attempts, max_attempts);
-            let _ = self.connect().await;
-
-            if matches!(
-                *self.connection_state.borrow(),
-                ConnectionState::Connected(_)
-            ) {
-                return;
+            Err(error_report) => {
+                error!(err = ?error_report, "failed to reconnect after max attempts");
+                let retry_error = Err(error_report);
+                if self
+                    .connection_state
+                    .send(ConnectionState::Disconnected)
+                    .is_err()
+                {
+                    return retry_error
+                        .attach_printable("connection failed and could not notify clients");
+                };
+                retry_error
             }
         }
-
-        error!("failed to reconnect after {} attempts", max_attempts);
-        let _ = self.connection_state.send(ConnectionState::Disconnected);
     }
 }
 
@@ -160,6 +165,20 @@ mod tests {
             *handle.connection_receiver.borrow(),
             ConnectionState::Disconnected
         ));
+    }
+
+    #[tokio::test]
+    async fn connection_manager_should_remain_diconnected_with_wrong_url() {
+        let (manager, handle) = ConnectionManager::new("https://localhost:1").unwrap();
+        let manager_task = tokio::spawn(async move { manager.run().await });
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(matches!(
+            *handle.connection_receiver.borrow(),
+            ConnectionState::Disconnected
+        ));
+
+        manager_task.abort();
     }
 
     #[tokio::test]
@@ -200,6 +219,28 @@ mod tests {
         let result = timeout(Duration::from_millis(200), receiver.changed()).await;
         assert!(result.is_ok());
         assert!(matches!(*receiver.borrow(), ConnectionState::Connected(_)));
+
+        manager_task.abort();
+    }
+
+    #[tokio::test]
+    async fn connection_manager_should_fail_after_max_retries() {
+        let (manager, handle) = ConnectionManager::new("https://localhost:1").unwrap();
+        let manager_task = tokio::spawn(async move { manager.run().await });
+
+        let mut receiver = handle.connection_receiver.clone();
+
+        handle
+            .message_sender
+            .send(ClientMessage::ConnectionFailed("test".to_string()))
+            .await
+            .unwrap();
+
+        let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
+        assert!(matches!(*receiver.borrow(), ConnectionState::Reconnecting));
+
+        let _ = timeout(Duration::from_millis(300), receiver.changed()).await;
+        assert!(matches!(*receiver.borrow(), ConnectionState::Disconnected));
 
         manager_task.abort();
     }

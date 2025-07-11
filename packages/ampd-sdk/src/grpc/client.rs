@@ -60,28 +60,29 @@ pub trait Client {
 #[derive(Clone)]
 pub struct ManagedGrpcClient {
     connection_handle: ConnectionHandle,
-    blockchain_service_client: Option<BlockchainServiceClient<transport::Channel>>,
-    crypto_service_client: Option<CryptoServiceClient<transport::Channel>>,
 }
 
 impl ManagedGrpcClient {
     pub fn new(connection_handle: ConnectionHandle) -> Self {
-        Self {
-            connection_handle,
-            blockchain_service_client: None,
-            crypto_service_client: None,
-        }
+        Self { connection_handle }
     }
 
-    async fn get_service_clients(&mut self) -> Result<(), Error> {
+    async fn get_service_clients(
+        &mut self,
+    ) -> Result<
+        (
+            BlockchainServiceClient<transport::Channel>,
+            CryptoServiceClient<transport::Channel>,
+        ),
+        Error,
+    > {
         let connection_state = self.connection_handle.connection_receiver.borrow().clone();
 
         match connection_state {
             ConnectionState::Connected(channel) => {
-                self.blockchain_service_client =
-                    Some(BlockchainServiceClient::new(channel.clone()));
-                self.crypto_service_client = Some(CryptoServiceClient::new(channel));
-                Ok(())
+                let blockchain_service_client = BlockchainServiceClient::new(channel.clone());
+                let crypto_service_client = CryptoServiceClient::new(channel);
+                Ok((blockchain_service_client, crypto_service_client))
             }
             ConnectionState::Disconnected => {
                 bail!(Error::from(AppError::ConnectionUnavailable))
@@ -93,10 +94,10 @@ impl ManagedGrpcClient {
 
                 match connection_state {
                     ConnectionState::Connected(channel) => {
-                        self.blockchain_service_client =
-                            Some(BlockchainServiceClient::new(channel.clone()));
-                        self.crypto_service_client = Some(CryptoServiceClient::new(channel));
-                        Ok(())
+                        let blockchain_service_client =
+                            BlockchainServiceClient::new(channel.clone());
+                        let crypto_service_client = CryptoServiceClient::new(channel);
+                        Ok((blockchain_service_client, crypto_service_client))
                     }
                     _ => bail!(Error::from(AppError::ConnectionUnavailable)),
                 }
@@ -114,8 +115,7 @@ impl Client for ManagedGrpcClient {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error> {
-        self.get_service_clients().await?;
-        let blockchain_client = self.blockchain_service_client.as_mut().unwrap();
+        let (mut blockchain_client, _) = self.get_service_clients().await?;
 
         let request = SubscribeRequest {
             filters: filters
@@ -143,8 +143,7 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn address(&mut self) -> Result<AccountId, Error> {
-        self.get_service_clients().await?;
-        let blockchain_client = self.blockchain_service_client.as_mut().unwrap();
+        let (mut blockchain_client, _) = self.get_service_clients().await?;
 
         let broadcaster_address = blockchain_client
             .address(Request::new(AddressRequest {}))
@@ -158,8 +157,7 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
-        self.get_service_clients().await?;
-        let blockchain_client = self.blockchain_service_client.as_mut().unwrap();
+        let (mut blockchain_client, _) = self.get_service_clients().await?;
 
         let request = BroadcastRequest { msg: Some(msg) };
 
@@ -177,8 +175,7 @@ impl Client for ManagedGrpcClient {
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
     ) -> Result<T, Error> {
-        self.get_service_clients().await?;
-        let blockchain_client = self.blockchain_service_client.as_mut().unwrap();
+        let (mut blockchain_client, _) = self.get_service_clients().await?;
 
         blockchain_client
             .contract_state(ContractStateRequest {
@@ -196,8 +193,7 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
-        self.get_service_clients().await?;
-        let blockchain_client = self.blockchain_service_client.as_mut().unwrap();
+        let (mut blockchain_client, _) = self.get_service_clients().await?;
 
         let response = blockchain_client
             .contracts(Request::new(ContractsRequest {}))
@@ -215,8 +211,7 @@ impl Client for ManagedGrpcClient {
         key: Option<Key>,
         message: nonempty::Vec<u8>,
     ) -> Result<nonempty::Vec<u8>, Error> {
-        self.get_service_clients().await?;
-        let crypto_client = self.crypto_service_client.as_mut().unwrap();
+        let (_, mut crypto_client) = self.get_service_clients().await?;
 
         crypto_client
             .sign(Request::new(SignRequest {
@@ -232,8 +227,7 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
-        self.get_service_clients().await?;
-        let crypto_client = self.crypto_service_client.as_mut().unwrap();
+        let (_, mut crypto_client) = self.get_service_clients().await?;
 
         crypto_client
             .key(Request::new(KeyRequest {
@@ -307,7 +301,7 @@ mod tests {
         ConnectionHandle,
         tokio::task::AbortHandle,
     ) {
-        let server = tonic::transport::Server::builder()
+        let server = transport::Server::builder()
             .add_service(BlockchainServiceServer::new(mock_blockchain))
             .add_service(CryptoServiceServer::new(mock_crypto));
 
@@ -817,7 +811,7 @@ mod tests {
                     .collect();
 
                 Ok(Response::new(Box::pin(tokio_stream::iter(
-                    subscribe_responses.into_iter().map(std::result::Result::Ok),
+                    subscribe_responses.into_iter().map(Ok),
                 ))))
             });
 
@@ -836,9 +830,9 @@ mod tests {
         mock_blockchain
             .expect_subscribe()
             .return_once(move |_request| {
-                Ok(Response::new(Box::pin(tokio_stream::once(
-                    std::result::Result::Err(Status::data_loss("client cannot keep up")),
-                ))))
+                Ok(Response::new(Box::pin(tokio_stream::once(Err(
+                    Status::data_loss("client cannot keep up"),
+                )))))
             });
 
         let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
@@ -859,9 +853,9 @@ mod tests {
         mock_blockchain
             .expect_subscribe()
             .return_once(move |_request| {
-                Ok(Response::new(Box::pin(tokio_stream::once(
-                    std::result::Result::Err(Status::invalid_argument("invalid filter provided")),
-                ))))
+                Ok(Response::new(Box::pin(tokio_stream::once(Err(
+                    Status::invalid_argument("invalid filter provided"),
+                )))))
             });
 
         let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;

@@ -1,3 +1,5 @@
+use std::mem::discriminant;
+
 use ampd_proto;
 use ampd_proto::{BroadcastResponse, ContractsResponse, KeyId};
 use axelar_wasm_std::nonempty;
@@ -23,15 +25,9 @@ pub enum ConnectionState {
 
 impl PartialEq for ConnectionState {
     fn eq(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (ConnectionState::Connected(_), ConnectionState::Connected(_))
-                | (ConnectionState::Disconnected, ConnectionState::Disconnected)
-                | (ConnectionState::Reconnecting, ConnectionState::Reconnecting)
-        )
+        discriminant(self) == discriminant(other)
     }
 }
-
 #[derive(Clone, Debug)]
 pub struct ConnectionHandle {
     pub connection_receiver: watch::Receiver<ConnectionState>,

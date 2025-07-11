@@ -1,5 +1,8 @@
 use thiserror::Error;
+use tokio::sync::watch;
 use tonic::Code;
+
+use crate::grpc::utils::ConnectionState;
 
 #[derive(Error, Debug)]
 pub enum GrpcError {
@@ -55,7 +58,10 @@ pub enum Error {
     GrpcConnection(#[from] tonic::transport::Error),
 
     #[error("failed to reconnect to the manager")]
-    ClientReconnect(#[from] tokio::sync::watch::error::RecvError),
+    ConnectionStateReceiveFailed(#[from] watch::error::RecvError),
+
+    #[error("manager failed to broadcast state to clients")]
+    ManagerNotificationFailed(#[from] watch::error::SendError<ConnectionState>),
 
     #[error(transparent)]
     Grpc(#[from] GrpcError),

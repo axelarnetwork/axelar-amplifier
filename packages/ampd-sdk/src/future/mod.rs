@@ -10,14 +10,14 @@ pub enum RetryPolicy {
 }
 
 impl RetryPolicy {
-    pub fn max_attempts(&self) -> u64 {
+    fn max_attempts(&self) -> u64 {
         match self {
             RetryPolicy::RepeatConstant { max_attempts, .. } => *max_attempts,
             RetryPolicy::NoRetry => 1,
         }
     }
 
-    pub fn delay(&self) -> Option<Duration> {
+    fn delay(&self) -> Option<Duration> {
         match self {
             RetryPolicy::RepeatConstant { sleep, .. } => Some(*sleep),
             RetryPolicy::NoRetry => None,
