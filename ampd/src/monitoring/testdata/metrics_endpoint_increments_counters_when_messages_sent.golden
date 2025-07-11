@@ -8,6 +8,11 @@ blocks_received_total 0
 # TYPE verifier_votes_failed counter
 # HELP verifier_votes_success_rate success rate of votes cast by verifier.
 # TYPE verifier_votes_success_rate gauge
+# HELP chains_configured number of unique chains with at least one configured handler.
+# TYPE chains_configured counter
+chains_configured_total 0
+# HELP chain_handlers number of handlers configured for a chain.
+# TYPE chain_handlers counter
 # EOF
 
 
@@ -24,4 +29,10 @@ verifier_votes_failed_total{verifier_id="verifier_id",chain_name="chain_name"} 1
 # HELP verifier_votes_success_rate success rate of votes cast by verifier.
 # TYPE verifier_votes_success_rate gauge
 verifier_votes_success_rate{verifier_id="verifier_id",chain_name="chain_name"} 0.6666666666666666
+# HELP chains_configured number of unique chains with at least one configured handler.
+# TYPE chains_configured counter
+chains_configured_total 1
+# HELP chain_handlers number of handlers configured for a chain.
+# TYPE chain_handlers counter
+chain_handlers_total{chain_name="ethereum"} 2
 # EOF

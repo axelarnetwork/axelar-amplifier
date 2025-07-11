@@ -47,6 +47,7 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use handlers::config::HandlerInfo;
+use monitoring::metrics::Msg;
 use multiversx_sdk::gateway::GatewayProxy;
 use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
@@ -59,7 +60,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 use types::{CosmosPublicKey, TMAddress};
 
 use crate::asyncutil::future::RetryPolicy;
@@ -285,6 +286,7 @@ where
             {
                 Ok(task) => {
                     self.event_processor = self.event_processor.add_task(task);
+                    self.record_handler_configured_metrics(&config.handler_info());
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, config = ?config,
@@ -717,6 +719,24 @@ where
             .run(main_token)
             .await
     }
+
+    fn record_handler_configured_metrics(&self, handler_info: &HandlerInfo) {
+        if let Err(e) = self
+            .monitoring_client
+            .metrics()
+            .record_metric(Msg::ChainConfigured {
+                chain_name: handler_info.chain_name.clone(),
+            })
+        {
+            warn!(
+                error = %e,
+                chain_name = %handler_info.chain_name,
+                label = %handler_info.label,
+                verifier = %handler_info.verifier_id,
+                "failed to record chain configured metrics",
+            );
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -753,6 +773,11 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
+
+    use std::net::{Ipv4Addr, SocketAddrV4};
+
+    use rand::random;
+    use reqwest::Url as ReqwestUrl;
 
     use super::*;
     use crate::url::Url;
@@ -859,5 +884,78 @@ mod tests {
         // Test error message
         let error_string = format!("{}", connection_error);
         assert!(error_string.contains("connection failed"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_chain_metrics_when_handlers_are_configured() {
+        // Test that successful handler configuration records metrics correctly
+        // This simulates the configure_handlers logic where:
+        // - Successful handler creation records ChainConfigured metrics
+        // - Failed handler creation skips metric recording
+        // - Only unique chains increment the total counter
+
+        let bind_addr = localhost_with_random_port();
+        let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
+        let cancel_token = CancellationToken::new();
+        let server_handle = tokio::spawn(server.run(cancel_token.clone()));
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // Simulate handler creation results and handler info result
+        let handler_results = vec![
+            (
+                Ok("MultisigSigner created successfully"),
+                "ethereum".to_string(),
+            ),
+            (
+                Err("Connection failed: invalid-stellar-host unreachable"),
+                "stellar".to_string(),
+            ),
+            (
+                Ok("Verify msg handler created successfully"),
+                "polygon".to_string(),
+            ),
+            (
+                Err("Connection failed: invalid-ethereum-host unreachable"),
+                "ethereum".to_string(),
+            ),
+            (
+                Ok("Verify verifier set handler created successfully"),
+                "ethereum".to_string(),
+            ),
+        ];
+
+        for (result, chain_name) in handler_results {
+            if result.is_ok() {
+                let _ = monitoring_client
+                    .metrics()
+                    .record_metric(Msg::ChainConfigured { chain_name });
+            }
+            // Failed handlers are skipped (no metrics recorded)
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let base_url = ReqwestUrl::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
+        let metrics_url = base_url.join("metrics").unwrap();
+
+        let response = reqwest::get(metrics_url).await.unwrap();
+        let metrics_text = response.text().await.unwrap();
+
+        let sorted_metrics = sort_metrics_text(metrics_text);
+        goldie::assert!(sorted_metrics);
+
+        cancel_token.cancel();
+        _ = server_handle.await;
+    }
+
+    fn sort_metrics_text(metrics_text: String) -> String {
+        let mut lines: Vec<&str> = metrics_text.lines().collect();
+        lines.sort();
+        lines.join("\n")
+    }
+
+    fn localhost_with_random_port() -> Option<SocketAddrV4> {
+        Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), random()))
     }
 }

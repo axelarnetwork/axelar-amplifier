@@ -47,6 +47,10 @@ pub enum Msg {
         verifier_id: String,
         chain_name: String,
     },
+    // Increment per-chain handler count and update total chains configured number
+    ChainConfigured {
+        chain_name: String,
+    },
 }
 
 /// Errors that can occur in metrics processing
@@ -205,6 +209,7 @@ async fn serve_metrics(
 struct Metrics {
     blocks_received: BlockReceivedMetrics,
     votes: VoteMetrics,
+    chains_configured: ChainConfiguredMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -223,18 +228,31 @@ struct VoteMetrics {
     success_rate: Family<VoteLabel, Gauge<f64, AtomicU64>>,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ChainLabel {
+    chain_name: String,
+}
+
+struct ChainConfiguredMetrics {
+    total: Counter,
+    handler_count: Family<ChainLabel, Counter>,
+}
+
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
         let blocks_received = BlockReceivedMetrics::new();
         let votes = VoteMetrics::new();
+        let chains_configured = ChainConfiguredMetrics::new();
 
         blocks_received.register(registry);
         votes.register(registry);
+        chains_configured.register(registry);
 
         Self {
             blocks_received,
             votes,
+            chains_configured,
         }
     }
 
@@ -255,6 +273,9 @@ impl Metrics {
                 chain_name,
             } => {
                 self.votes.record_vote(verifier_id, chain_name, false);
+            }
+            Msg::ChainConfigured { chain_name } => {
+                self.chains_configured.record_configured(chain_name);
             }
         }
     }
@@ -348,6 +369,49 @@ impl VoteLabel {
     }
 }
 
+impl ChainConfiguredMetrics {
+    fn new() -> Self {
+        let total = Counter::default();
+        let handler_count = Family::<ChainLabel, Counter>::default();
+
+        Self {
+            total,
+            handler_count,
+        }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "chains_configured",
+            "number of unique chains with at least one configured handler",
+            self.total.clone(),
+        );
+
+        registry.register(
+            "chain_handlers",
+            "number of handlers configured for a chain",
+            self.handler_count.clone(),
+        );
+    }
+
+    fn record_configured(&self, chain_name: String) {
+        let label = ChainLabel::new(chain_name);
+        let counter = self.handler_count.get_or_create(&label);
+
+        if counter.get() == 0 {
+            self.total.inc();
+        }
+
+        counter.inc();
+    }
+}
+
+impl ChainLabel {
+    fn new(chain_name: String) -> Self {
+        Self { chain_name }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -413,6 +477,42 @@ mod tests {
             .record_metric(Msg::VoteSucceeded {
                 chain_name: "sui".to_string(),
                 verifier_id: "suiabc".to_string(),
+            })
+            .unwrap();
+
+        time::sleep(Duration::from_secs(1)).await;
+        let metrics = server.get("/test").await;
+
+        let sorted_metrics = sort_metrics_text(metrics.text());
+        goldie::assert!(sorted_metrics);
+
+        metrics.assert_status_ok();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_increment_chain_counter_only_once_when_multiple_handlers_configured_for_one_chain(
+    ) {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
+            })
+            .unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "sui".to_string(),
+            })
+            .unwrap();
+
+        client
+            .record_metric(Msg::ChainConfigured {
+                chain_name: "ethereum".to_string(),
             })
             .unwrap();
 
