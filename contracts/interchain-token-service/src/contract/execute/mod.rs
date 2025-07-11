@@ -2122,7 +2122,7 @@ mod tests {
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ChainName {} => {
+                    QueryMsg::ChainName => {
                         Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
                     }
                     _ => panic!("unsupported query"),
@@ -2145,7 +2145,7 @@ mod tests {
                     .into(),
                 }
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
     }
 }

@@ -95,7 +95,7 @@ pub fn freeze_chain(
             chains: HashMap::from([(chain_name, direction)]),
         },
     );
-    assert!(response.is_ok(), "{:?}", response);
+    assert!(response.is_ok(), "{response:?}");
 }
 
 pub fn unfreeze_chain(
@@ -112,7 +112,7 @@ pub fn unfreeze_chain(
             chains: HashMap::from([(chain_name.clone(), direction)]),
         },
     );
-    assert!(response.is_ok(), "{:?}", response);
+    assert!(response.is_ok(), "{response:?}");
 }
 
 pub fn upgrade_gateway(
@@ -130,7 +130,7 @@ pub fn upgrade_gateway(
             contract_address,
         },
     );
-    assert!(response.is_ok(), "{:?}", response);
+    assert!(response.is_ok(), "{response:?}");
 }
 
 fn random_32_bytes() -> [u8; 32] {
@@ -725,7 +725,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
 
     let multisig_prover_admin =
-        MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
+        MockApi::default().addr_make(format!("{chain_name}_prover_admin").as_str());
     let multisig_prover = MultisigProverContract::instantiate_contract(
         protocol,
         multisig_prover_admin.clone(),

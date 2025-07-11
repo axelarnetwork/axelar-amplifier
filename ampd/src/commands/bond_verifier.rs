@@ -40,7 +40,6 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
 
     Ok(Some(format!(
-        "successfully broadcast bond verifier transaction, tx hash: {}",
-        tx_hash
+        "successfully broadcast bond verifier transaction, tx hash: {tx_hash}"
     )))
 }

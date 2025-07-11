@@ -166,7 +166,7 @@ mod test {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, instantiate_msg, addr_clone)

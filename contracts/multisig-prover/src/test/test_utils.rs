@@ -49,7 +49,7 @@ pub fn mock_querier_handler(
         {
             voting_verifier_mock_querier_handler(verifier_set_status)
         }
-        _ => panic!("unexpected query: {:?}", wq),
+        _ => panic!("unexpected query: {wq:?}"),
     }
 }
 
@@ -75,7 +75,7 @@ fn multisig_mock_querier_handler(
                 .unwrap()
                 .pub_key,
         ),
-        _ => panic!("unexpected query: {:?}", msg),
+        _ => panic!("unexpected query: {msg:?}"),
     };
 
     Ok(result.into()).into()
@@ -164,7 +164,7 @@ fn service_registry_mock_querier_handler(
                 })
                 .collect::<Vec<WeightedVerifier>>(),
         ),
-        _ => panic!("unexpected query: {:?}", msg),
+        _ => panic!("unexpected query: {msg:?}"),
     };
     Ok(result.into()).into()
 }

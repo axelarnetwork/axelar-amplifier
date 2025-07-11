@@ -162,7 +162,7 @@ mod test {
         let mut verifiers = vec![];
         for i in 0..num_verifiers {
             verifiers.push(Verifier {
-                address: MockApi::default().addr_make(format!("addr{}", i).as_str()),
+                address: MockApi::default().addr_make(format!("addr{i}").as_str()),
                 bonding_state: BondingState::Bonded {
                     amount: Uint128::from(100u128).try_into().unwrap(),
                 },
@@ -1660,7 +1660,7 @@ mod test {
             assert!(res.is_err_and(|err| err_contains!(
                 err.report,
                 ContractError,
-                ContractError::InvalidSourceAddress { .. }
+                ContractError::InvalidSourceAddress
             )));
         }
 

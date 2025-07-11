@@ -418,7 +418,7 @@ where
                     .build();
 
                 Ok(self.create_handler_task(
-                    format!("{}-msg-verifier", chain_name),
+                    format!("{chain_name}-msg-verifier"),
                     handlers::xrpl_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract.clone(),
@@ -822,8 +822,7 @@ mod tests {
                     failed_handlers += 1;
                     assert!(
                         error.contains("Connection failed"),
-                        "Error should be connection-related: {}",
-                        error
+                        "Error should be connection-related: {error}"
                     );
                 }
             }
@@ -856,7 +855,7 @@ mod tests {
         ));
 
         // Test error message
-        let error_string = format!("{}", connection_error);
+        let error_string = format!("{connection_error}");
         assert!(error_string.contains("connection failed"));
     }
 }

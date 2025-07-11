@@ -8,10 +8,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ampd_url =
         env::var("AMPD_SERVICE_URL").unwrap_or_else(|_| "http://127.0.0.1:9090".to_string());
 
-    println!("Attempting to connect to AMPD server at {}", ampd_url);
+    println!("Attempting to connect to AMPD server at {ampd_url}");
     let mut client = new_client(&ampd_url).await?;
 
-    println!("Connected to AMPD server at {}", ampd_url);
+    println!("Connected to AMPD server at {ampd_url}");
 
     let mut event_stream = client.subscribe(vec![], true).await?;
 
@@ -20,10 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Some(event_result) = event_stream.next().await {
         match event_result {
             Ok(event) => {
-                println!("Received event: {:?}", event);
+                println!("Received event: {event:?}");
             }
             Err(err) => {
-                eprintln!("Error receiving event: {}", err);
+                eprintln!("Error receiving event: {err}");
             }
         }
     }

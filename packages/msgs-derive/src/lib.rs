@@ -431,8 +431,7 @@ fn build_full_check_function(
 
         let args = quote!(#(#unique_specific_permissions),*);
         let format = format!(
-            "* `{}` - The function(s) to load whitelisted addresses from storage.",
-            args
+            "* `{args}` - The function(s) to load whitelisted addresses from storage."
         );
         quote! {
             #comments

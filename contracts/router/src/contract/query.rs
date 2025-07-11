@@ -89,7 +89,7 @@ mod test {
             .map(|chain| ChainEndpoint {
                 name: chain.clone(),
                 gateway: Gateway {
-                    address: MockApi::default().addr_make(format!("{} gateway", chain).as_str()),
+                    address: MockApi::default().addr_make(format!("{chain} gateway").as_str()),
                 },
                 frozen_status: FlagSet::from(GatewayDirection::None),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,

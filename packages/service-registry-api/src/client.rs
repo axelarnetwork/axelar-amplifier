@@ -97,7 +97,7 @@ impl Client<'_> {
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::from_msg(msg))
-            .attach_printable_lazy(|| format!("chain_name: {:?}", chain_name))
+            .attach_printable_lazy(|| format!("chain_name: {chain_name:?}"))
     }
 
     pub fn service_params_override(
@@ -278,7 +278,7 @@ mod test {
             } if contract_addr == addr.as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, addr_clone)
@@ -362,7 +362,7 @@ mod test {
                     .into(),
                 }
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, addr_clone)

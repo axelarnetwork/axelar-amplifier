@@ -276,7 +276,7 @@ mod test {
             } if contract_addr == addr.as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, addr_clone)
@@ -295,7 +295,7 @@ mod test {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, instantiate_msg, addr_clone)

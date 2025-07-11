@@ -136,7 +136,7 @@ mod tests {
             address::Error::InvalidAddress(..)
         );
 
-        let invalid_length = format!("{}5f", addr);
+        let invalid_length = format!("{addr}5f");
         assert_err_contains!(
             address::validate_address(&invalid_length, &address::AddressFormat::Sui),
             address::Error,

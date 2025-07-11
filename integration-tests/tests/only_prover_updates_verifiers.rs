@@ -29,7 +29,7 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
     );
 
     let multisig_prover_admin =
-        MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
+        MockApi::default().addr_make(format!("{chain_name}_prover_admin").as_str());
     let multisig_prover = MultisigProverContract::instantiate_contract(
         &mut protocol,
         multisig_prover_admin.clone(),

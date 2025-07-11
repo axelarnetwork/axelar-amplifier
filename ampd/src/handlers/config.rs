@@ -404,7 +404,7 @@ mod tests {
             rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
             finalization: Finalization::RPCFinalizedBlock,
         };
-        let debug_output = format!("{:?}", chain);
+        let debug_output = format!("{chain:?}");
         assert!(debug_output.contains("ethereum"));
         assert!(debug_output.contains(REDACTED_VALUE));
         assert!(!debug_output.contains("API_KEY"));

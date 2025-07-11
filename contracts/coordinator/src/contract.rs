@@ -258,7 +258,7 @@ mod tests {
                 .as_ref(),
             test_setup.chain_name.clone(),
         );
-        assert!(chain_prover.is_ok(), "{:?}", chain_prover);
+        assert!(chain_prover.is_ok(), "{chain_prover:?}");
         let chain_prover = chain_prover.unwrap();
         assert_eq!(chain_prover.prover_address, new_prover);
     }

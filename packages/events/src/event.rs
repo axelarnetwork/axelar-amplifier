@@ -32,8 +32,8 @@ pub enum Event {
 impl Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::BlockBegin(height) => write!(f, "BlockBegin({})", height),
-            Event::BlockEnd(height) => write!(f, "BlockEnd({})", height),
+            Event::BlockBegin(height) => write!(f, "BlockBegin({height})"),
+            Event::BlockEnd(height) => write!(f, "BlockEnd({height})"),
             Event::Abci {
                 event_type,
                 attributes,

@@ -26,7 +26,7 @@ impl EventType {
         };
         let module = "events";
 
-        format!("{}::{}::{}", gateway_address, module, event)
+        format!("{gateway_address}::{module}::{event}")
             .parse()
             .expect("failed to parse struct tag")
     }

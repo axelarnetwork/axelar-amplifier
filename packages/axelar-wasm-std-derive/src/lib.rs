@@ -263,7 +263,7 @@ fn match_structured_variant(
         let field_name_str = field_name.to_string();
         let attribute_name = field_name_str.to_snake_case();
         // compute the error message outside the quote! so the resulting string will be baked in at compile time
-        let error_message = format!("failed to serialize event field {}", field_name_str);
+        let error_message = format!("failed to serialize event field {field_name_str}");
 
         quote! {
             add_attribute(#attribute_name, serde_json::to_string(#field_name).expect(#error_message))
@@ -425,8 +425,7 @@ fn validate_migrate_param(param: &syn::FnArg, expected_type: &str) -> syn::Resul
             return Err(syn::Error::new(
                 param.span(),
                 format!(
-                    "parameter for 'migrate' entry point expected to be of type {}",
-                    expected_type
+                    "parameter for 'migrate' entry point expected to be of type {expected_type}"
                 ),
             ));
         }
@@ -440,8 +439,7 @@ fn validate_migrate_param(param: &syn::FnArg, expected_type: &str) -> syn::Resul
         _ => Err(syn::Error::new(
             ty.span(),
             format!(
-                "parameter for 'migrate' entry point expected to be of type {}",
-                expected_type
+                "parameter for 'migrate' entry point expected to be of type {expected_type}"
             ),
         )),
     }

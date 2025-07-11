@@ -320,9 +320,9 @@ impl XRPLPaymentAmount {
 impl fmt::Display for XRPLPaymentAmount {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            XRPLPaymentAmount::Drops(drops) => write!(f, "Drops({})", drops),
+            XRPLPaymentAmount::Drops(drops) => write!(f, "Drops({drops})"),
             XRPLPaymentAmount::Issued(token, amount) => {
-                write!(f, "TokenAmount({:?},{:?})", token, amount)
+                write!(f, "TokenAmount({token:?},{amount:?})")
             }
         }
     }
@@ -601,7 +601,7 @@ impl fmt::Display for XRPLAccountId {
             .with_alphabet(bs58::Alphabet::RIPPLE)
             .into_string();
 
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 
@@ -841,7 +841,7 @@ impl fmt::Display for XRPLCurrency {
                 HexBinary::from(self.0).to_string()
             }
         };
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 
@@ -1143,11 +1143,11 @@ pub enum XRPLPathStep {
 impl fmt::Display for XRPLPathStep {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            XRPLPathStep::Account(account) => write!(f, "Account({})", account),
-            XRPLPathStep::Currency(currency) => write!(f, "Currency({})", currency),
+            XRPLPathStep::Account(account) => write!(f, "Account({account})"),
+            XRPLPathStep::Currency(currency) => write!(f, "Currency({currency})"),
             XRPLPathStep::XRP => write!(f, "XRP"),
-            XRPLPathStep::Issuer(issuer) => write!(f, "Issuer({})", issuer),
-            XRPLPathStep::Token(token) => write!(f, "Token({})", token),
+            XRPLPathStep::Issuer(issuer) => write!(f, "Issuer({issuer})"),
+            XRPLPathStep::Token(token) => write!(f, "Token({token})"),
         }
     }
 }

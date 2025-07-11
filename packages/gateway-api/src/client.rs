@@ -104,7 +104,7 @@ mod tests {
             } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, MockApi::default().addr_make(addr))
@@ -136,7 +136,7 @@ mod tests {
                     .into(),
                 }
             }
-            _ => panic!("unexpected query: {:?}", msg),
+            _ => panic!("unexpected query: {msg:?}"),
         });
 
         (querier, MockApi::default().addr_make(addr))

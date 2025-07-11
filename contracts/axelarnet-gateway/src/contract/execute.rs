@@ -220,8 +220,7 @@ fn ensure_same_payload_hash(
 fn panic_if_already_exists(err: &state::Error, cc_id: &CrossChainId) {
     if matches!(err, state::Error::MessageAlreadyExists(..)) {
         panic!(
-            "violated invariant: message with ID {0} already exists",
-            cc_id
+            "violated invariant: message with ID {cc_id} already exists"
         )
     }
 }

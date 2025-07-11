@@ -65,7 +65,7 @@ impl FromStr for FieldElementAndEventIndex {
             })?
             .extract();
         let felt = CheckedFelt::from_str(tx_id)
-            .map_err(|e| Error::InvalidFieldElement(format!("{}: {}", e, tx_id)))?;
+            .map_err(|e| Error::InvalidFieldElement(format!("{e}: {tx_id}")))?;
 
         Ok(FieldElementAndEventIndex {
             tx_hash: felt,
@@ -112,7 +112,7 @@ mod tests {
 
         let result = number.checked_rem(max).expect("modulo operation failed");
 
-        format!("0x{:064x}", result)
+        format!("0x{result:064x}")
     }
 
     fn random_event_index() -> u64 {
@@ -129,7 +129,7 @@ mod tests {
         for _ in 0..1000 {
             let tx_hash = random_hash();
             let event_index = random_event_index();
-            let msg_id = format!("{}-{}", tx_hash, event_index);
+            let msg_id = format!("{tx_hash}-{event_index}");
 
             let res = FieldElementAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
@@ -216,16 +216,16 @@ mod tests {
         let tx_hash = random_hash();
         let event_index = random_event_index();
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}:{}", tx_hash, event_index));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}:{event_index}"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}_{}", tx_hash, event_index));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}_{event_index}"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}+{}", tx_hash, event_index));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}+{event_index}"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}{}", tx_hash, event_index));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}{event_index}"));
         assert!(res.is_err());
 
         for _ in 0..10 {
@@ -234,8 +234,7 @@ mod tests {
                 continue;
             }
             let res = FieldElementAndEventIndex::from_str(&format!(
-                "{}{}{}",
-                tx_hash, random_sep, event_index
+                "{tx_hash}{random_sep}{event_index}"
             ));
             assert!(res.is_err());
         }
@@ -244,26 +243,26 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_event_index_with_leading_zeroes() {
         let tx_hash = random_hash();
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-01", tx_hash));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-01"));
         assert!(res.is_err());
     }
 
     #[test]
     fn should_not_parse_msg_id_with_non_integer_event_index() {
         let tx_hash = random_hash();
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-1.0", tx_hash));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-1.0"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-0x00", tx_hash));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-0x00"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-foobar", tx_hash));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-foobar"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-true", tx_hash));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-true"));
         assert!(res.is_err());
 
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-", tx_hash));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-"));
         assert!(res.is_err());
     }
 
@@ -271,7 +270,7 @@ mod tests {
     fn should_not_parse_msg_id_with_overflowing_event_index() {
         let event_index: u64 = u64::MAX;
         let tx_hash = random_hash();
-        let res = FieldElementAndEventIndex::from_str(&format!("{}-{}1", tx_hash, event_index));
+        let res = FieldElementAndEventIndex::from_str(&format!("{tx_hash}-{event_index}1"));
         assert!(res.is_err());
     }
 }

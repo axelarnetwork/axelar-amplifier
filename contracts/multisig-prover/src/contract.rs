@@ -922,7 +922,7 @@ mod tests {
             api.addr_make(GOVERNANCE),
             new_admin.to_string(),
         );
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
 
         assert_eq!(
             permission_control::sender_role(deps.as_ref().storage, &new_admin).unwrap(),

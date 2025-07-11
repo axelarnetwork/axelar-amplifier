@@ -120,7 +120,7 @@ mod tests {
     fn should_not_parse_msg_id_with_wrong_length_tx_hash() {
         let tx_hash = random_hash();
         // too long
-        let res = HexTxHash::from_str(&format!("{}ff", tx_hash));
+        let res = HexTxHash::from_str(&format!("{tx_hash}ff"));
         assert!(res.is_err());
 
         // too short
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_event_index() {
         let tx_hash = random_hash();
-        let res = HexTxHash::from_str(&format!("{}-1", tx_hash));
+        let res = HexTxHash::from_str(&format!("{tx_hash}-1"));
         assert!(res.is_err());
     }
 }
