@@ -1,8 +1,8 @@
 # EOF
 # HELP blocks_received number of blocks received.
 # HELP verifier_votes_failed number of failed votes by verifier (handler/broadcast errors).
-# HELP verifier_votes_success_rate success rate of votes casts by verifier.
-# HELP verifier_votes_successful number of successful votes casts by verifier.
+# HELP verifier_votes_success_rate success rate of votes cast by verifier.
+# HELP verifier_votes_successful number of successful votes cast by verifier.
 # TYPE blocks_received counter
 # TYPE verifier_votes_failed counter
 # TYPE verifier_votes_success_rate gauge

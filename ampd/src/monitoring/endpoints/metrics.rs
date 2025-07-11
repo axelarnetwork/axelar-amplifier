@@ -295,7 +295,7 @@ impl VoteMetrics {
     fn register(&self, registry: &mut Registry) {
         registry.register(
             "verifier_votes_successful",
-            "number of successful votes casts by verifier",
+            "number of successful votes cast by verifier",
             self.succeeded.clone(),
         );
         registry.register(
@@ -305,7 +305,7 @@ impl VoteMetrics {
         );
         registry.register(
             "verifier_votes_success_rate",
-            "success rate of votes casts by verifier",
+            "success rate of votes cast by verifier",
             self.success_rate.clone(),
         );
     }
