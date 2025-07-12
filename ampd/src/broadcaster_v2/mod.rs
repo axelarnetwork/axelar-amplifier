@@ -103,7 +103,7 @@ where
     tx_confirmer_client: Option<confirmer::TxConfirmerClient>,
 }
 
-#[allow(dead_code, non_camel_case_types)]
+#[allow(non_camel_case_types)]
 impl<
         T,
         Q,
@@ -311,7 +311,7 @@ where
                         let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
                     }
                     Err(err) => {
-                        let _ = msg.tx_res_callback.send(Err(Arc::clone(err)));
+                        let _ = msg.tx_res_callback.send(Err(err.clone()));
                     }
                 };
             });
