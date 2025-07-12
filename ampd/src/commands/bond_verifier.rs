@@ -37,7 +37,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     .into_any()
     .expect("failed to serialize proto message");
 
-    let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
+    let tx_hash = broadcast_tx(config, tx, pub_key).await?;
 
     Ok(Some(format!(
         "successfully broadcast bond verifier transaction, tx hash: {}",

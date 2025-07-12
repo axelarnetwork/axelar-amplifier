@@ -97,7 +97,10 @@ impl From<&broadcaster_v2::Error> for Status {
             broadcaster_v2::Error::EnqueueMsg
             | broadcaster_v2::Error::FeeAdjustment
             | broadcaster_v2::Error::InvalidPubKey
-            | broadcaster_v2::Error::ReceiveTxResult(_) => {
+            | broadcaster_v2::Error::ReceiveTxResult(_)
+            | broadcaster_v2::Error::ConfirmTx(_)
+            | broadcaster_v2::Error::BalanceQuery
+            | broadcaster_v2::Error::InsufficientBalance { .. } => {
                 tonic::Status::internal("server encountered an error processing request")
             }
         }
@@ -115,6 +118,7 @@ impl From<&cosmos::Error> for Status {
             cosmos::Error::GasInfoMissing
             | cosmos::Error::AccountMissing
             | cosmos::Error::TxResponseMissing
+            | cosmos::Error::BalanceMissing
             | cosmos::Error::MalformedResponse
             | cosmos::Error::TxBuilding => {
                 tonic::Status::internal("server encountered an error processing request")

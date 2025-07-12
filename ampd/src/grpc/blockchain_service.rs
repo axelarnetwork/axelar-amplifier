@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -8,6 +9,7 @@ use ampd_proto::{
     SubscribeResponse,
 };
 use async_trait::async_trait;
+use axelar_wasm_std::FnExt;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
@@ -74,12 +76,13 @@ where
         self.msg_queue_client
             .clone()
             .enqueue(msg)
+            .map_err(Arc::new)
             .and_then(|rx| rx)
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)
-            .inspect_err(status::log("message broadcast error"))
-            .map_err(status::StatusExt::into_status)
+            .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
+            .map_err(|err| status::StatusExt::into_status(err.as_ref()))
     }
 
     #[instrument]
