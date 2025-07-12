@@ -176,7 +176,7 @@ mod tests {
     use crate::asyncutil::future::RetryPolicy;
     use crate::cosmos;
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     #[traced_test]
     async fn tx_confirmer_should_confirm_tx_that_succeed_on_chain() {
         let tx_hash = "tx_hash";
@@ -213,7 +213,7 @@ mod tests {
         assert!(logs_contain("tx succeeded on chain"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     #[traced_test]
     async fn tx_confirmer_should_confirm_tx_that_failed_on_chain() {
         let tx_hash = "tx_hash";
@@ -250,7 +250,7 @@ mod tests {
         assert!(logs_contain("tx failed on chain"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     #[traced_test]
     async fn tx_confirmer_should_not_confirm_tx_that_cannot_be_found_on_chain() {
         let tx_hash = "tx_hash";
@@ -278,7 +278,7 @@ mod tests {
         assert!(logs_contain("tx not found on chain"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     #[traced_test]
     async fn tx_confirmer_should_not_confirm_tx_that_cannot_be_queried() {
         let tx_hash = "tx_hash";

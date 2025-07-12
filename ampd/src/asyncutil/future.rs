@@ -68,7 +68,7 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn should_return_ok_when_the_internal_future_returns_ok_immediately() {
         let max_attempts = 3;
         let fut = with_retry(
