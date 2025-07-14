@@ -1,4 +1,4 @@
 pub mod client;
-pub mod connection_manager;
+pub mod connection_pool;
 pub mod error;
 pub mod utils;

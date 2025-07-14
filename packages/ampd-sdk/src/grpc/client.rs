@@ -261,7 +261,7 @@ mod tests {
     use tonic::{Request, Response, Status};
 
     use super::*;
-    use crate::grpc::connection_manager::ConnectionManager;
+    use crate::grpc::connection_pool::ConnectionPool;
     use crate::grpc::error::GrpcError;
     use crate::grpc::utils::{ClientMessage, KeyAlgorithm};
 
@@ -314,20 +314,20 @@ mod tests {
         tokio::spawn(bound_server);
         let url = format!("http://{}", server_addr);
 
-        let (manager, connection_handle) = ConnectionManager::new(&url).unwrap();
-        let manager_task = tokio::spawn(async move { manager.run().await });
-        let manager_abort_handle = manager_task.abort_handle();
+        let (pool, connection_handle) = ConnectionPool::new(&url).unwrap();
+        let pool_task = tokio::spawn(async move { pool.run().await });
+        let pool_abort_handle = pool_task.abort_handle();
 
         let mut receiver = connection_handle.connection_receiver.clone();
         let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
 
         let client = ManagedGrpcClient::new(connection_handle.clone());
 
-        (client, connection_handle, manager_abort_handle)
+        (client, connection_handle, pool_abort_handle)
     }
 
     #[tokio::test]
-    async fn client_should_handle_connection_manager_reconnection() {
+    async fn client_should_handle_connection_pool_reconnection() {
         let mut mock_blockchain = MockBlockchainService::new();
         let expected_address = sample_account_id();
         let mock_response = AddressResponse {

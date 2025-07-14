@@ -1,7 +1,7 @@
 use std::env;
 
 use ampd_sdk::grpc::client::{Client, ManagedGrpcClient};
-use ampd_sdk::grpc::connection_manager::ConnectionManager;
+use ampd_sdk::grpc::connection_pool::ConnectionPool;
 use tokio_stream::StreamExt;
 
 #[tokio::main]
@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Attempting to connect to AMPD server at {}", ampd_url);
 
-    let (manager, handle) = ConnectionManager::new(&ampd_url)?;
+    let (manager, handle) = ConnectionPool::new(&ampd_url)?;
     tokio::spawn(async move {
         let _ = manager.run().await;
     });

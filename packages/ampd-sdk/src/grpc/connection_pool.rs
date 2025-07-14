@@ -1,14 +1,27 @@
 use ampd::url::Url;
 use error_stack::{Result, ResultExt as _};
 use report::ResultExt;
+use thiserror::Error;
+use tokio::sync::watch::error::SendError;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Duration;
 use tonic::transport;
 use tracing::{error, info, warn};
 
 use crate::future::{with_retry, RetryPolicy};
-use crate::grpc::error::{AppError, Error};
 use crate::grpc::utils::{ClientMessage, ConnectionHandle, ConnectionState};
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("failed to connect to the grpc endpoint")]
+    GrpcConnection(#[from] transport::Error),
+
+    #[error("failed to broadcast state to clients")]
+    ClientNotificationFailed(#[from] SendError<ConnectionState>),
+
+    #[error("invalid url")]
+    InvalidUrl,
+}
 
 // TODO: make these configurable
 const DEFAULT_RETRY_POLICY: RetryPolicy = RetryPolicy::RepeatConstant {
@@ -21,24 +34,24 @@ const KEEPALIVE_TIME: Duration = Duration::from_secs(30);
 const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(3);
 const KEEPALIVE_WHILE_IDLE: bool = true;
 
-/// Connection manager that handles connection state and retries.
+/// Connection pool that handles connection state and retries.
 ///
 /// This is a multi-producer single consumer pattern:
-/// - The manager maintains the connection state via a watch channel
+/// - The pool maintains the connection state via a watch channel
 /// - Multiple clients can subscribe to connection state changes
-/// - Clients communicate back to the manager via mpsc channel
-/// - The manager handles connection retries and failure recovery
+/// - Clients communicate back to the pool via mpsc channel
+/// - The pool handles connection retries and failure recovery
 #[derive(Debug)]
-pub struct ConnectionManager {
+pub struct ConnectionPool {
     url: Url,
     connection_state: watch::Sender<ConnectionState>,
     message_receiver: mpsc::Receiver<ClientMessage>,
     retry_policy: RetryPolicy,
 }
 
-impl ConnectionManager {
+impl ConnectionPool {
     pub fn new(url: &str) -> Result<(Self, ConnectionHandle), Error> {
-        let url = Url::new_sensitive(url).change_context(AppError::InvalidUrl.into())?;
+        let url = Url::new_sensitive(url).change_context(Error::InvalidUrl)?;
 
         let (state_sender, state_receiver) = watch::channel(ConnectionState::Disconnected);
         let (msg_sender, msg_receiver) = mpsc::channel(100);
@@ -48,14 +61,14 @@ impl ConnectionManager {
             message_sender: msg_sender,
         };
 
-        let manager = Self {
+        let pool = Self {
             url,
             connection_state: state_sender,
             message_receiver: msg_receiver,
             retry_policy: DEFAULT_RETRY_POLICY,
         };
 
-        Ok((manager, handle))
+        Ok((pool, handle))
     }
 
     pub async fn run(mut self) -> Result<(), Error> {
@@ -85,31 +98,16 @@ impl ConnectionManager {
             .http2_keep_alive_interval(KEEPALIVE_TIME);
 
         match endpoint.connect().await {
-            Ok(channel) => {
-                self.connection_state
-                    .send(ConnectionState::Connected(channel))
-                    .into_report()?;
-                Ok(())
-            }
+            Ok(channel) => self.notify_clients(ConnectionState::Connected(channel), false),
             Err(status) => {
-                let status_error = Err(status).into_report();
-                if self
-                    .connection_state
-                    .send(ConnectionState::Disconnected)
-                    .is_err()
-                {
-                    return status_error
-                        .attach_printable("connection failed and could not notify clients");
-                };
-                status_error
+                self.notify_clients(ConnectionState::Disconnected, false)?;
+                Err(status).into_report()
             }
         }
     }
 
     async fn handle_connection_failure(&self) -> Result<(), Error> {
-        self.connection_state
-            .send(ConnectionState::Reconnecting)
-            .into_report()?;
+        self.notify_clients(ConnectionState::Reconnecting, true)?;
 
         match with_retry(|| self.connect(), self.retry_policy).await {
             Ok(()) => {
@@ -117,17 +115,22 @@ impl ConnectionManager {
                 Ok(())
             }
             Err(error_report) => {
-                error!(err = ?error_report, "failed to reconnect after max attempts");
-                let retry_error = Err(error_report);
-                if self
-                    .connection_state
-                    .send(ConnectionState::Disconnected)
-                    .is_err()
-                {
-                    return retry_error
-                        .attach_printable("connection failed and could not notify clients");
-                };
-                retry_error
+                self.notify_clients(ConnectionState::Disconnected, true)?;
+                Err(error_report)
+            }
+        }
+    }
+
+    fn notify_clients(&self, state: ConnectionState, log_on_error: bool) -> Result<(), Error> {
+        match self.connection_state.send(state) {
+            Ok(()) => Ok(()),
+            Err(send_error) => {
+                if log_on_error {
+                    warn!(err = ?send_error, "failed to notify clients of state change");
+                    Ok(())
+                } else {
+                    Err(send_error).into_report()
+                }
             }
         }
     }
@@ -141,7 +144,7 @@ mod tests {
 
     use super::*;
 
-    async fn test_setup() -> (ConnectionManager, ConnectionHandle, String) {
+    async fn test_setup() -> (ConnectionPool, ConnectionHandle, String) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let server_url = format!("https://{}", listener.local_addr().unwrap());
         tokio::spawn(async move {
@@ -152,13 +155,13 @@ mod tests {
             }
         });
 
-        let (manager, handle) = ConnectionManager::new(&server_url).unwrap();
+        let (pool, handle) = ConnectionPool::new(&server_url).unwrap();
 
-        (manager, handle, server_url)
+        (pool, handle, server_url)
     }
 
     #[tokio::test]
-    async fn connection_manager_should_start_disconnected() {
+    async fn connection_pool_should_start_disconnected() {
         let (_, handle, _) = test_setup().await;
 
         assert!(matches!(
@@ -168,9 +171,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connection_manager_should_remain_diconnected_with_wrong_url() {
-        let (manager, handle) = ConnectionManager::new("https://localhost:1").unwrap();
-        let manager_task = tokio::spawn(async move { manager.run().await });
+    async fn connection_pool_should_remain_diconnected_with_wrong_url() {
+        let (pool, handle) = ConnectionPool::new("https://localhost:1").unwrap();
+        let pool_task = tokio::spawn(async move { pool.run().await });
 
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(matches!(
@@ -178,13 +181,13 @@ mod tests {
             ConnectionState::Disconnected
         ));
 
-        manager_task.abort();
+        pool_task.abort();
     }
 
     #[tokio::test]
-    async fn connection_manager_should_connect_successfully() {
-        let (manager, handle, _) = test_setup().await;
-        let manager_task = tokio::spawn(async move { manager.run().await });
+    async fn connection_pool_should_connect_successfully() {
+        let (pool, handle, _) = test_setup().await;
+        let pool_task = tokio::spawn(async move { pool.run().await });
 
         let mut receiver = handle.connection_receiver.clone();
 
@@ -193,13 +196,13 @@ mod tests {
 
         assert!(matches!(*receiver.borrow(), ConnectionState::Connected(_)));
 
-        manager_task.abort();
+        pool_task.abort();
     }
 
     #[tokio::test]
-    async fn connection_manager_should_handle_client_failure_reports() {
-        let (manager, handle, _) = test_setup().await;
-        let manager_task = tokio::spawn(async move { manager.run().await });
+    async fn connection_pool_should_handle_client_failure_reports() {
+        let (pool, handle, _) = test_setup().await;
+        let pool_task = tokio::spawn(async move { pool.run().await });
 
         let mut receiver = handle.connection_receiver.clone();
         let _ = timeout(Duration::from_secs(1), receiver.changed()).await;
@@ -220,13 +223,13 @@ mod tests {
         assert!(result.is_ok());
         assert!(matches!(*receiver.borrow(), ConnectionState::Connected(_)));
 
-        manager_task.abort();
+        pool_task.abort();
     }
 
     #[tokio::test]
-    async fn connection_manager_should_fail_after_max_retries() {
-        let (manager, handle) = ConnectionManager::new("https://localhost:1").unwrap();
-        let manager_task = tokio::spawn(async move { manager.run().await });
+    async fn connection_pool_should_fail_after_max_retries() {
+        let (pool, handle) = ConnectionPool::new("https://localhost:1").unwrap();
+        let pool_task = tokio::spawn(async move { pool.run().await });
 
         let mut receiver = handle.connection_receiver.clone();
 
@@ -242,16 +245,16 @@ mod tests {
         let _ = timeout(Duration::from_millis(300), receiver.changed()).await;
         assert!(matches!(*receiver.borrow(), ConnectionState::Disconnected));
 
-        manager_task.abort();
+        pool_task.abort();
     }
 
     #[tokio::test]
-    async fn connection_manager_should_handle_invalid_url() {
-        let result = ConnectionManager::new("invalid-url");
+    async fn connection_pool_should_handle_invalid_url() {
+        let result = ConnectionPool::new("invalid-url");
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err().current_context(),
-            Error::App(AppError::InvalidUrl)
+            Error::InvalidUrl
         ));
     }
 }

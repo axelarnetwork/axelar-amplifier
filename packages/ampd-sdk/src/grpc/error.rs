@@ -2,8 +2,6 @@ use thiserror::Error;
 use tokio::sync::watch;
 use tonic::Code;
 
-use crate::grpc::utils::ConnectionState;
-
 #[derive(Error, Debug)]
 pub enum GrpcError {
     #[error("invalid argument provided: {0}")]
@@ -45,23 +43,14 @@ pub enum AppError {
     #[error("invalid byte array")]
     InvalidByteArray,
 
-    #[error("invalid url")]
-    InvalidUrl,
-
     #[error("connection to the manager is unavailable")]
     ConnectionUnavailable,
 }
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
-    GrpcConnection(#[from] tonic::transport::Error),
-
-    #[error("failed to reconnect to the manager")]
+    #[error("failed to reconnect to the pool")]
     ConnectionStateReceiveFailed(#[from] watch::error::RecvError),
-
-    #[error("manager failed to broadcast state to clients")]
-    ManagerNotificationFailed(#[from] watch::error::SendError<ConnectionState>),
 
     #[error(transparent)]
     Grpc(#[from] GrpcError),
