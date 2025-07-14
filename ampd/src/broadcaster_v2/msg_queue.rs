@@ -121,25 +121,13 @@ where
     /// * `Error::ReceiveTxResult` - If the result channel is closed prematurely
     #[instrument(skip(self))]
     pub async fn enqueue(&mut self, msg: Any) -> Result<impl Future<Output = TxResult> + Send> {
-        let rx = self.enqueue_with_channel(msg).await.inspect_err(|err| {
-            error!(
-                err = LoggableError::from(err).as_value(),
-                "failed to enqueue message"
-            );
-        })?;
+        let rx = self.enqueue_with_channel(msg).await?;
 
-        Ok(rx
-            .map(|result| match result {
-                Ok(Ok(result)) => Ok(result),
-                Ok(Err(err)) => Err(err),
-                Err(err) => Err(Arc::new(err.into_report())),
-            })
-            .inspect_err(move |err| {
-                error!(
-                    err = LoggableError::from(err.as_ref()).as_value(),
-                    "failed to receive tx result"
-                );
-            }))
+        Ok(rx.map(|result| match result {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(err)) => Err(err),
+            Err(err) => Err(Arc::new(err.into_report())),
+        }))
     }
 
     /// Enqueues a message without waiting for its result
