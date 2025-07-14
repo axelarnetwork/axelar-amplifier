@@ -142,7 +142,10 @@ impl ConnectionPool {
             .http2_keep_alive_interval(KEEPALIVE_TIME);
 
         match endpoint.connect().await {
-            Ok(channel) => self.notify_clients(ConnectionState::Connected(channel), false),
+            Ok(channel) => {
+                self.notify_clients(ConnectionState::Connected(channel), false)?;
+                Ok(())
+            }
             Err(status) => {
                 self.notify_clients(ConnectionState::Disconnected, false)?;
                 Err(status).into_report()
