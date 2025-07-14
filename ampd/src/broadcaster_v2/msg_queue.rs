@@ -7,7 +7,7 @@ use std::sync::Arc;
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
 use error_stack::{report, Report, ResultExt};
-use futures::{FutureExt, Stream, TryFutureExt};
+use futures::{FutureExt, Stream};
 use pin_project_lite::pin_project;
 use report::{ErrorExt, LoggableError};
 use tokio::sync::{mpsc, oneshot};
@@ -15,7 +15,7 @@ use tokio::time;
 use tokio_stream::adapters::Fuse;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-use tracing::{error, instrument, warn};
+use tracing::{instrument, warn};
 use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
