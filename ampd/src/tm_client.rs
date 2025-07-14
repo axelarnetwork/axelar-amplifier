@@ -12,6 +12,9 @@ pub type BlockResultsResponse = tendermint_rpc::endpoint::block_results::Respons
 pub type BlockResponse = tendermint_rpc::endpoint::block::Response;
 pub type Error = tendermint_rpc::Error;
 
+const MAX_RETRIES: u64 = 15;
+const RETRY_DELAY: Duration = Duration::from_secs(1);
+
 #[automock]
 #[async_trait]
 pub trait TmClient {
@@ -24,7 +27,7 @@ impl TmClient for HttpClient {
     async fn latest_block(&self) -> Result<BlockResponse, Error> {
         future::with_retry(
             || Client::latest_block(self),
-            RetryPolicy::repeat_constant(Duration::from_secs(1), 15),
+            RetryPolicy::repeat_constant(RETRY_DELAY, MAX_RETRIES),
         )
         .await
         .map_err(Report::from)
@@ -33,7 +36,7 @@ impl TmClient for HttpClient {
     async fn block_results(&self, height: Height) -> Result<BlockResultsResponse, Error> {
         future::with_retry(
             || Client::block_results(self, height),
-            RetryPolicy::repeat_constant(Duration::from_secs(1), 15),
+            RetryPolicy::repeat_constant(RETRY_DELAY, MAX_RETRIES),
         )
         .await
         .map_err(Report::from)
