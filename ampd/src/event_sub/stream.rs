@@ -791,10 +791,7 @@ mod tests {
                 ))
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
         let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
             .collect()
@@ -826,10 +823,7 @@ mod tests {
                 ))
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_secs(10),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(10), 3);
         let start_time = tokio::time::Instant::now();
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(1u32)),
@@ -887,10 +881,7 @@ mod tests {
                 }
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_secs(1),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(1), 3);
         let start_time = tokio::time::Instant::now();
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
         let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
@@ -920,10 +911,7 @@ mod tests {
                 ))
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(100u32)),
             Err(report!(Error::LatestBlockQuery)),
@@ -981,10 +969,7 @@ mod tests {
                 ))
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
         let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
             .collect()
@@ -1026,10 +1011,7 @@ mod tests {
             }
         });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(10),
-            max_attempts: 1,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(10), 3);
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(1u32)),
             Ok(block::Height::from(2u32)),
@@ -1075,10 +1057,7 @@ mod tests {
                 }
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(1u32)),
             Ok(block::Height::from(2u32)),
@@ -1117,10 +1096,7 @@ mod tests {
                 )))
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_secs(1),
-            max_attempts: 3,
-        };
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(1), 3);
         let start_time = tokio::time::Instant::now();
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
         let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
