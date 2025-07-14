@@ -171,7 +171,7 @@ mod test {
 
     use crate::client::Client;
     use crate::key::{KeyType, PublicKey, Signature};
-    use crate::msg::{ExecuteMsg as MultisigExecuteMsg, QueryMsg};
+    use crate::msg::{ExecuteMsg, QueryMsg};
     use crate::multisig::Multisig;
     use crate::test::common::{
         build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
@@ -368,7 +368,7 @@ mod test {
                 client.submit_signature(session_id, signer.signature.clone()),
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: contract_addr.to_string().clone(),
-                    msg: to_json_binary(&MultisigExecuteMsg::SubmitSignature {
+                    msg: to_json_binary(&ExecuteMsg::SubmitSignature {
                         session_id,
                         signature: signer.signature
                     })
@@ -395,7 +395,7 @@ mod test {
                 client.register_public_key(pub_key.clone(), signer.signed_address.clone()),
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: contract_addr.to_string().clone(),
-                    msg: to_json_binary(&MultisigExecuteMsg::RegisterPublicKey {
+                    msg: to_json_binary(&ExecuteMsg::RegisterPublicKey {
                         public_key: pub_key,
                         signed_sender_address: signer.signed_address
                     })
@@ -452,7 +452,7 @@ mod test {
             client.authorize_callers(contracts.clone()),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&MultisigExecuteMsg::AuthorizeCallers { contracts }).unwrap(),
+                msg: to_json_binary(&ExecuteMsg::AuthorizeCallers { contracts }).unwrap(),
                 funds: vec![],
             }),
         );
@@ -473,7 +473,7 @@ mod test {
             client.unauthorize_callers(contracts.clone()),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&MultisigExecuteMsg::UnauthorizeCallers { contracts }).unwrap(),
+                msg: to_json_binary(&ExecuteMsg::UnauthorizeCallers { contracts }).unwrap(),
                 funds: vec![],
             }),
         );
@@ -489,7 +489,7 @@ mod test {
             client.disable_signing(),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&MultisigExecuteMsg::DisableSigning {}).unwrap(),
+                msg: to_json_binary(&ExecuteMsg::DisableSigning {}).unwrap(),
                 funds: vec![],
             }),
         );
@@ -505,7 +505,7 @@ mod test {
             client.enable_signing(),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&MultisigExecuteMsg::EnableSigning {}).unwrap(),
+                msg: to_json_binary(&ExecuteMsg::EnableSigning {}).unwrap(),
                 funds: vec![],
             }),
         );
