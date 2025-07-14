@@ -1,58 +1,11 @@
-use std::mem::discriminant;
-
 use ampd_proto;
 use ampd_proto::{BroadcastResponse, ContractsResponse, KeyId};
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt as _};
 use report::ResultCompatExt;
-use tokio::sync::{mpsc, watch};
-use tonic::transport;
 
 use crate::grpc::error::{AppError, Error};
-
-#[derive(Debug, Clone)]
-pub enum ClientMessage {
-    ConnectionFailed(String),
-}
-
-/// Represents the state of a gRPC connection to the AMPD server.
-///
-/// This enum is used by the connection pool to communicate the connection status to clients.
-#[derive(Debug, Clone)]
-pub enum ConnectionState {
-    /// The connection is established and ready for service calls.
-    /// Contains the active gRPC transport channel.
-    Connected(transport::Channel),
-
-    /// The connection is not available and no reconnection attempt is in progress.
-    /// This is the initial state when the connection pool starts, or the final state after all reconnection attempts have failed.  
-    Disconnected,
-
-    /// A reconnection attempt is currently in progress.
-    /// The connection pool is actively trying to re-establish the connection after a failure.
-    /// Clients should wait for the next state change rather than immediately failing their requests.
-    Reconnecting,
-}
-
-impl PartialEq for ConnectionState {
-    fn eq(&self, other: &Self) -> bool {
-        discriminant(self) == discriminant(other)
-    }
-}
-
-/// A handle that provides access to connection state changes and allows sending
-/// messages to the connection pool.
-///
-/// This struct is used by clients to:
-/// - Monitor connection state changes via the `connection_receiver`
-/// - Send messages (like connection failure reports) to the connection pool
-/// - Coordinate with the connection pool for automatic reconnection
-#[derive(Clone, Debug)]
-pub struct ConnectionHandle {
-    pub connection_receiver: watch::Receiver<ConnectionState>,
-    pub message_sender: mpsc::Sender<ClientMessage>,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BroadcastClientResponse {

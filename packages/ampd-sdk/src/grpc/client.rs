@@ -20,10 +20,9 @@ use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
+use crate::grpc::client_utils::{parse_addr, BroadcastClientResponse, ContractsAddresses, Key};
+use crate::grpc::connection_pool::{ConnectionHandle, ConnectionState};
 use crate::grpc::error::{AppError, Error};
-use crate::grpc::utils::{
-    parse_addr, BroadcastClientResponse, ConnectionHandle, ConnectionState, ContractsAddresses, Key,
-};
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
@@ -261,9 +260,9 @@ mod tests {
     use tonic::{Request, Response, Status};
 
     use super::*;
-    use crate::grpc::connection_pool::ConnectionPool;
+    use crate::grpc::client_utils::KeyAlgorithm;
+    use crate::grpc::connection_pool::{ClientMessage, ConnectionPool};
     use crate::grpc::error::GrpcError;
-    use crate::grpc::utils::{ClientMessage, KeyAlgorithm};
 
     type ServerSubscribeStream =
         Pin<Box<dyn Stream<Item = std::result::Result<SubscribeResponse, Status>> + Send>>;
