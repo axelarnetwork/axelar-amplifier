@@ -297,7 +297,7 @@ where
             confirmer
                 .send(tx_hash.clone())
                 .await
-                .map_err(|_| Error::ConfirmTx(tx_hash.clone()))?;
+                .change_context(Error::ConfirmTx(tx_hash.clone()))?;
         }
 
         let tx_hash = tx_hash.map_err(Arc::new);
