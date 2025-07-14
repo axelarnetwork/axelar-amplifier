@@ -124,7 +124,9 @@ impl ConnectionPool {
             match message {
                 ClientMessage::ConnectionFailed(details) => {
                     warn!("client reported connection failure: {}", details);
-                    self.handle_connection_failure().await?
+                    if let Err(e) = self.handle_connection_failure().await {
+                        warn!(err = ?e, "reconnection attempt failed, will retry on next client request");
+                    }
                 }
             }
         }
@@ -146,10 +148,7 @@ impl ConnectionPool {
                 self.notify_clients(ConnectionState::Connected(channel), false)?;
                 Ok(())
             }
-            Err(status) => {
-                self.notify_clients(ConnectionState::Disconnected, false)?;
-                Err(status).into_report()
-            }
+            Err(status) => Err(status).into_report(),
         }
     }
 
