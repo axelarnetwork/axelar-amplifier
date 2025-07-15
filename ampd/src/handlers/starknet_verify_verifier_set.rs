@@ -18,7 +18,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -139,6 +139,8 @@ where
             .event_by_message_id_signers_rotated(verifier_set.message_id.clone())
             .await;
 
+        let handler_chain_name = "starknet";
+
         let vote = info_span!(
             "verify a new verifier set",
             poll_id = poll_id.to_string(),
@@ -176,9 +178,24 @@ where
     }
 }
 
+fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -204,7 +221,7 @@ mod tests {
     use crate::monitoring::test_utils;
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
-    use crate::PREFIX;
+    use crate::{monitoring, PREFIX};
 
     #[test]
     fn should_deserialize_correct_event() {

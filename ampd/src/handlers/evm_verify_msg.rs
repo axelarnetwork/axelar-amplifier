@@ -15,7 +15,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -205,7 +205,7 @@ where
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    finalized_tx_receipts
+                    let vote = finalized_tx_receipts
                         .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |tx_receipt| {
                             verify_message(&source_gateway_address, tx_receipt, msg)
@@ -239,9 +239,28 @@ where
     }
 }
 
+fn record_vote_outcome(
+    monitoring_client: &monitoring::Client,
+    vote: &Vote,
+    chain_name: &ChainName,
+) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
