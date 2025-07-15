@@ -13,11 +13,13 @@ use events::{try_from, Event};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
-use tracing::info;
+use tracing::{info, warn};
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
@@ -52,6 +54,7 @@ where
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -63,12 +66,14 @@ where
         voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -120,6 +125,8 @@ where
             return Ok(vec![]);
         }
 
+        let handler_chain_name = "sui";
+
         // Does not assume voting verifier emits unique tx ids.
         // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
         let deduplicated_tx_ids: HashSet<_> = messages
@@ -135,11 +142,15 @@ where
         let votes = messages
             .iter()
             .map(|msg| {
-                transaction_blocks
+                let vote = transaction_blocks
                     .get(&msg.message_id.tx_digest.into())
                     .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
-                    })
+                    });
+
+                record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+
+                vote
             })
             .collect();
 
@@ -150,12 +161,28 @@ where
     }
 }
 
+fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::net::SocketAddr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
@@ -172,6 +199,9 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
     use crate::handlers::tests::{into_structured_event, participants};
+    use crate::monitoring;
+    use crate::monitoring::metrics::Msg as MetricsMsg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
 
@@ -197,11 +227,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
@@ -215,11 +248,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
@@ -234,11 +270,14 @@ mod tests {
             &voting_verifier,
         );
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
             MockSuiClient::new(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
@@ -263,8 +302,15 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(verifier, voting_verifier, rpc_client, watch::channel(0).1);
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
@@ -286,12 +332,57 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(verifier, voting_verifier, rpc_client, watch::channel(0).1);
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_record_vote_outcome_metrics() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| Ok(HashMap::new()));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        let _ = handler.handle(&event).await.unwrap();
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(
+            metric,
+            MetricsMsg::VoteOutcome {
+                vote_status: Vote::NotFound,
+                chain_name: "sui".to_string(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[async_test]
@@ -316,7 +407,10 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
