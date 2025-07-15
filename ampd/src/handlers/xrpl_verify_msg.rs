@@ -15,7 +15,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 use xrpl_http_client::Transaction;
@@ -24,6 +24,8 @@ use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
@@ -51,6 +53,7 @@ where
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -62,12 +65,14 @@ where
         voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -153,6 +158,8 @@ where
             .map(|message| message.tx_id().tx_hash_as_hex())
             .collect::<Vec<_>>();
 
+        let handler_chain_name = "xrpl";
+
         let votes = info_span!(
             "verify messages from XRPL chain",
             poll_id = poll_id_str,
@@ -165,11 +172,15 @@ where
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    validated_txs
+                    let vote = validated_txs
                         .get(&msg.tx_id())
                         .map_or(Vote::NotFound, |tx| {
                             verify_message(&source_gateway_address, tx, msg)
-                        })
+                        });
+
+                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+
+                    vote
                 })
                 .collect();
             info!(
@@ -185,4 +196,18 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
+}
+
+fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
 }

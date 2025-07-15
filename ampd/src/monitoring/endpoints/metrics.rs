@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axelar_wasm_std::voting::Vote;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::header::CONTENT_TYPE;
@@ -9,7 +10,9 @@ use axum::routing::{get, MethodRouter};
 use error_stack::{Result, ResultExt};
 use futures::StreamExt;
 use prometheus_client::encoding::text::encode;
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -29,10 +32,22 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 ///
 /// These messages are sent to the metrics processor to update various counters
 /// and gauges tracked by the monitoring system.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Msg {
     /// Increment the count of blocks received
-    IncBlockReceived,
+    BlockReceived,
+    /// Record the result of enqueuing a message from the handler
+    ///
+    /// - success: true if the msg was enqueued successfully, false otherwise
+    HandlerMsgEnqueueResult { success: bool },
+    /// Record the vote outcome in voting handlers
+    ///
+    /// - vote_status: the vote outcome (SucceededOnChain, FailedOnChain, NotFound)
+    /// - chain_name: the chain name of the voting handler that cast the vote
+    VoteOutcome {
+        vote_status: Vote,
+        chain_name: String,
+    },
 }
 
 /// Errors that can occur in metrics processing
@@ -59,7 +74,7 @@ impl IntoResponse for Error {
 /// This client is used throughout the application to record metrics events.
 /// It can operate in two modes: with a real channel to a metrics processor,
 /// or in disabled mode where messages are discarded.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Client {
     /// Active client with a channel to send metrics messages
     WithChannel { sender: mpsc::Sender<Msg> },
@@ -188,28 +203,158 @@ async fn serve_metrics(
 }
 
 struct Metrics {
-    block_received: Counter,
+    block_received: BlockReceivedMetrics,
+    handler_msg_enqueue_result: HandlerMsgEnqueueMetrics,
+    vote_outcome: VoteOutcomeMetrics,
+}
+
+struct BlockReceivedMetrics {
+    total: Counter,
+}
+
+struct HandlerMsgEnqueueMetrics {
+    success: Counter,
+    failure: Counter,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct VoteLabel {
+    chain_name: String,
+}
+
+struct VoteOutcomeMetrics {
+    agreed: Family<VoteLabel, Counter>,
+    disagreed: Family<VoteLabel, Counter>,
+    not_found: Family<VoteLabel, Counter>,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
-        // all created metrics are static, so errors during registration are bugs and should panic
-        let block_received = Counter::default();
-        registry.register(
-            "blocks_received",
-            "number of blocks received",
-            block_received.clone(),
-        );
+        let block_received = BlockReceivedMetrics::new();
+        let handler_msg_enqueue_result = HandlerMsgEnqueueMetrics::new();
+        let vote_outcome = VoteOutcomeMetrics::new();
 
-        Self { block_received }
+        block_received.register(registry);
+        handler_msg_enqueue_result.register(registry);
+        vote_outcome.register(registry);
+
+        Self {
+            block_received,
+            handler_msg_enqueue_result,
+            vote_outcome,
+        }
     }
 
     pub fn handle_message(&self, msg: Msg) {
         match msg {
-            Msg::IncBlockReceived => {
-                self.block_received.inc();
+            Msg::BlockReceived => {
+                self.block_received.increment();
+            }
+
+            Msg::HandlerMsgEnqueueResult { success } => {
+                self.handler_msg_enqueue_result
+                    .record_handler_msg_enqueue_result(success);
+            }
+
+            Msg::VoteOutcome {
+                vote_status,
+                chain_name,
+            } => {
+                self.vote_outcome
+                    .record_vote_outcome(vote_status, chain_name);
             }
         }
+    }
+}
+
+impl BlockReceivedMetrics {
+    fn new() -> Self {
+        let total = Counter::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "blocks_received",
+            "number of blocks received",
+            self.total.clone(),
+        );
+    }
+
+    fn increment(&self) {
+        self.total.inc();
+    }
+}
+
+impl HandlerMsgEnqueueMetrics {
+    fn new() -> Self {
+        let success = Counter::default();
+        let failure = Counter::default();
+        Self { success, failure }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "handler_msg_enqueue_success",
+            "number of successful message enqueues from handlers",
+            self.success.clone(),
+        );
+
+        registry.register(
+            "handler_msg_enqueue_failure",
+            "number of failed message enqueues from handlers",
+            self.failure.clone(),
+        );
+    }
+
+    fn record_handler_msg_enqueue_result(&self, success: bool) {
+        if success {
+            self.success.inc();
+        } else {
+            self.failure.inc();
+        }
+    }
+}
+
+impl VoteOutcomeMetrics {
+    fn new() -> Self {
+        let agreed = Family::<VoteLabel, Counter>::default();
+        let disagreed = Family::<VoteLabel, Counter>::default();
+        let not_found = Family::<VoteLabel, Counter>::default();
+        Self {
+            agreed,
+            disagreed,
+            not_found,
+        }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "votes_agreed",
+            "number of votes agreed with the proposal (Vote::SucceededOnChain)",
+            self.agreed.clone(),
+        );
+
+        registry.register(
+            "votes_disagreed",
+            "number of votes disagreed with the proposal (Vote::FailedOnChain)",
+            self.disagreed.clone(),
+        );
+
+        registry.register(
+            "votes_not_found",
+            "number of expected votes not found on-chain (Vote::NotFound)",
+            self.not_found.clone(),
+        );
+    }
+
+    fn record_vote_outcome(&self, vote: Vote, chain_name: String) {
+        let vote_label = VoteLabel { chain_name };
+        match vote {
+            Vote::SucceededOnChain => self.agreed.get_or_create(&vote_label).inc(),
+            Vote::FailedOnChain => self.disagreed.get_or_create(&vote_label).inc(),
+            Vote::NotFound => self.not_found.get_or_create(&vote_label).inc(),
+        };
     }
 }
 
@@ -224,7 +369,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(start_paused = true)]
-    async fn metrics_handle_message_increments_counter_successfully() {
+    async fn should_increment_blocks_received_counter_when_message_processed() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -236,9 +381,9 @@ mod tests {
         initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
-        client.record_metric(Msg::IncBlockReceived).unwrap();
-        client.record_metric(Msg::IncBlockReceived).unwrap();
-        client.record_metric(Msg::IncBlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
 
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
@@ -248,5 +393,126 @@ mod tests {
 
         // Ensure the final metrics are in the expected format
         goldie::assert!(final_metrics.text())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_update_msg_broadcast_metrics_correctly() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+
+        initial_metrics.assert_text_contains("handler_msg_enqueue_success_total 0");
+        initial_metrics.assert_text_contains("handler_msg_enqueue_failure_total 0");
+        initial_metrics.assert_status_ok();
+
+        client
+            .record_metric(Msg::HandlerMsgEnqueueResult { success: true })
+            .unwrap();
+        client
+            .record_metric(Msg::HandlerMsgEnqueueResult { success: false })
+            .unwrap();
+        client
+            .record_metric(Msg::HandlerMsgEnqueueResult { success: true })
+            .unwrap();
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_text_contains("handler_msg_enqueue_success_total 2");
+        final_metrics.assert_text_contains("handler_msg_enqueue_failure_total 1");
+        final_metrics.assert_status_ok();
+
+        goldie::assert!(final_metrics.text())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_update_vote_outcome_metrics_correctly_when_multiple_chains_cast_votes() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        let chain_names = vec!["ethereum", "solana", "polygon", "avalanche", "stellar"];
+
+        for chain_name in chain_names {
+            client
+                .record_metric(Msg::VoteOutcome {
+                    vote_status: Vote::SucceededOnChain,
+                    chain_name: chain_name.to_string(),
+                })
+                .unwrap();
+            client
+                .record_metric(Msg::VoteOutcome {
+                    vote_status: Vote::FailedOnChain,
+                    chain_name: chain_name.to_string(),
+                })
+                .unwrap();
+            client
+                .record_metric(Msg::VoteOutcome {
+                    vote_status: Vote::NotFound,
+                    chain_name: chain_name.to_string(),
+                })
+                .unwrap();
+        }
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+        println!("{}", final_metrics.text());
+
+        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+    }
+
+    #[test]
+    fn should_provide_consistet_sorted_output() {
+        let unsorted_output1 =
+            include_str!("testdata/metrics_sorting/unsorted_metrics_version_1.txt");
+        let unsorted_output2 =
+            include_str!("testdata/metrics_sorting/unsorted_metrics_version_2.txt");
+
+        let sorted_data1 = sort_metrics_output(unsorted_output1);
+        let sorted_data2 = sort_metrics_output(unsorted_output2);
+
+        assert_eq!(sorted_data1, sorted_data2);
+        goldie::assert!(sorted_data1);
+    }
+
+    /// Sort metrics text alphabetically by line for consistent output
+    ///
+    /// The prometheus_client crate returns metrics in non-deterministic order
+    /// when there are metrics with more than one label.  This function sorts
+    /// the metrics output to ensure consistent output in golden file tests.
+    pub fn sort_metrics_output(buffer: &str) -> String {
+        let mut result = Vec::new();
+        let mut current_headers = Vec::new();
+        let mut current_metrics = Vec::new();
+
+        for line in buffer.lines() {
+            if line.starts_with("# TYPE") {
+                current_headers.push(line.to_string());
+            } else if line.starts_with("#") {
+                if !current_headers.is_empty() {
+                    result.extend(current_headers.drain(..));
+                    current_metrics.sort();
+                    result.extend(current_metrics.drain(..));
+                }
+                if line.starts_with("# HELP") {
+                    current_headers.push(line.to_string());
+                } else if line.starts_with("# EOF") {
+                    result.push(line.to_string());
+                }
+            } else {
+                current_metrics.push(line.to_string());
+            }
+        }
+
+        result.join("\n") + "\n"
     }
 }
