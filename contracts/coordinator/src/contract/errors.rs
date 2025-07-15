@@ -47,8 +47,6 @@ pub enum Error {
     ChainContractsInfo,
     #[error("unable to persist the main protocol contracts")]
     UnableToPersistProtocol,
-    #[error("contract config before migration not found")]
-    OldConfigNotFound,
     #[error("error with router client")]
     RouterClient,
 }
