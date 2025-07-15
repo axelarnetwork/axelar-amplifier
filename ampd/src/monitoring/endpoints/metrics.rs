@@ -35,7 +35,7 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Msg {
     /// Increment the count of blocks received
-    BlockReceived,
+    IncBlockReceived,
     /// Record the verification vote results for cross-chain message
     VerificationVote {
         vote_decision: AxelarVote,

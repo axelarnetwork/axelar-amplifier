@@ -14,7 +14,7 @@ use router_api::ChainName;
 use serde::Deserialize;
 use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -180,9 +180,28 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
     }
 }
 
+fn record_vote_outcome(
+    monitoring_client: &monitoring::Client,
+    vote: &Vote,
+    chain_name: &ChainName,
+) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;

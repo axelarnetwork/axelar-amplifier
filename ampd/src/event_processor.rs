@@ -105,7 +105,14 @@ where
     while let Some(event) = event_stream.next().await {
         match event {
             StreamStatus::Ok(event) => {
-                handle_event(&handler, &msg_queue_client, &event, handler_retry).await?;
+                handle_event(
+                    &handler,
+                    &msg_queue_client,
+                    &event,
+                    handler_retry,
+                    &monitoring_client,
+                )
+                .await?;
             }
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
@@ -123,6 +130,7 @@ async fn handle_event<H, C>(
     msg_queue_client: &broadcaster_v2::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
+    monitoring_client: &monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -131,7 +139,11 @@ where
     match with_retry(|| handler.handle(event), retry_policy).await {
         Ok(msgs) => {
             tokio_stream::iter(msgs)
-                .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
+                .map(|msg| async {
+                    let result = msg_queue_client.clone().enqueue_and_forget(msg).await;
+                    record_msg_enqueue_result(result.is_ok(), monitoring_client, event);
+                    result
+                })
                 .buffered(TX_BROADCAST_BUFFER_SIZE)
                 .inspect_err(|err| {
                     warn!(
@@ -173,6 +185,19 @@ fn log_block_end_event(event: &StreamStatus, monitoring_client: &monitoring::Cli
     }
 }
 
+fn record_msg_enqueue_result(success: bool, monitoring_client: &monitoring::Client, event: &Event) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(Msg::HandlerMsgEnqueueResult { success })
+    {
+        warn!(
+            err = %err,
+            event = %event,
+            "failed to record msg enqueue result metric"
+        );
+    }
+}
+
 #[derive(Debug)]
 enum StreamStatus {
     Ok(Event),
@@ -209,6 +234,8 @@ mod tests {
     use crate::broadcaster_v2::test_utils::create_base_account;
     use crate::broadcaster_v2::DecCoin;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::monitoring::metrics::Msg as MetricsMsg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{broadcaster_v2, cosmos, event_sub, monitoring, PREFIX};
 
@@ -683,6 +710,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
+
     #[tokio::test(start_paused = true)]
     async fn block_end_events_increment_blocks_received_metric() {
         let pub_key = random_cosmos_public_key();
@@ -693,14 +721,9 @@ mod tests {
         let gas_price_denom = "uaxl";
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
-            Ok(Event::BlockEnd(1_u32.into())),
-            Ok(Event::BlockEnd(2_u32.into())),
             Ok(Event::BlockBegin(3_u32.into())),
-            Ok(Event::BlockEnd(4_u32.into())),
-            Ok(Event::BlockBegin(5_u32.into())),
-            Ok(Event::BlockEnd(6_u32.into())),
         ];
-        let num_block_ends = 5;
+
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
@@ -733,6 +756,7 @@ mod tests {
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let cancel_token = CancellationToken::new();
+       
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),

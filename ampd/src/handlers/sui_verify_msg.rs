@@ -15,7 +15,7 @@ use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
-use tracing::info;
+use tracing::{info, warn};
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -131,6 +131,8 @@ where
             return Ok(vec![]);
         }
 
+        let handler_chain_name = "sui";
+
         // Does not assume voting verifier emits unique tx ids.
         // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
         let deduplicated_tx_ids: HashSet<_> = messages
@@ -146,7 +148,7 @@ where
         let votes = messages
             .iter()
             .map(|msg| {
-                transaction_blocks
+                let vote = transaction_blocks
                     .get(&msg.message_id.tx_digest.into())
                     .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
@@ -169,10 +171,25 @@ where
     }
 }
 
+fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::net::SocketAddr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
