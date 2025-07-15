@@ -41,10 +41,21 @@ pub fn active_verifiers(
         .into_report()?;
 
     if verifiers.len() < service.min_num_verifiers.into() {
-        Err(report!(ContractError::NotEnoughVerifiers))
-    } else {
-        Ok(verifiers)
+        return Err(report!(ContractError::NotEnoughVerifiers));
     }
+
+    Ok(match service.max_num_verifiers {
+        Some(max_verifiers) if verifiers.len() > max_verifiers as usize => verifiers
+            .into_iter()
+            .sorted_by(|a, b| {
+                b.weight
+                    .cmp(&a.weight)
+                    .then_with(|| a.verifier_info.address.cmp(&b.verifier_info.address))
+            })
+            .take(max_verifiers as usize)
+            .collect(),
+        _ => verifiers,
+    })
 }
 
 pub fn verifier(
