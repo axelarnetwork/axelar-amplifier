@@ -14,13 +14,15 @@ use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::ScAddress;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
@@ -49,6 +51,7 @@ pub struct Handler {
     voting_verifier_contract: TMAddress,
     http_client: Client,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl Handler {
@@ -57,12 +60,14 @@ impl Handler {
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             http_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -108,6 +113,8 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
+        let handler_chain_name = "stellar";
+
         let transaction_response = self
             .http_client
             .transaction_response(
@@ -131,6 +138,8 @@ impl EventHandler for Handler {
                 verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
 
+            record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+
             info!(
                 vote = vote.as_value(),
                 "ready to vote for a new verifier set in poll"
@@ -146,11 +155,27 @@ impl EventHandler for Handler {
     }
 }
 
+fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::net::SocketAddr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use error_stack::Result;
@@ -166,9 +191,11 @@ mod tests {
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
+    use crate::monitoring::metrics::Msg as MetricsMsg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;
-    use crate::PREFIX;
+    use crate::{monitoring, PREFIX};
 
     #[test]
     fn should_not_deserialize_incorrect_event() {
@@ -232,11 +259,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
@@ -250,11 +280,14 @@ mod tests {
             &voting_verifier,
         );
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
@@ -272,11 +305,55 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, client, watch::channel(0).1);
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_send_correct_vote_messages() {
+        let mut client = Client::faux();
+        faux::when!(client.transaction_response).then(|_| Ok(None));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        let _ = handler.handle(&event).await.unwrap();
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(
+            metric,
+            MetricsMsg::VoteOutcome {
+                vote_status: Vote::NotFound,
+                chain_name: "stellar".to_string(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {

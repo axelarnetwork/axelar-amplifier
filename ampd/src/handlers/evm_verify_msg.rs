@@ -15,7 +15,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -26,6 +26,8 @@ use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_message;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -62,6 +64,7 @@ where
     finalizer_type: Finalization,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -75,6 +78,7 @@ where
         finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
@@ -83,6 +87,7 @@ where
             finalizer_type,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -183,6 +188,8 @@ where
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
+        let handler_chain_name = &self.chain;
+
         let votes = info_span!(
             "verify messages from an EVM chain",
             poll_id = poll_id_str,
@@ -199,11 +206,14 @@ where
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    finalized_tx_receipts
+                    let vote = finalized_tx_receipts
                         .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |tx_receipt| {
                             verify_message(&source_gateway_address, tx_receipt, msg)
-                        })
+                        });
+
+                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+                    vote
                 })
                 .collect();
             info!(
@@ -221,9 +231,28 @@ where
     }
 }
 
+fn record_vote_outcome(
+    monitoring_client: &monitoring::Client,
+    vote: &Vote,
+    chain_name: &ChainName,
+) {
+    if let Err(err) = monitoring_client
+        .metrics()
+        .record_metric(MetricsMsg::VoteOutcome {
+            vote_status: vote.clone(),
+            chain_name: chain_name.to_string(),
+        })
+    {
+        warn!(error = %err,
+            chain_name = %chain_name,
+            "failed to record vote outcome metrics for vote {:?}", vote);
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -244,7 +273,7 @@ mod tests {
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::types::TMAddress;
-    use crate::PREFIX;
+    use crate::{monitoring, PREFIX};
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let msg_ids = [
@@ -372,6 +401,8 @@ mod tests {
             &voting_verifier_contract,
         );
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = super::Handler::new(
@@ -381,6 +412,7 @@ mod tests {
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,
+            monitoring_client,
         );
 
         // poll is not expired yet, should hit rpc error
