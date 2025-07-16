@@ -36,11 +36,7 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
-    /// Record the result of broadcasting a message from the handler
-    ///
-    /// - success: true if a transaction was broadcasted successfully, false otherwise
-    TransactionBroadcastResult { success: bool },
-    /// Record the vote outcome in voting handlers
+    /// Record the vote outcome in for cross-chain message verification in voting handlers
     ///
     /// - vote_status: the vote outcome (SucceededOnChain, FailedOnChain, NotFound)
     /// - chain_name: the chain name of the voting handler that cast the vote
@@ -48,10 +44,6 @@ pub enum Msg {
         vote_status: Vote,
         chain_name: String,
     },
-    /// Record failure that prevented voting handlers from processing events
-    ///
-    /// - chain_name: the chain name of the voting handler
-    VoteProcessingFailure { chain_name: String },
 }
 
 /// Errors that can occur in metrics processing
@@ -208,18 +200,11 @@ async fn serve_metrics(
 
 struct Metrics {
     block_received: BlockReceivedMetrics,
-    transaction_broadcast_result: BroadcastMetrics,
     vote_outcome: VoteOutcomeMetrics,
-    vote_processing_failure: VoteProcessingFailureMetrics,
 }
 
 struct BlockReceivedMetrics {
     total: Counter,
-}
-
-struct BroadcastMetrics {
-    success: Counter,
-    failure: Counter,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -233,27 +218,17 @@ struct VoteOutcomeMetrics {
     not_found: Family<VoteLabel, Counter>,
 }
 
-struct VoteProcessingFailureMetrics {
-    total: Family<VoteLabel, Counter>,
-}
-
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
-        let transaction_broadcast_result = BroadcastMetrics::new();
         let vote_outcome = VoteOutcomeMetrics::new();
-        let vote_processing_failure = VoteProcessingFailureMetrics::new();
 
         block_received.register(registry);
-        transaction_broadcast_result.register(registry);
         vote_outcome.register(registry);
-        vote_processing_failure.register(registry);
 
         Self {
             block_received,
-            transaction_broadcast_result,
             vote_outcome,
-            vote_processing_failure,
         }
     }
 
@@ -263,20 +238,12 @@ impl Metrics {
                 self.block_received.increment();
             }
 
-            Msg::TransactionBroadcastResult { success } => {
-                self.transaction_broadcast_result
-                    .record_broadcast_result(success);
-            }
-
             Msg::VoteOutcome {
                 vote_status,
                 chain_name,
             } => {
                 self.vote_outcome
                     .record_vote_outcome(vote_status, chain_name);
-            }
-            Msg::VoteProcessingFailure { chain_name } => {
-                self.vote_processing_failure.increment(chain_name);
             }
         }
     }
@@ -301,36 +268,6 @@ impl BlockReceivedMetrics {
     }
 }
 
-impl BroadcastMetrics {
-    fn new() -> Self {
-        let success = Counter::default();
-        let failure = Counter::default();
-        Self { success, failure }
-    }
-
-    fn register(&self, registry: &mut Registry) {
-        registry.register(
-            "transaction_broadcast_success",
-            "number of successful transaction broadcasts",
-            self.success.clone(),
-        );
-
-        registry.register(
-            "transaction_broadcast_failure",
-            "number of failed transaction broadcasts",
-            self.failure.clone(),
-        );
-    }
-
-    fn record_broadcast_result(&self, success: bool) {
-        if success {
-            self.success.inc();
-        } else {
-            self.failure.inc();
-        }
-    }
-}
-
 impl VoteOutcomeMetrics {
     fn new() -> Self {
         let agreed = Family::<VoteLabel, Counter>::default();
@@ -346,19 +283,19 @@ impl VoteOutcomeMetrics {
     fn register(&self, registry: &mut Registry) {
         registry.register(
             "votes_agreed",
-            "number of votes agreed with the proposal (Vote::SucceededOnChain)",
+            "number of votes agreeing that the poll messages are valid (Vote::SucceededOnChain)",
             self.agreed.clone(),
         );
 
         registry.register(
             "votes_disagreed",
-            "number of votes disagreed with the proposal (Vote::FailedOnChain)",
+            "number of votes disagreeing that the poll messages are valid (Vote::FailedOnChain)",
             self.disagreed.clone(),
         );
 
         registry.register(
             "votes_not_found",
-            "number of expected votes not found on-chain (Vote::NotFound)",
+            "number of votes where poll messages could not be validated (Vote::NotFound)",
             self.not_found.clone(),
         );
     }
@@ -370,26 +307,6 @@ impl VoteOutcomeMetrics {
             Vote::FailedOnChain => self.disagreed.get_or_create(&vote_label).inc(),
             Vote::NotFound => self.not_found.get_or_create(&vote_label).inc(),
         };
-    }
-}
-
-impl VoteProcessingFailureMetrics {
-    fn new() -> Self {
-        let total = Family::<VoteLabel, Counter>::default();
-        Self { total }
-    }
-
-    fn register(&self, registry: &mut Registry) {
-        registry.register(
-            "vote_processing_failure",
-            "number of failures that prevented voting handlers from processing events",
-            self.total.clone(),
-        );
-    }
-
-    fn increment(&self, chain_name: String) {
-        let vote_label = VoteLabel { chain_name };
-        self.total.get_or_create(&vote_label).inc();
     }
 }
 
@@ -431,39 +348,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_update_transaction_broadcast_metrics_correctly() {
-        let (router, process, client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let initial_metrics = server.get("/test").await;
-
-        initial_metrics.assert_text_contains("transaction_broadcast_success_total 0");
-        initial_metrics.assert_text_contains("transaction_broadcast_failure_total 0");
-        initial_metrics.assert_status_ok();
-
-        client
-            .record_metric(Msg::TransactionBroadcastResult { success: true })
-            .unwrap();
-        client
-            .record_metric(Msg::TransactionBroadcastResult { success: false })
-            .unwrap();
-        client
-            .record_metric(Msg::TransactionBroadcastResult { success: true })
-            .unwrap();
-
-        time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
-        final_metrics.assert_text_contains("transaction_broadcast_success_total 2");
-        final_metrics.assert_text_contains("transaction_broadcast_failure_total 1");
-        final_metrics.assert_status_ok();
-
-        goldie::assert!(final_metrics.text())
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn should_update_vote_outcome_metrics_correctly_when_multiple_chains_cast_votes() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
@@ -501,34 +385,6 @@ mod tests {
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
         println!("{}", final_metrics.text());
-
-        goldie::assert!(sort_metrics_output(&final_metrics.text()))
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn should_increment_vote_processing_failure_metrics_correctly() {
-        let (router, process, client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let initial_metrics = server.get("/test").await;
-        initial_metrics.assert_status_ok();
-
-        let chain_names = vec!["ethereum", "solana", "polygon", "avalanche", "stellar"];
-
-        for chain_name in chain_names {
-            client
-                .record_metric(Msg::VoteProcessingFailure {
-                    chain_name: chain_name.to_string(),
-                })
-                .unwrap();
-        }
-
-        time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
-        final_metrics.assert_status_ok();
 
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
     }
