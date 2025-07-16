@@ -1,9 +1,9 @@
 [package]
+name = "ampd"
 edition = { workspace = true }
 version = "1.9.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
-name = "ampd"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
@@ -22,7 +22,7 @@ axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
-config = "0.13.2"
+config = "0.15.11"
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 der = { version = "0.7.9", features = ["derive"] }
@@ -51,7 +51,7 @@ multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
 openssl = { version = "0.10.72", features = [
   "vendored",
-] }# Needed to make arm compilation work by forcing vendoring
+] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
 prometheus-client = "0.23.1"
 prost = "0.13.5"
