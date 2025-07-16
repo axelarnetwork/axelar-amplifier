@@ -154,15 +154,14 @@ where
             let votes: Vec<Vote> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = transactions_info
+                    transactions_info
                         .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |transaction| {
                             verify_message(&source_gateway_address, transaction, msg)
-                        });
-
-                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
-
-                    vote
+                        })
+                })
+                .inspect(|vote| {
+                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
                 })
                 .collect();
             info!(
@@ -328,7 +327,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_messages() {
+    async fn should_send_correct_vote_outcome_messages() {
         let mut proxy = MockMvxProxy::new();
         proxy
             .expect_transactions_info_with_results()
@@ -337,7 +336,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(worker.clone()))),
+            poll_started_event(participants(2, Some(worker.clone()))),
             &voting_verifier,
         );
 

@@ -186,10 +186,7 @@ where
             .collect();
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name);
-            })?;
+            .await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -210,14 +207,14 @@ where
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = finalized_tx_receipts
+                    finalized_tx_receipts
                         .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |tx_receipt| {
                             verify_message(&source_gateway_address, tx_receipt, msg)
-                        });
-
-                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
-                    vote
+                        })
+                })
+                .inspect(|vote| {
+                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
                 })
                 .collect();
             info!(
@@ -258,8 +255,6 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::types::TMAddress;
     use crate::{monitoring, PREFIX};
 
@@ -410,48 +405,5 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[async_test]
-    async fn should_record_vote_processing_failure_when_rpc_error() {
-        let mut rpc_client = MockEthereumClient::new();
-        rpc_client.expect_finalized_block().returning(|| {
-            Err(Report::from(ProviderError::CustomError(
-                "failed to get finalized block".to_string(),
-            )))
-        });
-
-        let voting_verifier_contract = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let expiration = 100u64;
-        let event: Event = into_structured_event(
-            poll_started_event(participants(2, Some(verifier.clone())), expiration),
-            &voting_verifier_contract,
-        );
-
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
-
-        let (_, rx) = watch::channel(0);
-
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            ChainName::from_str("ethereum").unwrap(),
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            rx,
-            monitoring_client,
-        );
-
-        assert!(handler.handle(&event).await.is_err());
-        let metrics = receiver.recv().await.unwrap();
-        assert_eq!(
-            metrics,
-            MetricsMsg::VoteProcessingFailure {
-                chain_name: "ethereum".to_string()
-            }
-        );
-
-        assert!(receiver.try_recv().is_err());
     }
 }

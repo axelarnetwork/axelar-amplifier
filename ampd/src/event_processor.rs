@@ -98,21 +98,14 @@ where
             Ok(Err(err)) => StreamStatus::Error(err),
             Err(_) => StreamStatus::TimedOut,
         })
-        .inspect(|event| log_block_end_event(event, &handler_label, &monitoring_client))
+        .inspect(|event| log_block_end_event(event, &handler_label, &metric_client))
         .take_while(should_task_continue(token));
     pin_mut!(event_stream);
 
     while let Some(event) = event_stream.next().await {
         match event {
             StreamStatus::Ok(event) => {
-                handle_event(
-                    &handler,
-                    &msg_queue_client,
-                    &event,
-                    handler_retry,
-                    &monitoring_client,
-                )
-                .await?;
+                handle_event(&handler, &msg_queue_client, &event, handler_retry).await?;
             }
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
@@ -130,21 +123,15 @@ async fn handle_event<H, C>(
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
-    monitoring_client: &monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
     C: cosmos::CosmosClient + Clone,
 {
     match with_retry(|| handler.handle(event), retry_policy).await {
-    
         Ok(msgs) => {
             tokio_stream::iter(msgs)
-                .map(|msg| async {
-                    let result = msg_queue_client.clone().enqueue_and_forget(msg).await;
-                    record_msg_enqueue_result(result.is_ok(), monitoring_client, event);
-                    result
-                })
+                .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
                 .buffered(TX_BROADCAST_BUFFER_SIZE)
                 .inspect_err(|err| {
                     warn!(
@@ -194,18 +181,6 @@ fn log_block_end_event(
     }
 }
 
-fn record_broadcast_result(success: bool, monitoring_client: &monitoring::Client) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(Msg::TransactionBroadcastResult { success })
-    {
-        warn!(
-            err = %err,
-            "failed to record msg broadcast result metric"
-        );
-    }
-}
-
 #[derive(Debug)]
 enum StreamStatus {
     Ok(Event),
@@ -234,6 +209,7 @@ mod tests {
     use futures::{stream, StreamExt};
     use mockall::mock;
     use report::ErrorExt;
+    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -241,8 +217,6 @@ mod tests {
     use crate::broadcast::test_utils::create_base_account;
     use crate::broadcast::DecCoin;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{broadcast, cosmos, event_sub, monitoring, PREFIX};
 
@@ -744,8 +718,8 @@ mod tests {
         .unwrap()
     }
 
-    #[tokio::test]
-    async fn block_end_events_should_send_blocks_received_msg() {
+    #[tokio::test(start_paused = true)]
+    async fn block_end_events_increment_blocks_received_metric() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
@@ -759,6 +733,8 @@ mod tests {
         };
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+            Ok(Event::BlockEnd(2_u32.into())),
             Ok(Event::BlockBegin(3_u32.into())),
             Ok(Event::BlockEnd(4_u32.into())),
             Ok(Event::BlockBegin(5_u32.into())),
