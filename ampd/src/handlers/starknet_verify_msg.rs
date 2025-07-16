@@ -287,7 +287,6 @@ mod tests {
     async fn should_send_correct_vote_messages() {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
-        let expiration = 100u64;
 
         let mut rpc_client = MockStarknetClient::new();
         rpc_client

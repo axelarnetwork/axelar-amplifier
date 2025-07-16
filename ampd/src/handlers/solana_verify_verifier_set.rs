@@ -140,7 +140,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             return Ok(vec![]);
         }
 
-        let handler_chain_name = &self.chain_name.to_string();
+        let handler_chain_name: &str = self.chain_name.as_ref();
 
         let tx_receipt = self.fetch_message(&verifier_set).await;
         let vote = info_span!(
