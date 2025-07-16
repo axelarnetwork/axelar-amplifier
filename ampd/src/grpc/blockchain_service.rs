@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -8,13 +9,15 @@ use ampd_proto::{
     SubscribeResponse,
 };
 use async_trait::async_trait;
+use axelar_wasm_std::FnExt;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
 use typed_builder::TypedBuilder;
 
-use super::{reqs, status};
+use crate::grpc::reqs::Validate;
+use crate::grpc::status;
 use crate::{broadcaster_v2, cosmos, event_sub};
 
 #[derive(Debug, TypedBuilder)]
@@ -41,7 +44,8 @@ where
         &self,
         req: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeStream>, Status> {
-        let filters = reqs::validate_subscribe(req)
+        let filters = req
+            .validate()
             .inspect_err(status::log("invalid subscribe request"))
             .map_err(status::StatusExt::into_status)?;
 
@@ -64,19 +68,21 @@ where
         &self,
         req: Request<BroadcastRequest>,
     ) -> Result<Response<BroadcastResponse>, Status> {
-        let msg = reqs::validate_broadcast(req)
+        let msg = req
+            .validate()
             .inspect_err(status::log("invalid broadcast request"))
             .map_err(status::StatusExt::into_status)?;
 
         self.msg_queue_client
             .clone()
             .enqueue(msg)
+            .map_err(Arc::new)
             .and_then(|rx| rx)
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)
-            .inspect_err(status::log("message broadcast error"))
-            .map_err(status::StatusExt::into_status)
+            .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
+            .map_err(|err| status::StatusExt::into_status(err.as_ref()))
     }
 
     #[instrument]
@@ -84,7 +90,8 @@ where
         &self,
         req: Request<ContractStateRequest>,
     ) -> Result<Response<ContractStateResponse>, Status> {
-        let (contract, query) = reqs::validate_contract_state(req)
+        let (contract, query) = req
+            .validate()
             .inspect_err(status::log("invalid contract state request"))
             .map_err(status::StatusExt::into_status)?;
 

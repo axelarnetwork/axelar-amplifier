@@ -6,7 +6,7 @@ use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
@@ -24,7 +24,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     /// After the contract is instantiated, this should be the first call to execute
     #[permission(Governance)]
@@ -32,14 +32,6 @@ pub enum ExecuteMsg {
         service_registry_address: String,
         router_address: String,
         multisig_address: String,
-    },
-    #[deprecated(
-        note = "Use RegisterChain instead which supports registering all contract addresses at once"
-    )]
-    #[permission(Governance)]
-    RegisterProverContract {
-        chain_name: ChainName,
-        new_prover_addr: String,
     },
     #[permission(Governance)]
     RegisterChain {
@@ -59,6 +51,12 @@ pub enum ExecuteMsg {
         // Such an error will be flagged by "cargo clippy..."
         params: Box<DeploymentParams>,
     },
+
+    /// `RegisterDeployment` calls the router using `ExecuteMsgFromProxy`.
+    /// Consequently, the router will enforce that the original sender has
+    /// permission to register the deployment.
+    #[permission(Any)]
+    RegisterDeployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]

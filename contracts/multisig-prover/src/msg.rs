@@ -1,7 +1,7 @@
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
-use msgs_derive::EnsurePermissions;
+use msgs_derive::Permissions;
 pub use multisig_prover_api::msg::InstantiateMsg;
 use router_api::CrossChainId;
 
@@ -9,7 +9,7 @@ pub use crate::contract::MigrateMsg;
 use crate::Payload;
 
 #[cw_serde]
-#[derive(EnsurePermissions)]
+#[derive(Permissions)]
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents

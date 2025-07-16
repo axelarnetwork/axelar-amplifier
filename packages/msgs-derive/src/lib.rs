@@ -31,10 +31,10 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
 /// use cosmwasm_std::testing::MockApi;
 /// use axelar_wasm_std::permission_control::Permission;
-/// use msgs_derive::EnsurePermissions;
+/// use msgs_derive::Permissions;
 ///
 /// #[cw_serde]
-/// #[derive(EnsurePermissions)]
+/// #[derive(Permissions)]
 /// pub enum ExecuteMsg {
 ///     #[permission(NoPrivilege, Admin)]
 ///     AnyoneButGovernanceCanCallThis,
@@ -83,7 +83,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
 /// # }
 /// ```
-#[proc_macro_derive(EnsurePermissions, attributes(permission))]
+#[proc_macro_derive(Permissions, attributes(permission))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     // This will trigger a compile time error if the parse failed. In other words,
     // this macro can only be used on an enum.
@@ -567,24 +567,12 @@ impl Parse for AllPermissions {
     }
 }
 
-fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
-    let fs: Vec<_> = (0..contracts.len())
-        .map(|i| format_ident!("F{}", i))
-        .collect();
-
-    let cs: Vec<_> = (0..contracts.len())
-        .map(|i| format_ident!("C{}", i))
-        .collect();
-
-    let contract_names: Vec<_> = contracts
-        .iter()
-        .map(|c| {
-            let mut new_arg = c.to_string().clone();
-            new_arg.push_str("_str");
-            Ident::new(new_arg.as_str(), Span::call_site())
-        })
-        .collect();
-
+fn validate_external_contract_with_args(
+    contracts: Vec<Ident>,
+    contract_names: Vec<Ident>,
+    fs: Vec<Ident>,
+    cs: Vec<Ident>,
+) -> TokenStream {
     TokenStream::from(quote! {
         // this function can be called with a lot of arguments, so we suppress the warning
         #[allow(clippy::too_many_arguments)]
@@ -614,6 +602,45 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
     })
 }
 
+fn validate_external_contract_no_args() -> TokenStream {
+    TokenStream::from(quote! {
+        fn validate_external_contract(
+                storage: &dyn cosmwasm_std::Storage,
+                contract_addr: Addr,
+            ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
+                {
+            // This is only called when a relay message is executed. Since no proxy contract has
+            // permission to execute a message, this will always be an error.
+            Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
+        }
+    })
+}
+
+fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
+    if !contracts.is_empty() {
+        let fs: Vec<_> = (0..contracts.len())
+            .map(|i| format_ident!("F{}", i))
+            .collect();
+
+        let cs: Vec<_> = (0..contracts.len())
+            .map(|i| format_ident!("C{}", i))
+            .collect();
+
+        let contract_names: Vec<_> = contracts
+            .iter()
+            .map(|c| {
+                let mut new_arg = c.to_string().clone();
+                new_arg.push_str("_str");
+                Ident::new(new_arg.as_str(), Span::call_site())
+            })
+            .collect();
+
+        validate_external_contract_with_args(contracts, contract_names, fs, cs)
+    } else {
+        validate_external_contract_no_args()
+    }
+}
+
 /// This macro enforces two requirements:
 ///
 /// 1. If a proxy contract wants to execute a message on this contract, that proxy contract
@@ -638,10 +665,10 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 ///
 /// for addresses. The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
-pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
     if execute_fn.sig.ident != format_ident!("execute") {
-        panic!("external_execute macro can only be used with execute endpoint")
+        panic!("ensure_permissions macro can only be used with execute endpoint")
     }
 
     let all_permissions = syn::parse_macro_input!(attr as AllPermissions);
@@ -686,6 +713,22 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
     let validate_fn = validate_external_contract_function(contract_names.clone());
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
+    let validate_external_contract_call = if contract_permissions.is_empty() {
+        quote!(validate_external_contract(
+            deps.storage,
+            info.sender.clone()
+        )?)
+    } else {
+        quote!(
+            validate_external_contract(
+                deps.storage,
+                info.sender.clone(),
+                #(#contract_permissions),*,
+                #(#contract_names_literals.to_string()),*
+            )?
+        )
+    };
+
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
@@ -694,12 +737,7 @@ pub fn external_execute(attr: TokenStream, item: TokenStream) -> TokenStream {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
                         msg,
-                        validate_external_contract(
-                            deps.storage,
-                            info.sender.clone(),
-                            #(#contract_permissions),*,
-                            #(#contract_names_literals.to_string()),*
-                        )?,
+                        #validate_external_contract_call,
                     )?, cosmwasm_std::MessageInfo {
                         sender: sender,
                         funds: info.funds,

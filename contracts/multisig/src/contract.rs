@@ -9,10 +9,11 @@ use cosmwasm_std::{
 };
 use error_stack::{report, Report, ResultExt};
 use itertools::Itertools;
+use msgs_derive::ensure_permissions;
 use router_api::ChainName;
 
 use crate::events::Event;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state::{
     verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
 };
@@ -56,6 +57,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+#[ensure_permissions(direct(authorized = can_start_signing_session(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -63,11 +65,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        can_start_signing_session(&info.sender),
-    )? {
+    match msg {
         ExecuteMsg::StartSigningSession {
             verifier_set_id,
             msg,
@@ -238,7 +236,7 @@ mod tests {
             verifier_set: verifier_set.clone(),
         };
 
-        execute(deps, env, info.clone(), msg).map(|res| (res, verifier_set))
+        execute(deps, env, info.clone(), msg.into()).map(|res| (res, verifier_set))
     }
 
     fn query_verifier_set(
@@ -271,7 +269,7 @@ mod tests {
             chain_name,
             sig_verifier: None,
         };
-        execute(deps, env, info, msg)
+        execute(deps, env, info, msg.into())
     }
 
     fn do_sign(
@@ -284,7 +282,7 @@ mod tests {
             session_id,
             signature: signer.signature.clone(),
         };
-        execute(deps, env, message_info(&signer.address, &[]), msg)
+        execute(deps, env, message_info(&signer.address, &[]), msg.into())
     }
 
     fn do_register_key(
@@ -297,7 +295,7 @@ mod tests {
             public_key,
             signed_sender_address,
         };
-        execute(deps, mock_env(), message_info(&verifier, &[]), msg)
+        execute(deps, mock_env(), message_info(&verifier, &[]), msg.into())
     }
 
     fn do_authorize_callers(
@@ -313,7 +311,7 @@ mod tests {
                 .map(|(addr, chain_name)| (addr.to_string(), chain_name))
                 .collect(),
         };
-        execute(deps, env, info, msg)
+        execute(deps, env, info, msg.into())
     }
 
     fn do_unauthorize_caller(
@@ -329,7 +327,7 @@ mod tests {
                 .map(|(addr, chain_name)| (addr.to_string(), chain_name))
                 .collect(),
         };
-        execute(deps, env, info, msg)
+        execute(deps, env, info, msg.into())
     }
 
     fn do_disable_signing(
@@ -340,7 +338,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::DisableSigning;
-        execute(deps, env, info, msg)
+        execute(deps, env, info, msg.into())
     }
 
     fn do_enable_signing(
@@ -351,7 +349,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::EnableSigning;
-        execute(deps, env, info, msg)
+        execute(deps, env, info, msg.into())
     }
 
     fn query_registered_public_key(
@@ -1260,7 +1258,7 @@ mod tests {
                 "mock-chain".parse().unwrap(),
             )]),
         };
-        let res = execute(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg.into());
 
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -1285,7 +1283,7 @@ mod tests {
                 "mock-chain".parse().unwrap(),
             )]),
         };
-        let res = execute(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg.into());
 
         assert_eq!(
             res.unwrap_err().to_string(),

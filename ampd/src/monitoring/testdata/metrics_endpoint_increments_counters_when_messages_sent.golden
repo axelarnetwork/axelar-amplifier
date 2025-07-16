@@ -1,0 +1,12 @@
+Initial Metrics:
+# HELP blocks_received number of blocks received.
+# TYPE blocks_received counter
+blocks_received_total 0
+# EOF
+
+
+Updated Metrics:
+# HELP blocks_received number of blocks received.
+# TYPE blocks_received counter
+blocks_received_total 3
+# EOF

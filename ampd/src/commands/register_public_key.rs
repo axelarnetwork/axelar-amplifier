@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -12,8 +12,7 @@ use valuable::Valuable;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
-use crate::tofnd::grpc::{Multisig, MultisigClient};
-use crate::tofnd::{self};
+use crate::tofnd::{self, Multisig, MultisigClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
@@ -70,15 +69,11 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 
     let sender = pub_key.account_id(PREFIX).change_context(Error::Tofnd)?;
 
-    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes())
-        .as_slice()
-        .try_into()
-        .expect("wrong length");
-
+    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes()).into();
     let signed_sender_address = multisig_client
         .sign(
             &multisig_address.to_string(),
-            address_hash.into(),
+            address_hash,
             multisig_key,
             args.key_type.into(),
         )
@@ -102,7 +97,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     .into_any()
     .expect("failed to serialize proto message");
 
-    let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
+    let tx_hash = broadcast_tx(config, tx, pub_key).await?;
 
     Ok(Some(format!(
         "successfully broadcast register public key transaction, tx hash: {}",

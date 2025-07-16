@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use axelar_wasm_std::error::ContractError;
 use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
+use axelar_wasm_std::{nonempty, nonempty_str, Threshold, VerificationStatus};
 use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
@@ -136,10 +136,24 @@ fn deploy_chains(
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &coordinator::msg::ExecuteMsg::RegisterProverContract {
+        &coordinator::msg::ExecuteMsg::RegisterChain {
             chain_name: chain_name.parse().unwrap(),
-            new_prover_addr: contracts
+            prover_address: contracts
                 .multisig_prover
+                .contract_addr
+                .to_string()
+                .trim_matches(|c| c == '"' || c == '/')
+                .parse()
+                .unwrap(),
+            gateway_address: contracts
+                .gateway
+                .contract_addr
+                .to_string()
+                .trim_matches(|c| c == '"' || c == '/')
+                .parse()
+                .unwrap(),
+            voting_verifier_address: contracts
+                .voting_verifier
                 .contract_addr
                 .to_string()
                 .trim_matches(|c| c == '"' || c == '/')
@@ -616,4 +630,50 @@ fn coordinator_one_click_query_verifier_info_fails() {
         .unwrap_err()
         .to_string()
         .contains(&service_registry_api::error::ContractError::VerifierNotFound.to_string()));
+}
+
+#[test]
+fn coordinator_one_click_register_deployment_with_router_succeeds() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = deploy_chains(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+        false,
+    );
+    assert!(res.is_ok());
+
+    let contracts = gather_contracts(&protocol, res.unwrap());
+
+    assert!(protocol
+        .coordinator
+        .execute(
+            &mut protocol.app,
+            protocol.governance_address.clone(),
+            &coordinator::msg::ExecuteMsg::RegisterDeployment { deployment_name },
+        )
+        .is_ok());
+
+    let res = protocol.router.query::<router_api::ChainEndpoint>(
+        &protocol.app,
+        &router_api::msg::QueryMsg::ChainInfo(
+            router_api::ChainName::try_from(chain_name.clone()).unwrap(),
+        ),
+    );
+
+    assert!(res.is_ok());
+    let res = res.unwrap();
+
+    assert_eq!(res.gateway.address, contracts.gateway.contract_addr);
+    assert_eq!(res.name, chain_name);
 }

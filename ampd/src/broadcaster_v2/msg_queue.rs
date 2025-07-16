@@ -2,14 +2,14 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::fmt::Debug;
 use std::future::Future;
+use std::sync::Arc;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
 use error_stack::{report, Report, ResultExt};
-use futures::{FutureExt, Stream, TryFutureExt};
+use futures::{FutureExt, Stream};
 use pin_project_lite::pin_project;
 use report::{ErrorExt, LoggableError};
-use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time;
 use tokio_stream::adapters::Fuse;
@@ -22,6 +22,8 @@ use super::{broadcaster, Error, Result};
 use crate::cosmos;
 use crate::types::TMAddress;
 
+type TxResult = std::result::Result<(String, u64), Arc<Report<Error>>>;
+
 /// Represents a message in the queue ready for broadcasting
 ///
 /// This struct contains a Cosmos message, its estimated gas cost,
@@ -30,7 +32,7 @@ use crate::types::TMAddress;
 pub struct QueueMsg {
     pub msg: Any,
     pub gas: Gas,
-    pub tx_res_callback: oneshot::Sender<Result<(String, u64)>>,
+    pub tx_res_callback: oneshot::Sender<TxResult>,
 }
 
 /// Client interface for submitting messages to the message queue
@@ -117,23 +119,15 @@ where
     /// * `Error::EnqueueMsg` - If enqueueing fails
     /// * `Error::GasExceedsGasCap` - If the message requires more gas than allowed
     /// * `Error::ReceiveTxResult` - If the result channel is closed prematurely
-    pub async fn enqueue(
-        &mut self,
-        msg: Any,
-    ) -> Result<impl Future<Output = Result<(String, u64)>> + Send> {
-        let attachment = json!({ "msg": &msg });
-        let rx = self
-            .enqueue_with_channel(msg)
-            .await
-            .map_err(|err| err.attach_printable(attachment.clone()))?;
+    #[instrument(skip(self))]
+    pub async fn enqueue(&mut self, msg: Any) -> Result<impl Future<Output = TxResult> + Send> {
+        let rx = self.enqueue_with_channel(msg).await?;
 
-        Ok(rx
-            .map(|result| match result {
-                Ok(Ok(result)) => Ok(result),
-                Ok(Err(err)) => Err(err),
-                Err(err) => Err(err.into_report()),
-            })
-            .map_err(move |err| err.attach_printable(attachment)))
+        Ok(rx.map(|result| match result {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(err)) => Err(err),
+            Err(err) => Err(Arc::new(err.into_report())),
+        }))
     }
 
     /// Enqueues a message without waiting for its result
@@ -179,10 +173,7 @@ where
     ///
     /// * `Error::EstimateGas` - If gas estimation fails
     /// * `Error::EnqueueMsg` - If enqueueing fails
-    async fn enqueue_with_channel(
-        &mut self,
-        msg: Any,
-    ) -> Result<oneshot::Receiver<Result<(String, u64)>>> {
+    async fn enqueue_with_channel(&mut self, msg: Any) -> Result<oneshot::Receiver<TxResult>> {
         let (tx, rx) = oneshot::channel();
         let gas = self.broadcaster.estimate_gas(vec![msg.clone()]).await?;
 
@@ -331,7 +322,7 @@ fn handle_queue_error(msg: QueueMsg, err: Error) {
         "message dropped"
     );
 
-    let _ = tx_res_callback.send(Err(report));
+    let _ = tx_res_callback.send(Err(Arc::new(report)));
 }
 
 #[derive(Debug)]
@@ -410,7 +401,7 @@ impl Queue {
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::assert_err_contains;
+    use axelar_wasm_std::{assert_err_contains, err_contains};
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
@@ -733,10 +724,15 @@ mod tests {
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let _ = msg_queue.next().await;
 
-        assert_err_contains!(rx.await, Error, Error::ReceiveTxResult(_));
+        let err = rx.await.unwrap_err();
+        assert!(err_contains!(
+            err.as_ref(),
+            Error,
+            Error::ReceiveTxResult(_)
+        ));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_stream_timeout() {
         let gas_cap = 1000u64;
         let base_account = BaseAccount {
@@ -769,18 +765,18 @@ mod tests {
         .await
         .unwrap();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            gas_cap,
-            time::Duration::from_secs(3),
-        );
+        let timeout = time::Duration::from_secs(3);
+        let (mut msg_queue, mut msg_queue_client) =
+            MsgQueue::new_msg_queue_and_client(broadcaster, 10, gas_cap, timeout);
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
+
+        let start = time::Instant::now();
         let actual = msg_queue.next().await.unwrap();
+        let elapsed = start.elapsed();
 
         assert_eq!(actual.as_ref().len(), 1);
         assert_eq!(actual.as_ref()[0].gas, gas_cap / 10);
@@ -788,9 +784,13 @@ mod tests {
             actual.as_ref()[0].msg.type_url,
             "/cosmos.bank.v1beta1.MsgSend"
         );
+        assert!(elapsed >= timeout);
+
+        // explicitly keep the stream alive until the end of the test
+        drop(msg_queue_client);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_gas_capacity() {
         let gas_cap = 1000;
         let gas_cost = 100;
@@ -906,12 +906,17 @@ mod tests {
             assert!(msg_queue.next().await.is_none());
         });
 
-        assert_err_contains!(rx.await, Error, Error::GasExceedsGasCap { .. });
+        let err = rx.await.unwrap_err();
+        assert!(err_contains!(
+            err.as_ref(),
+            Error,
+            Error::GasExceedsGasCap { .. }
+        ));
         drop(msg_queue_client);
         handle.await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn msg_queue_gas_overflow() {
         let gas_cap = u64::MAX;
         let gas_cost = gas_cap - 1;
