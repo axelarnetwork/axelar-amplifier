@@ -288,7 +288,6 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
-        let (_, rx) = watch::channel(expiration - 1);
 
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
@@ -302,8 +301,13 @@ mod tests {
 
         let (monitoring_client, mut receiver) = create_test_monitoring_client();
 
-        let handler =
-            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
         let _ = handler.handle(&event).await.unwrap();
 
         for _ in 0..2 {
