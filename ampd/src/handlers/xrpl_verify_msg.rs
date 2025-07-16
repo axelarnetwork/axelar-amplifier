@@ -24,8 +24,8 @@ use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
@@ -149,7 +149,9 @@ where
         }
 
         let tx_ids: HashSet<_> = messages.iter().map(|message| message.tx_id()).collect();
-        let validated_txs = self.validated_txs(tx_ids).await?;
+        let validated_txs = self.validated_txs(tx_ids).await.inspect_err(|_| {
+            record_vote_processing_failure(&self.monitoring_client, "xrpl");
+        })?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -196,18 +198,4 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-}
-
-fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
 }

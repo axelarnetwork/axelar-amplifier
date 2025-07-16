@@ -1,6 +1,6 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
-blocks_received_total 3
+blocks_received_total 0
 # HELP transaction_broadcast_success number of successful transaction broadcasts.
 # TYPE transaction_broadcast_success counter
 transaction_broadcast_success_total 0
@@ -15,4 +15,9 @@ transaction_broadcast_failure_total 0
 # TYPE votes_not_found counter
 # HELP vote_processing_failure number of failures that prevented voting handlers from processing events.
 # TYPE vote_processing_failure counter
+vote_processing_failure_total{chain_name="avalanche"} 1
+vote_processing_failure_total{chain_name="ethereum"} 1
+vote_processing_failure_total{chain_name="polygon"} 1
+vote_processing_failure_total{chain_name="solana"} 1
+vote_processing_failure_total{chain_name="stellar"} 1
 # EOF
