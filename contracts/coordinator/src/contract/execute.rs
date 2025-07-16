@@ -27,16 +27,6 @@ pub fn register_protocol(
     Ok(Response::default())
 }
 
-pub fn register_prover(
-    deps: DepsMut,
-    chain_name: ChainName,
-    new_prover_addr: Addr,
-) -> Result<Response, Error> {
-    state::save_prover_for_chain(deps.storage, chain_name, new_prover_addr.clone())
-        .change_context(Error::ProverNotRegistered(new_prover_addr))?;
-    Ok(Response::new())
-}
-
 pub fn register_chain(
     deps: DepsMut,
     chain_name: ChainName,
