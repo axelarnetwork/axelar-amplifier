@@ -146,7 +146,7 @@ where
                         None => Vote::NotFound,
                     };
 
-                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+                    record_vote_verifiction(&self.monitoring_client, &vote, handler_chain_name);
 
                     vote
                 }),
@@ -306,7 +306,7 @@ mod tests {
             let msg = receiver.recv().await.unwrap();
             assert_eq!(
                 msg,
-                MetricsMsg::VoteOutcome {
+                MetricsMsg::VoteVerification {
                     vote_status: Vote::NotFound,
                     chain_name: "starknet".to_string(),
                 }
