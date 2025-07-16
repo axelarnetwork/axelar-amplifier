@@ -15,15 +15,15 @@ use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{ScAddress, ScBytes, ScString};
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
@@ -126,18 +126,21 @@ impl EventHandler for Handler {
             .map(|message| message.message_id.tx_hash_as_hex_no_prefix().to_string())
             .collect();
 
+        let handler_chain_name = "stellar";
+
         let transaction_responses = self
             .http_client
             .transaction_responses(tx_hashes)
             .await
-            .change_context(Error::TxReceipts)?;
+            .change_context(Error::TxReceipts)
+            .inspect_err(|_| {
+                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
+            })?;
 
         let message_ids = messages
             .iter()
             .map(|message| message.message_id.to_string())
             .collect::<Vec<_>>();
-
-        let handler_chain_name = "stellar";
 
         let votes = info_span!(
             "verify messages in poll",
@@ -177,20 +180,6 @@ impl EventHandler for Handler {
     }
 }
 
-fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -201,7 +190,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use error_stack::Result;
+    use error_stack::{Report, Result};
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
@@ -215,7 +204,7 @@ mod tests {
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::metrics::Msg as MetricsMsg;
     use crate::monitoring::test_utils::create_test_monitoring_client;
-    use crate::stellar::rpc_client::Client;
+    use crate::stellar::rpc_client::{Client, Error as StellarError};
     use crate::types::TMAddress;
     use crate::{monitoring, PREFIX};
 
@@ -340,6 +329,41 @@ mod tests {
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_record_vote_processing_failure_when_rpc_error() {
+        let mut client = Client::faux();
+        faux::when!(client.transaction_responses).then(|_| Err(Report::from(StellarError::Client)));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(2, Some(verifier.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        assert!(handler.handle(&event).await.is_err());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            MetricsMsg::VoteProcessingFailure {
+                chain_name: "stellar".to_string(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[async_test]
