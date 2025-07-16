@@ -418,9 +418,10 @@ mod tests {
                 current_headers.push(line.to_string());
             } else if line.starts_with("#") {
                 if !current_headers.is_empty() {
-                    result.extend(current_headers.drain(..));
+                    result.append(&mut current_headers);
+
                     current_metrics.sort();
-                    result.extend(current_metrics.drain(..));
+                    result.append(&mut current_metrics);
                 }
                 if line.starts_with("# HELP") {
                     current_headers.push(line.to_string());
