@@ -41,10 +41,6 @@ pub enum Msg {
         vote_decision: AxelarVote,
         chain_name: ChainName,
     },
-    /// Record failure that prevented voting handlers from processing events
-    ///
-    /// - chain_name: the chain name of the voting handler
-    VoteProcessingFailure { chain_name: String },
 }
 
 /// Errors that can occur in metrics processing
@@ -204,10 +200,6 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
-}
-
-struct VoteProcessingFailureMetrics {
-    total: Family<VoteLabel, Counter>,
 }
 
 impl Metrics {

@@ -186,10 +186,7 @@ where
             .collect();
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name);
-            })?;
+            .await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -210,7 +207,7 @@ where
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = finalized_tx_receipts
+                    finalized_tx_receipts
                         .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |tx_receipt| {
                             verify_message(&source_gateway_address, tx_receipt, msg)

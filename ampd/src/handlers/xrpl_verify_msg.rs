@@ -16,7 +16,7 @@ use lazy_static::lazy_static;
 use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 use xrpl_http_client::Transaction;
@@ -154,9 +154,7 @@ where
         }
 
         let tx_ids: HashSet<_> = messages.iter().map(|message| message.tx_id()).collect();
-        let validated_txs = self.validated_txs(tx_ids).await.inspect_err(|_| {
-            record_vote_processing_failure(&self.monitoring_client, "xrpl");
-        })?;
+        let validated_txs = self.validated_txs(tx_ids).await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -179,15 +177,14 @@ where
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = validated_txs
+                    validated_txs
                         .get(&msg.tx_id())
                         .map_or(Vote::NotFound, |tx| {
                             verify_message(&source_gateway_address, tx, msg)
-                        });
-
-                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
-
-                    vote
+                        })
+                })
+                .inspect(|vote| {
+                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
                 })
                 .inspect(|vote| {
                     self.monitoring_client

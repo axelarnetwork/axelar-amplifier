@@ -366,48 +366,4 @@ mod tests {
             },
         }
     }
-
-    #[async_test]
-    async fn should_record_vote_processing_failure_when_rpc_error() {
-        let mut rpc_client = MockEthereumClient::new();
-        rpc_client.expect_finalized_block().returning(|| {
-            Err(Report::from(ProviderError::CustomError(
-                "failed to get finalized block".to_string(),
-            )))
-        });
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let expiration = 100u64;
-        let event: Event = into_structured_event(
-            poll_started_event(participants(2, Some(verifier.clone())), expiration),
-            &voting_verifier,
-        );
-
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
-
-        let (_, rx) = watch::channel(0);
-
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier,
-            ChainName::from_str("ethereum").unwrap(),
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            rx,
-            monitoring_client,
-        );
-
-        assert!(handler.handle(&event).await.is_err());
-
-        let metrics = receiver.recv().await.unwrap();
-        assert_eq!(
-            metrics,
-            MetricsMsg::VoteProcessingFailure {
-                chain_name: "ethereum".to_string()
-            }
-        );
-
-        assert!(receiver.try_recv().is_err());
-    }
 }

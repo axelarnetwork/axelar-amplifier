@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::ScAddress;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -130,10 +130,7 @@ impl EventHandler for Handler {
                     .to_string(),
             )
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new verifier set",
@@ -178,7 +175,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use error_stack::{Report, Result};
+    use error_stack::Result;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use multisig::key::KeyType;

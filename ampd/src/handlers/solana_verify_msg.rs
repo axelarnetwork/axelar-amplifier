@@ -24,7 +24,6 @@ use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::solana::msg_verifier::verify_message;
 use crate::solana::SolanaRpcClientProxy;
 use crate::types::{Hash, TMAddress};
@@ -162,7 +161,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = finalized_tx_receipts
+                    finalized_tx_receipts
                         .get_key_value(&msg.message_id.raw_signature.into())
                         .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })
