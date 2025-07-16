@@ -1,31 +1,25 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 0
-# HELP msg_broadcast_success number of successful message broadcasts in event processor.
-# TYPE msg_broadcast_success counter
-msg_broadcast_success_total 0
-# HELP msg_broadcast_failure number of failed message broadcasts in event processor.
-# TYPE msg_broadcast_failure counter
-msg_broadcast_failure_total 0
-# HELP vote_agree number of votes agreeing with the proposal (Vote::SucceededOnChain).
-# TYPE vote_agree counter
-vote_agree_total{chain_name="polygon"} 1
-vote_agree_total{chain_name="solana"} 1
-vote_agree_total{chain_name="ethereum"} 1
-vote_agree_total{chain_name="avalanche"} 1
-vote_agree_total{chain_name="stellar"} 1
-# HELP vote_disagree number of votes disagreeing with the proposal (Vote::FailedOnChain).
-# TYPE vote_disagree counter
-vote_disagree_total{chain_name="ethereum"} 1
-vote_disagree_total{chain_name="polygon"} 1
-vote_disagree_total{chain_name="solana"} 1
-vote_disagree_total{chain_name="avalanche"} 1
-vote_disagree_total{chain_name="stellar"} 1
-# HELP vote_not_found number of expected votes not found on-chain (Vote::NotFound).
-# TYPE vote_not_found counter
-vote_not_found_total{chain_name="ethereum"} 1
-vote_not_found_total{chain_name="avalanche"} 1
-vote_not_found_total{chain_name="solana"} 1
-vote_not_found_total{chain_name="polygon"} 1
-vote_not_found_total{chain_name="stellar"} 1
+# HELP vote_verification_succeeded_on_chain number of votes where poll messages were verified successfully on source chain (Vote::SucceededOnChain).
+# TYPE vote_verification_succeeded_on_chain counter
+vote_verification_succeeded_on_chain_total{chain_name="solana"} 1
+vote_verification_succeeded_on_chain_total{chain_name="avalanche"} 1
+vote_verification_succeeded_on_chain_total{chain_name="ethereum"} 1
+vote_verification_succeeded_on_chain_total{chain_name="stellar"} 1
+vote_verification_succeeded_on_chain_total{chain_name="polygon"} 1
+# HELP vote_verification_failed_on_chain number of votes where poll messages were found but verification failed on source chain (Vote::FailedOnChain).
+# TYPE vote_verification_failed_on_chain counter
+vote_verification_failed_on_chain_total{chain_name="ethereum"} 1
+vote_verification_failed_on_chain_total{chain_name="avalanche"} 1
+vote_verification_failed_on_chain_total{chain_name="solana"} 1
+vote_verification_failed_on_chain_total{chain_name="polygon"} 1
+vote_verification_failed_on_chain_total{chain_name="stellar"} 1
+# HELP vote_verification_not_found number of votes where poll messages were not found on source chain (Vote::NotFound).
+# TYPE vote_verification_not_found counter
+vote_verification_not_found_total{chain_name="solana"} 1
+vote_verification_not_found_total{chain_name="stellar"} 1
+vote_verification_not_found_total{chain_name="ethereum"} 1
+vote_verification_not_found_total{chain_name="avalanche"} 1
+vote_verification_not_found_total{chain_name="polygon"} 1
 # EOF
