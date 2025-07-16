@@ -79,7 +79,6 @@ multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
-prometheus = "0.14"
 quote = "1.0.38"
 rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
