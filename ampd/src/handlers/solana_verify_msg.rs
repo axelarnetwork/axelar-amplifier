@@ -15,13 +15,14 @@ use serde::Deserialize;
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
 use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::solana::msg_verifier::verify_message;
@@ -143,7 +144,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .flatten()
             .collect::<HashMap<_, _>>();
 
-        let handler_chain_name = &self.chain_name;
+        let handler_chain_name = &self.chain_name.to_string();
 
         let votes = info_span!(
             "verify messages from Solana",
@@ -183,24 +184,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .into_any()
             .expect("vote msg should serialize")])
     }
-}
-
-fn record_vote_outcome(
-    monitoring_client: &monitoring::Client,
-    vote: &Vote,
-    chain_name: &ChainName,
-) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
 }
 
 #[cfg(test)]
