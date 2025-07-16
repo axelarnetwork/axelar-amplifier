@@ -174,6 +174,7 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use error_stack::Result;
@@ -190,6 +191,8 @@ mod tests {
 
     use crate::event_processor::EventHandler;
     use crate::handlers::starknet_verify_verifier_set::PollStartedEvent;
+    use crate::monitoring::metrics::Msg as MetricsMsg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
     use crate::{monitoring, PREFIX};
@@ -232,6 +235,40 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn should_send_correct_vote_outcome_messages() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockStarknetClient::new();
+        rpc_client
+            .expect_get_event_by_message_id_signers_rotated()
+            .returning(|_| None);
+
+        let event: Event = to_event(
+            poll_started_event(participants(5, Some(worker.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (_, rx) = watch::channel(1);
+
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let handler =
+            super::Handler::new(worker, voting_verifier, rpc_client, rx, monitoring_client);
+        let _ = handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            receiver.try_recv().unwrap(),
+            MetricsMsg::VoteOutcome {
+                vote_status: Vote::NotFound,
+                chain_name: "starknet".to_string(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     fn random_hash() -> String {

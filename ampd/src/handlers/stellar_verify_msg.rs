@@ -132,10 +132,7 @@ impl EventHandler for Handler {
             .http_client
             .transaction_responses(tx_hashes)
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let message_ids = messages
             .iter()
@@ -154,15 +151,14 @@ impl EventHandler for Handler {
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = transaction_responses
+                    transaction_responses
                         .get(&msg.message_id.tx_hash_as_hex_no_prefix().to_string())
                         .map_or(Vote::NotFound, |tx_response| {
                             verify_message(&source_gateway_address, tx_response, msg)
-                        });
-
-                    record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
-
-                    vote
+                        })
+                })
+                .inspect(|vote| {
+                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
                 })
                 .collect();
             info!(
@@ -190,7 +186,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use error_stack::{Report, Result};
+    use error_stack::Result;
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
@@ -204,7 +200,7 @@ mod tests {
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::metrics::Msg as MetricsMsg;
     use crate::monitoring::test_utils::create_test_monitoring_client;
-    use crate::stellar::rpc_client::{Client, Error as StellarError};
+    use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;
     use crate::{monitoring, PREFIX};
 
@@ -332,42 +328,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_record_vote_processing_failure_when_rpc_error() {
-        let mut client = Client::faux();
-        faux::when!(client.transaction_responses).then(|_| Err(Report::from(StellarError::Client)));
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let event = into_structured_event(
-            poll_started_event(participants(2, Some(verifier.clone())), 100),
-            &voting_verifier,
-        );
-
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
-
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier,
-            client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
-
-        assert!(handler.handle(&event).await.is_err());
-
-        let msg = receiver.recv().await.unwrap();
-        assert_eq!(
-            msg,
-            MetricsMsg::VoteProcessingFailure {
-                chain_name: "stellar".to_string(),
-            }
-        );
-
-        assert!(receiver.try_recv().is_err());
-    }
-
-    #[async_test]
-    async fn should_send_correct_vote_messages() {
+    async fn should_send_correct_vote_outcome_messages() {
         let mut client = Client::faux();
         faux::when!(client.transaction_responses).then(|_| Ok(HashMap::new()));
 

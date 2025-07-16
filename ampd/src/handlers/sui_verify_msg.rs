@@ -137,23 +137,19 @@ where
             .rpc_client
             .finalized_transaction_blocks(deduplicated_tx_ids)
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let votes = messages
             .iter()
             .map(|msg| {
-                let vote = transaction_blocks
+                transaction_blocks
                     .get(&msg.message_id.tx_digest.into())
                     .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
-                    });
-
-                record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
-
-                vote
+                    })
+            })
+            .inspect(|vote| {
+                record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
             })
             .collect();
 
@@ -408,47 +404,6 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[async_test]
-    async fn should_record_vote_processing_failure_when_rpc_error() {
-        let mut rpc_client = MockSuiClient::new();
-        rpc_client
-            .expect_finalized_transaction_blocks()
-            .returning(|_| {
-                Err(Report::from(ProviderError::CustomError(
-                    "failed to get finalized transaction blocks".to_string(),
-                )))
-            });
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), 100),
-            &voting_verifier,
-        );
-
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
-
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
-
-        assert!(handler.handle(&event).await.is_err());
-
-        let msg = receiver.recv().await.unwrap();
-        assert_eq!(
-            msg,
-            MetricsMsg::VoteProcessingFailure {
-                chain_name: "sui".to_string(),
-            }
-        );
-
-        assert!(receiver.try_recv().is_err());
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
