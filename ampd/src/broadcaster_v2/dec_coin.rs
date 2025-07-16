@@ -11,8 +11,6 @@ use serde_with::SerializeDisplay;
 use thiserror::Error;
 use tracing::error;
 
-use crate::broadcaster::dec_coin::Error::*;
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("parsing failed")]
@@ -96,7 +94,7 @@ impl TryFrom<&str> for DecCoin {
                     amount: amount.parse()?,
                 })
             }
-            _ => Err(Report::from(ParsingFailed)),
+            _ => Err(Report::from(Error::ParsingFailed)),
         }
     }
 }
@@ -115,7 +113,7 @@ impl TryFrom<f64> for FiniteAmount {
     type Error = Report<Error>;
 
     fn try_from(value: f64) -> std::result::Result<Self, Self::Error> {
-        ensure!(!value.is_nan() && !value.is_infinite(), AmountIsNaN);
+        ensure!(!value.is_nan() && !value.is_infinite(), Error::AmountIsNaN);
         Ok(FiniteAmount(value))
     }
 }
@@ -124,7 +122,7 @@ impl FromStr for FiniteAmount {
     type Err = Report<Error>;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let f = s.parse::<f64>().change_context(ParsingFailed)?;
+        let f = s.parse::<f64>().change_context(Error::ParsingFailed)?;
         f.try_into()
     }
 }
@@ -164,7 +162,7 @@ impl TryFrom<cosmrs::Denom> for Denom {
     type Error = Report<Error>;
 
     fn try_from(denom: cosmrs::Denom) -> std::result::Result<Self, Self::Error> {
-        ensure!(!denom.as_ref().is_empty(), DenomIsEmpty);
+        ensure!(!denom.as_ref().is_empty(), Error::DenomIsEmpty);
         Ok(Denom(denom))
     }
 }
@@ -173,7 +171,8 @@ impl FromStr for Denom {
     type Err = Report<Error>;
 
     fn from_str(denom: &str) -> std::result::Result<Self, Self::Err> {
-        let denom: cosmrs::Denom = ResultCompatExt::change_context(denom.parse(), ParsingFailed)?;
+        let denom: cosmrs::Denom =
+            ResultCompatExt::change_context(denom.parse(), Error::ParsingFailed)?;
         denom.try_into()
     }
 }

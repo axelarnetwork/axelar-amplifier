@@ -1,19 +1,16 @@
+use std::pin::Pin;
+
 use clap::Subcommand;
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
-use error_stack::{report, FutureExt, Result, ResultExt};
-use futures::TryFutureExt;
+use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
-use crate::asyncutil::future::RetryPolicy;
-use crate::broadcaster::confirm_tx::TxConfirmer;
-use crate::broadcaster::Broadcaster;
 use crate::config::{Config as AmpdConfig, Config};
 use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcaster, cosmos, tofnd, Error, PREFIX};
+use crate::{broadcaster_v2, cosmos, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -92,41 +89,27 @@ async fn broadcast_tx(
     config: AmpdConfig,
     tx: Any,
     pub_key: CosmosPublicKey,
-) -> Result<TxResponse, Error> {
-    let (confirmation_sender, mut confirmation_receiver) = tokio::sync::mpsc::channel(1);
-    let (hash_to_confirm_sender, hash_to_confirm_receiver) = tokio::sync::mpsc::channel(1);
+) -> Result<String, Error> {
+    let mut broadcaster = instantiate_broadcaster(config, pub_key).await?;
 
-    let (mut broadcaster, confirmer) = instantiate_broadcaster(config, pub_key).await?;
-
-    broadcaster
-        .broadcast(vec![tx])
-        .change_context(Error::Broadcaster)
-        .and_then(|response| {
-            hash_to_confirm_sender
-                .send(response.txhash)
-                .change_context(Error::Broadcaster)
-        })
-        .await?;
-
-    // drop the sender so the confirmer doesn't wait for more txs
-    drop(hash_to_confirm_sender);
-
-    confirmer
-        .run(hash_to_confirm_receiver, confirmation_sender)
-        .change_context(Error::TxConfirmation)
-        .await?;
-
-    confirmation_receiver
-        .recv()
+    Ok(broadcaster
+        .broadcast(vec![tx].try_into().expect("must be non-empty"))
         .await
-        .ok_or(report!(Error::TxConfirmation))
-        .map(|tx| tx.response)
+        .change_context(Error::Broadcaster)?
+        .txhash)
 }
 
 async fn instantiate_broadcaster(
     config: Config,
     pub_key: CosmosPublicKey,
-) -> Result<(impl Broadcaster, TxConfirmer<cosmos::CosmosGrpcClient>), Error> {
+) -> Result<
+    broadcaster_v2::BroadcasterTask<
+        cosmos::CosmosGrpcClient,
+        Pin<Box<broadcaster_v2::MsgQueue>>,
+        MultisigClient,
+    >,
+    Error,
+> {
     let AmpdConfig {
         tm_grpc,
         tm_grpc_timeout,
@@ -147,23 +130,26 @@ async fn instantiate_broadcaster(
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
 
-    let confirmer = TxConfirmer::new(
-        cosmos_client.clone(),
-        RetryPolicy::RepeatConstant {
-            sleep: broadcast.tx_fetch_interval,
-            max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
-        },
+    let broadcaster =
+        broadcaster_v2::Broadcaster::new(cosmos_client.clone(), broadcast.chain_id, pub_key)
+            .await
+            .change_context(Error::Broadcaster)?;
+    let (msg_queue, _) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        broadcaster.clone(),
+        broadcast.queue_cap,
+        broadcast.batch_gas_limit,
+        broadcast.broadcast_interval,
     );
-
-    let basic_broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .client(cosmos_client)
-        .signer(multisig_client)
-        .pub_key((tofnd_config.key_uid, pub_key))
-        .config(broadcast)
-        .address_prefix(PREFIX.to_string())
+    let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
+        .broadcaster(broadcaster)
+        .msg_queue(msg_queue)
+        .signer(multisig_client.clone())
+        .key_id(tofnd_config.key_uid.clone())
+        .gas_adjustment(broadcast.gas_adjustment)
+        .gas_price(broadcast.gas_price)
         .build()
-        .validate_fee_denomination()
         .await
         .change_context(Error::Broadcaster)?;
-    Ok((basic_broadcaster, confirmer))
+
+    Ok(broadcaster_task)
 }

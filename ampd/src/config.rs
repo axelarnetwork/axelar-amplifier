@@ -5,10 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::commands::{RewardsConfig, ServiceRegistryConfig};
 use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
-use crate::monitoring::server::Config as MonitoringConfig;
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, event_processor, grpc};
+use crate::{broadcaster_v2, event_processor, grpc, monitoring};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -19,7 +18,7 @@ pub struct Config {
     pub tm_grpc: Url,
     pub tm_grpc_timeout: Duration,
     pub event_processor: event_processor::Config,
-    pub broadcast: broadcaster::Config,
+    pub broadcast: broadcaster_v2::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
@@ -27,7 +26,7 @@ pub struct Config {
     pub rewards: RewardsConfig,
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
-    pub monitoring_server: MonitoringConfig,
+    pub monitoring_server: monitoring::Config,
 }
 
 impl Default for Config {
@@ -36,14 +35,14 @@ impl Default for Config {
             tm_jsonrpc: Url::new_non_sensitive("http://localhost:26657").unwrap(),
             tm_grpc: Url::new_non_sensitive("tcp://localhost:9090").unwrap(),
             tm_grpc_timeout: Duration::from_secs(5),
-            broadcast: broadcaster::Config::default(),
+            broadcast: broadcaster_v2::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
             event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
-            monitoring_server: MonitoringConfig::default(),
+            monitoring_server: monitoring::Config::default(),
         }
     }
 }
@@ -582,7 +581,7 @@ mod tests {
         );
         let cfg: Config = toml::from_str(&config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server.bind_addr(),
+            cfg.monitoring_server.bind_address,
             Some(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001))
         );
     }
@@ -595,7 +594,7 @@ mod tests {
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server.bind_addr(),
+            cfg.monitoring_server.bind_address,
             Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
         );
     }
@@ -607,6 +606,6 @@ mod tests {
             enabled = false
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.monitoring_server.bind_addr(), None);
+        assert_eq!(cfg.monitoring_server.bind_address, None);
     }
 }

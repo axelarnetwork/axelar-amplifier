@@ -1,0 +1,60 @@
+[
+  {
+    "type": "interchain_transfer",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+      },
+      {
+        "key": "source_address",
+        "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"ethereum\""
+      },
+      {
+        "key": "destination_address",
+        "value": "\"0202020202020202020202020202020202020202020202020202020202020202\""
+      },
+      {
+        "key": "amount",
+        "value": "\"1000000\""
+      },
+      {
+        "key": "data_hash",
+        "value": "[166,136,91,55,49,112,45,166,46,142,74,143,88,74,196,106,127,104,34,244,226,186,80,251,169,2,246,123,21,136,210,59]"
+      }
+    ]
+  },
+  {
+    "type": "interchain_transfer",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0707070707070707070707070707070707070707070707070707070707070707\""
+      },
+      {
+        "key": "source_address",
+        "value": "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"ethereum\""
+      },
+      {
+        "key": "destination_address",
+        "value": "\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\""
+      },
+      {
+        "key": "amount",
+        "value": "\"500000000000000000\""
+      },
+      {
+        "key": "data_hash",
+        "value": "null"
+      }
+    ]
+  }
+]

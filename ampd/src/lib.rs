@@ -1,55 +1,15 @@
-use std::pin::Pin;
-use std::time::Duration;
-
-use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
-use block_height_monitor::BlockHeightMonitor;
-use broadcaster::Broadcaster;
-use broadcaster_v2::MsgQueue;
-use cosmos::CosmosGrpcClient;
-use error_stack::{FutureExt, Result, ResultExt};
-use event_processor::EventHandler;
-use event_sub::EventSub;
-use evm::finalizer::{pick, Finalization};
-use evm::json_rpc::EthereumClient;
-use monitoring::server::{MonitoringClient, Server as MonitoringServer};
-use multiversx_sdk::gateway::GatewayProxy;
-use queue::queued_broadcaster::QueuedBroadcaster;
-use router_api::ChainName;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
-use starknet_providers::jsonrpc::HttpTransport;
-use thiserror::Error;
-use tofnd::{Multisig, MultisigClient};
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::mpsc;
-use tokio::time::interval;
-use tokio_util::sync::CancellationToken;
-use tracing::info;
-use types::{CosmosPublicKey, TMAddress};
-
-use crate::config::Config;
-
 mod asyncutil;
 mod block_height_monitor;
-mod broadcaster;
 #[allow(dead_code)]
 mod broadcaster_v2;
-
 #[cfg(feature = "commands")]
 pub mod commands;
 #[cfg(not(feature = "commands"))]
 mod commands;
-
 #[cfg(feature = "config")]
 pub mod config;
 #[cfg(not(feature = "config"))]
 mod config;
-
-#[cfg(feature = "url")]
-pub mod url;
-#[cfg(not(feature = "url"))]
-mod url;
-
 mod cosmos;
 mod event_processor;
 pub mod event_sub;
@@ -59,7 +19,6 @@ mod handlers;
 mod json_rpc;
 mod monitoring;
 mod mvx;
-mod queue;
 mod solana;
 mod starknet;
 mod stellar;
@@ -67,10 +26,37 @@ mod sui;
 mod tm_client;
 mod tofnd;
 mod types;
+#[cfg(feature = "url")]
+pub mod url;
+#[cfg(not(feature = "url"))]
+mod url;
 mod xrpl;
 
-use crate::asyncutil::future::RetryPolicy;
-use crate::broadcaster::confirm_tx::TxConfirmer;
+use std::pin::Pin;
+use std::time::Duration;
+
+use asyncutil::future::RetryPolicy;
+use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
+use block_height_monitor::BlockHeightMonitor;
+use broadcaster_v2::MsgQueue;
+use error_stack::{FutureExt, Result, ResultExt};
+use event_processor::EventHandler;
+use event_sub::EventSub;
+use evm::finalizer::{pick, Finalization};
+use evm::json_rpc::EthereumClient;
+use multiversx_sdk::gateway::GatewayProxy;
+use router_api::ChainName;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
+use starknet_providers::jsonrpc::HttpTransport;
+use thiserror::Error;
+use tofnd::{Multisig, MultisigClient};
+use tokio::signal::unix::{signal, SignalKind};
+use tokio_util::sync::CancellationToken;
+use tracing::info;
+use types::{CosmosPublicKey, TMAddress};
+
+use crate::config::Config;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -81,7 +67,7 @@ pub async fn run(cfg: Config) -> Result<(), Error> {
 }
 
 #[cfg(feature = "config")]
-async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
+async fn prepare_app(cfg: Config) -> Result<App, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -97,7 +83,8 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     } = cfg;
 
     let (monitoring_server, monitoring_client) =
-        MonitoringServer::new(monitoring_server.bind_addr());
+        monitoring::Server::new(monitoring_server.bind_address).change_context(Error::Monitor)?;
+
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)
         .attach_printable(tm_jsonrpc.clone())?;
@@ -127,13 +114,10 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let broadcaster = broadcaster_v2::Broadcaster::new(
-        cosmos_client.clone(),
-        broadcast.chain_id.clone(),
-        pub_key,
-    )
-    .await
-    .change_context(Error::Broadcaster)?;
+    let broadcaster =
+        broadcaster_v2::Broadcaster::new(cosmos_client.clone(), broadcast.chain_id, pub_key)
+            .await
+            .change_context(Error::Broadcaster)?;
     let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcast.queue_cap,
@@ -143,43 +127,28 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let grpc_server = grpc::Server::builder()
         .config(grpc_config)
         .event_sub(event_subscriber.clone())
-        .msg_queue_client(msg_queue_client)
+        .msg_queue_client(msg_queue_client.clone())
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .build();
+    let (tx_confirmer, tx_confirmer_client) = broadcaster_v2::TxConfirmer::new_confirmer_and_client(
+        cosmos_client,
+        RetryPolicy::repeat_constant(
+            broadcast.tx_fetch_interval,
+            broadcast.tx_fetch_max_retries.saturating_add(1).into(),
+        ),
+    );
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
         .signer(multisig_client.clone())
         .key_id(tofnd_config.key_uid.clone())
         .gas_adjustment(broadcast.gas_adjustment)
-        .gas_price(broadcast.gas_price.clone())
-        .build();
-    let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .address_prefix(PREFIX.to_string())
-        .client(cosmos_client.clone())
-        .signer(multisig_client.clone())
-        .pub_key((tofnd_config.key_uid, pub_key))
-        .config(broadcast.clone())
+        .gas_price(broadcast.gas_price)
+        .tx_confirmer_client(tx_confirmer_client)
         .build()
-        .validate_fee_denomination()
         .await
         .change_context(Error::Broadcaster)?;
-
-    let broadcaster = QueuedBroadcaster::new(
-        broadcaster,
-        broadcast.batch_gas_limit,
-        broadcast.queue_cap,
-        interval(broadcast.broadcast_interval),
-    );
-
-    let tx_confirmer = TxConfirmer::new(
-        cosmos_client,
-        RetryPolicy::RepeatConstant {
-            sleep: broadcast.tx_fetch_interval,
-            max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
-        },
-    );
 
     let verifier: TMAddress = pub_key
         .account_id(PREFIX)
@@ -189,13 +158,13 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     App::new(
         event_publisher,
         event_subscriber,
-        broadcaster,
-        tx_confirmer,
         multisig_client,
         block_height_monitor,
         monitoring_server,
         grpc_server,
         broadcaster_task,
+        msg_queue_client,
+        tx_confirmer,
         monitoring_client,
     )
     .configure_handlers(verifier, handlers, event_processor)
@@ -218,47 +187,41 @@ where
     Ok(())
 }
 
-struct App<T>
-where
-    T: Broadcaster,
-{
+struct App {
     event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
-    broadcaster: QueuedBroadcaster<T>,
-    tx_confirmer: TxConfirmer<CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-    monitoring_server: MonitoringServer,
+    monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
     broadcaster_task: broadcaster_v2::BroadcasterTask<
         cosmos::CosmosGrpcClient,
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
-    monitoring_client: MonitoringClient,
+    msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    tx_confirmer: broadcaster_v2::TxConfirmer<cosmos::CosmosGrpcClient>,
+    monitoring_client: monitoring::Client,
 }
 
-impl<T> App<T>
-where
-    T: Broadcaster + Send + Sync + 'static,
-{
+impl App {
     #[allow(clippy::too_many_arguments)]
     fn new(
         event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
         event_subscriber: event_sub::EventSubscriber,
-        broadcaster: QueuedBroadcaster<T>,
-        tx_confirmer: TxConfirmer<CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
-        monitoring_server: MonitoringServer,
+        monitoring_server: monitoring::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcaster_v2::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        monitoring_client: MonitoringClient,
+        msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+        tx_confirmer: broadcaster_v2::TxConfirmer<cosmos::CosmosGrpcClient>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
 
@@ -266,13 +229,13 @@ where
             event_publisher,
             event_subscriber,
             event_processor,
-            broadcaster,
-            tx_confirmer,
             multisig_client,
             block_height_monitor,
             monitoring_server,
             grpc_server,
             broadcaster_task,
+            msg_queue_client,
+            tx_confirmer,
             monitoring_client,
         }
     }
@@ -282,7 +245,7 @@ where
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         event_processor_config: event_processor::Config,
-    ) -> Result<App<T>, Error> {
+    ) -> Result<App, Error> {
         for config in handler_configs {
             match self
                 .try_create_handler_task(&config, &verifier, &event_processor_config)
@@ -619,59 +582,38 @@ where
         label: L,
         handler: H,
         event_processor_config: event_processor::Config,
-        monitoring_client: MonitoringClient,
+        monitoring_client: monitoring::Client,
     ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
         H: EventHandler + Send + Sync + 'static,
     {
         let label = label.as_ref().to_string();
-        let broadcaster = self.broadcaster.client();
-        let sub = self.event_subscriber.subscribe();
+        let event_sub = self.event_subscriber.subscribe();
+        let msg_queue_client = self.msg_queue_client.clone();
 
-        CancellableTask::create(move |token| {
+        CancellableTask::create(|token| {
             event_processor::consume_events(
                 label,
                 handler,
-                broadcaster,
-                sub,
+                event_sub,
                 event_processor_config,
                 token,
+                msg_queue_client,
                 monitoring_client,
             )
         })
-    }
-
-    fn create_broadcaster_task(
-        broadcaster: QueuedBroadcaster<T>,
-        confirmer: TxConfirmer<CosmosGrpcClient>,
-    ) -> TaskGroup<Error> {
-        let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
-        let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);
-
-        TaskGroup::new("broadcaster")
-            .add_task(CancellableTask::create(|_| {
-                confirmer
-                    .run(tx_hash_receiver, tx_response_sender)
-                    .change_context(Error::TxConfirmation)
-            }))
-            .add_task(CancellableTask::create(|_| {
-                broadcaster
-                    .run(tx_hash_sender, tx_response_receiver)
-                    .change_context(Error::Broadcaster)
-            }))
     }
 
     async fn run(self) -> Result<(), Error> {
         let Self {
             event_publisher,
             event_processor,
-            broadcaster,
-            tx_confirmer,
             block_height_monitor,
             monitoring_server,
             grpc_server,
             broadcaster_task,
+            tx_confirmer,
             ..
         } = self;
 
@@ -711,10 +653,10 @@ where
                     .change_context(Error::EventProcessor)
             }))
             .add_task(CancellableTask::create(|token| {
-                App::create_broadcaster_task(broadcaster, tx_confirmer).run(token)
-            }))
-            .add_task(CancellableTask::create(|token| {
                 grpc_server.run(token).change_context(Error::GrpcServer)
+            }))
+            .add_task(CancellableTask::create(|_| {
+                tx_confirmer.run().change_context(Error::TxConfirmation)
             }))
             .add_task(CancellableTask::create(|_| {
                 broadcaster_task.run().change_context(Error::Broadcaster)
@@ -750,7 +692,7 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("metrics monitor failed")]
+    #[error("monitor server failed")]
     Monitor,
     #[error("gRPC server failed")]
     GrpcServer,
