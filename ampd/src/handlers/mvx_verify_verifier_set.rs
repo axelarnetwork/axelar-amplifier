@@ -142,7 +142,7 @@ where
                 verify_verifier_set(&source_gateway_address, &transaction, verifier_set)
             });
 
-            record_vote_verifiction(&self.monitoring_client, &vote, handler_chain_name);
+            record_vote_verification_metric(&self.monitoring_client, &vote, handler_chain_name);
 
             info!(
                 vote = vote.as_value(),

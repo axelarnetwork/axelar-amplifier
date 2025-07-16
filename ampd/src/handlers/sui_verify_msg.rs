@@ -149,7 +149,7 @@ where
                     })
             })
             .inspect(|vote| {
-                record_vote_verifiction(&self.monitoring_client, vote, handler_chain_name);
+                record_vote_verification_metric(&self.monitoring_client, vote, handler_chain_name);
             })
             .collect();
 

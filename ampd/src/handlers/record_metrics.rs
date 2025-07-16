@@ -4,7 +4,7 @@ use tracing::warn;
 use crate::monitoring;
 use crate::monitoring::metrics::Msg;
 
-pub fn record_vote_verifiction(
+pub fn record_vote_verification_metric(
     monitoring_client: &monitoring::Client,
     vote: &Vote,
     chain_name: &str,
