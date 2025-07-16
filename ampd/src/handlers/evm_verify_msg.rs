@@ -243,9 +243,10 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use cosmwasm_std;
     use error_stack::{Report, Result};
-    use ethers_core::types::{H160, H256};
+    use ethers_core::types::{Block, H160, H256, U64};
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
@@ -259,7 +260,9 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::types::TMAddress;
+    use crate::monitoring::metrics::Msg as MetricsMsg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::types::{Hash, TMAddress};
     use crate::{monitoring, PREFIX};
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
@@ -409,5 +412,55 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn should_record_vote_verification_metric() {
+        let mut rpc_client = MockEthereumClient::new();
+        let mut block = Block::<Hash>::default();
+        let block_number: U64 = 10.into();
+        block.number = Some(block_number);
+
+        rpc_client
+            .expect_finalized_block()
+            .returning(move || Ok(block.clone()));
+
+        rpc_client
+            .expect_transaction_receipt()
+            .returning(|_| Ok(None));
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event: Event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier_contract,
+        );
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier_contract,
+            ChainName::from_str("ethereum").unwrap(),
+            Finalization::RPCFinalizedBlock,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+
+        for _ in 0..3 {
+            let metrics = receiver.recv().await.unwrap();
+
+            assert_eq!(
+                metrics,
+                MetricsMsg::VoteVerification {
+                    vote_status: Vote::NotFound,
+                    chain_name: "ethereum".to_string(),
+                }
+            );
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 }
