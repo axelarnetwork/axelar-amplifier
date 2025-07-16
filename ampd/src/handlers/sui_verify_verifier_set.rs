@@ -141,7 +141,7 @@ where
                 verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
 
-            record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+            record_vote_verifiction(&self.monitoring_client, &vote, handler_chain_name);
 
             info!(
                 vote = vote.as_value(),
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_record_vote_outcome_metrics() {
+    async fn should_record_vote_verification_metrics() {
         let mut rpc_client = MockSuiClient::new();
         rpc_client
             .expect_finalized_transaction_block()
@@ -263,7 +263,7 @@ mod tests {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            MetricsMsg::VoteOutcome {
+            MetricsMsg::VoteVerification {
                 vote_status: Vote::NotFound,
                 chain_name: "sui".to_string(),
             }

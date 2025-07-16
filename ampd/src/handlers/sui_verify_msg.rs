@@ -149,7 +149,7 @@ where
                     })
             })
             .inspect(|vote| {
-                record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
+                record_vote_verifiction(&self.monitoring_client, vote, handler_chain_name);
             })
             .collect();
 
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_record_vote_outcome_metrics() {
+    async fn should_record_vote_verification_metrics() {
         let mut rpc_client = MockSuiClient::new();
         rpc_client
             .expect_finalized_transaction_blocks()
@@ -361,7 +361,7 @@ mod tests {
         let metric = receiver.recv().await.unwrap();
         assert_eq!(
             metric,
-            MetricsMsg::VoteOutcome {
+            MetricsMsg::VoteVerification {
                 vote_status: Vote::NotFound,
                 chain_name: "sui".to_string(),
             }
