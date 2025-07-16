@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_messages() {
+    async fn should_send_correct_vote_outcome_messages() {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
 
