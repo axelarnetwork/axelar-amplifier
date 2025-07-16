@@ -137,6 +137,7 @@ where
     C: cosmos::CosmosClient + Clone,
 {
     match with_retry(|| handler.handle(event), retry_policy).await {
+    
         Ok(msgs) => {
             tokio_stream::iter(msgs)
                 .map(|msg| async {
@@ -185,15 +186,14 @@ fn log_block_end_event(event: &StreamStatus, monitoring_client: &monitoring::Cli
     }
 }
 
-fn record_msg_enqueue_result(success: bool, monitoring_client: &monitoring::Client, event: &Event) {
+fn record_broadcast_result(success: bool, monitoring_client: &monitoring::Client) {
     if let Err(err) = monitoring_client
         .metrics()
-        .record_metric(Msg::HandlerMsgEnqueueResult { success })
+        .record_metric(Msg::TransactionBroadcastResult { success })
     {
         warn!(
             err = %err,
-            event = %event,
-            "failed to record msg enqueue result metric"
+            "failed to record msg broadcast result metric"
         );
     }
 }
@@ -758,7 +758,7 @@ mod tests {
         let cancel_token = CancellationToken::new();
        
 
-        let result_with_timeout = timeout(
+        let result = timeout(
             Duration::from_secs(3),
             consume_events(
                 "handler".to_string(),

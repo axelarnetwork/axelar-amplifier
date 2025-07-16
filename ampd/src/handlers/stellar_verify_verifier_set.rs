@@ -23,8 +23,8 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
@@ -130,7 +130,10 @@ impl EventHandler for Handler {
                     .to_string(),
             )
             .await
-            .change_context(Error::TxReceipts)?;
+            .change_context(Error::TxReceipts)
+            .inspect_err(|_| {
+                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
+            })?;
 
         let vote = info_span!(
             "verify a new verifier set",
@@ -166,20 +169,6 @@ impl EventHandler for Handler {
     }
 }
 
-fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
@@ -189,7 +178,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use error_stack::Result;
+    use error_stack::{Report, Result};
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use multisig::key::KeyType;
