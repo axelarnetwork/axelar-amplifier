@@ -166,7 +166,11 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                         .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })
                 .inspect(|vote| {
-                    record_vote_verifiction(&self.monitoring_client, vote, handler_chain_name);
+                    record_vote_verification_metric(
+                        &self.monitoring_client,
+                        vote,
+                        handler_chain_name,
+                    );
                 })
                 .collect();
             info!(
