@@ -340,7 +340,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_messages() {
+    async fn should_send_correct_vote_outcome_messages() {
         let mut proxy = MockMvxProxy::new();
         proxy
             .expect_transaction_info_with_results()
@@ -350,7 +350,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
 
         let event = into_structured_event(
-            verifier_set_poll_started_event(participants(5, Some(worker.clone())), 100),
+            verifier_set_poll_started_event(participants(2, Some(worker.clone())), 100),
             &voting_verifier,
         );
 

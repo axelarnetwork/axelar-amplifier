@@ -13,7 +13,7 @@ use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -21,7 +21,6 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
@@ -130,10 +129,7 @@ where
             .rpc_client
             .finalized_transaction_block(verifier_set.message_id.tx_digest.into())
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new verifier set for Sui",
@@ -269,46 +265,6 @@ mod tests {
             msg,
             MetricsMsg::VoteOutcome {
                 vote_status: Vote::NotFound,
-                chain_name: "sui".to_string(),
-            }
-        );
-
-        assert!(receiver.try_recv().is_err());
-    }
-
-    #[async_test]
-    async fn should_record_vote_processing_failure_when_rpc_error() {
-        let mut rpc_client = MockSuiClient::new();
-        rpc_client
-            .expect_finalized_transaction_block()
-            .returning(|_| {
-                Err(Report::from(ProviderError::CustomError(
-                    "failed to get finalized transaction blocks".to_string(),
-                )))
-            });
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let event = into_structured_event(
-            verifier_set_poll_started_event(vec![verifier.clone()].into_iter().collect(), 100),
-            &voting_verifier,
-        );
-
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
-
-        assert!(handler.handle(&event).await.is_err());
-
-        let msg = receiver.recv().await.unwrap();
-        assert_eq!(
-            msg,
-            MetricsMsg::VoteProcessingFailure {
                 chain_name: "sui".to_string(),
             }
         );
