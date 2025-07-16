@@ -166,7 +166,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                         .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })
                 .inspect(|vote| {
-                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
+                    record_vote_verifiction(&self.monitoring_client, vote, handler_chain_name);
                 })
                 .collect();
             info!(
@@ -346,7 +346,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_send_correct_vote_outcome_messages() {
+    async fn should_send_correct_vote_verification_messages() {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
         let event = into_structured_event(
@@ -371,7 +371,7 @@ mod test {
             let msg = receiver.recv().await.unwrap();
             assert_eq!(
                 msg,
-                MetricsMsg::VoteOutcome {
+                MetricsMsg::VoteVerification {
                     vote_status: Vote::NotFound,
                     chain_name: "solana".to_string(),
                 }

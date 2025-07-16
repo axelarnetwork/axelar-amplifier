@@ -2,12 +2,12 @@ Initial Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 0
-# HELP votes_agreed number of votes agreeing that the poll messages are valid (Vote::SucceededOnChain).
-# TYPE votes_agreed counter
-# HELP votes_disagreed number of votes disagreeing that the poll messages are valid (Vote::FailedOnChain).
-# TYPE votes_disagreed counter
-# HELP votes_not_found number of votes where poll messages could not be validated (Vote::NotFound).
-# TYPE votes_not_found counter
+# HELP vote_verification_succeeded_on_chain number of votes where poll messages were verified successfully on source chain (Vote::SucceededOnChain).
+# TYPE vote_verification_succeeded_on_chain counter
+# HELP vote_verification_failed_on_chain number of votes where poll messages were found but verification failed on source chain (Vote::FailedOnChain).
+# TYPE vote_verification_failed_on_chain counter
+# HELP vote_verification_not_found number of votes where poll messages were not found on source chain (Vote::NotFound).
+# TYPE vote_verification_not_found counter
 # EOF
 
 
@@ -15,10 +15,10 @@ Updated Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 3
-# HELP votes_agreed number of votes agreeing that the poll messages are valid (Vote::SucceededOnChain).
-# TYPE votes_agreed counter
-# HELP votes_disagreed number of votes disagreeing that the poll messages are valid (Vote::FailedOnChain).
-# TYPE votes_disagreed counter
-# HELP votes_not_found number of votes where poll messages could not be validated (Vote::NotFound).
-# TYPE votes_not_found counter
+# HELP vote_verification_succeeded_on_chain number of votes where poll messages were verified successfully on source chain (Vote::SucceededOnChain).
+# TYPE vote_verification_succeeded_on_chain counter
+# HELP vote_verification_failed_on_chain number of votes where poll messages were found but verification failed on source chain (Vote::FailedOnChain).
+# TYPE vote_verification_failed_on_chain counter
+# HELP vote_verification_not_found number of votes where poll messages were not found on source chain (Vote::NotFound).
+# TYPE vote_verification_not_found counter
 # EOF
