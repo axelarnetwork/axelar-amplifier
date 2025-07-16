@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::ScAddress;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -124,10 +124,7 @@ impl EventHandler for Handler {
                     .to_string(),
             )
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new verifier set",
@@ -167,7 +164,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use error_stack::{Report, Result};
+    use error_stack::Result;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use multisig::key::KeyType;
@@ -182,7 +179,7 @@ mod tests {
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::metrics::Msg as MetricsMsg;
     use crate::monitoring::test_utils::create_test_monitoring_client;
-    use crate::stellar::rpc_client::{Client, Error as StellarError};
+    use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;
     use crate::{monitoring, PREFIX};
 
@@ -310,14 +307,14 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_messages() {
+    async fn should_send_correct_vote_outcome_messages() {
         let mut client = Client::faux();
         faux::when!(client.transaction_response).then(|_| Ok(None));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            poll_started_event(participants(2, Some(verifier.clone())), 100),
             &voting_verifier,
         );
 
@@ -338,41 +335,6 @@ mod tests {
             metric,
             MetricsMsg::VoteOutcome {
                 vote_status: Vote::NotFound,
-                chain_name: "stellar".to_string(),
-            }
-        );
-
-        assert!(receiver.try_recv().is_err());
-    }
-
-    #[async_test]
-    async fn should_record_vote_processing_failure_when_rpc_error() {
-        let mut client = Client::faux();
-        faux::when!(client.transaction_response).then(|_| Err(Report::from(StellarError::Client)));
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let event = into_structured_event(
-            poll_started_event(participants(2, Some(verifier.clone())), 100),
-            &voting_verifier,
-        );
-
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
-
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier,
-            client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
-
-        assert!(handler.handle(&event).await.is_err());
-
-        let msg = receiver.recv().await.unwrap();
-        assert_eq!(
-            msg,
-            MetricsMsg::VoteProcessingFailure {
                 chain_name: "stellar".to_string(),
             }
         );

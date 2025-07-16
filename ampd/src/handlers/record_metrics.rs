@@ -14,16 +14,3 @@ pub fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, 
             "failed to record vote outcome metrics for vote {:?}", vote);
     };
 }
-
-pub fn record_vote_processing_failure(monitoring_client: &monitoring::Client, chain_name: &str) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(Msg::VoteProcessingFailure {
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-             chain_name = %chain_name,
-              "failed to record vote processing failure metrics");
-    };
-}
