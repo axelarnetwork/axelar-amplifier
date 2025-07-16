@@ -1,12 +1,12 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
-blocks_received_total 3
+blocks_received_total 0
 # HELP transaction_broadcast_success number of successful transaction broadcasts.
 # TYPE transaction_broadcast_success counter
-transaction_broadcast_success_total 0
+transaction_broadcast_success_total 2
 # HELP transaction_broadcast_failure number of failed transaction broadcasts.
 # TYPE transaction_broadcast_failure counter
-transaction_broadcast_failure_total 0
+transaction_broadcast_failure_total 1
 # HELP votes_agreed number of votes agreed with the proposal (Vote::SucceededOnChain).
 # TYPE votes_agreed counter
 # HELP votes_disagreed number of votes disagreed with the proposal (Vote::FailedOnChain).
