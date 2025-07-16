@@ -158,7 +158,7 @@ impl EventHandler for Handler {
                         })
                 })
                 .inspect(|vote| {
-                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
+                    record_vote_verifiction(&self.monitoring_client, vote, handler_chain_name);
                 })
                 .collect();
             info!(
@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_outcome_messages() {
+    async fn should_send_correct_vote_verification_messages() {
         let mut client = Client::faux();
         faux::when!(client.transaction_responses).then(|_| Ok(HashMap::new()));
 
@@ -355,7 +355,7 @@ mod tests {
             let msg = receiver.recv().await.unwrap();
             assert_eq!(
                 msg,
-                MetricsMsg::VoteOutcome {
+                MetricsMsg::VoteVerification {
                     vote_status: Vote::NotFound,
                     chain_name: "stellar".to_string(),
                 }

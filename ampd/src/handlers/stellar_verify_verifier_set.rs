@@ -138,7 +138,7 @@ impl EventHandler for Handler {
                 verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
 
-            record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+            record_vote_verifiction(&self.monitoring_client, &vote, handler_chain_name);
 
             info!(
                 vote = vote.as_value(),
@@ -307,7 +307,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_outcome_messages() {
+    async fn should_send_correct_vote_verification_messages() {
         let mut client = Client::faux();
         faux::when!(client.transaction_response).then(|_| Ok(None));
 
@@ -333,7 +333,7 @@ mod tests {
         let metric = receiver.recv().await.unwrap();
         assert_eq!(
             metric,
-            MetricsMsg::VoteOutcome {
+            MetricsMsg::VoteVerification {
                 vote_status: Vote::NotFound,
                 chain_name: "stellar".to_string(),
             }

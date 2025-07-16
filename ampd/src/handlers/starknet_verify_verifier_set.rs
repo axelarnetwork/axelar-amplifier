@@ -150,7 +150,7 @@ where
                 }
             };
 
-            record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+            record_vote_verifiction(&self.monitoring_client, &vote, handler_chain_name);
 
             info!(
                 vote = vote.as_value(),
@@ -238,7 +238,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_outcome_messages() {
+    async fn should_send_correct_vote_verification_messages() {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
 
@@ -262,7 +262,7 @@ mod tests {
 
         assert_eq!(
             receiver.try_recv().unwrap(),
-            MetricsMsg::VoteOutcome {
+            MetricsMsg::VoteVerification {
                 vote_status: Vote::NotFound,
                 chain_name: "starknet".to_string(),
             }
