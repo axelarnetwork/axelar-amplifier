@@ -252,12 +252,15 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, rx) = watch::channel(1);
-
         let (monitoring_client, mut receiver) = create_test_monitoring_client();
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, rx, monitoring_client);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
         let _ = handler.handle(&event).await.unwrap();
 
         assert_eq!(
