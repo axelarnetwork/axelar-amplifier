@@ -142,7 +142,7 @@ where
                 verify_verifier_set(&source_gateway_address, &transaction, verifier_set)
             });
 
-            record_vote_outcome(&self.monitoring_client, &vote, handler_chain_name);
+            record_vote_verifiction(&self.monitoring_client, &vote, handler_chain_name);
 
             info!(
                 vote = vote.as_value(),
@@ -340,7 +340,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_outcome_messages() {
+    async fn should_send_correct_vote_verification_messages() {
         let mut proxy = MockMvxProxy::new();
         proxy
             .expect_transaction_info_with_results()
@@ -369,7 +369,7 @@ mod tests {
         let metrics = receiver.recv().await.unwrap();
         assert_eq!(
             metrics,
-            MetricsMsg::VoteOutcome {
+            MetricsMsg::VoteVerification {
                 vote_status: Vote::NotFound,
                 chain_name: "multiversx".to_string(),
             }

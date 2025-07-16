@@ -36,11 +36,11 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
-    /// Record the vote outcome in for cross-chain message verification in voting handlers
+    /// Record the vote verification for cross-chain message verification in voting handlers
     ///
-    /// - vote_status: the vote outcome (SucceededOnChain, FailedOnChain, NotFound)
+    /// - vote_status: the vote verification outcome (SucceededOnChain, FailedOnChain, NotFound)
     /// - chain_name: the chain name of the voting handler that cast the vote
-    VoteOutcome {
+    VoteVerification {
         vote_status: Vote,
         chain_name: String,
     },
@@ -200,7 +200,7 @@ async fn serve_metrics(
 
 struct Metrics {
     block_received: BlockReceivedMetrics,
-    vote_outcome: VoteOutcomeMetrics,
+    vote_verification: VoteVerificationMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -212,23 +212,23 @@ struct VoteLabel {
     chain_name: String,
 }
 
-struct VoteOutcomeMetrics {
-    agreed: Family<VoteLabel, Counter>,
-    disagreed: Family<VoteLabel, Counter>,
+struct VoteVerificationMetrics {
+    succeeded_on_chain: Family<VoteLabel, Counter>,
+    failed_on_chain: Family<VoteLabel, Counter>,
     not_found: Family<VoteLabel, Counter>,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
-        let vote_outcome = VoteOutcomeMetrics::new();
+        let vote_verification = VoteVerificationMetrics::new();
 
         block_received.register(registry);
-        vote_outcome.register(registry);
+        vote_verification.register(registry);
 
         Self {
             block_received,
-            vote_outcome,
+            vote_verification,
         }
     }
 
@@ -238,12 +238,12 @@ impl Metrics {
                 self.block_received.increment();
             }
 
-            Msg::VoteOutcome {
+            Msg::VoteVerification {
                 vote_status,
                 chain_name,
             } => {
-                self.vote_outcome
-                    .record_vote_outcome(vote_status, chain_name);
+                self.vote_verification
+                    .record_vote_verification(vote_status, chain_name);
             }
         }
     }
@@ -268,43 +268,43 @@ impl BlockReceivedMetrics {
     }
 }
 
-impl VoteOutcomeMetrics {
+impl VoteVerificationMetrics {
     fn new() -> Self {
-        let agreed = Family::<VoteLabel, Counter>::default();
-        let disagreed = Family::<VoteLabel, Counter>::default();
+        let succeeded_on_chain = Family::<VoteLabel, Counter>::default();
+        let failed_on_chain = Family::<VoteLabel, Counter>::default();
         let not_found = Family::<VoteLabel, Counter>::default();
         Self {
-            agreed,
-            disagreed,
+            succeeded_on_chain,
+            failed_on_chain,
             not_found,
         }
     }
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "votes_agreed",
-            "number of votes agreeing that the poll messages are valid (Vote::SucceededOnChain)",
-            self.agreed.clone(),
+            "vote_verification_succeeded_on_chain",
+            "number of votes where poll messages were verified successfully on source chain (Vote::SucceededOnChain)",
+            self.succeeded_on_chain.clone(),
         );
 
         registry.register(
-            "votes_disagreed",
-            "number of votes disagreeing that the poll messages are valid (Vote::FailedOnChain)",
-            self.disagreed.clone(),
+            "vote_verification_failed_on_chain",
+            "number of votes where poll messages were found but verification failed on source chain (Vote::FailedOnChain)",
+            self.failed_on_chain.clone(),
         );
 
         registry.register(
-            "votes_not_found",
-            "number of votes where poll messages could not be validated (Vote::NotFound)",
+            "vote_verification_not_found",
+            "number of votes where poll messages were not found on source chain (Vote::NotFound)",
             self.not_found.clone(),
         );
     }
 
-    fn record_vote_outcome(&self, vote: Vote, chain_name: String) {
+    fn record_vote_verification(&self, vote: Vote, chain_name: String) {
         let vote_label = VoteLabel { chain_name };
         match vote {
-            Vote::SucceededOnChain => self.agreed.get_or_create(&vote_label).inc(),
-            Vote::FailedOnChain => self.disagreed.get_or_create(&vote_label).inc(),
+            Vote::SucceededOnChain => self.succeeded_on_chain.get_or_create(&vote_label).inc(),
+            Vote::FailedOnChain => self.failed_on_chain.get_or_create(&vote_label).inc(),
             Vote::NotFound => self.not_found.get_or_create(&vote_label).inc(),
         };
     }
@@ -348,7 +348,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_update_vote_outcome_metrics_correctly_when_multiple_chains_cast_votes() {
+    async fn should_update_vote_verification_metrics_correctly_when_multiple_chains_cast_votes() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -362,19 +362,19 @@ mod tests {
 
         for chain_name in chain_names {
             client
-                .record_metric(Msg::VoteOutcome {
+                .record_metric(Msg::VoteVerification {
                     vote_status: Vote::SucceededOnChain,
                     chain_name: chain_name.to_string(),
                 })
                 .unwrap();
             client
-                .record_metric(Msg::VoteOutcome {
+                .record_metric(Msg::VoteVerification {
                     vote_status: Vote::FailedOnChain,
                     chain_name: chain_name.to_string(),
                 })
                 .unwrap();
             client
-                .record_metric(Msg::VoteOutcome {
+                .record_metric(Msg::VoteVerification {
                     vote_status: Vote::NotFound,
                     chain_name: chain_name.to_string(),
                 })
@@ -390,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn should_provide_consistet_sorted_output() {
+    fn should_provide_consistent_sorted_output() {
         let unsorted_output1 =
             include_str!("testdata/metrics_sorting/unsorted_metrics_version_1.txt");
         let unsorted_output2 =
