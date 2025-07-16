@@ -23,7 +23,6 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::solana::msg_verifier::verify_message;
 use crate::solana::SolanaRpcClientProxy;
 use crate::types::{Hash, TMAddress};
