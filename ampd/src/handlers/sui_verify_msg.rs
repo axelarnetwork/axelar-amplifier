@@ -13,13 +13,13 @@ use events::{try_from, Event};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
-use tracing::{info, warn};
+use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
@@ -137,7 +137,10 @@ where
             .rpc_client
             .finalized_transaction_blocks(deduplicated_tx_ids)
             .await
-            .change_context(Error::TxReceipts)?;
+            .change_context(Error::TxReceipts)
+            .inspect_err(|_| {
+                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
+            })?;
 
         let votes = messages
             .iter()
@@ -159,20 +162,6 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-}
-
-fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
 }
 
 #[cfg(test)]
@@ -419,6 +408,47 @@ mod tests {
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn should_record_vote_processing_failure_when_rpc_error() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| {
+                Err(Report::from(ProviderError::CustomError(
+                    "failed to get finalized transaction blocks".to_string(),
+                )))
+            });
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        assert!(handler.handle(&event).await.is_err());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            MetricsMsg::VoteProcessingFailure {
+                chain_name: "sui".to_string(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
