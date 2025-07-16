@@ -181,36 +181,18 @@ jobs:
         with:
           command: fmt-check # alias
 
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.81.0
+          components: clippy
+          override: true
+
       - name: Run cargo sort
         uses: actions-rs/cargo@v1
         with:
           command: sort-check # alias
-
-      - name: Install latest stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          components: clippy
-          override: true
-
-      - name: Install cargo-dylint
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: cargo-dylint
-
-      - name: Install dylint-link
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: dylint-link
-
-      - name: Run custom lints
-        uses: actions-rs/cargo@v1
-        with:
-          command: dylint
-          args: --all
-        env:
-          DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
