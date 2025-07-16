@@ -170,7 +170,7 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = &self.chain.to_string();
+        let handler_chain_name: &str = self.chain.as_ref();
 
         let tx_receipt = self
             .finalized_tx_receipt(verifier_set.message_id.tx_hash.into(), confirmation_height)

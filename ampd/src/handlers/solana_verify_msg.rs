@@ -143,7 +143,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .flatten()
             .collect::<HashMap<_, _>>();
 
-        let handler_chain_name = &self.chain_name.to_string();
+        let handler_chain_name: &str = self.chain_name.as_ref();
 
         let votes = info_span!(
             "verify messages from Solana",
