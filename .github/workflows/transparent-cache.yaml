@@ -93,7 +93,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Delete All Caches
-        uses: useblacksmith/cache-delete@v1
+        uses: useblacksmith/cache-delete@main
         with:
           key: test-cache-inspection-
           prefix: true
