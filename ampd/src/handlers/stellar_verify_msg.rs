@@ -137,10 +137,7 @@ impl EventHandler for Handler {
             .http_client
             .transaction_responses(tx_hashes)
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let message_ids = messages
             .iter()
@@ -159,7 +156,7 @@ impl EventHandler for Handler {
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = transaction_responses
+                    transaction_responses
                         .get(&msg.message_id.tx_hash_as_hex_no_prefix().to_string())
                         .map_or(Vote::NotFound, |tx_response| {
                             verify_message(&source_gateway_address, tx_response, msg)
@@ -199,7 +196,7 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
-    use error_stack::{Report, Result};
+    use error_stack::Result;
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;

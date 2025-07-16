@@ -15,7 +15,7 @@ use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -135,10 +135,7 @@ where
             .rpc_client
             .finalized_transaction_block(verifier_set.message_id.tx_digest.into())
             .await
-            .change_context(Error::TxReceipts)
-            .inspect_err(|_| {
-                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
-            })?;
+            .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new verifier set for Sui",

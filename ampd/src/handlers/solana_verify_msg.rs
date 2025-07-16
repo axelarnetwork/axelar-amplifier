@@ -161,7 +161,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             let votes: Vec<_> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = finalized_tx_receipts
+                    finalized_tx_receipts
                         .get_key_value(&msg.message_id.raw_signature.into())
                         .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })

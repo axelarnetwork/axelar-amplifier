@@ -158,7 +158,7 @@ where
             let votes: Vec<Vote> = messages
                 .iter()
                 .map(|msg| {
-                    let vote = transactions_info
+                    transactions_info
                         .get(&msg.message_id.tx_hash.into())
                         .map_or(Vote::NotFound, |transaction| {
                             verify_message(&source_gateway_address, transaction, msg)
