@@ -41,6 +41,10 @@ pub enum Msg {
         vote_decision: AxelarVote,
         chain_name: ChainName,
     },
+    /// Record failure that prevented voting handlers from processing events
+    ///
+    /// - chain_name: the chain name of the voting handler
+    VoteProcessingFailure { chain_name: String },
 }
 
 /// Errors that can occur in metrics processing
@@ -202,6 +206,10 @@ struct Metrics {
     verification_vote: VerificationVoteMetrics,
 }
 
+struct VoteProcessingFailureMetrics {
+    total: Family<VoteLabel, Counter>,
+}
+
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
@@ -231,6 +239,10 @@ impl Metrics {
             }
         }
     }
+}
+
+struct BlockReceivedMetrics {
+    total: Counter,
 }
 
 struct BlockReceivedMetrics {
@@ -352,6 +364,47 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn should_update_verification_votes_metrics_correctly_when_multiple_chains_cast_votes() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        let chain_names = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("solana").unwrap(),
+            ChainName::from_str("polygon").unwrap(),
+            ChainName::from_str("avalanche").unwrap(),
+            ChainName::from_str("stellar").unwrap(),
+        ];
+
+        for chain_name in chain_names {
+            client.record_metric(Msg::VerificationVote {
+                vote_decision: AxelarVote::SucceededOnChain,
+                chain_name: chain_name.clone(),
+            });
+            client.record_metric(Msg::VerificationVote {
+                vote_decision: AxelarVote::FailedOnChain,
+                chain_name: chain_name.clone(),
+            });
+            client.record_metric(Msg::VerificationVote {
+                vote_decision: AxelarVote::NotFound,
+                chain_name: chain_name.clone(),
+            });
+        }
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+
+        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_increment_vote_processing_failure_metrics_correctly() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 

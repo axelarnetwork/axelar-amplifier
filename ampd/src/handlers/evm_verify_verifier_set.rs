@@ -14,7 +14,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -24,8 +24,8 @@ use crate::evm::finalizer::Finalization;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_verifier_set;
 use crate::handlers::errors::Error;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -170,7 +170,7 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = &self.chain;
+        let handler_chain_name = &self.chain.to_string();
 
         let tx_receipt = self
             .finalized_tx_receipt(verifier_set.message_id.tx_hash.into(), confirmation_height)
@@ -209,24 +209,6 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-}
-
-fn record_vote_outcome(
-    monitoring_client: &monitoring::Client,
-    vote: &Vote,
-    chain_name: &ChainName,
-) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
 }
 
 #[cfg(test)]
@@ -383,5 +365,49 @@ mod tests {
                     .collect(),
             },
         }
+    }
+
+    #[async_test]
+    async fn should_record_vote_processing_failure_when_rpc_error() {
+        let mut rpc_client = MockEthereumClient::new();
+        rpc_client.expect_finalized_block().returning(|| {
+            Err(Report::from(ProviderError::CustomError(
+                "failed to get finalized block".to_string(),
+            )))
+        });
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event: Event = into_structured_event(
+            poll_started_event(participants(2, Some(verifier.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+
+        let (_, rx) = watch::channel(0);
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            ChainName::from_str("ethereum").unwrap(),
+            Finalization::RPCFinalizedBlock,
+            rpc_client,
+            rx,
+            monitoring_client,
+        );
+
+        assert!(handler.handle(&event).await.is_err());
+
+        let metrics = receiver.recv().await.unwrap();
+        assert_eq!(
+            metrics,
+            MetricsMsg::VoteProcessingFailure {
+                chain_name: "ethereum".to_string()
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 }

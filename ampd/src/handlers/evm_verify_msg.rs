@@ -15,7 +15,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -26,8 +26,8 @@ use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_message;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -178,13 +178,18 @@ where
             return Ok(vec![]);
         }
 
+        let handler_chain_name = &self.chain.to_string();
+
         let tx_hashes: HashSet<Hash> = messages
             .iter()
             .map(|msg| msg.message_id.tx_hash.into())
             .collect();
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await?;
+            .await
+            .inspect_err(|_| {
+                record_vote_processing_failure(&self.monitoring_client, handler_chain_name);
+            })?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -237,24 +242,6 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-}
-
-fn record_vote_outcome(
-    monitoring_client: &monitoring::Client,
-    vote: &Vote,
-    chain_name: &ChainName,
-) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
 }
 
 #[cfg(test)]

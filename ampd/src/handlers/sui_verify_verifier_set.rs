@@ -21,6 +21,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::handlers::record_metrics::*;
 use crate::monitoring;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
@@ -134,7 +135,10 @@ where
             .rpc_client
             .finalized_transaction_block(verifier_set.message_id.tx_digest.into())
             .await
-            .change_context(Error::TxReceipts)?;
+            .change_context(Error::TxReceipts)
+            .inspect_err(|_| {
+                record_vote_processing_failure(&self.monitoring_client, handler_chain_name)
+            })?;
 
         let vote = info_span!(
             "verify a new verifier set for Sui",
@@ -166,20 +170,6 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
-}
-
-fn record_vote_outcome(monitoring_client: &monitoring::Client, vote: &Vote, chain_name: &str) {
-    if let Err(err) = monitoring_client
-        .metrics()
-        .record_metric(MetricsMsg::VoteOutcome {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
-        })
-    {
-        warn!(error = %err,
-            chain_name = %chain_name,
-            "failed to record vote outcome metrics for vote {:?}", vote);
-    };
 }
 
 #[cfg(test)]
