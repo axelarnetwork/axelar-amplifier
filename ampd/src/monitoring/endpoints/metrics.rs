@@ -14,6 +14,7 @@ use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
+use stellar_xdr::curr::String64;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -36,10 +37,7 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
-    /// Record the vote verification for cross-chain message verification in voting handlers
-    ///
-    /// - vote_status: the vote verification outcome (SucceededOnChain, FailedOnChain, NotFound)
-    /// - chain_name: the chain name of the voting handler that cast the vote
+    /// Record the vote verification results for cross-chain message
     VoteVerification {
         vote_status: Vote,
         chain_name: String,
@@ -208,14 +206,19 @@ struct BlockReceivedMetrics {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct VoteLabel {
+struct VoteStatusLabel {
+    /// source chain name of the hanlder
     chain_name: String,
+    /// the vote verification outcome
+    ///
+    /// - succeeded_on_chain: the message was verified successfully on source chain
+    /// - failed_on_chain: the message was found but verification failed on source chain (e.g. the message was not found on source chain)
+    /// - not_found: the message was not found on source chain
+    status: String,
 }
 
 struct VoteVerificationMetrics {
-    succeeded_on_chain: Family<VoteLabel, Counter>,
-    failed_on_chain: Family<VoteLabel, Counter>,
-    not_found: Family<VoteLabel, Counter>,
+    total: Family<VoteStatusLabel, Counter>,
 }
 
 impl Metrics {
@@ -270,43 +273,27 @@ impl BlockReceivedMetrics {
 
 impl VoteVerificationMetrics {
     fn new() -> Self {
-        let succeeded_on_chain = Family::<VoteLabel, Counter>::default();
-        let failed_on_chain = Family::<VoteLabel, Counter>::default();
-        let not_found = Family::<VoteLabel, Counter>::default();
-        Self {
-            succeeded_on_chain,
-            failed_on_chain,
-            not_found,
-        }
+        let total = Family::<VoteStatusLabel, Counter>::default();
+        Self { total }
     }
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "vote_verification_succeeded_on_chain",
-            "number of votes where poll messages were verified successfully on source chain (Vote::SucceededOnChain)",
-            self.succeeded_on_chain.clone(),
-        );
-
-        registry.register(
-            "vote_verification_failed_on_chain",
-            "number of votes where poll messages were found but verification failed on source chain (Vote::FailedOnChain)",
-            self.failed_on_chain.clone(),
-        );
-
-        registry.register(
-            "vote_verification_not_found",
-            "number of votes where poll messages were not found on source chain (Vote::NotFound)",
-            self.not_found.clone(),
+            "vote_verification_total",
+            "number of messages verification votes",
+            self.total.clone(),
         );
     }
 
-    fn record_vote_verification(&self, vote: Vote, chain_name: String) {
-        let vote_label = VoteLabel { chain_name };
-        match vote {
-            Vote::SucceededOnChain => self.succeeded_on_chain.get_or_create(&vote_label).inc(),
-            Vote::FailedOnChain => self.failed_on_chain.get_or_create(&vote_label).inc(),
-            Vote::NotFound => self.not_found.get_or_create(&vote_label).inc(),
+    fn record_vote_verification(&self, status: Vote, chain_name: String) {
+        let status = match status {
+            Vote::SucceededOnChain => "succeeded_on_chain".to_string(),
+            Vote::FailedOnChain => "failed_on_chain".to_string(),
+            Vote::NotFound => "not_found".to_string(),
         };
+
+        let label = VoteStatusLabel { chain_name, status };
+        self.total.get_or_create(&label).inc();
     }
 }
 
@@ -384,7 +371,6 @@ mod tests {
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
-        println!("{}", final_metrics.text());
 
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
     }
