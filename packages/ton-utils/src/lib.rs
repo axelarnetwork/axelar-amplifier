@@ -338,8 +338,12 @@ pub fn cell_parse_rotate_signers_log(cell: &Arc<Cell>) -> Result<WeightedSigners
 
     let derived_weighted_signers = WeightedSigners {
         dict,
-        threshold: threshold.to_u128().unwrap(),
-        nonce: nonce.to_u128().unwrap(),
+        threshold: threshold
+            .to_u128()
+            .ok_or(TonCellError::InternalError("threshold too big".to_string()))?,
+        nonce: nonce
+            .to_u128()
+            .ok_or(TonCellError::InternalError("nonce too big".to_string()))?,
     };
 
     Ok(derived_weighted_signers)
@@ -395,6 +399,33 @@ pub fn cell_parse_call_contract_log(
         destination_chain,
         source_address,
     ))
+}
+
+/// Constructs a TON cell representing a cross-chain contract call in the same way as the edge gateway.
+///
+/// # Cell Format
+/// The resulting cell will contain the following elements in order:
+/// 1. A reference to a cell containing the UTF-8 encoded **destination chain** name.
+/// 2. A reference to a cell containing the UTF-8 encoded **destination address**.
+/// 3. A reference to a cell containing the raw **payload** as bytes.
+/// 4. An inline TON address representing the **source address** of the message.
+/// 5. A 256-bit inline **payload hash** used for message integrity verification.
+///
+/// # Arguments
+/// - `msg`: A reference to the [`Message`] structure containing the metadata for the cross-chain call.
+/// - `payload`: A `Vec<u8>` representing the raw payload to be included in the log cell.
+pub fn build_call_contract_log_cell(msg: &Message, payload: Vec<u8>) -> Result<Cell, TonCellError> {
+    let mut builder = CellBuilder::new();
+    builder.store_reference(&get_arced_cell(msg.destination_chain.as_ref())?)?;
+    builder.store_reference(&get_arced_cell(&msg.destination_address.to_string())?)?;
+    builder.store_reference(&buffer_to_cell(payload)?.to_arc())?;
+    builder.store_address(
+        &TonAddress::from_str(&msg.source_address.to_string())
+            .map_err(|_| TonCellError::InvalidAddressType(0))?,
+    )?;
+    builder.store_bits(256, &msg.payload_hash)?;
+
+    builder.build()
 }
 
 /// Constructs a proof cell from a given verifier set and corresponding signatures, to be sent to the TON gateway.
@@ -691,9 +722,11 @@ mod tests {
     use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
     use tonlib_core::cell::Cell;
     use tonlib_core::tlb_types::traits::TLBObject;
+    use tonlib_core::TonAddress;
 
     use crate::{
-        buffer_to_cell, build_signer_rotation_body, cell_to_boc_hex, compute_approve_messages_hash,
+        buffer_to_cell, build_call_contract_log_cell, build_signer_rotation_body,
+        cell_parse_call_contract_log, cell_to_boc_hex, compute_approve_messages_hash,
         message_to_cell, CellTo, WeightedSigners,
     };
 
@@ -812,6 +845,49 @@ mod tests {
             build_signer_rotation_body(&new_ton_set, &verifier_set, signers_with_sigs).unwrap();
 
         assert_eq!(cell_to_boc_hex(encoded_signer_rotation).unwrap(), "b5ee9c72410208010001c10002080000001401020040ab98abb510250ae97f3834f06829b35e08d6711dd57753b9c16307aadb4e5d5c0161800000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000c0030202ce0405020120060700e1479b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664000000000000000000000000000000019b7265c9660f8dd37e99e6c8e4e5fc020a1f0ddb9d55c3f352e826990af144485903cb41b47d6091f7c753ff5de667414be03bfe6a1d3f06513d949005a3500c800e100e841effcf3842f875c374639d2f02659f9358c26e94357c777219904954c6e0000000000000000000000000000000058f50f79ad5e03a8a6126a0ae6d85b0e9f2314ccb9686cd102309d17aafc1f8b1f54e44d38d2038ecf86b1a27e7ffc1411ee6ec7b3c4821ccb3d4e8e6b83f9c06000e110f37008f48b57e7841f4681a4d15f4d747443adf4871c8464bd5bd779019974c000000000000000000000000000000079865c87816d54b8c243712921892b693fe469293ef65388d1fc7a5c5b65727c790f0a70584e0e3bdefacb6bb05b00db4250b309d3457a99008317f652be5081608ba483f1");
+    }
+
+    #[test]
+    fn should_build_correct_call_contract_log() {
+        let msgs = messages_from_ton();
+        let decoded_msgs: Vec<([u8; 32], String, String, TonAddress)> = msgs
+            .iter()
+            .map(|msg| build_call_contract_log_cell(msg, vec![0x12, 0x34]).unwrap())
+            .map(|cell| cell_parse_call_contract_log(&cell.to_arc()).unwrap())
+            .collect();
+
+        // verify that the decoded msgs contain the same information as in the original msgs
+        for (a, (payload_hash, destination_address, destination_chain, source_address)) in
+            msgs.iter().zip(decoded_msgs.iter())
+        {
+            assert_eq!(a.destination_address.to_string(), *destination_address);
+            assert_eq!(a.payload_hash, *payload_hash);
+            assert_eq!(a.destination_chain.to_string(), *destination_chain);
+            assert_eq!(a.source_address.to_string(), source_address.to_hex());
+        }
+    }
+
+    fn messages_from_ton() -> Vec<Message> {
+        vec![Message {
+            cc_id: CrossChainId::new(
+                "ton",
+                "0xc716b35fc24e8597281d14af780fc3c299ee9291c3cbfe5cffb6c8eb82a7",
+            )
+            .unwrap(),
+            source_address: "0:3ff9743bcbc1fd50971c15cc97eb9f5a52acebaceb4cb3c477a391195c50ff88"
+                .parse()
+                .unwrap(),
+            destination_address: "0x6f6ce49c05f07fab39bd800a2c0f33f3a622fb2c"
+                .parse()
+                .unwrap(),
+            destination_chain: "ethereum".parse().unwrap(),
+            payload_hash: HexBinary::from_hex(
+                "56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432", // keccak256("0x1234");
+            )
+            .unwrap()
+            .to_array::<32>()
+            .unwrap(),
+        }]
     }
 
     fn ton_messages() -> Vec<Message> {

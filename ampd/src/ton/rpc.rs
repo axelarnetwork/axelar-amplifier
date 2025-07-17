@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHash;
 use error_stack::{report, ResultExt};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tonlib_core::cell::Cell;
@@ -119,6 +119,19 @@ pub(crate) fn extract_body(
     }
 }
 
+fn extract_body_from_response(
+    contract_address: &TonAddress,
+    status: StatusCode,
+    test_body: String,
+) -> error_stack::Result<TonLog, FetchingError> {
+    if !status.is_success() {
+        warn!("RPC query failed");
+        return Err(report!(FetchingError::Client));
+    }
+
+    extract_body(contract_address, &test_body)
+}
+
 #[async_trait]
 impl TonClient for TonRpcClient {
     async fn get_log(
@@ -142,24 +155,21 @@ impl TonClient for TonRpcClient {
             .await
             .change_context(FetchingError::Client)?;
 
-        let status = res.status();
-        let text = res.text().await.change_context(FetchingError::Client)?;
-
-        if !status.is_success() {
-            warn!("RPC query failed");
-            return Err(report!(FetchingError::Client));
-        }
-
-        extract_body(contract_address, &text)
+        extract_body_from_response(
+            contract_address,
+            res.status(),
+            res.text().await.change_context(FetchingError::Client)?,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use goldie::assert_debug;
+    use reqwest::StatusCode;
     use tonlib_core::TonAddress;
 
-    use crate::ton::rpc::extract_body;
+    use crate::ton::rpc::{extract_body, extract_body_from_response};
 
     #[test]
     fn should_correctly_parse_call_contract() {
@@ -170,6 +180,22 @@ mod tests {
 
         let log = extract_body(&example_gateway, rpc_return_text)
             .expect("Example RPC return text should be parsable");
+        assert_debug!(log);
+    }
+
+    #[test]
+    fn should_correctly_extract_body() {
+        let rpc_return_text = r#"{"transactions":[{"account":"0:00194AAD8E422BEDF43FEE746D6D929D369DBAB25468A69D513706EA6978B63A","hash":"L/DSNQ43lWUDdga8h4ci8hVp+nVS6/BxEF7KrAO0yTo=","lt":"36582626000003","now":1751972976,"mc_block_seqno":33013054,"trace_id":"6h4rXxxaXBcwgFnNiyyzXolMBo6wDeqiW2+LIq8feHE=","prev_trans_hash":"BoNe1HOkg+5k8XGGuY5iRcuz8Nwkc5rxT7NuM/vDP/E=","prev_trans_lt":"36552848000003","orig_status":"active","end_status":"active","total_fees":"6617389","total_fees_extra_currencies":{},"description":{"type":"ord","aborted":false,"destroyed":false,"credit_first":false,"storage_ph":{"storage_fees_collected":"72858","status_change":"unchanged"},"credit_ph":{"credit":"98993600"},"compute_ph":{"skipped":false,"success":true,"msg_state_used":false,"account_activated":false,"gas_fees":"5138000","gas_used":"12845","gas_limit":"247484","mode":0,"exit_code":0,"vm_steps":274,"vm_init_state_hash":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","vm_final_state_hash":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="},"action":{"success":true,"valid":true,"no_funds":false,"status_change":"unchanged","total_fwd_fees":"1708400","total_action_fees":"1406531","result_code":0,"tot_actions":2,"spec_actions":0,"skipped_actions":0,"msgs_created":2,"action_list_hash":"hBjjQRhmPzm+RKgy6U+Ege0Hb0UxD5cNxn2hErwF/To=","tot_msg_size":{"cells":"7","bits":"3110"}}},"block_ref":{"workchain":0,"shard":"8000000000000000","seqno":34903585},"in_msg":{"hash":"59r5FWJBKUv8C7E2szCKDhjdsz0t9hLJM5OiFHToemc=","source":"0:898AD13C059F2A3A69576A010C41AF239B487BC555EABEB9A5894DEB11299330","destination":"0:00194AAD8E422BEDF43FEE746D6D929D369DBAB25468A69D513706EA6978B63A","value":"98993600","value_extra_currencies":{},"fwd_fee":"670939","ihr_fee":"0","created_lt":"36582626000002","created_at":"1751972976","opcode":"0x00000009","ihr_disabled":true,"bounce":true,"bounced":false,"import_fee":null,"message_content":{"hash":"o7V4cZZJdfDYiGUOySLXQiP8zq9cSASvIlmbO/ucJzI=","body":"te6cckEBBAEApwADCAAAAAkBAgMAHGF2YWxhbmNoZS1mdWppAFQweGQ3MDY3QWUzQzM1OWU4Mzc4OTBiMjhCN0JEMGQyMDg0Q2ZEZjQ5YjUAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABNIZWxsbyBmcm9tIFJlbGF5ZXIhAAAAAAAAAAAAAAAAAGu4UHQ=","decoded":null},"init_state":null},"out_msgs":[{"hash":"WsQVGIoOXjS+BqJ46ebFGmzBUNGOY3t2DbZ1/EXK9h4=","source":"0:00194AAD8E422BEDF43FEE746D6D929D369DBAB25468A69D513706EA6978B63A","destination":null,"value":null,"value_extra_currencies":null,"fwd_fee":null,"ihr_fee":null,"created_lt":"36582626000004","created_at":"1751972976","opcode":"0x8011315a","ihr_disabled":null,"bounce":null,"bounced":null,"import_fee":null,"message_content":{"hash":"laYhaSZO6QjQmRsJsn02MK8hcwwIgxMIYX2oFcjFNdA=","body":"te6cckEBBAEA5QADg4ARMVongLPlR00q7UAhiDXkc2kPeKq9V9c0sSm9YiUyZhXUykhs4AH2lBVEFjqex7VaPbPTvuLH5GEs5sIeXm+pcAECAwAcYXZhbGFuY2hlLWZ1amkAVDB4ZDcwNjdBZTNDMzU5ZTgzNzg5MGIyOEI3QkQwZDIwODRDZkRmNDliNQDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0hlbGxvIGZyb20gUmVsYXllciEAAAAAAAAAAAAAAAAALSbhEA==","decoded":null},"init_state":null},{"hash":"5+pjUx9a/8fmExUlLPQKUWSf+p+/HGhbuiL6Trhuufw=","source":"0:00194AAD8E422BEDF43FEE746D6D929D369DBAB25468A69D513706EA6978B63A","destination":"0:898AD13C059F2A3A69576A010C41AF239B487BC555EABEB9A5894DEB11299330","value":"93402800","value_extra_currencies":{},"fwd_fee":"301869","ihr_fee":"0","created_lt":"36582626000005","created_at":"1751972976","opcode":"0x00000018","ihr_disabled":true,"bounce":true,"bounced":false,"import_fee":null,"message_content":{"hash":"qvrlOoIcMk+4fXd5wBBiFUGFVRoCDCkhuAdj+PADXBE=","body":"te6cckEBAQEABgAACAAAABhDnyiV","decoded":null},"init_state":null}],"account_state_before":{"hash":"posCwcSHfOabFTEJpZf3DjjrwdCa0yhl9DX9LTojxY4=","balance":"2717267789","extra_currencies":{},"account_status":"active","frozen_hash":null,"data_hash":"86U+qAM9Gn2Vq9aPLlAW+s6FEpXYZG6v9LwsXNapESw=","code_hash":"vqMbw5w/UEelgUr4xN5vkmkbOqjfAcck49G02pV9Pho="},"account_state_after":{"hash":"4OBdR8k83rjRSwwreZI6a8TmlsuKN5MrCbM/6B+8bFw=","balance":"2715939331","extra_currencies":{},"account_status":"active","frozen_hash":null,"data_hash":"86U+qAM9Gn2Vq9aPLlAW+s6FEpXYZG6v9LwsXNapESw=","code_hash":"vqMbw5w/UEelgUr4xN5vkmkbOqjfAcck49G02pV9Pho="},"emulated":false}]}"#;
+        let example_gateway =
+            TonAddress::from_base64_url("kQAAGUqtjkIr7fQ_7nRtbZKdNp26slRopp1RNwbqaXi2OnXH")
+                .unwrap();
+
+        let log = extract_body_from_response(
+            &example_gateway,
+            StatusCode::OK,
+            rpc_return_text.to_string(),
+        )
+        .expect("Example RPC return text should be parsable");
         assert_debug!(log);
     }
 
@@ -310,6 +336,19 @@ mod tests {
                 .unwrap();
 
         let log = extract_body(&example_gateway, rpc_return_text);
+        assert!(log.is_err());
+    }
+
+    #[test]
+    fn should_reject_on_rpc_failure() {
+        let example_gateway =
+            TonAddress::from_base64_url("kQAAGUqtjkIr7fQ_7nRtbZKdNp26slRopp1RNwbqaXi2OnXH")
+                .unwrap();
+        let log = extract_body_from_response(
+            &example_gateway,
+            StatusCode::BAD_REQUEST,
+            "Bad Request".to_string(),
+        );
         assert!(log.is_err());
     }
 }

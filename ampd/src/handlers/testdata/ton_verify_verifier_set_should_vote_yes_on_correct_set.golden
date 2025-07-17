@@ -1,0 +1,8 @@
+{
+  "vote": {
+    "poll_id": "100",
+    "votes": [
+      "succeeded_on_chain"
+    ]
+  }
+}

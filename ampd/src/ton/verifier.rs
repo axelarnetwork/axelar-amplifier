@@ -12,8 +12,8 @@ use crate::handlers::ton_verify_msg::{FetchingError, Message};
 use crate::handlers::ton_verify_verifier_set::VerifierSetConfirmation;
 use crate::ton::rpc::TonLog;
 
-const OP_SIGNERS_ROTATED: u32 = 0x0000002A;
-const OP_CALL_CONTRACT: u32 = 0x00000009;
+pub const OP_SIGNERS_ROTATED: u32 = 0x0000002A;
+pub const OP_CALL_CONTRACT: u32 = 0x00000009;
 
 // Note: WeightedSigners is empty (has signatures set to 0)
 fn parse_rotate_signers_log(

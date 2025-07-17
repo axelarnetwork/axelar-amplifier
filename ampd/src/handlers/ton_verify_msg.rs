@@ -208,19 +208,26 @@ mod tests {
     use std::convert::TryInto;
 
     use axelar_wasm_std::msg_id::HexTxHash;
+    use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::{H160, H256};
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use router_api::{CrossChainId, Message};
+    use serde_json::Value;
     use tokio::sync::watch;
     use tokio::test as async_test;
+    use ton_utils::build_call_contract_log_cell;
+    use tonlib_core::TonAddress;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
+    use super::*;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::ton::rpc::TonRpcClient;
+    use crate::handlers::ton_verify_msg::FetchingError;
+    use crate::ton::rpc::{TonClient, TonLog, TonRpcClient};
+    use crate::ton::verifier::OP_CALL_CONTRACT;
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -284,13 +291,15 @@ mod tests {
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
+
+        assert!(matches!(event, Event::Abci { .. }));
         match event {
             Event::Abci {
                 ref mut event_type, ..
             } => {
                 *event_type = "incorrect".into();
             }
-            _ => panic!("incorrect event type"),
+            _ => unreachable!("Variant already checked"),
         }
         let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
 
@@ -304,13 +313,15 @@ mod tests {
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
+
+        assert!(matches!(event, Event::Abci { .. }));
         match event {
             Event::Abci {
                 ref mut attributes, ..
             } => {
                 attributes.insert("source_gateway_address".into(), "invalid".into());
             }
-            _ => panic!("incorrect event type"),
+            _ => unreachable!("Variant already checked"),
         }
 
         let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
@@ -334,8 +345,8 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_skip_expired_poll() {
-        let rpc_client = TonRpcClient::new("inv-scheme://invalid-url.abc");
+    async fn ton_verify_msg_should_skip_expired_poll() {
+        let rpc_client = TonRpcClient::new("inv-scheme://invalid-url");
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -357,5 +368,174 @@ mod tests {
 
         // poll is expired, should not get a vote
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn ton_verify_msg_should_skip_not_poll_started_event() {
+        let rpc_client = TonRpcClient::new("inv-scheme://invalid-url");
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            cosmwasm_std::Event::new("transfer"), // not a poll started event
+            &voting_verifier_contract,
+        );
+
+        let (_tx, rx) = watch::channel(expiration - 1);
+
+        let handler = super::Handler::new(verifier, voting_verifier_contract, rpc_client, rx);
+
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn ton_verify_msg_should_skip_poll_not_from_voting_verifier() {
+        let rpc_client = TonRpcClient::new("inv-scheme://invalid-url");
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let other_contract = TMAddress::random(PREFIX);
+
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &other_contract,
+        );
+
+        let (_tx, rx) = watch::channel(expiration - 1);
+
+        let handler = super::Handler::new(verifier, voting_verifier_contract, rpc_client, rx);
+
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn ton_verify_msg_should_skip_poll_when_verifier_is_not_participant() {
+        let rpc_client = TonRpcClient::new("inv-scheme://invalid-url");
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            poll_started_event(participants(5, None), 100),
+            &voting_verifier_contract,
+        );
+
+        let (_tx, rx) = watch::channel(expiration - 1);
+
+        let handler = super::Handler::new(verifier, voting_verifier_contract, rpc_client, rx);
+
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn ton_verify_msg_should_vote_correctly() {
+        let rpc_client = ValidResponseTonRpc;
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier_contract,
+        );
+
+        let (_tx, rx) = watch::channel(expiration - 1);
+
+        let handler = super::Handler::new(verifier, voting_verifier_contract, rpc_client, rx);
+
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
+        let msg_execute_contract = MsgExecuteContract::from_any(actual.first().unwrap()).unwrap();
+
+        let json_str = String::from_utf8(msg_execute_contract.msg).unwrap();
+        let parsed: Value = serde_json::from_str(&json_str).unwrap();
+        goldie::assert_json!(parsed);
+    }
+
+    #[async_test]
+    async fn ton_verify_msg_should_vote_no_on_rpc_failure() {
+        let rpc_client = TonRpcClient::new("inv-scheme://invalid-url");
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier_contract,
+        );
+
+        let (_tx, rx) = watch::channel(expiration - 1);
+
+        let handler = super::Handler::new(verifier, voting_verifier_contract, rpc_client, rx);
+
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
+        let msg_execute_contract = MsgExecuteContract::from_any(actual.first().unwrap()).unwrap();
+
+        let json_str = String::from_utf8(msg_execute_contract.msg).unwrap();
+        let parsed: Value = serde_json::from_str(&json_str).unwrap();
+        goldie::assert_json!(parsed);
+    }
+
+    struct ValidResponseTonRpc;
+    #[async_trait::async_trait]
+    impl TonClient for ValidResponseTonRpc {
+        #[inline(never)]
+        async fn get_log(
+            &self,
+            _contract_address: &TonAddress,
+            tx_hash: &HexTxHash,
+        ) -> error_stack::Result<TonLog, FetchingError> {
+            let msgs = vec![
+                // This correct message matches the first TxEventConfirmation in the simulated event
+                // The vote for the first message should thus be SucceededOnChain
+                Message {
+                    cc_id: CrossChainId {
+                        source_chain: "ton".parse().unwrap(),
+                        message_id: HexTxHash::new(H256::repeat_byte(1)).tx_hash_as_hex(),
+                    },
+                    source_address:
+                        "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe"
+                            .parse()
+                            .unwrap(), // must not contain a _ symbol!
+                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
+                },
+                // This message has the same cc_id as the second TxEventConfirmation, but differs
+                // in the destination address. The vote for the second message should thus be FailedOnChain
+                Message {
+                    cc_id: CrossChainId {
+                        source_chain: "ton".parse().unwrap(),
+                        message_id: HexTxHash::new(H256::repeat_byte(2)).tx_hash_as_hex(),
+                    },
+                    source_address:
+                        "0:7c3b4249fa1a9e0c0a830b5386eb33d805fa55f90cf03de77492971b20b5ec98"
+                            .parse()
+                            .unwrap(),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(42)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(5).to_fixed_bytes(),
+                },
+                // For the third TxEventConfirmation, there is no matching call contract log.
+                // The vote for the third message should thus be NotFound
+            ];
+
+            let queried_msg = msgs
+                .iter()
+                .find(|msg| tx_hash.to_string() == *msg.cc_id.message_id);
+            match queried_msg {
+                Some(msg) => Ok(TonLog {
+                    opcode: OP_CALL_CONTRACT,
+                    cell: build_call_contract_log_cell(msg, vec![]).unwrap().to_arc(),
+                }),
+                None => Err(FetchingError::NotFound)?,
+            }
+        }
     }
 }
