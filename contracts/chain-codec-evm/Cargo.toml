@@ -32,7 +32,6 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 chain-codec-api = { workspace = true }
 cw2 = { workspace = true }
-cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
