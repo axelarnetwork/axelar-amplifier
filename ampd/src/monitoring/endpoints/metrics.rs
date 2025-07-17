@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axelar_wasm_std::voting::Vote;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::header::CONTENT_TYPE;
@@ -9,7 +10,9 @@ use axum::routing::{get, MethodRouter};
 use error_stack::{Result, ResultExt};
 use futures::StreamExt;
 use prometheus_client::encoding::text::encode;
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -29,10 +32,15 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 ///
 /// These messages are sent to the metrics processor to update various counters
 /// and gauges tracked by the monitoring system.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Msg {
     /// Increment the count of blocks received
-    IncBlockReceived,
+    BlockReceived,
+    /// Record the vote verification results for cross-chain message
+    VoteVerification {
+        vote_status: Vote,
+        chain_name: String,
+    },
 }
 
 /// Errors that can occur in metrics processing
@@ -59,7 +67,7 @@ impl IntoResponse for Error {
 /// This client is used throughout the application to record metrics events.
 /// It can operate in two modes: with a real channel to a metrics processor,
 /// or in disabled mode where messages are discarded.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Client {
     /// Active client with a channel to send metrics messages
     WithChannel { sender: mpsc::Sender<Msg> },
@@ -188,28 +196,103 @@ async fn serve_metrics(
 }
 
 struct Metrics {
-    block_received: Counter,
+    block_received: BlockReceivedMetrics,
+    vote_verification: VoteVerificationMetrics,
+}
+
+struct BlockReceivedMetrics {
+    total: Counter,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct VoteStatusLabel {
+    /// source chain name of the handler
+    chain_name: String,
+    /// the vote verification outcome
+    ///
+    /// - succeeded_on_chain: the message was verified successfully on source chain
+    /// - failed_on_chain: the message was found but verification failed on source chain
+    /// - not_found: the message was not found on source chain
+    status: String,
+}
+
+struct VoteVerificationMetrics {
+    total: Family<VoteStatusLabel, Counter>,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
-        // all created metrics are static, so errors during registration are bugs and should panic
-        let block_received = Counter::default();
-        registry.register(
-            "blocks_received",
-            "number of blocks received",
-            block_received.clone(),
-        );
+        let block_received = BlockReceivedMetrics::new();
+        let vote_verification = VoteVerificationMetrics::new();
 
-        Self { block_received }
+        block_received.register(registry);
+        vote_verification.register(registry);
+
+        Self {
+            block_received,
+            vote_verification,
+        }
     }
 
     pub fn handle_message(&self, msg: Msg) {
         match msg {
-            Msg::IncBlockReceived => {
-                self.block_received.inc();
+            Msg::BlockReceived => {
+                self.block_received.increment();
+            }
+
+            Msg::VoteVerification {
+                vote_status,
+                chain_name,
+            } => {
+                self.vote_verification
+                    .record_vote_verification(vote_status, chain_name);
             }
         }
+    }
+}
+
+impl BlockReceivedMetrics {
+    fn new() -> Self {
+        let total = Counter::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "blocks_received",
+            "number of blocks received",
+            self.total.clone(),
+        );
+    }
+
+    fn increment(&self) {
+        self.total.inc();
+    }
+}
+
+impl VoteVerificationMetrics {
+    fn new() -> Self {
+        let total = Family::<VoteStatusLabel, Counter>::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "vote_verification_total",
+            "number of messages verification votes",
+            self.total.clone(),
+        );
+    }
+
+    fn record_vote_verification(&self, status: Vote, chain_name: String) {
+        let status = match status {
+            Vote::SucceededOnChain => "succeeded_on_chain".to_string(),
+            Vote::FailedOnChain => "failed_on_chain".to_string(),
+            Vote::NotFound => "not_found".to_string(),
+        };
+
+        let label = VoteStatusLabel { chain_name, status };
+        self.total.get_or_create(&label).inc();
     }
 }
 
@@ -224,7 +307,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(start_paused = true)]
-    async fn metrics_handle_message_increments_counter_successfully() {
+    async fn should_increment_blocks_received_counter_when_message_processed() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -236,9 +319,9 @@ mod tests {
         initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
-        client.record_metric(Msg::IncBlockReceived).unwrap();
-        client.record_metric(Msg::IncBlockReceived).unwrap();
-        client.record_metric(Msg::IncBlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived).unwrap();
 
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
@@ -248,5 +331,93 @@ mod tests {
 
         // Ensure the final metrics are in the expected format
         goldie::assert!(final_metrics.text())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_update_vote_verification_metrics_correctly_when_multiple_chains_cast_votes() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        let chain_names = vec!["ethereum", "solana", "polygon", "avalanche", "stellar"];
+
+        for chain_name in chain_names {
+            client
+                .record_metric(Msg::VoteVerification {
+                    vote_status: Vote::SucceededOnChain,
+                    chain_name: chain_name.to_string(),
+                })
+                .unwrap();
+            client
+                .record_metric(Msg::VoteVerification {
+                    vote_status: Vote::FailedOnChain,
+                    chain_name: chain_name.to_string(),
+                })
+                .unwrap();
+            client
+                .record_metric(Msg::VoteVerification {
+                    vote_status: Vote::NotFound,
+                    chain_name: chain_name.to_string(),
+                })
+                .unwrap();
+        }
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+
+        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+    }
+
+    #[test]
+    fn should_provide_consistent_sorted_output() {
+        let unsorted_output1 =
+            include_str!("testdata/metrics_sorting/unsorted_metrics_version_1.txt");
+        let unsorted_output2 =
+            include_str!("testdata/metrics_sorting/unsorted_metrics_version_2.txt");
+
+        let sorted_data1 = sort_metrics_output(unsorted_output1);
+        let sorted_data2 = sort_metrics_output(unsorted_output2);
+
+        assert_eq!(sorted_data1, sorted_data2);
+        goldie::assert!(sorted_data1);
+    }
+
+    /// Sort metrics text alphabetically by line for consistent output
+    ///
+    /// The prometheus_client crate returns metrics in non-deterministic order
+    /// when there are metrics with more than one label.  This function sorts
+    /// the metrics output to ensure consistent output in golden file tests.
+    pub fn sort_metrics_output(buffer: &str) -> String {
+        let mut result = Vec::new();
+        let mut current_headers = Vec::new();
+        let mut current_metrics = Vec::new();
+
+        for line in buffer.lines() {
+            if line.starts_with("# TYPE") {
+                current_headers.push(line.to_string());
+            } else if line.starts_with("#") {
+                if !current_headers.is_empty() {
+                    result.append(&mut current_headers);
+
+                    current_metrics.sort();
+                    result.append(&mut current_metrics);
+                }
+                if line.starts_with("# HELP") {
+                    current_headers.push(line.to_string());
+                } else if line.starts_with("# EOF") {
+                    result.push(line.to_string());
+                }
+            } else {
+                current_metrics.push(line.to_string());
+            }
+        }
+
+        result.join("\n") + "\n"
     }
 }

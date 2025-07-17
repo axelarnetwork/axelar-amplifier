@@ -171,7 +171,7 @@ fn log_block_end_event(
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
         info!(height = height.value(), "handler finished processing block");
 
-        if let Err(err) = metric_client.metrics().record_metric(Msg::IncBlockReceived) {
+        if let Err(err) = metric_client.metrics().record_metric(Msg::BlockReceived) {
             warn!( handler = handler_label,
                 height = height.value(),
                 err = %err,
