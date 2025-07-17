@@ -1,0 +1,60 @@
+[
+  {
+    "type": "interchain_token_deployment_started",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0101010101010101010101010101010101010101010101010101010101010101\""
+      },
+      {
+        "key": "token_name",
+        "value": "\"Test Token\""
+      },
+      {
+        "key": "token_symbol",
+        "value": "\"TEST\""
+      },
+      {
+        "key": "token_decimals",
+        "value": "18"
+      },
+      {
+        "key": "minter",
+        "value": "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"avalanche\""
+      }
+    ]
+  },
+  {
+    "type": "interchain_token_deployment_started",
+    "attributes": [
+      {
+        "key": "token_id",
+        "value": "\"0202020202020202020202020202020202020202020202020202020202020202\""
+      },
+      {
+        "key": "token_name",
+        "value": "\"Trustless Token\""
+      },
+      {
+        "key": "token_symbol",
+        "value": "\"TRUST\""
+      },
+      {
+        "key": "token_decimals",
+        "value": "6"
+      },
+      {
+        "key": "minter",
+        "value": "null"
+      },
+      {
+        "key": "destination_chain",
+        "value": "\"avalanche\""
+      }
+    ]
+  }
+]
