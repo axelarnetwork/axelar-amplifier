@@ -12,8 +12,8 @@ pub fn record_vote_verification_metric(
     if let Err(err) = monitoring_client
         .metrics()
         .record_metric(Msg::VoteVerification {
-            vote_status: vote.clone(),
-            chain_name: chain_name.to_string(),
+            vote_status: vote.to_owned(),
+            chain_name: chain_name.to_owned(),
         })
     {
         warn!(error = %err,
