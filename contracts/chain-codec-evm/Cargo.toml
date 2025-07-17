@@ -1,5 +1,5 @@
 [package]
-name = "chain-codec-abi"
+name = "chain-codec-evm"
 version = "0.1.0"
 authors = ["chipshort <christoph@interoplabs.io>"]
 edition = "2021"

@@ -6,7 +6,7 @@ use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInf
 
 use crate::error::Error;
 
-const CONTRACT_NAME: &str = "crates.io:chain-codec-abi";
+const CONTRACT_NAME: &str = "crates.io:chain-codec-evm";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -1,4 +1,4 @@
-use chain_codec_abi::contract::{instantiate, query}; // TODO: use different encodings
+use chain_codec_evm::contract::{instantiate, query}; // TODO: use different encodings
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, Empty};
 use cw_multi_test::{ContractWrapper, Executor};
