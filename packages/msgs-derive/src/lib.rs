@@ -114,7 +114,7 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
         #[cw_serde]
         #visibility enum #external_execute_msg_ident {
             Relay {
-                sender: cosmwasm_std::Addr,
+                original_sender: cosmwasm_std::Addr,
                 msg: #enum_type,
             },
 
@@ -129,6 +129,20 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
         impl From<#enum_type> for #external_execute_msg_ident {
             fn from(msg: #enum_type) -> #external_execute_msg_ident {
                 #external_execute_msg_ident::Direct(msg)
+            }
+        }
+
+        impl client::MsgFromProxy for #enum_type{
+            type MsgWithOriginalSender = #external_execute_msg_ident;
+
+            fn via_proxy(
+                self,
+                original_sender: cosmwasm_std::Addr,
+            ) -> Self::MsgWithOriginalSender {
+                #external_execute_msg_ident::Relay {
+                    original_sender,
+                    msg: self,
+                }
             }
         }
 
@@ -733,13 +747,13 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     execute_fn.block = parse_quote!(
         {
             let (msg, info) = match msg.into() {
-                #new_msg_ident::Relay{sender, msg} => {
+                #new_msg_ident::Relay{original_sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
                         msg,
                         #validate_external_contract_call,
                     )?, cosmwasm_std::MessageInfo {
-                        sender: sender,
+                        sender: original_sender,
                         funds: info.funds,
                     })
                 },

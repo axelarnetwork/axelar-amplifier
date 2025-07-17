@@ -1907,7 +1907,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
             ExecuteMsgFromProxy::Relay {
-                sender: api.addr_make(GOVERNANCE_ADDRESS),
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
@@ -1930,7 +1930,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsgFromProxy::Relay {
-                sender: api.addr_make(GOVERNANCE_ADDRESS),
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
@@ -1956,7 +1956,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
             ExecuteMsgFromProxy::Relay {
-                sender: api.addr_make(GOVERNANCE_ADDRESS),
+                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
                 msg: ExecuteMsg::EnableRouting {},
             },
         );

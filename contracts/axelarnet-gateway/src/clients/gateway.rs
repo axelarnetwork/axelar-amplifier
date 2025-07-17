@@ -1,15 +1,9 @@
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{Addr, Coin, CosmosMsg, HexBinary};
-use error_stack::{Result, ResultExt};
+use cosmwasm_std::{Coin, CosmosMsg, HexBinary};
+use error_stack::Result;
 use router_api::{Address, ChainName, CrossChainId, Message};
 
 use crate::msg::{ExecuteMsg, QueryMsg};
-
-#[derive(thiserror::Error, Debug, PartialEq)]
-pub enum Error {
-    #[error("failed to query the chain name at gateway contract {0}")]
-    QueryChainName(Addr),
-}
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
@@ -61,10 +55,8 @@ impl Client<'_> {
             .map(|messages| self.client.execute(&ExecuteMsg::RouteMessages(messages)))
     }
 
-    pub fn chain_name(&self) -> Result<ChainName, Error> {
-        self.client
-            .query(&QueryMsg::ChainName)
-            .change_context_lazy(|| Error::QueryChainName(self.client.address.clone()))
+    pub fn chain_name(&self) -> Result<ChainName, client::Error> {
+        self.client.query(&QueryMsg::ChainName)
     }
 }
 

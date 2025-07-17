@@ -39,7 +39,7 @@ impl<T> Router<T> {
         WasmMsg::Execute {
             contract_addr: self.address.to_string(),
             msg: to_json_binary(&ExecuteMsgFromProxy::Relay {
-                sender: original_sender,
+                original_sender,
                 msg: msg.clone(),
             })
             .expect("msg should always be serializable"),

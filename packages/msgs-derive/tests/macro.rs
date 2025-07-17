@@ -396,7 +396,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: no_privilege.clone(),
+            original_sender: no_privilege.clone(),
             msg: TestMsg3::Any
         }
     )
@@ -408,7 +408,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: admin.clone(),
+            original_sender: admin.clone(),
             msg: TestMsg3::Any
         }
     )
@@ -420,7 +420,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: governance.clone(),
+            original_sender: governance.clone(),
             msg: TestMsg3::Any
         }
     )
@@ -432,7 +432,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway1_addr.clone(),
+            original_sender: gateway1_addr.clone(),
             msg: TestMsg3::Any
         }
     )
@@ -444,7 +444,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway2_addr.clone(),
+            original_sender: gateway2_addr.clone(),
             msg: TestMsg3::Any
         }
     )
@@ -456,7 +456,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway3_addr.clone(),
+            original_sender: gateway3_addr.clone(),
             msg: TestMsg3::Any
         }
     )
@@ -470,7 +470,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: no_privilege.clone(),
+                original_sender: no_privilege.clone(),
                 msg: TestMsg3::Proxy1
             }
         )
@@ -485,7 +485,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: admin.clone(),
+            original_sender: admin.clone(),
             msg: TestMsg3::Proxy1
         }
     )
@@ -497,7 +497,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: governance.clone(),
+            original_sender: governance.clone(),
             msg: TestMsg3::Proxy1
         }
     )
@@ -510,7 +510,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway1_addr.clone(),
+                original_sender: gateway1_addr.clone(),
                 msg: TestMsg3::Proxy1
             }
         )
@@ -526,7 +526,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway2_addr.clone(),
+                original_sender: gateway2_addr.clone(),
                 msg: TestMsg3::Proxy1
             }
         )
@@ -542,7 +542,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway3_addr.clone(),
+                original_sender: gateway3_addr.clone(),
                 msg: TestMsg3::Proxy1
             }
         )
@@ -581,7 +581,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: no_privilege.clone(),
+                original_sender: no_privilege.clone(),
                 msg: TestMsg3::Proxy2
             }
         )
@@ -597,7 +597,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: admin.clone(),
+                original_sender: admin.clone(),
                 msg: TestMsg3::Proxy2
             }
         )
@@ -613,7 +613,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: governance.clone(),
+                original_sender: governance.clone(),
                 msg: TestMsg3::Proxy2
             }
         )
@@ -628,7 +628,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway1_addr.clone(),
+            original_sender: gateway1_addr.clone(),
             msg: TestMsg3::Proxy2
         }
     )
@@ -641,7 +641,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway2_addr.clone(),
+                original_sender: gateway2_addr.clone(),
                 msg: TestMsg3::Proxy2
             }
         )
@@ -657,7 +657,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway3_addr.clone(),
+                original_sender: gateway3_addr.clone(),
                 msg: TestMsg3::Proxy2
             }
         )
@@ -673,7 +673,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: governance.clone(),
+            original_sender: governance.clone(),
             msg: TestMsg3::Proxy3
         }
     )
@@ -686,7 +686,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: governance.clone(),
+                original_sender: governance.clone(),
                 msg: TestMsg3::Proxy3
             }
         )
@@ -702,7 +702,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: governance.clone(),
+                original_sender: governance.clone(),
                 msg: TestMsg3::Proxy3
             }
         )
@@ -718,7 +718,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway2_addr.clone(),
+            original_sender: gateway2_addr.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -730,7 +730,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway2_addr.clone(),
+            original_sender: gateway2_addr.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -742,7 +742,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: gateway2_addr.clone(),
+            original_sender: gateway2_addr.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -755,7 +755,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: no_privilege.clone(),
+            original_sender: no_privilege.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -767,7 +767,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: no_privilege.clone(),
+            original_sender: no_privilege.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -779,7 +779,7 @@ fn ensure_proxy_permissions() {
             funds: vec![]
         },
         TestMsg3FromProxy::Relay {
-            sender: no_privilege.clone(),
+            original_sender: no_privilege.clone(),
             msg: TestMsg3::Proxy4
         }
     )
@@ -793,7 +793,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: governance.clone(),
+                original_sender: governance.clone(),
                 msg: TestMsg3::Proxy4
             }
         )
@@ -809,7 +809,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: governance.clone(),
+                original_sender: governance.clone(),
                 msg: TestMsg3::Proxy4
             }
         )
@@ -825,7 +825,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: governance.clone(),
+                original_sender: governance.clone(),
                 msg: TestMsg3::Proxy4
             }
         )
@@ -842,7 +842,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway1_addr.clone(),
+                original_sender: gateway1_addr.clone(),
                 msg: TestMsg3::Proxy5
             }
         )
@@ -858,7 +858,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway2_addr.clone(),
+                original_sender: gateway2_addr.clone(),
                 msg: TestMsg3::Proxy5
             }
         )
@@ -874,7 +874,7 @@ fn ensure_proxy_permissions() {
                 funds: vec![]
             },
             TestMsg3FromProxy::Relay {
-                sender: gateway3_addr.clone(),
+                original_sender: gateway3_addr.clone(),
                 msg: TestMsg3::Proxy5
             }
         )
