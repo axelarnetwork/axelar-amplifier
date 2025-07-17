@@ -10,22 +10,22 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
-use crate::error::ContractError;
-use crate::Payload;
+use crate::error::Error;
+use chain_codec_api::Payload;
 
-fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
+fn encode_payload(payload: &Payload) -> Result<Vec<u8>, Error> {
     let encoded: Vec<u8> = match payload {
         Payload::Messages(messages) => bcs::to_bytes(
             &messages
                 .iter()
                 .map(Message::try_from)
                 .collect::<Result<Vec<_>, _>>()
-                .change_context(ContractError::InvalidMessage)?,
+                .change_context(Error::InvalidMessage)?,
         )
         .expect("failed to serialize messages"),
         Payload::VerifierSet(verifier_set) => bcs::to_bytes(
             &WeightedSigners::try_from(verifier_set.clone())
-                .change_context(ContractError::InvalidVerifierSet)?,
+                .change_context(Error::InvalidVerifierSet)?,
         )
         .expect("failed to weighted signers"),
     };
@@ -37,7 +37,7 @@ pub fn payload_digest(
     domain_separator: &Hash,
     verifier_set: &VerifierSet,
     payload: &Payload,
-) -> Result<Hash, ContractError> {
+) -> Result<Hash, Error> {
     let command_type = match payload {
         Payload::Messages(_) => CommandType::ApproveMessages,
         Payload::VerifierSet(_) => CommandType::RotateSigners,
@@ -48,7 +48,7 @@ pub fn payload_digest(
     let msg = MessageToSign {
         domain_separator: (*domain_separator).into(),
         signers_hash: WeightedSigners::try_from(verifier_set.clone())
-            .change_context(ContractError::InvalidVerifierSet)?
+            .change_context(Error::InvalidVerifierSet)?
             .hash()
             .into(),
         data_hash: <[u8; 32]>::from(Keccak256::digest(data)).into(),
@@ -64,7 +64,7 @@ pub fn encode_execute_data(
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,
     payload: &Payload,
-) -> Result<HexBinary, ContractError> {
+) -> Result<HexBinary, Error> {
     let signatures = to_recoverable(
         payload_digest(domain_separator, verifier_set, payload)?,
         signatures,
@@ -73,7 +73,7 @@ pub fn encode_execute_data(
     let encoded_payload = encode_payload(payload)?;
     let encoded_proof = bcs::to_bytes(
         &Proof::try_from((verifier_set.clone(), signatures))
-            .change_context(ContractError::Proof)?,
+            .change_context(Error::Proof)?,
     )
     .expect("failed to serialize proof");
     let execute_data = ExecuteData::new(encoded_payload, encoded_proof);
@@ -115,7 +115,7 @@ mod tests {
     use router_api::{CrossChainId, Message};
 
     use super::payload_digest;
-    use crate::Payload;
+    use chain_codec_api::Payload;
 
     #[test]
     fn payload_digest_should_encode_correctly_for_verifier_set() {

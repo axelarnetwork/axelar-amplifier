@@ -44,6 +44,7 @@ cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
 cosmwasm-std = "2.1.4"
 chain-codec-evm = { version = "^0.1.0", path = "contracts/chain-codec-evm" }
+chain-codec-sui = { version = "^0.1.0", path = "contracts/chain-codec-sui" }
 chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }

@@ -40,9 +40,6 @@ pub enum ContractError {
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
-    #[error(transparent)]
-    BcsError(#[from] bcs::Error),
-
     #[error("verifier set has not changed sufficiently since last update")]
     VerifierSetUnchanged,
 
