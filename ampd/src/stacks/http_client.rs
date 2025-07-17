@@ -247,7 +247,7 @@ mod tests {
         assert_eq!(transaction.events.len(), 2);
         assert_eq!(transaction.block_height, 168868);
 
-        let event = transaction.events.get(0).unwrap();
+        let event = transaction.events.first().unwrap();
 
         assert_eq!(event.event_index, 0);
         assert!(event.contract_log.is_some());

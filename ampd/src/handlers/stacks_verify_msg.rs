@@ -378,16 +378,14 @@ mod tests {
     async fn test_handler() -> Handler {
         let client = Client::faux();
 
-        let handler = Handler::new(
+        Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,
             watch::channel(0).1,
         )
-        .unwrap();
-
-        handler
+        .unwrap()
     }
 
     fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
