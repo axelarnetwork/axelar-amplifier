@@ -5,7 +5,6 @@ use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::contract::{execute, instantiate, query};
-use multisig_prover_api::encoding::Encoder;
 
 use crate::contract::Contract;
 use crate::protocol::{emptying_deps_mut, Protocol};
@@ -23,6 +22,7 @@ impl MultisigProverContract {
         admin_address: Addr,
         gateway_address: Addr,
         voting_verifier_address: Addr,
+        chain_codec_address: Addr,
         chain_name: String,
     ) -> Self {
         let code =
@@ -42,6 +42,7 @@ impl MultisigProverContract {
                     coordinator_address: protocol.coordinator.contract_addr.to_string(),
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
+                    chain_codec_address: chain_codec_address.to_string(),
                     signing_threshold: Threshold::try_from((2u64, 3u64))
                         .unwrap()
                         .try_into()
@@ -49,7 +50,6 @@ impl MultisigProverContract {
                     service_name: protocol.service_name.to_string(),
                     chain_name: chain_name.to_string(),
                     verifier_set_diff_threshold: 0,
-                    encoder: Encoder::Abi,
                     key_type: KeyType::Ecdsa,
                     domain_separator: [0; 32],
                 },

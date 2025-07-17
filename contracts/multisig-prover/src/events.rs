@@ -2,7 +2,7 @@ use axelar_wasm_std::IntoEvent;
 use cosmwasm_std::Uint64;
 use router_api::{ChainName, CrossChainId};
 
-use crate::payload::PayloadId;
+use multisig_prover_api::payload::PayloadId;
 
 #[derive(IntoEvent)]
 pub enum Event {

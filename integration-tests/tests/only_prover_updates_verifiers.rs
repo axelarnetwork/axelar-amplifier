@@ -1,6 +1,7 @@
 use axelar_wasm_std::{permission_control, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::testing::MockApi;
+use integration_tests::chain_codec_contract::ChainCodecContract;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
@@ -16,6 +17,8 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
     let chain_name: ChainName = "ethereum".parse().unwrap();
 
     // New chain configuration where the coordinator has the wrong prover address
+    let chain_codec = ChainCodecContract::instantiate_contract(&mut protocol);
+
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
@@ -35,6 +38,7 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
         multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),
         voting_verifier.contract_addr.clone(),
+        chain_codec.contract_addr.clone(),
         chain_name.to_string(),
     );
 

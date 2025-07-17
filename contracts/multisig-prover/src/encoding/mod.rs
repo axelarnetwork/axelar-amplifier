@@ -1,4 +1,3 @@
-mod abi;
 mod bcs;
 mod stellar_xdr;
 

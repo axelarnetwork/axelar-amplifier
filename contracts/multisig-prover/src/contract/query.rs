@@ -1,9 +1,8 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
-use error_stack::Result;
+use error_stack::{Result, ResultExt};
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 
-use crate::encoding::EncoderExt;
 use crate::error::ContractError;
 use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 use crate::state::{
@@ -36,12 +35,16 @@ pub fn proof(deps: Deps, multisig_session_id: Uint64) -> Result<ProofResponse, C
     let status = match multisig.state {
         MultisigState::Pending => ProofStatus::Pending,
         MultisigState::Completed { .. } => {
-            let execute_data = config.encoder.execute_data(
-                &config.domain_separator,
-                &multisig.verifier_set,
-                multisig.optimize_signatures(),
-                &payload,
-            )?;
+            let chain_codec: chain_codec_api::Client =
+        client::ContractClient::new(deps.querier, &config.chain_codec).into();
+            let signers = multisig.optimize_signatures();
+            let execute_data = chain_codec
+                .encode_exec_data(
+                    config.domain_separator,
+                    multisig.verifier_set,
+                    signers,
+                    payload.clone(),
+                ).change_context(ContractError::FailedToQueryChainCodec)?;
             ProofStatus::Completed { execute_data }
         }
     };

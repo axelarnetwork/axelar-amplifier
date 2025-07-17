@@ -19,7 +19,6 @@ use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
-use multisig_prover_api::encoding::Encoder;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
@@ -80,6 +79,11 @@ fn deploy_chains(
                     label: "Gateway1.0.0".to_string(),
                     msg: (),
                 },
+                chain_codec: ContractDeploymentInfo {
+                    code_id: chain.chain_codec.code_id,
+                    label: "ChainCodec1.0.0".to_string(),
+                    msg: (),
+                },
                 verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
                     label: "Verifier1.0.0".to_string(),
@@ -121,7 +125,6 @@ fn deploy_chains(
                         service_name: protocol.service_name.parse().unwrap(),
                         chain_name: chain_name.parse().unwrap(),
                         verifier_set_diff_threshold: 0,
-                        encoder: Encoder::Abi,
                         key_type: KeyType::Ecdsa,
                         domain_separator: [0; 32],
                     },

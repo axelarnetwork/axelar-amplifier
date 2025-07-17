@@ -97,9 +97,15 @@ pub enum ContractError {
     #[error("failed to create wasm execute msg")]
     FailedToCreateWasmExecuteMsg,
 
+    #[error("failed to query chain codec contract")]
+    FailedToQueryChainCodec,
+
     // Generic error to wrap cw_storage_plus errors
     // This should only be used for things that shouldn't happen, such as encountering
     // an error when loading data that should always load successfully.
     #[error("storage error")]
     StorageError,
+
+    #[error(transparent)]
+    ChainCodecError(#[from] chain_codec_api::error::Error),
 }

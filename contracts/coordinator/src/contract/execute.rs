@@ -159,6 +159,7 @@ fn instantiate_prover(
     service_registry_address: Addr,
     multisig_address: Addr,
     verifier_address: Addr,
+    chain_codec_address: Addr,
     prover_msg: &ProverMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
@@ -175,15 +176,31 @@ fn instantiate_prover(
             multisig_address: multisig_address.to_string().clone(),
             service_registry_address: service_registry_address.to_string().clone(),
             voting_verifier_address: verifier_address.to_string().clone(),
+            chain_codec_address: chain_codec_address.to_string().clone(),
             signing_threshold: prover_msg.signing_threshold,
             service_name: prover_msg.service_name.to_string(),
             chain_name: prover_msg.chain_name.to_string(),
             verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
-            encoder: prover_msg.encoder,
             key_type: prover_msg.key_type,
             domain_separator: prover_msg.domain_separator,
         })
         .change_context(Error::InstantiateProver)?,
+        label,
+    )
+}
+
+fn instantiate_chain_codec(
+    ctx: &InstantiateContext,
+    label: String,
+) -> Result<(WasmMsg, Addr), Error> {
+    launch_contract(
+        &ctx.deps,
+        &ctx.info,
+        &ctx.env,
+        ctx.salt.clone(),
+        ctx.chain_codec_id,
+        cosmwasm_std::to_json_binary(&chain_codec_api::msg::InstantiateMsg {})
+            .change_context(Error::InstantiateChainCodec)?,
         label,
     )
 }
@@ -194,6 +211,7 @@ struct InstantiateContext<'a> {
     env: Env,
     salt: Binary,
     gateway_code_id: u64,
+    chain_codec_id: u64,
     verifier_code_id: u64,
     prover_code_id: u64,
 }
@@ -225,6 +243,7 @@ pub fn instantiate_chain_contracts(
                 env,
                 salt,
                 gateway_code_id: params.gateway.code_id,
+                chain_codec_id: params.chain_codec.code_id,
                 verifier_code_id: params.verifier.code_id,
                 prover_code_id: params.prover.code_id,
             };
@@ -239,6 +258,12 @@ pub fn instantiate_chain_contracts(
 
             response = response.add_message(msg);
 
+            let (msg, chain_codec_address) = instantiate_chain_codec(
+                &ctx,
+                params.chain_codec.label.clone(),
+            )?;
+
+            response = response.add_message(msg);
             let (msg, voting_verifier_address) = instantiate_verifier(
                 &ctx,
                 params.verifier.label.clone(),
@@ -255,6 +280,7 @@ pub fn instantiate_chain_contracts(
                 protocol.service_registry.clone(),
                 protocol.multisig.clone(),
                 voting_verifier_address.clone(),
+                chain_codec_address.clone(),
                 &params.prover.msg,
             )?;
 

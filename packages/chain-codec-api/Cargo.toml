@@ -1,0 +1,20 @@
+[package]
+name = "chain-codec-api"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+axelar-wasm-std = { workspace = true }
+client = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-storage-plus = { workspace = true }
+error-stack = { workspace = true }
+multisig = { workspace = true, features = ["library"] }
+multisig-prover-api = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

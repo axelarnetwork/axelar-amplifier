@@ -10,6 +10,7 @@ use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
 use cw_multi_test::{AppBuilder, AppResponse, Executor};
+use integration_tests::chain_codec_contract::ChainCodecContract;
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
@@ -706,12 +707,15 @@ pub fn execute_verifier_set_poll(
 #[derive(Clone)]
 pub struct Chain {
     pub gateway: GatewayContract,
+    pub chain_codec: ChainCodecContract,
     pub voting_verifier: VotingVerifierContract,
     pub multisig_prover: MultisigProverContract,
     pub chain_name: ChainName,
 }
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+    let chain_codec = ChainCodecContract::instantiate_contract(protocol);
+    
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
@@ -724,6 +728,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         voting_verifier.contract_addr.clone(),
     );
 
+
     let multisig_prover_admin =
         MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
     let multisig_prover = MultisigProverContract::instantiate_contract(
@@ -731,6 +736,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),
         voting_verifier.contract_addr.clone(),
+        chain_codec.contract_addr.clone(),
         chain_name.to_string(),
     );
 
@@ -836,6 +842,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     Chain {
         gateway,
+        chain_codec,
         voting_verifier,
         multisig_prover,
         chain_name,

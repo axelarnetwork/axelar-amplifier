@@ -1967,6 +1967,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "chain-codec-abi"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_ok",
+ "axelar-wasm-std",
+ "chain-codec-api",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "elliptic-curve",
+ "error-stack",
+ "ethers-contract",
+ "ethers-core",
+ "evm-gateway",
+ "generic-array",
+ "goldie",
+ "hex",
+ "itertools 0.14.0",
+ "k256",
+ "multisig",
+ "prost 0.12.6",
+ "router-api",
+ "service-registry-api",
+ "sha3",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "chain-codec-api"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "error-stack",
+ "multisig",
+ "multisig-prover-api",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2303,6 +2349,7 @@ name = "coordinator"
 version = "1.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "chain-codec-api",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -5141,6 +5188,8 @@ dependencies = [
  "anyhow",
  "axelar-core-std",
  "axelar-wasm-std",
+ "chain-codec-abi",
+ "chain-codec-api",
  "coordinator",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6495,6 +6544,7 @@ dependencies = [
  "assert_ok",
  "axelar-wasm-std",
  "bcs",
+ "chain-codec-api",
  "client",
  "coordinator",
  "cosmwasm-schema",
@@ -6539,7 +6589,12 @@ version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "goldie",
  "multisig",
+ "router-api",
+ "sha3",
 ]
 
 [[package]]

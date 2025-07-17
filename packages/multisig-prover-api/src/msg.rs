@@ -3,8 +3,6 @@ use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use multisig::key::KeyType;
 
-use crate::encoding::Encoder;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Address that can execute all messages that either have unrestricted or admin permission level, such as Updateverifier set.
@@ -26,6 +24,9 @@ pub struct InstantiateMsg {
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
     /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
     pub voting_verifier_address: String,
+    /// Address of the chain codec contract on axelar associated with the destination chain.
+    /// This is the contract that encodes the execute data for the target chain that the relayer will submit.
+    pub chain_codec_address: String,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
@@ -38,10 +39,6 @@ pub struct InstantiateMsg {
     /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
     /// will fail unless the registered verifier set and active verifier set differ by more than 1.
     pub verifier_set_diff_threshold: u32,
-    /// Type of encoding to use for signed payload. Blockchains can encode their execution payloads in various ways (ABI, BCS, etc).
-    /// This defines the specific encoding type to use for this prover, which should correspond to the encoding type used by the gateway
-    /// deployed on the destination chain.
-    pub encoder: Encoder,
     /// Public key type verifiers use for signing payload. Different blockchains support different cryptographic signature algorithms (ECDSA, Ed25519, etc).
     /// This defines the specific signature algorithm to use for this prover, which should correspond to the signature algorithm used by the gateway
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this

@@ -14,7 +14,6 @@ use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
-use crate::encoding::EncoderExt;
 use crate::error::ContractError;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
@@ -64,12 +63,20 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    let digest = config
-        .encoder
-        .digest(&config.domain_separator, &verifier_set, &payload)?;
+
+    let verifier_set_id = verifier_set.id();
+    
+    let chain_codec: chain_codec_api::Client =
+        client::ContractClient::new(deps.querier, &config.chain_codec).into();
+    let digest = chain_codec
+        .payload_digest(
+            config.domain_separator,
+            verifier_set,
+            payload.clone(),
+        ).change_context(ContractError::FailedToQueryChainCodec)?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        verifier_set_id: verifier_set.id(),
+        verifier_set_id,
         msg: digest.into(),
         chain_name: config.chain_name,
         sig_verifier: None,
@@ -265,10 +272,15 @@ pub fn update_verifier_set(
                 .save(deps.storage, &payload_id)
                 .map_err(ContractError::from)?;
 
-            let digest =
-                config
-                    .encoder
-                    .digest(&config.domain_separator, &cur_verifier_set, &payload)?;
+            let chain_codec: chain_codec_api::Client =
+                client::ContractClient::new(deps.querier, &config.chain_codec).into();
+            
+            let digest = chain_codec
+                .payload_digest(
+                    config.domain_separator,
+                    cur_verifier_set.clone(),
+                    payload.clone(),
+                ).change_context(ContractError::FailedToQueryChainCodec)?;
 
             let verifier_union_set = all_active_verifiers(deps.storage)?;
 
@@ -424,7 +436,6 @@ mod tests {
 
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
-    use multisig_prover_api::encoding::Encoder;
     use router_api::ChainName;
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
@@ -553,11 +564,11 @@ mod tests {
             coordinator: MockApi::default().addr_make("doesn't matter"),
             service_registry: MockApi::default().addr_make("doesn't matter"),
             voting_verifier: MockApi::default().addr_make("doesn't matter"),
+            chain_codec: MockApi::default().addr_make("doesn't matter"),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
             verifier_set_diff_threshold: 0,
-            encoder: Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
             domain_separator: [0; 32],
         }

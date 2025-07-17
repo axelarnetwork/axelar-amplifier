@@ -1,0 +1,54 @@
+[package]
+name = "chain-codec-abi"
+version = "0.1.0"
+authors = ["chipshort <christoph@interoplabs.io>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+chain-codec-api = { workspace = true }
+cw2 = { workspace = true }
+cw-storage-plus = { workspace = true }
+error-stack = { workspace = true }
+ethers-contract = { workspace = true }
+ethers-core = { workspace = true }
+evm-gateway = { workspace = true }
+itertools = { workspace = true }
+k256 = { workspace = true }
+multisig = { workspace = true, features = ["library"] }
+sha3 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1.0"
+assert_ok = { workspace = true }
+cw-multi-test = { workspace = true }
+elliptic-curve = "0.13.5"
+generic-array = "0.14.7"
+goldie = { workspace = true }
+prost = "0.12.4"
+router-api = { workspace = true }
+service-registry-api = { workspace = true }
+hex = { workspace = true }

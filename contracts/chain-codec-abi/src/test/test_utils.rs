@@ -1,6 +1,6 @@
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_std::testing::MockApi;
-use cosmwasm_std::{from_json, to_json_binary, HexBinary, QuerierResult, Uint128, WasmQuery};
+use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
 use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
@@ -14,7 +14,6 @@ pub const MULTISIG_ADDRESS: &str = "multisig";
 pub const COORDINATOR_ADDRESS: &str = "coordinator";
 pub const SERVICE_REGISTRY_ADDRESS: &str = "service_registry";
 pub const VOTING_VERIFIER_ADDRESS: &str = "voting_verifier";
-pub const CHAIN_CODEC_ADDRESS: &str = "chain_codec";
 pub const ADMIN: &str = "admin";
 pub const GOVERNANCE: &str = "governance";
 pub const SERVICE_NAME: &str = "validators";
@@ -41,11 +40,6 @@ pub fn mock_querier_handler(
                     .as_str() =>
         {
             service_registry_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
-        }
-        WasmQuery::Smart { contract_addr, msg }
-            if contract_addr == MockApi::default().addr_make(CHAIN_CODEC_ADDRESS).as_str() =>
-        {
-            chain_codec_mock_querier_handler(from_json(msg).unwrap())
         }
         WasmQuery::Smart { contract_addr, .. }
             if contract_addr
@@ -177,19 +171,4 @@ fn service_registry_mock_querier_handler(
 
 fn voting_verifier_mock_querier_handler(status: VerificationStatus) -> QuerierResult {
     Ok(to_json_binary(&status).into()).into()
-}
-
-fn chain_codec_mock_querier_handler(
-    msg: chain_codec_api::msg::QueryMsg,
-) -> QuerierResult {
-    let result = match msg {
-        chain_codec_api::msg::QueryMsg::PayloadDigest { .. } => {
-            to_json_binary(&[0u8; 32])
-        }
-        chain_codec_api::msg::QueryMsg::EncodeExecData { .. } => {
-            to_json_binary(&HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap())
-        }
-        _ => panic!("unexpected query: {:?}", msg),
-    };
-    Ok(result.into()).into()
 }

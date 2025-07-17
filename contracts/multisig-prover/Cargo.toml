@@ -23,6 +23,7 @@ library = []
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 bcs = "0.1.5"
+chain-codec-api = { workspace = true }
 client = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-schema = { workspace = true }

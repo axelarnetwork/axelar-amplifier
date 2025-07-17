@@ -8,7 +8,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
 use msgs_derive::Permissions;
 use multisig::key::KeyType;
-use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
@@ -69,6 +68,7 @@ pub struct ContractDeploymentInfo<T> {
 #[cw_serde]
 pub struct ManualDeploymentParams {
     pub gateway: ContractDeploymentInfo<()>,
+    pub chain_codec: ContractDeploymentInfo<()>,
     pub verifier: ContractDeploymentInfo<VerifierMsg>,
     pub prover: ContractDeploymentInfo<ProverMsg>,
 }
@@ -88,7 +88,6 @@ pub struct ProverMsg {
     pub service_name: String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub encoder: Encoder,
     pub key_type: KeyType,
     #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]

@@ -43,6 +43,8 @@ cosmrs = "0.22.0"
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
 cosmwasm-std = "2.1.4"
+chain-codec-abi = { version = "^0.1.0", path = "contracts/chain-codec-abi" }
+chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
