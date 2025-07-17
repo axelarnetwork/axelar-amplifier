@@ -2,16 +2,16 @@
   "event_instantiated": {
     "attributes": [
       {
-        "key": "service_name",
-        "value": "serviceName"
+        "key": "service_registry_contract",
+        "value": "\"cosmwasm19d2spdjdycg0tfu27n2zrkwvr25yxwykaxvxwkpnf7hqkka93j4sfp809w\""
       },
       {
-        "key": "service_registry_contract",
-        "value": "cosmwasm19d2spdjdycg0tfu27n2zrkwvr25yxwykaxvxwkpnf7hqkka93j4sfp809w"
+        "key": "service_name",
+        "value": "\"serviceName\""
       },
       {
         "key": "source_gateway_address",
-        "value": "sourceGatewayAddress"
+        "value": "\"sourceGatewayAddress\""
       },
       {
         "key": "voting_threshold",
@@ -19,7 +19,7 @@
       },
       {
         "key": "block_expiry",
-        "value": "10"
+        "value": "\"10\""
       },
       {
         "key": "confirmation_height",
@@ -27,11 +27,11 @@
       },
       {
         "key": "source_chain",
-        "value": "sourcechain"
+        "value": "\"sourcechain\""
       },
       {
         "key": "rewards_contract",
-        "value": "cosmwasm1wyhnds94w36ar6jlz4aaaz75cmypwmr0rqnc92nm5m79ejy04hnsx25urh"
+        "value": "\"cosmwasm1wyhnds94w36ar6jlz4aaaz75cmypwmr0rqnc92nm5m79ejy04hnsx25urh\""
       },
       {
         "key": "msg_id_format",
@@ -56,11 +56,11 @@
       },
       {
         "key": "source_chain",
-        "value": "sourcechain"
+        "value": "\"sourcechain\""
       },
       {
         "key": "source_gateway_address",
-        "value": "sourceGatewayAddress"
+        "value": "\"sourceGatewayAddress\""
       },
       {
         "key": "confirmation_height",
@@ -123,11 +123,11 @@
       },
       {
         "key": "source_chain",
-        "value": "sourcechain"
+        "value": "\"sourcechain\""
       },
       {
         "key": "source_gateway_address",
-        "value": "sourceGatewayAddress"
+        "value": "\"sourceGatewayAddress\""
       },
       {
         "key": "confirmation_height",
@@ -152,7 +152,7 @@
       },
       {
         "key": "voter",
-        "value": "cosmwasm12ehr5qctpa78s2r2luz4lqyuzm955nxvj5msmptpatlf3qzj0xds4lvke5"
+        "value": "\"cosmwasm12ehr5qctpa78s2r2luz4lqyuzm955nxvj5msmptpatlf3qzj0xds4lvke5\""
       },
       {
         "key": "votes",
