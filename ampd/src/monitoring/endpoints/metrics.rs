@@ -14,7 +14,6 @@ use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
-use stellar_xdr::curr::String64;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -207,12 +206,12 @@ struct BlockReceivedMetrics {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct VoteStatusLabel {
-    /// source chain name of the hanlder
+    /// source chain name of the handler
     chain_name: String,
     /// the vote verification outcome
     ///
     /// - succeeded_on_chain: the message was verified successfully on source chain
-    /// - failed_on_chain: the message was found but verification failed on source chain (e.g. the message was not found on source chain)
+    /// - failed_on_chain: the message was found but verification failed on source chain
     /// - not_found: the message was not found on source chain
     status: String,
 }
