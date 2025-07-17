@@ -43,10 +43,10 @@ impl Client<'_> {
 
     pub fn is_chain_registered(&self, chain: &ChainName) -> Result<bool> {
         self.inner
-            .query::<IsChainRegisteredResponse, _>(QueryMsg::IsChainRegistered {
+            .query(QueryMsg::IsChainRegistered {
                 chain: chain.to_string(),
             })
-            .map(|res| res.is_registered)
+            .map(|res: IsChainRegisteredResponse| res.is_registered)
             .change_context(Error::QueryIsChainRegistered)
     }
 }
