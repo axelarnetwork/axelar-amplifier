@@ -19,13 +19,13 @@ pub mod verifier_set_verifier;
 
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
-    async fn get_tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta>;
-    async fn get_domain_separator(&self) -> Option<[u8; 32]>;
+    async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta>;
+    async fn domain_separator(&self) -> Option<[u8; 32]>;
 }
 
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for RpcClient {
-    async fn get_tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
+    async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
         self.get_transaction(
             signature,
             solana_transaction_status::UiTransactionEncoding::Base58,
@@ -39,7 +39,7 @@ impl SolanaRpcClientProxy for RpcClient {
         .await
     }
 
-    async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+    async fn domain_separator(&self) -> Option<[u8; 32]> {
         let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
 
         let config_data = self.get_account(&gateway_root_pda).await.ok()?.data;
