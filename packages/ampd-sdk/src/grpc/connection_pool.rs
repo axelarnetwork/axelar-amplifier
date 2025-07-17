@@ -87,12 +87,14 @@ impl PartialEq for ConnectionState {
 pub struct ConnectionHandle {
     connection_receiver: watch::Receiver<ConnectionState>,
     message_sender: mpsc::Sender<ClientMessage>,
+    /// Used to prevent busy loops from saturating the message channel
+    has_sent_disconnected_message: bool,
 }
 
 impl ConnectionHandle {
     /// This method encapsulates all the connection state management logic:
     /// - If connected, returns the channel immediately
-    /// - If disconnected, returns an error
+    /// - If disconnected, inform clients
     /// - If reconnecting, waits for the connection to complete and returns the channel
     ///
     /// Clients should use this method instead of manually handling connection states.
@@ -102,12 +104,20 @@ impl ConnectionHandle {
                 let connection_state = self.connection_receiver.borrow_and_update().clone();
 
                 match connection_state {
-                    ConnectionState::Connected(channel) => return Ok(channel),
+                    ConnectionState::Connected(channel) => {
+                        self.has_sent_disconnected_message = false;
+                        return Ok(channel);
+                    }
                     ConnectionState::Disconnected => {
-                        self.send_client_message(ClientMessage::ConnectionFailed(
-                            "client requested connection while disconnected".to_string(),
-                        ))
-                        .await?;
+                        // Only send ConnectionFailed message if we haven't already sent one
+                        if !self.has_sent_disconnected_message {
+                            self.send_client_message(ClientMessage::ConnectionFailed(
+                                "client requested connection while disconnected".to_string(),
+                            ))
+                            .await?;
+                            self.has_sent_disconnected_message = true;
+                        }
+
                         let mut receiver = self.connection_receiver.clone();
                         receiver.changed().await.into_report()?;
                     }
@@ -154,6 +164,7 @@ impl ConnectionPool {
         let handle = ConnectionHandle {
             connection_receiver: state_receiver,
             message_sender: msg_sender,
+            has_sent_disconnected_message: false,
         };
 
         let pool = Self {
@@ -345,6 +356,45 @@ mod tests {
 
         let _ = timeout(Duration::from_millis(300), receiver.changed()).await;
         assert!(matches!(*receiver.borrow(), ConnectionState::Disconnected));
+
+        pool_task.abort();
+    }
+
+    #[tokio::test]
+    async fn connection_pool_should_not_send_multiple_connection_failed_messages() {
+        let (pool, handle) =
+            ConnectionPool::new(Url::new_sensitive("https://localhost:1").unwrap());
+        let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let handle1 = handle.clone();
+        let handle2 = handle.clone();
+        let handle3 = handle.clone();
+
+        let task1 = tokio::spawn(async move {
+            let mut handle = handle1;
+            handle.get_connected_channel().await
+        });
+        let task2 = tokio::spawn(async move {
+            let mut handle = handle2;
+            handle.get_connected_channel().await
+        });
+        let task3 = tokio::spawn(async move {
+            let mut handle = handle3;
+            handle.get_connected_channel().await
+        });
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        assert!(matches!(
+            *handle.connection_receiver.borrow(),
+            ConnectionState::Disconnected
+        ));
+
+        task1.abort();
+        task2.abort();
+        task3.abort();
 
         pool_task.abort();
     }
