@@ -1,17 +1,21 @@
 use axelar_wasm_std::address;
-use cosmwasm_std::{Deps, Order};
+use cosmwasm_std::{Deps, Env, Order};
 use error_stack::report;
 use itertools::Itertools;
 use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
 use service_registry_api::*;
+use std::cmp::Ordering;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use crate::msg::{ServiceParamsOverride, VerifierDetails};
 use crate::state::{self, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
 
 pub fn active_verifiers(
     deps: Deps,
+    env: Env,
     service_name: String,
     chain_name: ChainName,
 ) -> error_stack::Result<Vec<WeightedVerifier>, ContractError> {
@@ -45,17 +49,60 @@ pub fn active_verifiers(
     }
 
     Ok(match service.max_num_verifiers {
-        Some(max_verifiers) if verifiers.len() > max_verifiers as usize => verifiers
-            .into_iter()
-            .sorted_by(|a, b| {
-                b.weight
-                    .cmp(&a.weight)
-                    .then_with(|| a.verifier_info.address.cmp(&b.verifier_info.address))
-            })
-            .take(max_verifiers as usize)
-            .collect(),
+        Some(max_verifiers) => select_top_verifiers(verifiers, max_verifiers, env.block.height),
         _ => verifiers,
     })
+}
+
+fn select_top_verifiers(
+    mut verifiers: Vec<WeightedVerifier>,
+    max_verifiers: u16,
+    block_height: u64,
+) -> Vec<WeightedVerifier> {
+    if verifiers.len() <= max_verifiers as usize {
+        return verifiers;
+    }
+
+    // Figure out the min weight that will make it into the set
+    let cutoff_weight = {
+        let nth = max_verifiers as usize - 1;
+        verifiers.select_nth_unstable_by(nth, |a, b| b.weight.cmp(&a.weight));
+        verifiers[nth].weight
+    };
+
+    // Now sort by weight descending, but for verifiers with the cutoff weight, break ties via pick_random
+    verifiers.sort_by(|a, b| {
+        b.weight.cmp(&a.weight).then_with(|| {
+            if a.weight == cutoff_weight {
+                pick_random(a, b, block_height)
+            } else {
+                Ordering::Equal
+            }
+        })
+    });
+
+    // Take up to max_verifiers from the sorted set
+    verifiers.truncate(max_verifiers as usize);
+    verifiers
+}
+
+fn pick_random(a: &WeightedVerifier, b: &WeightedVerifier, block_height: u64) -> Ordering {
+    let hash_a = hash_address_with_seed(
+        &a.verifier_info.address.to_string(),
+        &block_height.to_string(),
+    );
+    let hash_b = hash_address_with_seed(
+        &b.verifier_info.address.to_string(),
+        &block_height.to_string(),
+    );
+    hash_a.cmp(&hash_b)
+}
+
+fn hash_address_with_seed(address: &str, seed: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    address.hash(&mut hasher);
+    seed.hash(&mut hasher);
+    hasher.finish()
 }
 
 pub fn verifier(
@@ -99,4 +146,266 @@ pub fn service_params_override(
 ) -> error_stack::Result<Option<ServiceParamsOverride>, ContractError> {
     state::may_load_service_params_override(deps.storage, &service_name, &chain_name)
         .map(|o| o.map(Into::into))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axelar_wasm_std::nonempty;
+    use cosmwasm_std::{Addr, Uint128};
+    use service_registry_api::{AuthorizationState, BondingState, Verifier};
+
+    fn create_weighted_verifier(address: &str, weight: u128) -> WeightedVerifier {
+        WeightedVerifier {
+            verifier_info: Verifier {
+                address: Addr::unchecked(address),
+                bonding_state: BondingState::Bonded {
+                    amount: nonempty::Uint128::try_from(Uint128::from(100u128)).unwrap(),
+                },
+                authorization_state: AuthorizationState::Authorized,
+                service_name: "test".to_string(),
+            },
+            weight: nonempty::Uint128::try_from(Uint128::from(weight)).unwrap(),
+        }
+    }
+
+    #[test]
+    fn select_top_verifiers_fewer_than_max() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+        ];
+
+        let result = select_top_verifiers(verifiers.clone(), 5, 12345);
+
+        // Should return all verifiers if we have fewer than max
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].verifier_info.address.to_string(), "addr1");
+        assert_eq!(result[1].verifier_info.address.to_string(), "addr2");
+    }
+
+    #[test]
+    fn select_top_verifiers_all_different_weights() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 80),
+            create_weighted_verifier("addr4", 70),
+            create_weighted_verifier("addr5", 60),
+        ];
+
+        let result = select_top_verifiers(verifiers, 3, 12345);
+
+        // Should return top 3 by weight
+        assert_eq!(result.len(), 3);
+        let addresses: Vec<String> = result
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+        assert!(addresses.contains(&"addr1".to_string()));
+        assert!(addresses.contains(&"addr2".to_string()));
+        assert!(addresses.contains(&"addr3".to_string()));
+    }
+
+    #[test]
+    fn select_top_verifiers_with_ties() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 100),
+            create_weighted_verifier("addr3", 90),
+            create_weighted_verifier("addr4", 90),
+            create_weighted_verifier("addr5", 90),
+        ];
+
+        let result = select_top_verifiers(verifiers, 3, 12345);
+
+        // Should return 3 verifiers total
+        assert_eq!(result.len(), 3);
+
+        // Both addr1 and addr2 should be included (weight 100)
+        let addresses: Vec<String> = result
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+        assert!(addresses.contains(&"addr1".to_string()));
+        assert!(addresses.contains(&"addr2".to_string()));
+
+        // Only one of addr3, addr4, addr5 should be included (randomly selected)
+        let weight_90_count = result
+            .iter()
+            .filter(|v| v.weight == nonempty::Uint128::try_from(Uint128::from(90u128)).unwrap())
+            .count();
+        assert_eq!(weight_90_count, 1);
+    }
+
+    #[test]
+    fn select_top_verifiers_deterministic_with_same_seed() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 90),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 90),
+            create_weighted_verifier("addr4", 90),
+        ];
+
+        let result1 = select_top_verifiers(verifiers.clone(), 2, 12345);
+        let result2 = select_top_verifiers(verifiers.clone(), 2, 12345);
+
+        // Should be deterministic with same block height
+        assert_eq!(result1.len(), result2.len());
+        assert_eq!(
+            result1[0].verifier_info.address.to_string(),
+            result2[0].verifier_info.address.to_string()
+        );
+        assert_eq!(
+            result1[1].verifier_info.address.to_string(),
+            result2[1].verifier_info.address.to_string()
+        );
+    }
+
+    #[test]
+    fn select_top_verifiers_different_with_different_seed() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 90),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 90),
+            create_weighted_verifier("addr4", 90),
+            create_weighted_verifier("addr5", 90),
+            create_weighted_verifier("addr6", 90),
+            create_weighted_verifier("addr7", 90),
+            create_weighted_verifier("addr8", 90),
+            create_weighted_verifier("addr9", 90),
+            create_weighted_verifier("addr10", 90),
+        ];
+
+        let result1 = select_top_verifiers(verifiers.clone(), 2, 12345);
+        let result2 = select_top_verifiers(verifiers.clone(), 2, 54321);
+
+        // Results should be different with different block heights
+        assert_eq!(result1.len(), result2.len());
+        // At least one should be different (very high probability)
+        let same_selection = result1[0].verifier_info.address.to_string()
+            == result2[0].verifier_info.address.to_string()
+            && result1[1].verifier_info.address.to_string()
+                == result2[1].verifier_info.address.to_string();
+        assert!(!same_selection);
+    }
+
+    #[test]
+    fn select_top_verifiers_mixed_scenario() {
+        let verifiers = vec![
+            create_weighted_verifier("high1", 100),
+            create_weighted_verifier("high2", 100),
+            create_weighted_verifier("mid1", 50),
+            create_weighted_verifier("mid2", 50),
+            create_weighted_verifier("mid3", 50),
+            create_weighted_verifier("low1", 25),
+        ];
+
+        let result = select_top_verifiers(verifiers, 4, 12345);
+
+        assert_eq!(result.len(), 4);
+
+        // Both high weight verifiers should be included
+        let addresses: Vec<String> = result
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+        assert!(addresses.contains(&"high1".to_string()));
+        assert!(addresses.contains(&"high2".to_string()));
+
+        // Exactly 2 mid-weight verifiers should be included
+        let mid_count = result
+            .iter()
+            .filter(|v| v.weight == nonempty::Uint128::try_from(Uint128::from(50u128)).unwrap())
+            .count();
+        assert_eq!(mid_count, 2);
+
+        // No low weight verifiers should be included
+        assert!(!addresses.contains(&"low1".to_string()));
+    }
+
+    #[test]
+    fn select_top_verifiers_exact_max() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 80),
+        ];
+
+        let result = select_top_verifiers(verifiers, 3, 12345);
+
+        // Should return all verifiers when exactly at max
+        assert_eq!(result.len(), 3);
+    }
+
+    #[test]
+    fn test_select_top_verifiers_all_same_weight() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 100),
+            create_weighted_verifier("addr3", 100),
+            create_weighted_verifier("addr4", 100),
+            create_weighted_verifier("addr5", 100),
+        ];
+
+        let result = select_top_verifiers(verifiers, 3, 12345);
+
+        // Should return exactly 3 verifiers, selected deterministically by hash
+        assert_eq!(result.len(), 3);
+
+        // All should have the same weight
+        for verifier in &result {
+            assert_eq!(
+                verifier.weight,
+                nonempty::Uint128::try_from(Uint128::from(100u128)).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn hash_address_with_seed_consistency() {
+        let addr = "test_address";
+        let seed = "12345";
+
+        let hash1 = hash_address_with_seed(addr, seed);
+        let hash2 = hash_address_with_seed(addr, seed);
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn hash_address_with_seed_different_addresses() {
+        let addr1 = "test_address1";
+        let addr2 = "test_address2";
+        let seed = "12345";
+
+        let hash1 = hash_address_with_seed(addr1, seed);
+        let hash2 = hash_address_with_seed(addr2, seed);
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn hash_address_with_seed_different_seeds() {
+        let addr1 = "test_address1";
+        let seed1 = "12345";
+        let seed2 = "54321";
+
+        let hash1 = hash_address_with_seed(addr1, seed1);
+        let hash2 = hash_address_with_seed(addr1, seed2);
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_pick_random_consistency() {
+        let verifier1 = create_weighted_verifier("addr1", 100);
+        let verifier2 = create_weighted_verifier("addr2", 100);
+        let block_height = 12345;
+
+        let result1 = pick_random(&verifier1, &verifier2, block_height);
+        let result2 = pick_random(&verifier1, &verifier2, block_height);
+
+        assert_eq!(result1, result2);
+    }
 }

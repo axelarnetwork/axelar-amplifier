@@ -178,15 +178,20 @@ fn match_verifier(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
-    _env: Env,
+    env: Env,
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ActiveVerifiers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::active_verifiers(deps, service_name, chain_name)?)
-            .map_err(|err| err.into()),
+        } => to_json_binary(&query::active_verifiers(
+            deps,
+            env,
+            service_name,
+            chain_name,
+        )?)
+        .map_err(|err| err.into()),
         QueryMsg::Verifier {
             service_name,
             verifier,
@@ -3174,12 +3179,12 @@ mod test {
     }
 
     #[test]
-    fn active_verifiers_respects_chain_max_override_and_sorts_correctly() {
+    fn active_verifiers_respects_chain_max_override() {
         let (mut deps, api, service_name, original_verifiers) = setup_service_with_5_verifiers();
         let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
         let chain_name = ChainName::from_str("ethereum").unwrap();
 
-        // Bond and register all verifiers at once
+        // Bond and register all verifiers
         for verifier in &original_verifiers {
             let res = execute(
                 deps.as_mut(),
@@ -3238,40 +3243,36 @@ mod test {
         // Should only return 3 verifiers (respecting chain max override)
         assert_eq!(active_verifiers.len(), 3);
 
-        // Verify they are sorted by address (since all have same weight)
-        // Should be first 3 addresses in alphabetical order
-        let mut expected_addresses = original_verifiers.clone();
-        expected_addresses.sort();
-
-        assert_eq!(
-            active_verifiers[0].verifier_info.address.to_string(),
-            expected_addresses[0]
+        // Increase the max verifiers, make sure the full set is returned
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+                service_params_override: crate::msg::ServiceParamsOverride {
+                    min_num_verifiers: None,
+                    max_num_verifiers: Some(Some(5)), // Chain limit of 3
+                },
+            },
         );
-        assert_eq!(
-            active_verifiers[1].verifier_info.address.to_string(),
-            expected_addresses[1]
-        );
-        assert_eq!(
-            active_verifiers[2].verifier_info.address.to_string(),
-            expected_addresses[2]
-        );
+        assert!(res.is_ok());
 
-        // All should have the same weight
-        assert_eq!(active_verifiers[0].weight, VERIFIER_WEIGHT);
-        assert_eq!(active_verifiers[1].weight, VERIFIER_WEIGHT);
-        assert_eq!(active_verifiers[2].weight, VERIFIER_WEIGHT);
+        // Query active verifiers for the chain
+        let active_verifiers = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+            },
+        )
+        .unwrap();
 
-        // All should be authorized and bonded
-        for verifier in &active_verifiers {
-            assert_eq!(
-                verifier.verifier_info.authorization_state,
-                AuthorizationState::Authorized
-            );
-            assert!(matches!(
-                verifier.verifier_info.bonding_state,
-                BondingState::Bonded { .. }
-            ));
-        }
+        let active_verifiers: Vec<WeightedVerifier> = from_json(&active_verifiers).unwrap();
+
+        assert_eq!(active_verifiers.len(), original_verifiers.len());
 
         // Test that without chain override, all 5 verifiers would be returned
         let chain_name_no_override = ChainName::from_str("polygon").unwrap();
