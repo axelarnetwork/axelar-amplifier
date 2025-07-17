@@ -44,18 +44,18 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
         } = response;
 
         Ok(ContractsAddresses {
-            voting_verifier: parse_addr(voting_verifier, "voting verifier")?,
-            multisig_prover: parse_addr(multisig_prover, "multisig prover")?,
-            service_registry: parse_addr(service_registry, "service registry")?,
-            rewards: parse_addr(rewards, "rewards contract")?,
+            voting_verifier: parse_addr(voting_verifier)?,
+            multisig_prover: parse_addr(multisig_prover)?,
+            service_registry: parse_addr(service_registry)?,
+            rewards: parse_addr(rewards)?,
         })
     }
 }
 
-pub fn parse_addr(addr: &str, address_name: &'static str) -> Result<AccountId, Error> {
+pub(crate) fn parse_addr(addr: &str) -> Result<AccountId, Error> {
     addr.parse::<AccountId>()
-        .change_context(AppError::InvalidAddress(address_name).into())
-        .attach_printable_lazy(|| addr.to_string())
+        .change_context(AppError::InvalidAddress.into())
+        .attach_printable(addr.to_string())
 }
 
 pub enum KeyAlgorithm {

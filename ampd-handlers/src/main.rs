@@ -1,24 +1,27 @@
 use std::env;
 
-use ampd_sdk::grpc::client::{Client, ManagedGrpcClient};
+use ampd::url::Url;
+use ampd_sdk::grpc::client::{Client, GrpcClient};
 use ampd_sdk::grpc::connection_pool::ConnectionPool;
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let ampd_url =
-        env::var("AMPD_SERVICE_URL").unwrap_or_else(|_| "http://127.0.0.1:9090".to_string());
+    let url = env::var("AMPD_SERVICE_URL").unwrap_or_else(|_| "http://127.0.0.1:9090".to_string());
+    let ampd_url = Url::new_sensitive(&url)?;
 
-    println!("Attempting to connect to AMPD server at {}", ampd_url);
+    println!("Attempting to connect to AMPD server");
 
-    let (manager, handle) = ConnectionPool::new(&ampd_url)?;
+    let (pool, handle) = ConnectionPool::new(ampd_url);
+    let token = CancellationToken::new();
     tokio::spawn(async move {
-        let _ = manager.run().await;
+        let _ = pool.run(token.clone()).await;
     });
 
-    let mut client = ManagedGrpcClient::new(handle);
+    let mut client = GrpcClient::new(handle);
 
-    println!("Connected to AMPD server at {}", ampd_url);
+    println!("Connected to AMPD server");
 
     let mut event_stream = client.subscribe(vec![], true).await?;
 

@@ -1,5 +1,4 @@
 use thiserror::Error;
-use tokio::sync::watch;
 use tonic::Code;
 
 #[derive(Error, Debug)]
@@ -28,8 +27,8 @@ pub enum AppError {
     #[error("failed to convert event")]
     EventConversion,
 
-    #[error("invalid {0} address")]
-    InvalidAddress(&'static str),
+    #[error("invalid address")]
+    InvalidAddress,
 
     #[error("missing event in response")]
     InvalidResponse,
@@ -43,15 +42,12 @@ pub enum AppError {
     #[error("invalid byte array")]
     InvalidByteArray,
 
-    #[error("connection to the manager is unavailable")]
+    #[error("connection to the pool is unavailable")]
     ConnectionUnavailable,
 }
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to reconnect to the pool")]
-    ConnectionStateReceiveFailed(#[from] watch::error::RecvError),
-
     #[error(transparent)]
     Grpc(#[from] GrpcError),
 

@@ -21,7 +21,7 @@ use tokio_stream::Stream;
 use tonic::{transport, Request};
 
 use crate::grpc::client_utils::{parse_addr, BroadcastClientResponse, ContractsAddresses, Key};
-use crate::grpc::connection_pool::{ConnectionHandle, ConnectionState};
+use crate::grpc::connection_pool::ConnectionHandle;
 use crate::grpc::error::{AppError, Error};
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
@@ -57,56 +57,25 @@ pub trait Client {
 }
 
 #[derive(Clone)]
-pub struct ManagedGrpcClient {
+pub struct GrpcClient {
     connection_handle: ConnectionHandle,
 }
 
-impl ManagedGrpcClient {
+impl GrpcClient {
     pub fn new(connection_handle: ConnectionHandle) -> Self {
         Self { connection_handle }
     }
 
-    async fn get_service_clients(
-        &mut self,
-    ) -> Result<
-        (
-            BlockchainServiceClient<transport::Channel>,
-            CryptoServiceClient<transport::Channel>,
-        ),
-        Error,
-    > {
-        let connection_state = self.connection_handle.connection_receiver.borrow().clone();
-
-        match connection_state {
-            ConnectionState::Connected(channel) => {
-                let blockchain_service_client = BlockchainServiceClient::new(channel.clone());
-                let crypto_service_client = CryptoServiceClient::new(channel);
-                Ok((blockchain_service_client, crypto_service_client))
-            }
-            ConnectionState::Disconnected => {
-                bail!(Error::from(AppError::ConnectionUnavailable))
-            }
-            ConnectionState::Reconnecting => {
-                let mut receiver = self.connection_handle.connection_receiver.clone();
-                receiver.changed().await.into_report()?;
-                let connection_state = receiver.borrow().clone();
-
-                match connection_state {
-                    ConnectionState::Connected(channel) => {
-                        let blockchain_service_client =
-                            BlockchainServiceClient::new(channel.clone());
-                        let crypto_service_client = CryptoServiceClient::new(channel);
-                        Ok((blockchain_service_client, crypto_service_client))
-                    }
-                    _ => bail!(Error::from(AppError::ConnectionUnavailable)),
-                }
-            }
-        }
+    async fn get_channel(&mut self) -> Result<transport::Channel, Error> {
+        self.connection_handle
+            .get_connected_channel()
+            .await
+            .change_context(Error::from(AppError::ConnectionUnavailable))
     }
 }
 
 #[async_trait]
-impl Client for ManagedGrpcClient {
+impl Client for GrpcClient {
     type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
 
     async fn subscribe(
@@ -114,7 +83,8 @@ impl Client for ManagedGrpcClient {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error> {
-        let (mut blockchain_client, _) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let request = SubscribeRequest {
             filters: filters
@@ -142,7 +112,8 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn address(&mut self) -> Result<AccountId, Error> {
-        let (mut blockchain_client, _) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let broadcaster_address = blockchain_client
             .address(Request::new(AddressRequest {}))
@@ -151,12 +122,13 @@ impl Client for ManagedGrpcClient {
             .into_inner()
             .address;
 
-        let ampd_broadcaster_address = parse_addr(&broadcaster_address, "broadcaster")?;
+        let ampd_broadcaster_address = parse_addr(&broadcaster_address)?;
         Ok(ampd_broadcaster_address)
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
-        let (mut blockchain_client, _) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let request = BroadcastRequest { msg: Some(msg) };
 
@@ -174,7 +146,8 @@ impl Client for ManagedGrpcClient {
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
     ) -> Result<T, Error> {
-        let (mut blockchain_client, _) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         blockchain_client
             .contract_state(ContractStateRequest {
@@ -192,7 +165,8 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
-        let (mut blockchain_client, _) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let response = blockchain_client
             .contracts(Request::new(ContractsRequest {}))
@@ -210,7 +184,8 @@ impl Client for ManagedGrpcClient {
         key: Option<Key>,
         message: nonempty::Vec<u8>,
     ) -> Result<nonempty::Vec<u8>, Error> {
-        let (_, mut crypto_client) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut crypto_client = CryptoServiceClient::new(channel);
 
         crypto_client
             .sign(Request::new(SignRequest {
@@ -226,7 +201,8 @@ impl Client for ManagedGrpcClient {
     }
 
     async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
-        let (_, mut crypto_client) = self.get_service_clients().await?;
+        let channel = self.get_channel().await?;
+        let mut crypto_client = CryptoServiceClient::new(channel);
 
         crypto_client
             .key(Request::new(KeyRequest {
@@ -245,6 +221,7 @@ impl Client for ManagedGrpcClient {
 mod tests {
     use std::str::FromStr;
 
+    use ampd::url::Url;
     use ampd_proto::blockchain_service_server::{BlockchainService, BlockchainServiceServer};
     use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
     use ampd_proto::{
@@ -256,12 +233,13 @@ mod tests {
     use mockall::mock;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{sleep, timeout, Duration};
+    use tokio_util::sync::CancellationToken;
     use tonic::{Request, Response, Status};
 
     use super::*;
     use crate::grpc::client_utils::KeyAlgorithm;
-    use crate::grpc::connection_pool::{ClientMessage, ConnectionPool};
+    use crate::grpc::connection_pool::{ClientMessage, ConnectionPool, ConnectionState};
     use crate::grpc::error::GrpcError;
 
     type ServerSubscribeStream =
@@ -295,11 +273,7 @@ mod tests {
     async fn test_setup(
         mock_blockchain: MockBlockchainService,
         mock_crypto: MockCryptoService,
-    ) -> (
-        ManagedGrpcClient,
-        ConnectionHandle,
-        tokio::task::AbortHandle,
-    ) {
+    ) -> (GrpcClient, tokio::task::AbortHandle) {
         let server = transport::Server::builder()
             .add_service(BlockchainServiceServer::new(mock_blockchain))
             .add_service(CryptoServiceServer::new(mock_crypto));
@@ -311,18 +285,17 @@ mod tests {
             server.serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener));
 
         tokio::spawn(bound_server);
-        let url = format!("http://{}", server_addr);
+        let pool_url = Url::new_sensitive(&format!("http://{}", server_addr)).unwrap();
 
-        let (pool, connection_handle) = ConnectionPool::new(&url).unwrap();
-        let pool_task = tokio::spawn(async move { pool.run().await });
+        let (pool, connection_handle) = ConnectionPool::new(pool_url);
+        let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
         let pool_abort_handle = pool_task.abort_handle();
 
-        let mut receiver = connection_handle.connection_receiver.clone();
-        let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
+        sleep(Duration::from_millis(100)).await;
 
-        let client = ManagedGrpcClient::new(connection_handle.clone());
+        let client = GrpcClient::new(connection_handle.clone());
 
-        (client, connection_handle, pool_abort_handle)
+        (client, pool_abort_handle)
     }
 
     #[tokio::test]
@@ -338,17 +311,17 @@ mod tests {
             .times(2)
             .returning(move |_request| Ok(Response::new(mock_response.clone())));
 
-        let (mut client, handle, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
 
-        let mut receiver = handle.connection_receiver.clone();
+        let mut receiver = client.connection_handle.connection_receiver();
         let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
 
         let result = client.address().await;
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
 
-        handle
-            .message_sender
-            .send(ClientMessage::ConnectionFailed(
+        client
+            .connection_handle
+            .send_client_message(ClientMessage::ConnectionFailed(
                 "simulated failure".to_string(),
             ))
             .await
@@ -381,7 +354,7 @@ mod tests {
             .expect_address()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -395,7 +368,7 @@ mod tests {
             .expect_address()
             .return_once(|_request| Err(Status::unavailable("service unavailable")));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
         assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
@@ -412,7 +385,7 @@ mod tests {
             .expect_address()
             .return_once(|_request| Err(Status::invalid_argument("invalid request")));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
 
         assert!(
@@ -439,7 +412,7 @@ mod tests {
             .times(5)
             .returning(move |_request| Ok(Response::new(mock_response.clone())));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
 
         for _ in 0..5 {
             let result = client.address().await;
@@ -461,7 +434,7 @@ mod tests {
             .expect_broadcast()
             .return_once(move |__request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -475,7 +448,7 @@ mod tests {
             .expect_broadcast()
             .return_once(|_request| Err(Status::internal("gas estimation failed")));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(
@@ -502,7 +475,7 @@ mod tests {
             .expect_broadcast()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
 
         let empty_msg = Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
@@ -536,7 +509,7 @@ mod tests {
                 }))
             });
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
         let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
 
@@ -556,7 +529,7 @@ mod tests {
                 }))
             });
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
@@ -578,7 +551,7 @@ mod tests {
             .expect_contract_state()
             .return_once(|_request| Err(Status::unknown("contract execution failed")));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
@@ -608,7 +581,7 @@ mod tests {
             .expect_contracts()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.contracts().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -629,7 +602,7 @@ mod tests {
                 }))
             });
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.contracts().await;
 
         assert!(
@@ -655,7 +628,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -672,7 +645,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(SignResponse { signature: vec![] })));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -696,7 +669,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Err(Status::internal("signing service unavailable")));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -724,7 +697,7 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client.sign(None, sample_message()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -743,7 +716,7 @@ mod tests {
             .expect_key()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -758,7 +731,7 @@ mod tests {
             .expect_key()
             .return_once(|_request| Err(Status::data_loss("connection lost during key retrieval")));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(
@@ -780,7 +753,7 @@ mod tests {
             .expect_key()
             .return_once(|_request| Err(Status::invalid_argument("key not found")));
 
-        let (mut client, _, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(
@@ -814,7 +787,7 @@ mod tests {
                 ))))
             });
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.subscribe(vec![], true).await;
         assert!(result.is_ok());
 
@@ -834,7 +807,7 @@ mod tests {
                 )))))
             });
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
 
         let result = client.subscribe(vec![], true).await;
         let next_steam_item = result.unwrap().next().await;
@@ -857,7 +830,7 @@ mod tests {
                 )))))
             });
 
-        let (mut client, _, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
 
         let result = client.subscribe(vec![], true).await;
         let next_steam_item = result.unwrap().next().await;
