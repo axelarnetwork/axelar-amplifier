@@ -188,6 +188,8 @@ pub fn execute(
     Response::new()
         .add_message(external::Client::new(deps.querier, &destination).execute(executable_msg))
         .add_event(AxelarnetGatewayEvent::MessageExecuted { msg })
+        .change_custom()
+        .expect("the msg can never be a CosmosMsg::Custom")
         .then(Ok)
 }
 
