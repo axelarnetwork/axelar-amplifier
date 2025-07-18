@@ -10,12 +10,13 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use error_stack::ResultExt;
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
+use msgs_derive::ensure_permissions;
 
 use crate::contract::errors::Error;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -36,6 +37,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+#[ensure_permissions(proxy(coordinator=find_coordinator_address(info.sender.clone(), env.clone())), direct(prover=find_prover_address(info.sender.clone())))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -43,11 +45,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        find_prover_address(info.sender.clone()),
-    )? {
+    match msg {
         ExecuteMsg::RegisterProtocol {
             service_registry_address: service_registry,
             router_address,
@@ -104,12 +102,27 @@ pub fn execute(
 
 fn find_prover_address(
     sender: Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, state::Error> {
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> {
     move |storage, _| {
-        if state::is_prover_registered(storage, sender.clone())? {
+        if state::is_prover_registered(storage, sender.clone())
+            .change_context(Error::ProverNotFound)?
+        {
             Ok(sender)
         } else {
-            Err(report!(state::Error::ProverNotRegistered(sender)))
+            error_stack::bail!(Error::ProverNotFound)
+        }
+    }
+}
+
+fn find_coordinator_address(
+    sender: Addr,
+    env: Env,
+) -> impl FnOnce(&dyn Storage) -> error_stack::Result<Addr, Error> {
+    move |_| {
+        if sender == env.contract.address {
+            Ok(sender)
+        } else {
+            error_stack::bail!(Error::CoordinatorNotFound)
         }
     }
 }

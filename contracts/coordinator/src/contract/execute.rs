@@ -315,7 +315,7 @@ pub fn register_deployment(
     Ok(Response::new()
         .add_message(
             router.register_chain(
-                original_sender,
+                original_sender.clone(),
                 deployed_contracts.chain_name.clone(),
                 router_api::Address::try_from(deployed_contracts.gateway.to_string())
                     .change_context(Error::ChainContractsInfo)?,
@@ -323,6 +323,7 @@ pub fn register_deployment(
             ),
         )
         .add_message(coordinator.register_chain(
+            original_sender,
             deployed_contracts.chain_name,
             deployed_contracts.multisig_prover.to_string(),
             deployed_contracts.gateway.to_string(),
