@@ -1,5 +1,4 @@
-use clarity::vm::errors::{CheckErrors, Error as ClarityError};
-use clarity::vm::types::serialization::SerializationError;
+use clarity_serialization::errors::CodecError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,20 +11,8 @@ pub enum Error {
     NotEcdsaKey,
 }
 
-impl From<CheckErrors> for Error {
-    fn from(_: CheckErrors) -> Self {
-        Error::InvalidEncoding
-    }
-}
-
-impl From<ClarityError> for Error {
-    fn from(_: ClarityError) -> Self {
-        Error::InvalidEncoding
-    }
-}
-
-impl From<SerializationError> for Error {
-    fn from(_: SerializationError) -> Self {
+impl From<CodecError> for Error {
+    fn from(_: CodecError) -> Self {
         Error::InvalidEncoding
     }
 }

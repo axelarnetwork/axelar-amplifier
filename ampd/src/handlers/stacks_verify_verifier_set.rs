@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
-use clarity::vm::types::{PrincipalData, TypeSignature};
+use clarity_serialization::types::{PrincipalData, TypeSignature};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;

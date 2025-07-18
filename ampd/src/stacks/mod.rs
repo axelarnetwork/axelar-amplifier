@@ -1,9 +1,10 @@
 use axelar_wasm_std::hash::Hash;
-use clarity::types::StacksEpochId;
-use clarity::vm::types::{
+use clarity_serialization::types::{
     BufferLength, ListTypeData, SequenceSubtype, TupleData, TupleTypeSignature, TypeSignature,
 };
-use clarity::vm::{ClarityName, Value};
+use clarity_serialization::types::Value;
+use clarity_serialization::representations::ClarityName;
+use clarity_serialization::stacks_types::StacksEpochId;
 use cosmwasm_std::Uint256;
 use error_stack::{Report, ResultExt};
 use multisig::key::PublicKey;
@@ -142,7 +143,7 @@ pub fn ecdsa_key(pub_key: &PublicKey) -> Result<Vec<u8>, Error> {
 
 // Implement custom serde deserialize for PrincipalData
 pub mod principal_data_serde {
-    use clarity::vm::types::PrincipalData;
+    use clarity_serialization::types::PrincipalData;
     use serde::{Deserialize, Deserializer};
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<PrincipalData, D::Error>
