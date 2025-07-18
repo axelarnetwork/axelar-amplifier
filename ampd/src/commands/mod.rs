@@ -111,7 +111,7 @@ async fn broadcast_tx(config: Config, tx: Any, pub_key: CosmosPublicKey) -> Resu
     broadcaster
         .broadcast(vec![tx].try_into().expect("must be non-empty"))
         .map_err(|err| err.change_context(Error::Broadcaster))
-        .and_then(|res| confirm_tx(broadcast, cosmos_client, res.txhash.clone()))
+        .and_then(|res| confirm_tx(broadcast, cosmos_client, res.txhash))
         .await
 }
 
