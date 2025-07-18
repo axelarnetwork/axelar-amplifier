@@ -132,7 +132,7 @@ where
                 .map(|msg| async {
                     match self
                         .rpc_client
-                        .get_event_by_message_id_contract_call(msg.message_id.clone())
+                        .event_by_message_id_contract_call(msg.message_id.clone())
                         .await
                     {
                         Some(event) => verify_msg(&event, msg, &source_gateway_address),
@@ -180,7 +180,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .returning(|_| {
                 Some(ContractCallEvent {
                     from_contract_addr: String::from("source-gw-addr"),
@@ -232,7 +232,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .returning(|_| {
                 Some(ContractCallEvent {
                     from_contract_addr: String::from("source-gw-addr"),
@@ -269,7 +269,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .once()
             .with(eq(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::from_str(
@@ -317,7 +317,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .times(0);
 
         let event: Event = get_event(
@@ -345,7 +345,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .times(0);
 
         let event: Event = get_event(
@@ -371,7 +371,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .times(0);
 
         let event: Event = get_event(
