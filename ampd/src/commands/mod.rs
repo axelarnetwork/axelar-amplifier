@@ -4,6 +4,7 @@ use clap::Subcommand;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
 use error_stack::{Result, ResultExt};
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
@@ -107,15 +108,11 @@ async fn broadcast_tx(config: Config, tx: Any, pub_key: CosmosPublicKey) -> Resu
     )
     .await?;
 
-    let tx_hash = broadcaster
+    broadcaster
         .broadcast(vec![tx].try_into().expect("must be non-empty"))
+        .map_err(|err| err.change_context(Error::Broadcaster))
+        .and_then(|res| confirm_tx(broadcast, cosmos_client, res.txhash.clone()))
         .await
-        .change_context(Error::Broadcaster)?
-        .txhash;
-
-    confirm_tx(broadcast, cosmos_client, tx_hash.clone()).await?;
-
-    Ok(tx_hash)
 }
 
 async fn instantiate_broadcaster(
@@ -171,7 +168,7 @@ async fn confirm_tx(
     broadcaster_config: broadcaster_v2::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     tx_hash: String,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     let retry_policy = RetryPolicy::repeat_constant(
         broadcaster_config.tx_fetch_interval,
         broadcaster_config
@@ -180,9 +177,8 @@ async fn confirm_tx(
             .into(),
     );
 
-    let _ = broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy)
+    broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy)
         .await
-        .change_context(Error::TxConfirmation)?;
-
-    Ok(())
+        .map(|res| res.txhash)
+        .change_context(Error::TxConfirmation)
 }
