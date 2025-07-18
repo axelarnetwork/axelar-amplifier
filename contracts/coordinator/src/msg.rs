@@ -33,7 +33,7 @@ pub enum ExecuteMsg {
         router_address: String,
         multisig_address: String,
     },
-    #[permission(Governance)]
+    #[permission(Governance, Proxy(coordinator))]
     RegisterChain {
         chain_name: ChainName,
         prover_address: String,
@@ -55,7 +55,7 @@ pub enum ExecuteMsg {
     /// `RegisterDeployment` calls the router using `ExecuteMsgFromProxy`.
     /// Consequently, the router will enforce that the original sender has
     /// permission to register the deployment.
-    #[permission(Any)]
+    #[permission(Governance)]
     RegisterDeployment { deployment_name: nonempty::String },
 }
 

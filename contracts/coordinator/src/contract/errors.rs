@@ -49,4 +49,8 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("error with router client")]
     RouterClient,
+    #[error("coordinator is not found")]
+    CoordinatorNotFound,
+    #[error("prover is not found")]
+    ProverNotFound,
 }
