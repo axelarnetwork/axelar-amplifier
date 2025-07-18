@@ -206,7 +206,7 @@ where
             // TODO: remove this
             println!("transaction broadcasted with duration: {:?}", broadcast_start.elapsed());
 
-            record_transaction_metrics(&self.monitoring_client, tx_hash.is_ok(), broadcast_start);
+            //record_transaction_metrics(&self.monitoring_client, tx_hash.is_ok(), broadcast_start);
 
             self.handle_tx_res(tx_hash, msgs).await?;
         }
