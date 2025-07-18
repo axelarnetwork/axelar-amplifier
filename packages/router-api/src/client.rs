@@ -1,14 +1,12 @@
-use std::marker::PhantomData;
-
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::vec::VecExt;
 use cosmwasm_std::{Addr, CosmosMsg, Empty};
 
-use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, QueryMsg};
+use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::primitives::{Address, ChainName};
 use crate::Message;
 
-pub struct Client<'a, T=Empty> {
+pub struct Client<'a, T = Empty> {
     pub client: client::ContractClient<'a, ExecuteMsg, QueryMsg, T>,
 }
 
@@ -21,7 +19,7 @@ impl<'a, T> From<client::ContractClient<'a, ExecuteMsg, QueryMsg, T>> for Client
 impl<'a, T> Client<'a, T> {
     pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg<T>> {
         msgs.to_none_if_empty()
-            .map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs).into()))
+            .map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs)))
     }
 
     pub fn register_chain(
