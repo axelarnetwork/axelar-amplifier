@@ -2,7 +2,6 @@ use axelar_wasm_std::{FnExt, VerificationStatus};
 use cosmwasm_std::{CosmosMsg, Event, Response, Storage};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
-use router_api::client::Router;
 use router_api::Message;
 use voting_verifier::msg::MessageStatus;
 
@@ -21,7 +20,7 @@ pub fn verify_messages(
 
 pub fn route_incoming_messages(
     verifier: &voting_verifier::Client,
-    router: &Router,
+    router: &router_api::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {
@@ -103,7 +102,7 @@ fn verify(
 }
 
 fn route(
-    router: &Router,
+    router: &router_api::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
 ) -> (Option<CosmosMsg>, Vec<Event>) {
     msgs_by_status

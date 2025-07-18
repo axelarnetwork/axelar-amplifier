@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use cosmwasm_std::{ensure, OverflowError, OverflowOperation, Storage, WasmMsg};
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
-use signature_verifier_api::client::SignatureVerifier;
 
 use super::*;
 use crate::key::{KeyTyped, PublicKey, Signature};
@@ -102,10 +101,9 @@ pub fn submit_signature(
 
     let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
-    let sig_verifier = session
-        .sig_verifier
-        .clone()
-        .map(|address| SignatureVerifier::new(address, deps.querier));
+    let sig_verifier = session.sig_verifier.as_ref().map(|address| {
+        signature_verifier_api::Client::from(client::ContractClient::new(deps.querier, address))
+    });
 
     let sig_verifier_msg = validate_session_signature(
         &session,
@@ -113,7 +111,7 @@ pub fn submit_signature(
         &signature,
         pub_key,
         env.block.height,
-        sig_verifier,
+        sig_verifier.as_ref(),
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
