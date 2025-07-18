@@ -103,7 +103,7 @@ pub fn submit_signature(
 
     let sig_verifier = session
         .sig_verifier.as_ref()
-        .map(|address| signature_verifier_api::client::SignatureVerifier::from(client::ContractClient::new(deps.querier, address)));
+        .map(|address| signature_verifier_api::Client::from(client::ContractClient::new(deps.querier, address)));
 
     let sig_verifier_msg = validate_session_signature(
         &session,

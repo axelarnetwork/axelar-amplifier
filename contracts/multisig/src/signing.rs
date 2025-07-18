@@ -4,7 +4,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint128, Uint64};
 use error_stack::{bail, ResultExt};
 use router_api::ChainName;
-use signature_verifier_api::client::SignatureVerifier;
 
 use crate::key::{PublicKey, Signature};
 use crate::types::{MsgToSign, MultisigState};
@@ -64,7 +63,7 @@ pub fn validate_session_signature(
     signature: &Signature,
     pub_key: &PublicKey,
     block_height: u64,
-    sig_verifier: Option<&SignatureVerifier>,
+    sig_verifier: Option<&signature_verifier_api::Client>,
 ) -> error_stack::Result<Option<CosmosMsg>, ContractError> {
     if session.expires_at < block_height {
         bail!(ContractError::SigningSessionClosed {
@@ -95,7 +94,7 @@ pub fn validate_session_signature(
 }
 
 fn call_sig_verifier(
-    sig_verifier: &SignatureVerifier,
+    sig_verifier: &signature_verifier_api::Client,
     signature: HexBinary,
     message: HexBinary,
     pub_key: HexBinary,
@@ -264,7 +263,7 @@ mod tests {
             let sig_verifier_addr = MockApi::default().addr_make("verifier");
 
             let querier = MockQuerier::default();
-            let sig_verifier: signature_verifier_api::client::SignatureVerifier = client::ContractClient::new(
+            let sig_verifier: signature_verifier_api::Client = client::ContractClient::new(
                 QuerierWrapper::new(&querier),
                 &sig_verifier_addr,
             ).into();

@@ -1,2 +1,4 @@
-pub mod client;
+mod client;
 pub mod msg;
+
+pub use client::Client;

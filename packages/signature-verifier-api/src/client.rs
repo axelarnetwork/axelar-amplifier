@@ -26,17 +26,17 @@ impl From<QueryMsg> for Error {
     }
 }
 
-pub struct SignatureVerifier<'a> {
+pub struct Client<'a> {
     client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for SignatureVerifier<'a> {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
-        SignatureVerifier { client }
+        Client { client }
     }
 }
 
-impl<'a> SignatureVerifier<'a> {
+impl<'a> Client<'a> {
     pub fn verify_signature(
         &self,
         signature: HexBinary,
