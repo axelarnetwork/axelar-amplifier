@@ -10,6 +10,7 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 thiserror = { workspace = true }
+client = { workspace = true }
 
 [lints]
 workspace = true

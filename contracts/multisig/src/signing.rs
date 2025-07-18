@@ -64,7 +64,7 @@ pub fn validate_session_signature(
     signature: &Signature,
     pub_key: &PublicKey,
     block_height: u64,
-    sig_verifier: Option<SignatureVerifier>,
+    sig_verifier: Option<&SignatureVerifier>,
 ) -> error_stack::Result<Option<CosmosMsg>, ContractError> {
     if session.expires_at < block_height {
         bail!(ContractError::SigningSessionClosed {
@@ -95,7 +95,7 @@ pub fn validate_session_signature(
 }
 
 fn call_sig_verifier(
-    sig_verifier: SignatureVerifier,
+    sig_verifier: &SignatureVerifier,
     signature: HexBinary,
     message: HexBinary,
     pub_key: HexBinary,
@@ -261,11 +261,13 @@ mod tests {
                 .unwrap()
                 .pub_key;
 
+            let sig_verifier_addr = MockApi::default().addr_make("verifier");
+
             let querier = MockQuerier::default();
-            let sig_verifier = SignatureVerifier::new(
-                MockApi::default().addr_make("verifier"),
+            let sig_verifier: signature_verifier_api::client::SignatureVerifier = client::ContractClient::new(
                 QuerierWrapper::new(&querier),
-            );
+                &sig_verifier_addr,
+            ).into();
 
             let result = validate_session_signature(
                 &session,
@@ -273,7 +275,7 @@ mod tests {
                 signature,
                 pub_key,
                 0,
-                Some(sig_verifier.clone()),
+                Some(&sig_verifier),
             );
             let msg = assert_ok!(result);
             assert!(msg.is_some());

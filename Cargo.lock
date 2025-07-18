@@ -9717,6 +9717,7 @@ dependencies = [
 name = "signature-verifier-api"
 version = "1.0.0"
 dependencies = [
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
