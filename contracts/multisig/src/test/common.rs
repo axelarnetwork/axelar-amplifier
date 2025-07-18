@@ -1,5 +1,5 @@
 use axelar_wasm_std::Participant;
-use cosmwasm_std::{Addr, HexBinary, Uint128};
+use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use k256::ecdsa::signature::hazmat::PrehashSigner;
 
 use crate::key::{KeyType, PublicKey};
@@ -149,4 +149,25 @@ pub fn build_verifier_set(key_type: KeyType, signers: &[TestSigner]) -> Verifier
         .collect::<Vec<_>>();
 
     VerifierSet::new(participants, total_weight.mul_ceil((2u64, 3u64)), 0)
+}
+
+// Returns a list of (key_type, subkey, signers, session_id)
+pub fn signature_test_data<'a>(
+    ecdsa_subkey: &'a String,
+    ed25519_subkey: &'a String,
+) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
+    vec![
+        (
+            KeyType::Ecdsa,
+            ecdsa_subkey,
+            ecdsa_test_data::signers(),
+            Uint64::from(1u64),
+        ),
+        (
+            KeyType::Ed25519,
+            ed25519_subkey,
+            ed25519_test_data::signers(),
+            Uint64::from(2u64),
+        ),
+    ]
 }

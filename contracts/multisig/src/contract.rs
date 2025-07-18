@@ -187,7 +187,9 @@ mod tests {
     use crate::key::{KeyType, PublicKey, Signature};
     use crate::multisig::Multisig;
     use crate::state::load_session_signatures;
-    use crate::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data, TestSigner};
+    use crate::test::common::{
+        build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
+    };
     use crate::types::MultisigState;
     use crate::verifier_set::VerifierSet;
 
@@ -397,27 +399,6 @@ mod tests {
             .iter()
             .find(|attribute| attribute.key == attribute_name)
             .map(|attribute| attribute.value.as_str())
-    }
-
-    // Returns a list of (key_type, subkey, signers, session_id)
-    fn signature_test_data<'a>(
-        ecdsa_subkey: &'a String,
-        ed25519_subkey: &'a String,
-    ) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
-        vec![
-            (
-                KeyType::Ecdsa,
-                ecdsa_subkey,
-                ecdsa_test_data::signers(),
-                Uint64::from(1u64),
-            ),
-            (
-                KeyType::Ed25519,
-                ed25519_subkey,
-                ed25519_test_data::signers(),
-                Uint64::from(2u64),
-            ),
-        ]
     }
 
     #[test]
