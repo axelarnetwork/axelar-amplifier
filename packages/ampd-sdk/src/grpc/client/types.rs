@@ -2,10 +2,9 @@ use ampd_proto;
 use ampd_proto::{BroadcastResponse, ContractsResponse, KeyId};
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
-use error_stack::{Report, Result, ResultExt as _};
-use report::ResultCompatExt;
+use error_stack::Report;
 
-use crate::grpc::error::{AppError, Error};
+use crate::grpc::error::Error;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BroadcastClientResponse {
@@ -44,18 +43,12 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
         } = response;
 
         Ok(ContractsAddresses {
-            voting_verifier: parse_addr(voting_verifier)?,
-            multisig_prover: parse_addr(multisig_prover)?,
-            service_registry: parse_addr(service_registry)?,
-            rewards: parse_addr(rewards)?,
+            voting_verifier: super::parse_addr(voting_verifier)?,
+            multisig_prover: super::parse_addr(multisig_prover)?,
+            service_registry: super::parse_addr(service_registry)?,
+            rewards: super::parse_addr(rewards)?,
         })
     }
-}
-
-pub(crate) fn parse_addr(addr: &str) -> Result<AccountId, Error> {
-    addr.parse::<AccountId>()
-        .change_context(AppError::InvalidAddress.into())
-        .attach_printable(addr.to_string())
 }
 
 pub enum KeyAlgorithm {

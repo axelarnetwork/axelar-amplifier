@@ -15,12 +15,20 @@ use error_stack::{bail, Result, ResultExt as _};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
 use mockall::automock;
-use report::ResultExt;
+use report::{ResultCompatExt, ResultExt};
 use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-use crate::grpc::client_utils::{parse_addr, BroadcastClientResponse, ContractsAddresses, Key};
+use crate::grpc::client::types::{BroadcastClientResponse, ContractsAddresses, Key};
+
+pub mod types;
+
+pub(crate) fn parse_addr(addr: &str) -> error_stack::Result<cosmrs::AccountId, Error> {
+    addr.parse::<cosmrs::AccountId>()
+        .change_context(AppError::InvalidAddress.into())
+        .attach_printable(addr.to_string())
+}
 use crate::grpc::connection_pool::ConnectionHandle;
 use crate::grpc::error::{AppError, Error};
 
@@ -238,7 +246,7 @@ mod tests {
     use tonic::{Request, Response, Status};
 
     use super::*;
-    use crate::grpc::client_utils::KeyAlgorithm;
+    use crate::grpc::client::types::KeyAlgorithm;
     use crate::grpc::connection_pool::{ClientMessage, ConnectionPool, ConnectionState};
     use crate::grpc::error::GrpcError;
 

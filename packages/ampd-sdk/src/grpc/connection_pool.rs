@@ -87,7 +87,6 @@ impl PartialEq for ConnectionState {
 pub struct ConnectionHandle {
     connection_receiver: watch::Receiver<ConnectionState>,
     message_sender: mpsc::Sender<ClientMessage>,
-    /// Used to prevent busy loops from saturating the message channel
     has_sent_disconnected_message: bool,
 }
 
@@ -247,9 +246,7 @@ impl ConnectionPool {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
-    use tokio::time::timeout;
+    use tokio::time::{timeout, Duration};
 
     use super::*;
 
@@ -361,40 +358,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connection_pool_should_not_send_multiple_connection_failed_messages() {
+    async fn connection_pool_should_handle_multiple_connection_failed_messages() {
         let (pool, handle) =
             ConnectionPool::new(Url::new_sensitive("https://localhost:1").unwrap());
         let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let handle1 = handle.clone();
-        let handle2 = handle.clone();
-        let handle3 = handle.clone();
+        let mut test_handle = handle.clone();
 
-        let task1 = tokio::spawn(async move {
-            let mut handle = handle1;
-            handle.get_connected_channel().await
-        });
-        let task2 = tokio::spawn(async move {
-            let mut handle = handle2;
-            handle.get_connected_channel().await
-        });
-        let task3 = tokio::spawn(async move {
-            let mut handle = handle3;
-            handle.get_connected_channel().await
-        });
+        let first_result = tokio::time::timeout(
+            Duration::from_millis(100),
+            test_handle.get_connected_channel(),
+        )
+        .await;
+        assert!(first_result.is_err());
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        let second_result = tokio::time::timeout(
+            Duration::from_millis(100),
+            test_handle.get_connected_channel(),
+        )
+        .await;
+        assert!(second_result.is_err());
 
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // The state should still be Disconnected after both calls
         assert!(matches!(
             *handle.connection_receiver.borrow(),
             ConnectionState::Disconnected
         ));
-
-        task1.abort();
-        task2.abort();
-        task3.abort();
 
         pool_task.abort();
     }
