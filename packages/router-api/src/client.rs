@@ -18,7 +18,8 @@ impl<'a, T> From<client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg, T>> f
 
 impl<'a, T> Client<'a, T> {
     pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg<T>> {
-        msgs.to_none_if_empty().map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs).into()))
+        msgs.to_none_if_empty()
+            .map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs).into()))
     }
 
     pub fn execute_from_contract(&self, original_sender: Addr, msg: ExecuteMsg) -> CosmosMsg<T> {

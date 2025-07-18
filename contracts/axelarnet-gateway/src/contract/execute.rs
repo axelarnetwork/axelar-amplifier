@@ -123,7 +123,8 @@ pub fn route_messages(
         chain_name, router, ..
     } = state::load_config(storage);
 
-    let router_client: router_api::Client<nexus::execute::Message> = ContractClient::new(querier, &router).into();
+    let router_client: router_api::Client<nexus::execute::Message> =
+        ContractClient::new(querier, &router).into();
     let client: nexus::Client = client::CosmosClient::new(querier).into();
 
     // Router-sent messages are assumed pre-verified and routable
@@ -201,7 +202,8 @@ pub fn route_messages_from_nexus(
         .change_context(Error::InvalidNexusMessageForRouter)?;
 
     let router_address = state::load_config(deps.storage).router;
-    let router: router_api::Client<nexus::execute::Message> = ContractClient::new(deps.querier, &router_address).into();
+    let router: router_api::Client<nexus::execute::Message> =
+        ContractClient::new(deps.querier, &router_address).into();
 
     Ok(Response::new().add_messages(router.route(msgs)))
 }

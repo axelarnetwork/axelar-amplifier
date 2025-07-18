@@ -263,10 +263,9 @@ mod tests {
             let sig_verifier_addr = MockApi::default().addr_make("verifier");
 
             let querier = MockQuerier::default();
-            let sig_verifier: signature_verifier_api::Client = client::ContractClient::new(
-                QuerierWrapper::new(&querier),
-                &sig_verifier_addr,
-            ).into();
+            let sig_verifier: signature_verifier_api::Client =
+                client::ContractClient::new(QuerierWrapper::new(&querier), &sig_verifier_addr)
+                    .into();
 
             let result = validate_session_signature(
                 &session,

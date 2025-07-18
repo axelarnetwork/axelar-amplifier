@@ -19,8 +19,18 @@ pub enum Error {
 impl From<QueryMsg> for Error {
     fn from(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::VerifySignature { signature, message, public_key, signer_address, session_id } => {
-                Error::VerifySignature { signature, message, public_key, signer_address, session_id }
+            QueryMsg::VerifySignature {
+                signature,
+                message,
+                public_key,
+                signer_address,
+                session_id,
+            } => Error::VerifySignature {
+                signature,
+                message,
+                public_key,
+                signer_address,
+                session_id,
             },
         }
     }
@@ -55,9 +65,7 @@ impl<'a> Client<'a> {
     }
 
     fn query<U: DeserializeOwned + 'static>(&self, msg: QueryMsg) -> Result<U, Error> {
-        self.client
-            .query(&msg)
-            .change_context_lazy(|| msg.into())
+        self.client.query(&msg).change_context_lazy(|| msg.into())
     }
 
     pub fn verify_signature_query(
