@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{CosmosMsg, HexBinary, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint64};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -107,6 +107,15 @@ impl Client<'_> {
     pub fn authorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::AuthorizeCallers { contracts })
+    }
+
+    pub fn authorize_callers_from_proxy(
+        &self,
+        original_sender: Addr,
+        contracts: HashMap<String, ChainName>,
+    ) -> CosmosMsg {
+        self.client
+            .execute_as_proxy(original_sender, ExecuteMsg::AuthorizeCallers { contracts })
     }
 
     pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {

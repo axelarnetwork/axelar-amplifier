@@ -28,6 +28,7 @@ use crate::test_utils::Chain;
 
 pub mod test_utils;
 
+#[derive(Clone)]
 struct DeployedContracts {
     gateway: GatewayContract,
     voting_verifier: VotingVerifierContract,
@@ -632,6 +633,35 @@ fn coordinator_one_click_query_verifier_info_fails() {
         .contains(&service_registry_api::error::ContractError::VerifierNotFound.to_string()));
 }
 
+fn register_deployment(
+    protocol: &mut Protocol,
+    deployment_name: nonempty::String,
+    chain_name: String,
+    contracts: DeployedContracts,
+) {
+    assert!(protocol
+        .coordinator
+        .execute(
+            &mut protocol.app,
+            protocol.governance_address.clone(),
+            &coordinator::msg::ExecuteMsg::RegisterDeployment { deployment_name },
+        )
+        .is_ok());
+
+    let res = protocol.router.query::<router_api::ChainEndpoint>(
+        &protocol.app,
+        &router_api::msg::QueryMsg::ChainInfo(
+            router_api::ChainName::try_from(chain_name.clone()).unwrap(),
+        ),
+    );
+
+    assert!(res.is_ok());
+    let res = res.unwrap();
+
+    assert_eq!(res.gateway.address, contracts.gateway.contract_addr);
+    assert_eq!(res.name, chain_name);
+}
+
 #[test]
 fn coordinator_one_click_register_deployment_with_router_succeeds() {
     let test_utils::TestCase {
@@ -655,25 +685,46 @@ fn coordinator_one_click_register_deployment_with_router_succeeds() {
 
     let contracts = gather_contracts(&protocol, res.unwrap());
 
-    assert!(protocol
-        .coordinator
-        .execute(
-            &mut protocol.app,
-            protocol.governance_address.clone(),
-            &coordinator::msg::ExecuteMsg::RegisterDeployment { deployment_name },
-        )
-        .is_ok());
+    register_deployment(&mut protocol, deployment_name, chain_name, contracts);
+}
 
-    let res = protocol.router.query::<router_api::ChainEndpoint>(
-        &protocol.app,
-        &router_api::msg::QueryMsg::ChainInfo(
-            router_api::ChainName::try_from(chain_name.clone()).unwrap(),
-        ),
+#[test]
+fn coordinator_one_click_authorize_callers_succeeds() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = deploy_chains(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+        false,
+    );
+    assert!(res.is_ok());
+
+    let contracts = gather_contracts(&protocol, res.unwrap());
+
+    register_deployment(
+        &mut protocol,
+        deployment_name,
+        chain_name.clone(),
+        contracts.clone(),
     );
 
+    let res = protocol.multisig.query::<bool>(
+        &protocol.app,
+        &multisig::msg::QueryMsg::IsCallerAuthorized {
+            contract_address: contracts.multisig_prover.contract_address().to_string(),
+            chain_name: router_api::ChainName::try_from(chain_name.clone()).unwrap(),
+        },
+    );
     assert!(res.is_ok());
-    let res = res.unwrap();
-
-    assert_eq!(res.gateway.address, contracts.gateway.contract_addr);
-    assert_eq!(res.name, chain_name);
+    assert!(res.unwrap());
 }

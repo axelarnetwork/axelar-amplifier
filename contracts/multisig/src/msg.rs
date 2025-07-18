@@ -13,13 +13,15 @@ use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// the governance address is allowed to modify the authorized caller list for this contract
+    /// The governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
     /// The admin address (or governance) is allowed to disable signing and enable signing
     pub admin_address: String,
     pub rewards_address: String,
-    /// number of blocks after which a signing session expires
+    /// Number of blocks after which a signing session expires
     pub block_expiry: nonempty::Uint64,
+    /// The coordinator can send messages to multisig
+    pub coordinator_address: Addr,
 }
 
 #[cw_serde]
@@ -54,7 +56,7 @@ pub enum ExecuteMsg {
         signed_sender_address: HexBinary,
     },
     /// Authorizes a set of contracts to call StartSigningSession.
-    #[permission(Governance)]
+    #[permission(Governance, Proxy(coordinator))]
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,
     },

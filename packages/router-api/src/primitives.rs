@@ -131,6 +131,12 @@ impl Display for Address {
     }
 }
 
+impl From<cosmwasm_std::Addr> for Address {
+    fn from(addr: cosmwasm_std::Addr) -> Self {
+        Self::try_from(addr.to_string()).expect("the address must have already been validated")
+    }
+}
+
 /// Generates an Address from a string literal. If this address gets converted to a cosmwasm_std::Addr in the contract,
 /// it will NOT pass validation. In that case, use cosmos_address!() instead.
 #[macro_export]

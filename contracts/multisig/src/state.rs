@@ -16,6 +16,7 @@ use crate::ContractError;
 pub struct Config {
     pub rewards_contract: Addr,
     pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
+    pub coordinator: Addr,
 }
 
 type VerifierSetId = str;
