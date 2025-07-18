@@ -307,7 +307,7 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    let router: router_api::client::Router = ContractClient::new(deps.querier, &protocol_contracts.router).into();
+    let router: router_api::Client = ContractClient::new(deps.querier, &protocol_contracts.router).into();
 
     Ok(Response::new().add_message(
         router.register_chain(

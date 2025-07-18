@@ -6,17 +6,17 @@ use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, QueryMsg};
 use crate::primitives::{Address, ChainName};
 use crate::Message;
 
-pub struct Router<'a, T = Empty> {
+pub struct Client<'a, T = Empty> {
     pub client: client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg, T>,
 }
 
-impl<'a, T> From<client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg, T>> for Router<'a, T> {
+impl<'a, T> From<client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg, T>> for Client<'a, T> {
     fn from(client: client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg, T>) -> Self {
-        Router { client }
+        Client { client }
     }
 }
 
-impl<'a, T> Router<'a, T> {
+impl<'a, T> Client<'a, T> {
     pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg<T>> {
         msgs.to_none_if_empty().map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs).into()))
     }

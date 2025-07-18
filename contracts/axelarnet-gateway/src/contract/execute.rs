@@ -10,7 +10,6 @@ use cosmwasm_std::{
 };
 use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
-use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
@@ -124,7 +123,7 @@ pub fn route_messages(
         chain_name, router, ..
     } = state::load_config(storage);
 
-    let router_client: router_api::client::Router<nexus::execute::Message> = ContractClient::new(querier, &router).into();
+    let router_client: router_api::Client<nexus::execute::Message> = ContractClient::new(querier, &router).into();
     let client: nexus::Client = client::CosmosClient::new(querier).into();
 
     // Router-sent messages are assumed pre-verified and routable
@@ -202,7 +201,7 @@ pub fn route_messages_from_nexus(
         .change_context(Error::InvalidNexusMessageForRouter)?;
 
     let router_address = state::load_config(deps.storage).router;
-    let router: router_api::client::Router<nexus::execute::Message> = ContractClient::new(deps.querier, &router_address).into();
+    let router: router_api::Client<nexus::execute::Message> = ContractClient::new(deps.querier, &router_address).into();
 
     Ok(Response::new().add_messages(router.route(msgs)))
 }
@@ -257,7 +256,7 @@ fn prepare_for_execution(
 
 /// Route messages to the router, ignore unknown messages.
 fn route_to_router(
-    router: &Router<nexus::execute::Message>,
+    router: &router_api::Client<nexus::execute::Message>,
     msgs: Vec<Message>,
 ) -> Result<CosmosMsgWithEvent> {
     Ok((
