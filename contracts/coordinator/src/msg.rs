@@ -33,7 +33,7 @@ pub enum ExecuteMsg {
         router_address: String,
         multisig_address: String,
     },
-    #[permission(Governance, Proxy(coordinator))]
+    #[permission(Governance)]
     RegisterChain {
         chain_name: ChainName,
         prover_address: String,
