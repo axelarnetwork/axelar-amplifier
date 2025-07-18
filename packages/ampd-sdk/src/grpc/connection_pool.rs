@@ -87,7 +87,6 @@ impl PartialEq for ConnectionState {
 pub struct ConnectionHandle {
     connection_receiver: watch::Receiver<ConnectionState>,
     message_sender: mpsc::Sender<ClientMessage>,
-    has_sent_disconnected_message: bool,
 }
 
 impl ConnectionHandle {
@@ -104,18 +103,13 @@ impl ConnectionHandle {
 
                 match connection_state {
                     ConnectionState::Connected(channel) => {
-                        self.has_sent_disconnected_message = false;
                         return Ok(channel);
                     }
                     ConnectionState::Disconnected => {
-                        // Only send ConnectionFailed message if we haven't already sent one
-                        if !self.has_sent_disconnected_message {
-                            self.send_client_message(ClientMessage::ConnectionFailed(
-                                "client requested connection while disconnected".to_string(),
-                            ))
-                            .await?;
-                            self.has_sent_disconnected_message = true;
-                        }
+                        self.send_client_message(ClientMessage::ConnectionFailed(
+                            "client requested connection while disconnected".to_string(),
+                        ))
+                        .await?;
 
                         let mut receiver = self.connection_receiver.clone();
                         receiver.changed().await.into_report()?;
@@ -153,6 +147,7 @@ pub struct ConnectionPool {
     connection_state: watch::Sender<ConnectionState>,
     message_receiver: mpsc::Receiver<ClientMessage>,
     retry_policy: RetryPolicy,
+    is_reconnecting: bool,
 }
 
 impl ConnectionPool {
@@ -163,7 +158,6 @@ impl ConnectionPool {
         let handle = ConnectionHandle {
             connection_receiver: state_receiver,
             message_sender: msg_sender,
-            has_sent_disconnected_message: false,
         };
 
         let pool = Self {
@@ -171,6 +165,7 @@ impl ConnectionPool {
             connection_state: state_sender,
             message_receiver: msg_receiver,
             retry_policy: DEFAULT_RETRY_POLICY,
+            is_reconnecting: false,
         };
 
         (pool, handle)
@@ -187,8 +182,10 @@ impl ConnectionPool {
                     match message {
                         Some(ClientMessage::ConnectionFailed(details)) => {
                             warn!("client reported connection failure: {}", details);
-                            if let Err(e) = self.handle_connection_failure().await {
-                                warn!(err = ?e, "reconnection attempt failed, will retry on next client request");
+                            if !self.is_reconnecting {
+                                if let Err(e) = self.handle_connection_failure().await {
+                                    warn!(err = ?e, "reconnection attempt failed, will retry on next client request");
+                                }
                             }
                         }
                         None => break,
@@ -222,16 +219,19 @@ impl ConnectionPool {
         }
     }
 
-    async fn handle_connection_failure(&self) -> Result<(), Error> {
+    async fn handle_connection_failure(&mut self) -> Result<(), Error> {
+        self.is_reconnecting = true;
         self.notify_clients(ConnectionState::Reconnecting);
 
         match with_retry(|| self.connect(), self.retry_policy).await {
             Ok(()) => {
                 info!("successfully reconnected after failure");
+                self.is_reconnecting = false;
                 Ok(())
             }
             Err(error_report) => {
                 self.notify_clients(ConnectionState::Disconnected);
+                self.is_reconnecting = false;
                 Err(error_report)
             }
         }
