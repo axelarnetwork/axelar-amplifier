@@ -311,15 +311,12 @@ pub fn register_deployment(
         client::ContractClient::new(deps.querier, &protocol_contracts.multisig).into();
 
     Ok(Response::new()
-        .add_message(
-            router.register_chain(
-                original_sender.clone(),
-                deployed_contracts.chain_name.clone(),
-                router_api::Address::try_from(deployed_contracts.gateway.to_string())
-                    .change_context(Error::ChainContractsInfo)?,
-                deployed_contracts.msg_id_format,
-            ),
-        )
+        .add_message(router.register_chain(
+            original_sender.clone(),
+            deployed_contracts.chain_name.clone(),
+            router_api::Address::from(deployed_contracts.gateway),
+            deployed_contracts.msg_id_format,
+        ))
         .add_message(multisig.authorize_callers_from_proxy(
             original_sender,
             HashMap::from([(

@@ -6,7 +6,7 @@ use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::key::{KeyType, PublicKey};
-use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, QueryMsg};
+use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
 
@@ -32,8 +32,8 @@ pub enum Error {
     },
 }
 
-impl<'a> From<client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg>> for Client<'a> {
-    fn from(client: client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
@@ -62,7 +62,7 @@ impl From<QueryMsg> for Error {
 }
 
 pub struct Client<'a> {
-    client: client::ContractClient<'a, ExecuteMsgFromProxy, QueryMsg>,
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl Client<'_> {
@@ -73,30 +73,24 @@ impl Client<'_> {
         chain_name: ChainName,
         sig_verifier: Option<String>,
     ) -> CosmosMsg {
-        self.client.execute(
-            &ExecuteMsg::StartSigningSession {
-                verifier_set_id,
-                msg,
-                chain_name,
-                sig_verifier,
-            }
-            .into(),
-        )
+        self.client.execute(&ExecuteMsg::StartSigningSession {
+            verifier_set_id,
+            msg,
+            chain_name,
+            sig_verifier,
+        })
     }
 
     pub fn submit_signature(&self, session_id: Uint64, signature: HexBinary) -> CosmosMsg {
-        self.client.execute(
-            &ExecuteMsg::SubmitSignature {
-                session_id,
-                signature,
-            }
-            .into(),
-        )
+        self.client.execute(&ExecuteMsg::SubmitSignature {
+            session_id,
+            signature,
+        })
     }
 
     pub fn register_verifier_set(&self, verifier_set: VerifierSet) -> CosmosMsg {
         self.client
-            .execute(&ExecuteMsg::RegisterVerifierSet { verifier_set }.into())
+            .execute(&ExecuteMsg::RegisterVerifierSet { verifier_set })
     }
 
     pub fn register_public_key(
@@ -104,18 +98,15 @@ impl Client<'_> {
         public_key: PublicKey,
         signed_sender_address: HexBinary,
     ) -> CosmosMsg {
-        self.client.execute(
-            &ExecuteMsg::RegisterPublicKey {
-                public_key,
-                signed_sender_address,
-            }
-            .into(),
-        )
+        self.client.execute(&ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        })
     }
 
     pub fn authorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
         self.client
-            .execute(&ExecuteMsg::AuthorizeCallers { contracts }.into())
+            .execute(&ExecuteMsg::AuthorizeCallers { contracts })
     }
 
     pub fn authorize_callers_from_proxy(
@@ -123,23 +114,23 @@ impl Client<'_> {
         original_sender: Addr,
         contracts: HashMap<String, ChainName>,
     ) -> CosmosMsg {
-        self.client.execute(&ExecuteMsgFromProxy::Relay {
+        self.client.execute_as_proxy(
             original_sender,
-            msg: ExecuteMsg::AuthorizeCallers { contracts },
-        })
+            ExecuteMsg::UnauthorizeCallers { contracts },
+        )
     }
 
     pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
         self.client
-            .execute(&ExecuteMsg::UnauthorizeCallers { contracts }.into())
+            .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
     }
 
     pub fn disable_signing(&self) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::DisableSigning.into())
+        self.client.execute(&ExecuteMsg::DisableSigning)
     }
 
     pub fn enable_signing(&self) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::EnableSigning.into())
+        self.client.execute(&ExecuteMsg::EnableSigning)
     }
 
     pub fn multisig(&self, session_id: Uint64) -> Result<Multisig, Error> {

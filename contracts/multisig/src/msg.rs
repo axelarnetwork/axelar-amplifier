@@ -13,14 +13,14 @@ use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// the governance address is allowed to modify the authorized caller list for this contract
+    /// The governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
     /// The admin address (or governance) is allowed to disable signing and enable signing
     pub admin_address: String,
     pub rewards_address: String,
-    /// number of blocks after which a signing session expires
+    /// Number of blocks after which a signing session expires
     pub block_expiry: nonempty::Uint64,
-    /// the coordinator's address can authorize callers
+    /// The coordinator can send messages to multisig
     pub coordinator_address: Addr,
 }
 
