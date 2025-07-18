@@ -23,7 +23,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            chain_id: "axelar-dojo-1".parse().expect("default chain_id should be valid"),
+            chain_id: "axelar-dojo-1"
+                .parse()
+                .expect("default chain_id should be valid"),
             tx_fetch_interval: Duration::from_millis(500),
             tx_fetch_max_retries: 10,
             gas_adjustment: 1.2,
