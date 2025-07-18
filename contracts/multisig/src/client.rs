@@ -114,10 +114,8 @@ impl Client<'_> {
         original_sender: Addr,
         contracts: HashMap<String, ChainName>,
     ) -> CosmosMsg {
-        self.client.execute_as_proxy(
-            original_sender,
-            ExecuteMsg::UnauthorizeCallers { contracts },
-        )
+        self.client
+            .execute_as_proxy(original_sender, ExecuteMsg::AuthorizeCallers { contracts })
     }
 
     pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
