@@ -5,6 +5,7 @@ use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, W
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
+use crate::client::Client;
 use crate::contract::errors::Error;
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
@@ -297,6 +298,7 @@ pub fn instantiate_chain_contracts(
 
 pub fn register_deployment(
     deps: DepsMut,
+    env: Env,
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
@@ -307,14 +309,23 @@ pub fn register_deployment(
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
     let router = router_api::client::Router::new(protocol_contracts.router);
+    let coordinator: Client =
+        client::ContractClient::new(deps.querier, &env.contract.address).into();
 
-    Ok(Response::new().add_message(
-        router.register_chain(
-            original_sender,
+    Ok(Response::new()
+        .add_message(
+            router.register_chain(
+                original_sender,
+                deployed_contracts.chain_name.clone(),
+                router_api::Address::try_from(deployed_contracts.gateway.to_string())
+                    .change_context(Error::ChainContractsInfo)?,
+                deployed_contracts.msg_id_format,
+            ),
+        )
+        .add_message(coordinator.register_chain(
             deployed_contracts.chain_name,
-            router_api::Address::try_from(deployed_contracts.gateway.to_string())
-                .change_context(Error::ChainContractsInfo)?,
-            deployed_contracts.msg_id_format,
-        ),
-    ))
+            deployed_contracts.multisig_prover.to_string(),
+            deployed_contracts.gateway.to_string(),
+            deployed_contracts.voting_verifier.to_string(),
+        )))
 }
