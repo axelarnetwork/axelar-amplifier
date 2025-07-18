@@ -99,7 +99,7 @@ impl<'de> Deserialize<'de> for Config {
 ///
 /// Provides access to metrics collection and other monitoring functionality.
 /// This client can be cloned and used across different parts of the application.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Client {
     metrics_client: metrics::Client,
 }
@@ -639,5 +639,20 @@ mod tests {
                 .record_metric(msg.clone())
                 .unwrap_or_else(|_| panic!("failed to send message {}", i));
         }
+    }
+}
+
+#[cfg(test)]
+pub mod test_utils {
+    use tokio::sync::mpsc;
+
+    use super::Client;
+    use crate::monitoring::metrics::{Client as MetricsClient, Msg};
+
+    pub fn create_test_monitoring_client() -> (Client, mpsc::Receiver<Msg>) {
+        let (tx, rx) = mpsc::channel(10);
+        let metrics_client = MetricsClient::WithChannel { sender: tx };
+        let monitoring_client = Client { metrics_client };
+        (monitoring_client, rx)
     }
 }

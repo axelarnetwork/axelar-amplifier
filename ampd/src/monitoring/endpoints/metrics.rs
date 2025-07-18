@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::extract::State;
@@ -9,7 +10,10 @@ use axum::routing::{get, MethodRouter};
 use error_stack::{Result, ResultExt};
 use futures::StreamExt;
 use prometheus_client::encoding::text::encode;
+use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -33,6 +37,8 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     IncBlockReceived,
+    /// Record transaction Processing result and duration
+    TransactionProcessed { success: bool, duration: Duration },
 }
 
 /// Errors that can occur in metrics processing
@@ -59,7 +65,7 @@ impl IntoResponse for Error {
 /// This client is used throughout the application to record metrics events.
 /// It can operate in two modes: with a real channel to a metrics processor,
 /// or in disabled mode where messages are discarded.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Client {
     /// Active client with a channel to send metrics messages
     WithChannel { sender: mpsc::Sender<Msg> },
@@ -187,21 +193,38 @@ async fn serve_metrics(
     Ok(response)
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct TransactionLabel {
+    status: String,
+}
+
+struct TransactionMetrics {
+    total: Family<TransactionLabel, Counter>,
+    duration: Family<TransactionLabel, Histogram>,
+}
+
 struct Metrics {
     block_received: Counter,
+    transaction_processed: TransactionMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         // all created metrics are static, so errors during registration are bugs and should panic
         let block_received = Counter::default();
+        let transaction_processed = TransactionMetrics::new();
+
         registry.register(
             "blocks_received",
             "number of blocks received",
             block_received.clone(),
         );
+        transaction_processed.register(registry);
 
-        Self { block_received }
+        Self {
+            block_received,
+            transaction_processed,
+        }
     }
 
     pub fn handle_message(&self, msg: Msg) {
@@ -209,7 +232,51 @@ impl Metrics {
             Msg::IncBlockReceived => {
                 self.block_received.inc();
             }
+            Msg::TransactionProcessed { success, duration } => {
+                self.transaction_processed
+                    .record_transaction(success, duration);
+            }
         }
+    }
+}
+
+impl TransactionMetrics {
+    fn new() -> Self {
+        let total = Family::<TransactionLabel, Counter>::default();
+
+        // Might need to change this
+        let duration = Family::<TransactionLabel, Histogram>::new_with_constructor(|| {
+            Histogram::new(vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0])
+        });
+
+        Self { total, duration }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "ampd_transactions",
+            "number of transactions processed by the ampd",
+            self.total.clone(),
+        );
+        registry.register(
+            "ampd_transaction_duration_seconds",
+            "Duration of transaction processing in seconds",
+            self.duration.clone(),
+        );
+    }
+
+    fn record_transaction(&self, success: bool, duration: Duration) {
+        let status = match success {
+            true => "success".to_string(),
+            false => "failure".to_string(),
+        };
+        let label = TransactionLabel { status };
+
+        self.total.get_or_create(&label).inc();
+
+        self.duration
+            .get_or_create(&label)
+            .observe(duration.as_secs_f64());
     }
 }
 
@@ -248,5 +315,79 @@ mod tests {
 
         // Ensure the final metrics are in the expected format
         goldie::assert!(final_metrics.text())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_transaction_processing_result_successfully() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        client
+            .record_metric(Msg::TransactionProcessed {
+                success: true,
+                duration: Duration::from_secs(1),
+            })
+            .unwrap();
+        client
+            .record_metric(Msg::TransactionProcessed {
+                success: true,
+                duration: Duration::from_secs(2),
+            })
+            .unwrap();
+        client
+            .record_metric(Msg::TransactionProcessed {
+                success: true,
+                duration: Duration::from_secs(2),
+            })
+            .unwrap();
+        client
+            .record_metric(Msg::TransactionProcessed {
+                success: false,
+                duration: Duration::from_secs(3),
+            })
+            .unwrap();
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+    }
+
+    /// Sort metrics text alphabetically by line for consistent output
+    ///
+    /// The prometheus_client crate returns metrics in non-deterministic order
+    /// when there are metrics with more than one label.  This function sorts
+    /// the metrics output to ensure consistent output in golden file tests.
+    pub fn sort_metrics_output(buffer: &str) -> String {
+        let mut result = Vec::new();
+        let mut current_headers = Vec::new();
+        let mut current_metrics = Vec::new();
+
+        for line in buffer.lines() {
+            if line.starts_with("# TYPE") {
+                current_headers.push(line.to_string());
+            } else if line.starts_with("#") {
+                if !current_headers.is_empty() {
+                    result.append(&mut current_headers);
+
+                    current_metrics.sort();
+                    result.append(&mut current_metrics);
+                }
+                if line.starts_with("# HELP") {
+                    current_headers.push(line.to_string());
+                } else if line.starts_with("# EOF") {
+                    result.push(line.to_string());
+                }
+            } else {
+                current_metrics.push(line.to_string());
+            }
+        }
+
+        result.join("\n") + "\n"
     }
 }

@@ -146,6 +146,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .gas_adjustment(broadcast.gas_adjustment)
         .gas_price(broadcast.gas_price)
         .tx_confirmer_client(tx_confirmer_client)
+        .monitoring_client(monitoring_client.clone())
         .build()
         .await
         .change_context(Error::Broadcaster)?;

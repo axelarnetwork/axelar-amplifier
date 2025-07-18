@@ -22,6 +22,9 @@ pub mod send_tokens;
 pub mod set_rewards_proxy;
 pub mod unbond_verifier;
 pub mod verifier_address;
+use std::net::SocketAddr;
+
+use crate::monitoring;
 
 #[derive(Debug, Subcommand, Valuable)]
 pub enum SubCommand {
@@ -140,6 +143,7 @@ async fn instantiate_broadcaster(
         broadcast.batch_gas_limit,
         broadcast.broadcast_interval,
     );
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
@@ -147,6 +151,7 @@ async fn instantiate_broadcaster(
         .key_id(tofnd_config.key_uid.clone())
         .gas_adjustment(broadcast.gas_adjustment)
         .gas_price(broadcast.gas_price)
+        .monitoring_client(monitoring_client)
         .build()
         .await
         .change_context(Error::Broadcaster)?;

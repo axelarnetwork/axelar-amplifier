@@ -2,6 +2,10 @@ Initial Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 0
+# HELP ampd_transactions number of transactions processed by the ampd.
+# TYPE ampd_transactions counter
+# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
+# TYPE ampd_transaction_duration_seconds histogram
 # EOF
 
 
@@ -9,4 +13,8 @@ Updated Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 3
+# HELP ampd_transactions number of transactions processed by the ampd.
+# TYPE ampd_transactions counter
+# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
+# TYPE ampd_transaction_duration_seconds histogram
 # EOF
