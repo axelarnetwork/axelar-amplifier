@@ -1,6 +1,7 @@
 use std::pin::Pin;
 
 use clap::Subcommand;
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
 use error_stack::{Result, ResultExt};
@@ -24,6 +25,13 @@ pub mod send_tokens;
 pub mod set_rewards_proxy;
 pub mod unbond_verifier;
 pub mod verifier_address;
+
+#[derive(clap::Args, Debug, Valuable)]
+pub struct BroadcastArgs {
+    /// Skip transaction confirmation
+    #[arg(long, short)]
+    skip_confirmation: bool,
+}
 
 #[derive(Debug, Subcommand, Valuable)]
 pub enum SubCommand {
@@ -87,7 +95,12 @@ async fn verifier_pub_key(config: tofnd::Config) -> Result<CosmosPublicKey, Erro
     CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)
 }
 
-async fn broadcast_tx(config: Config, tx: Any, pub_key: CosmosPublicKey) -> Result<String, Error> {
+async fn broadcast_tx(
+    config: Config,
+    tx: Any,
+    pub_key: CosmosPublicKey,
+    skip_confirmation: bool,
+) -> Result<String, Error> {
     let Config {
         tm_grpc,
         tm_grpc_timeout,
@@ -111,7 +124,7 @@ async fn broadcast_tx(config: Config, tx: Any, pub_key: CosmosPublicKey) -> Resu
     broadcaster
         .broadcast(vec![tx].try_into().expect("must be non-empty"))
         .map_err(|err| err.change_context(Error::Broadcaster))
-        .and_then(|res| confirm_tx(broadcast, cosmos_client, res.txhash))
+        .and_then(|res| handle_tx_result(broadcast, cosmos_client, res, skip_confirmation))
         .await
 }
 
@@ -162,6 +175,19 @@ async fn instantiate_broadcaster(
         .change_context(Error::Broadcaster)?;
 
     Ok(broadcaster_task)
+}
+
+async fn handle_tx_result(
+    broadcaster_config: broadcaster_v2::Config,
+    cosmos_client: cosmos::CosmosGrpcClient,
+    res: TxResponse,
+    skip_confirmation: bool,
+) -> Result<String, Error> {
+    if skip_confirmation {
+        return Ok(res.txhash);
+    }
+
+    confirm_tx(broadcaster_config, cosmos_client, res.txhash).await
 }
 
 async fn confirm_tx(
