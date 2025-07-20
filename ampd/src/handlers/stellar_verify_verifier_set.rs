@@ -21,8 +21,8 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::handlers::record_metrics::*;
 use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
@@ -138,7 +138,12 @@ impl EventHandler for Handler {
                 verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
 
-            record_vote_verification_metric(&self.monitoring_client, &vote, handler_chain_name);
+            self.monitoring_client
+                .metrics()
+                .record_metric(MetricsMsg::VerificationVote {
+                    vote_status: vote.to_owned(),
+                    chain_name: handler_chain_name.to_owned(),
+                });
 
             info!(
                 vote = vote.as_value(),
@@ -307,7 +312,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_verification_messages() {
+    async fn should_record_verification_vote_metric() {
         let mut client = Client::faux();
         faux::when!(client.transaction_response).then(|_| Ok(None));
 
@@ -333,7 +338,7 @@ mod tests {
         let metric = receiver.recv().await.unwrap();
         assert_eq!(
             metric,
-            MetricsMsg::VoteVerification {
+            MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
                 chain_name: "stellar".to_string(),
             }
