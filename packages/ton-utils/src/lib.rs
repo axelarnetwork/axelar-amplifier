@@ -106,15 +106,21 @@ impl WeightedSigners {
             .enumerate()
             .map(|(i, signer)| -> Result<(u16, WeightedSigner), String> {
                 let pub_key_bytes = match &signer.pub_key {
-                    PublicKey::Ed25519(key) => key.as_slice().try_into().unwrap(),
+                    PublicKey::Ed25519(key) => key
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| "Failed to create public from bytes".to_string())?,
                     _ => return Err("Only Ed25519 public keys are supported in Ton".to_string()),
                 };
                 let signature_bytes = match &signatures[i].signature {
-                    Signature::Ed25519(sig) => sig.as_slice().try_into().unwrap(),
+                    Signature::Ed25519(sig) => sig
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| "Failed to create signature from bytes".to_string())?,
                     _ => return Err("Only Ed25519 signatures are supported in Ton".to_string()),
                 };
                 Ok((
-                    u16::try_from(i).unwrap(),
+                    u16::try_from(i).map_err(|_| "Too many signers".to_string())?,
                     WeightedSigner::new(pub_key_bytes, signer.weight.u128(), signature_bytes),
                 ))
             })
@@ -280,7 +286,8 @@ impl CellTo for Arc<Cell> {
 
 /// Helper function to read the u16 key from a key/value dict cell
 fn key_reader_weighted_signer(key: &BigUint) -> Result<u16, TonCellError> {
-    Ok(key.to_u16().unwrap())
+    key.to_u16()
+        .ok_or(TonCellError::InternalError("Too many signers".to_string()))
 }
 
 /// Helper function to read the WeightedSigner value from a key/value dict cell
