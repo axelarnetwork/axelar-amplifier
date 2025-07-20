@@ -7,7 +7,6 @@ use axum::http::header::CONTENT_TYPE;
 use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, MethodRouter};
-use error_stack::{Result, ResultExt};
 use futures::StreamExt;
 use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::EncodeLabelSet;
@@ -19,7 +18,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tracing::log::warn;
+use tracing::warn;
 
 // safe upper bound for expected metric throughput;
 // shouldn't exceed 1000 message
@@ -36,8 +35,8 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
-    /// Record the vote verification results for cross-chain message
-    VoteVerification {
+    /// Record the verification vote results for cross-chain message
+    VerificationVote {
         vote_status: Vote,
         chain_name: String,
     },
@@ -52,8 +51,6 @@ pub enum Error {
     MetricsEncoding(#[from] std::fmt::Error),
     #[error(transparent)]
     HttpResponse(#[from] axum::http::Error),
-    #[error("failed to update metric")]
-    MetricUpdateFailed,
 }
 
 impl IntoResponse for Error {
@@ -91,12 +88,19 @@ impl Client {
     ///
     /// - For `Disabled` clients: Always succeeds without doing anything
     /// - For `WithChannel` clients: Attempts to send the message via channel
-    pub fn record_metric(&self, msg: Msg) -> Result<(), Error> {
+    /// - If sending fails, a warning is logged
+    /// - record_metrics never fails or disrupt the main flow of the application
+    pub fn record_metric(&self, msg: Msg) {
         match self {
-            Client::Disabled => Ok(()),
-            Client::WithChannel { sender } => sender
-                .try_send(msg)
-                .change_context(Error::MetricUpdateFailed),
+            Client::Disabled => (),
+            Client::WithChannel { sender } => {
+                if let Err(err) = sender.try_send(msg.clone()) {
+                    warn!(
+                        "failed to record metrics message: {:?}, with error: {:?}",
+                        msg, err
+                    );
+                }
+            }
         }
     }
 }
@@ -197,7 +201,7 @@ async fn serve_metrics(
 
 struct Metrics {
     block_received: BlockReceivedMetrics,
-    vote_verification: VoteVerificationMetrics,
+    verification_vote: VerificationVoteMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -205,10 +209,10 @@ struct BlockReceivedMetrics {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct VoteStatusLabel {
+struct VerificationVoteLabel {
     /// source chain name of the handler
     chain_name: String,
-    /// the vote verification outcome
+    /// the verification vote outcome
     ///
     /// - succeeded_on_chain: the message was verified successfully on source chain
     /// - failed_on_chain: the message was found but verification failed on source chain
@@ -216,21 +220,21 @@ struct VoteStatusLabel {
     status: String,
 }
 
-struct VoteVerificationMetrics {
-    total: Family<VoteStatusLabel, Counter>,
+struct VerificationVoteMetrics {
+    total: Family<VerificationVoteLabel, Counter>,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
-        let vote_verification = VoteVerificationMetrics::new();
+        let verification_vote = VerificationVoteMetrics::new();
 
         block_received.register(registry);
-        vote_verification.register(registry);
+        verification_vote.register(registry);
 
         Self {
             block_received,
-            vote_verification,
+            verification_vote,
         }
     }
 
@@ -240,12 +244,12 @@ impl Metrics {
                 self.block_received.increment();
             }
 
-            Msg::VoteVerification {
+            Msg::VerificationVote {
                 vote_status,
                 chain_name,
             } => {
-                self.vote_verification
-                    .record_vote_verification(vote_status, chain_name);
+                self.verification_vote
+                    .record_verification_vote(vote_status, chain_name);
             }
         }
     }
@@ -270,28 +274,28 @@ impl BlockReceivedMetrics {
     }
 }
 
-impl VoteVerificationMetrics {
+impl VerificationVoteMetrics {
     fn new() -> Self {
-        let total = Family::<VoteStatusLabel, Counter>::default();
+        let total = Family::<VerificationVoteLabel, Counter>::default();
         Self { total }
     }
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "vote_verification_total",
-            "number of messages verification votes",
+            "verification_votes",
+            "number of verification votes on cross-chain messages",
             self.total.clone(),
         );
     }
 
-    fn record_vote_verification(&self, status: Vote, chain_name: String) {
+    fn record_verification_vote(&self, status: Vote, chain_name: String) {
         let status = match status {
             Vote::SucceededOnChain => "succeeded_on_chain".to_string(),
             Vote::FailedOnChain => "failed_on_chain".to_string(),
             Vote::NotFound => "not_found".to_string(),
         };
 
-        let label = VoteStatusLabel { chain_name, status };
+        let label = VerificationVoteLabel { chain_name, status };
         self.total.get_or_create(&label).inc();
     }
 }
@@ -319,9 +323,9 @@ mod tests {
         initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
-        client.record_metric(Msg::BlockReceived).unwrap();
-        client.record_metric(Msg::BlockReceived).unwrap();
-        client.record_metric(Msg::BlockReceived).unwrap();
+        client.record_metric(Msg::BlockReceived);
+        client.record_metric(Msg::BlockReceived);
+        client.record_metric(Msg::BlockReceived);
 
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
@@ -334,7 +338,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_update_vote_verification_metrics_correctly_when_multiple_chains_cast_votes() {
+    async fn should_update_verification_votes_metrics_correctly_when_multiple_chains_cast_votes() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -347,24 +351,18 @@ mod tests {
         let chain_names = vec!["ethereum", "solana", "polygon", "avalanche", "stellar"];
 
         for chain_name in chain_names {
-            client
-                .record_metric(Msg::VoteVerification {
-                    vote_status: Vote::SucceededOnChain,
-                    chain_name: chain_name.to_string(),
-                })
-                .unwrap();
-            client
-                .record_metric(Msg::VoteVerification {
-                    vote_status: Vote::FailedOnChain,
-                    chain_name: chain_name.to_string(),
-                })
-                .unwrap();
-            client
-                .record_metric(Msg::VoteVerification {
-                    vote_status: Vote::NotFound,
-                    chain_name: chain_name.to_string(),
-                })
-                .unwrap();
+            client.record_metric(Msg::VerificationVote {
+                vote_status: Vote::SucceededOnChain,
+                chain_name: chain_name.to_string(),
+            });
+            client.record_metric(Msg::VerificationVote {
+                vote_status: Vote::FailedOnChain,
+                chain_name: chain_name.to_string(),
+            });
+            client.record_metric(Msg::VerificationVote {
+                vote_status: Vote::NotFound,
+                chain_name: chain_name.to_string(),
+            });
         }
 
         time::sleep(Duration::from_secs(1)).await;

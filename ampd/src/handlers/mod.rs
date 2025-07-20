@@ -5,7 +5,6 @@ pub mod evm_verify_verifier_set;
 pub mod multisig;
 pub mod mvx_verify_msg;
 pub mod mvx_verify_verifier_set;
-mod record_metrics;
 pub mod solana_verify_msg;
 pub mod solana_verify_verifier_set;
 pub mod stacks_verify_msg;
