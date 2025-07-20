@@ -2,8 +2,8 @@ Initial Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 0
-# HELP vote_verification_total number of messages verification votes.
-# TYPE vote_verification_total counter
+# HELP verification_votes number of verification votes on cross-chain messages.
+# TYPE verification_votes counter
 # EOF
 
 
@@ -11,6 +11,6 @@ Updated Metrics:
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 3
-# HELP vote_verification_total number of messages verification votes.
-# TYPE vote_verification_total counter
+# HELP verification_votes number of verification votes on cross-chain messages.
+# TYPE verification_votes counter
 # EOF
