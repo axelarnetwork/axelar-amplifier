@@ -237,9 +237,6 @@ struct BlockReceivedMetrics {
     total: Counter,
 }
 
-struct BlockReceivedMetrics {
-    total: Counter,
-}
 
 impl BlockReceivedMetrics {
     fn new() -> Self {
