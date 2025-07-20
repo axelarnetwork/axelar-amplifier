@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Mul;
 use std::sync::Arc;
+use std::time::Instant;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -17,8 +18,9 @@ use tokio_stream::StreamExt;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::TMAddress;
-use crate::{cosmos, tofnd};
+use crate::{cosmos, monitoring, tofnd};
 
 mod broadcaster;
 mod config;
@@ -101,6 +103,7 @@ where
     gas_price: DecCoin,
     #[builder(default = None, setter(strip_option))]
     tx_confirmer_client: Option<confirmer::TxConfirmerClient>,
+    monitoring_client: monitoring::Client,
 }
 
 #[allow(non_camel_case_types)]
@@ -122,6 +125,7 @@ impl<
             (f64,),
             (DecCoin,),
             __tx_confirmer_client,
+            (monitoring::Client,),
         ),
     >
 where
@@ -185,6 +189,7 @@ where
     #[instrument(skip_all)]
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
+            let transaction_start_time = Instant::now();
             let tx_hash = self
                 .broadcast(
                     msgs.as_ref()
@@ -196,6 +201,13 @@ where
                 )
                 .await
                 .map(|res| res.txhash);
+
+            self.monitoring_client
+                .metrics()
+                .record_metric(MetricsMsg::TransactionProcessed {
+                    success: tx_hash.is_ok(),
+                    duration: transaction_start_time.elapsed(),
+                });
 
             self.handle_tx_res(tx_hash, msgs).await?;
         }
@@ -322,6 +334,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
+    use std::time::Duration;
+
     use axelar_wasm_std::{assert_err_contains, err_contains};
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
@@ -340,9 +355,11 @@ mod tests {
     use crate::broadcaster_v2::dec_coin::DecCoin;
     use crate::broadcaster_v2::msg_queue::QueueMsg;
     use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::tofnd::{self, MockMultisig};
     use crate::types::{random_cosmos_public_key, TMAddress};
-    use crate::{cosmos, PREFIX};
+    use crate::{cosmos, monitoring, PREFIX};
 
     fn dummy_msg() -> Any {
         Any {
@@ -410,6 +427,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -417,6 +435,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = broadcaster_task.await;
@@ -466,6 +485,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -473,6 +493,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = broadcaster_task.await;
@@ -565,6 +586,7 @@ mod tests {
             .await
             .unwrap();
         let (tx, rx) = mpsc::channel(1);
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -573,6 +595,7 @@ mod tests {
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
             .tx_confirmer_client(tx)
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -678,6 +701,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -685,6 +709,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -784,6 +809,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -791,6 +817,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -871,6 +898,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -878,6 +906,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1005,6 +1034,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1012,6 +1042,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1146,6 +1177,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1153,6 +1185,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(1.5)
             .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1269,6 +1302,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1276,6 +1310,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, expected_denom).unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1375,6 +1410,7 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1382,6 +1418,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1470,6 +1507,7 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1477,6 +1515,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1543,6 +1582,7 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1550,6 +1590,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1622,6 +1663,7 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1629,6 +1671,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1700,6 +1743,7 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1707,6 +1751,7 @@ mod tests {
             .key_id("test-key".to_string())
             .gas_adjustment(gas_adjustment)
             .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .monitoring_client(monitoring_client)
             .build()
             .await
             .unwrap();
@@ -1715,5 +1760,172 @@ mod tests {
         let result = broadcaster_task.broadcast(messages).await;
         assert!(result.is_err());
         assert_err_contains!(result, Error, Error::BroadcastTx);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_transaction_metrics_successfully_for_success_and_failure() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let initial_account = create_base_account(&address);
+        let reset_account = create_base_account(&address);
+
+        let (tx_1, rx_1) = oneshot::channel();
+        let (tx_2, rx_2) = oneshot::channel();
+        let batch_1 = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx_1,
+        }]
+        .try_into()
+        .unwrap();
+        let batch_2 = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx_2,
+        }]
+        .try_into()
+        .unwrap();
+        let msg_queue = iter(vec![batch_1, batch_2]);
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .times(2)
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&initial_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| Err(report!(cosmos::Error::TxResponseMissing)));
+
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&reset_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "tx_hash_second_batch".to_string(),
+                        code: 0,
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
+            .await
+            .unwrap();
+
+        let (monitoring_client, mut rx) = create_test_monitoring_client();
+
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .gas_adjustment(1.5)
+            .gas_price(DecCoin::new(0.025, "uaxl").unwrap())
+            .monitoring_client(monitoring_client)
+            .build()
+            .await
+            .unwrap();
+
+        let result = tokio::spawn(async move { broadcaster_task.run().await })
+            .await
+            .unwrap();
+        assert!(result.is_ok());
+
+        let result = rx_1.await.unwrap();
+        assert!(result.is_err());
+
+        let (tx_hash, idx) = rx_2.await.unwrap().unwrap();
+        assert_eq!(tx_hash, "tx_hash_second_batch");
+        assert_eq!(idx, 0);
+
+        let msg1 = rx.recv().await.unwrap();
+
+        match msg1 {
+            Msg::TransactionProcessed { success, duration } => {
+                assert!(!success);
+                assert!(duration > Duration::from_millis(0));
+            }
+            _ => panic!("Expected TransactionProcessed message"),
+        }
+
+        let msg2 = rx.recv().await.unwrap();
+
+        match msg2 {
+            Msg::TransactionProcessed { success, duration } => {
+                assert!(success);
+                assert!(duration > Duration::from_millis(0));
+            }
+            _ => panic!("Expected TransactionProcessed message"),
+        }
+
+        assert!(rx.try_recv().is_err());
     }
 }

@@ -18,4 +18,8 @@ verification_votes_total{chain_name="solana",status="succeeded_on_chain"} 1
 verification_votes_total{chain_name="stellar",status="failed_on_chain"} 1
 verification_votes_total{chain_name="stellar",status="not_found"} 1
 verification_votes_total{chain_name="stellar",status="succeeded_on_chain"} 1
+# HELP ampd_transactions number of transactions processed by the ampd.
+# TYPE ampd_transactions counter
+# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
+# TYPE ampd_transaction_duration_seconds histogram
 # EOF
