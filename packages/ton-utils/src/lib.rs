@@ -3,27 +3,20 @@ use std::result::Result;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use axelar_wasm_std::hash::Hash;
 use multisig::key::{PublicKey, Signature};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use router_api::Message;
-use sha3::{Digest, Keccak256};
 use tonlib_core::cell::{Cell, CellBuilder, CellParser, TonCellError};
 use tonlib_core::tlb_types::traits::TLBObject;
-use tonlib_core::types::TonAddressParseError;
 use tonlib_core::TonAddress;
 
-const OP_APPROVE_MESSAGES: usize = 0x00000028;
-const OP_START_SIGNER_ROTATION: usize = 0x00000014;
 const BYTES_PER_CELL: usize = 96;
 const THRESHOLD_BITS: usize = 128;
 const NONCE_BITS: usize = 256;
 const DICTIONARY_KEY_BITS: usize = 16;
-const OPCODE_BITS: usize = 32;
-const PAYLOAD_HASH_BITS: usize = 256;
 const BITS_PER_BYTE: usize = 8;
 const SIGNATURE_BITS: usize = 512;
 const SIGNATURE_BYTES: usize = SIGNATURE_BITS / BITS_PER_BYTE;
@@ -428,280 +421,9 @@ pub fn build_call_contract_log_cell(msg: &Message, payload: Vec<u8>) -> Result<C
     builder.build()
 }
 
-/// Constructs a proof cell from a given verifier set and corresponding signatures, to be sent to the TON gateway.
-///
-/// This function is responsible for creating a serialized proof cell that contains:
-/// - A mapping of signer indices to `WeightedSigner` instances (public key, weight, and signature),
-/// - The multisig threshold value,
-/// - A nonce representing the creation timestamp of the verifier set.
-///
-/// The proof is structured as a TON cell and can be used for validation of
-/// signed messages in smart contracts or off-chain verification systems.
-///
-/// # Parameters
-/// - `verifier_set`: A reference to the `VerifierSet`, which contains the required
-///   multisig parameters (signers, threshold, and timestamp).
-/// - `signatures`: A vector of `SignerWithSig`, each of which includes a corresponding
-///   Ed25519 signature for a signer in the verifier set.
-fn construct_proof(
-    verifier_set: &VerifierSet,
-    signatures: Vec<SignerWithSig>,
-) -> Result<Cell, TonCellError> {
-    let maybe_proof = WeightedSigners::new(verifier_set, signatures);
-    match maybe_proof {
-        Ok(proof) => proof.to_cell(),
-        Err(e) => Err(TonCellError::InternalError(e)),
-    }
-}
-
 /// A wrapper for getting a cell-chain containing a string
 fn get_arced_cell(inner: &str) -> Result<Arc<Cell>, TonCellError> {
     Ok(Arc::new(buffer_to_cell(inner.as_bytes().to_vec())?))
-}
-
-/// Serializes a `Message` struct into a TON cell.
-///
-/// The serialized format consists of:
-/// - A reference to a cell containing the message ID.
-/// - A reference to a cell containing the source chain identifier.
-/// - A reference to a cell containing the source address.
-/// - A nested cell with:
-///   - A reference to a cell containing the destination address.
-///   - A reference to a cell containing the destination chain identifier.
-/// - A 256-bit payload hash.
-///
-fn message_to_cell(msg: Message) -> Result<Cell, TonCellError> {
-    let mut builder = CellBuilder::new();
-    builder.store_reference(&get_arced_cell(&msg.cc_id.message_id)?)?;
-    builder.store_reference(&get_arced_cell(msg.cc_id.source_chain.as_ref())?)?;
-    builder.store_reference(&get_arced_cell(&msg.source_address)?)?;
-
-    let ton_address_hash_buffer = TonAddress::from_str(&msg.destination_address)
-        .map_err(|_| {
-            TonCellError::InternalError("Failed to parse Address as TonAddress".to_string())
-        })?
-        .hash_part
-        .to_vec();
-    let ton_address_hash_buffer_cell = buffer_to_cell(ton_address_hash_buffer).map_err(|_| {
-        TonCellError::InternalError("Failed to transform buffer into chain of cells".to_string())
-    })?;
-
-    let mut last_cell_builder = CellBuilder::new();
-    last_cell_builder.store_reference(&Arc::new(ton_address_hash_buffer_cell.clone()))?; // problem this should be the Ton address hash!!! .storeRef(bufferToCell(msg.executableAddress.hash))
-    last_cell_builder.store_reference(&get_arced_cell(msg.destination_chain.as_ref())?)?;
-    let last_cell = last_cell_builder.build()?;
-
-    builder.store_reference(&Arc::new(last_cell))?;
-    builder.store_uint(
-        PAYLOAD_HASH_BITS,
-        &BigUint::from_bytes_be(&msg.payload_hash),
-    )?;
-
-    let res = builder.build()?;
-    Ok(res)
-}
-
-#[derive(Debug)]
-struct TonMessages {
-    dict: HashMap<u16, Message>,
-}
-
-/// Helper function to write the value to a key/value dict cell
-fn val_writer_message(builder: &mut CellBuilder, val: Message) -> Result<(), TonCellError> {
-    builder.store_reference(&Arc::new(message_to_cell(val).map_err(|_| {
-        TonCellError::InternalError("Failed to transform Message into Cell".to_string())
-    })?))?;
-    Ok(())
-}
-
-/// Implements construction and serialization for a collection of `Message` instances
-/// to be encoded into a TON cell structure.
-impl TonMessages {
-    /// Creates a new `TonMessages` instance from a slice of `Message` values.
-    fn new(messages: &[Message]) -> Result<Self, TonCellError> {
-        if messages.len() > u16::MAX as usize {
-            return Err(TonCellError::InternalError("Too many messages".to_string()));
-        }
-        let msgs_hashmap: HashMap<u16, Message> = messages
-            .iter() // Changed from into_iter() to iter()
-            .enumerate()
-            .map(|(i, msg)| (u16::try_from(i).unwrap(), msg.clone())) // Added clone() since we're borrowing
-            .collect();
-        Ok(TonMessages { dict: msgs_hashmap })
-    }
-
-    /// Serializes the `TonMessages` into a TON cell using a dictionary.
-    fn to_cell(&self) -> Result<Cell, TonCellError> {
-        let mut builder = CellBuilder::new();
-
-        builder.store_dict(DICTIONARY_KEY_BITS, val_writer_message, self.dict.clone())?;
-        let dict_cell = builder.build()?;
-
-        Ok(dict_cell)
-    }
-}
-
-/// Wrapper to create a TON cell containing a slice of `Message` values.
-fn construct_messages(messages: &[Message]) -> Result<Cell, TonCellError> {
-    let ton_msgs = TonMessages::new(messages)?;
-    ton_msgs.to_cell()
-}
-
-/// Constructs a TON cell representing an "approve messages" operation, which includes
-/// the verifier set, the signatures and a set of cross-chain messages.
-///
-/// The resulting cell can be sent to the TON gateway as an internal message.
-///
-/// # Parameters
-/// - `messages`: A borrowed slice of `Message` objects representing cross-chain messages to be approved.
-/// - `verifier_set`: A reference to a `VerifierSet` defining the authorized signers and the threshold.
-/// - `signatures`: A vector of `SignerWithSig` containing the corresponding cryptographic signatures.
-///
-pub fn build_approve_messages_body(
-    messages: &[Message],
-    verifier_set: &VerifierSet,
-    signatures: Vec<SignerWithSig>,
-) -> Result<Cell, TonCellError> {
-    let proof = construct_proof(verifier_set, signatures)?;
-    let messages = construct_messages(messages)?;
-
-    let mut builder = CellBuilder::new();
-    builder.store_uint(OPCODE_BITS, &BigUint::from(OP_APPROVE_MESSAGES))?;
-    builder.store_reference(&Arc::new(proof))?;
-    builder.store_reference(&Arc::new(messages))?;
-
-    builder.build()
-}
-
-/// Constructs a TON cell representing a "signer rotation" operation, which includes
-/// the new verifier set, the current verifier set and the signatures.
-///
-/// The resulting cell can be sent to the TON gateway as an internal message.
-///
-/// /// # Parameters
-/// - `candidate_set`: A reference to the `VerifierSet` that should replace the current one.
-/// - `current_set`: A reference to the existing `VerifierSet`, used to verify the provided signatures.
-/// - `signatures`: A vector of `SignerWithSig` containing the signatures by members of `current_set`.
-///
-pub fn build_signer_rotation_body(
-    candidate_set: &VerifierSet,
-    current_set: &VerifierSet,
-    signatures: Vec<SignerWithSig>,
-) -> Result<Cell, TonCellError> {
-    let proof = construct_proof(current_set, signatures)?;
-    let candidate_config_hash = compute_verifier_set_hash(candidate_set)?;
-    let candidate_config_hash_cell = buffer_to_cell(candidate_config_hash.to_vec())?;
-
-    let mut builder = CellBuilder::new();
-    builder.store_uint(OPCODE_BITS, &BigUint::from(OP_START_SIGNER_ROTATION))?;
-    builder.store_reference(&Arc::new(candidate_config_hash_cell))?;
-    builder.store_reference(&Arc::new(proof))?;
-
-    builder.build()
-}
-
-/// Calculates the hash of given `Message` slice in the same way as the TON gateway.
-///
-/// # Parameters
-/// - `msgs`: A slice of `Message` structures representing the cross-chain messages to hash.
-fn compute_data_hash(msgs: &[Message]) -> Result<Hash, TonAddressParseError> {
-    let mut concatenated: Vec<u8> = Vec::new();
-
-    for msg in msgs.iter().cloned() {
-        let message_id = msg.cc_id.message_id;
-        let source_chain = msg.cc_id.source_chain;
-        let source_contract_address = msg.source_address;
-        let contract_address = msg.destination_address;
-        let destination_chain = msg.destination_chain;
-        let payload_hash = msg.payload_hash;
-
-        concatenated.extend(message_id.as_bytes());
-
-        concatenated.extend(source_chain.to_string().as_bytes());
-        concatenated.extend(source_contract_address.as_bytes());
-
-        let ton_address_hash_buffer = TonAddress::from_str(&contract_address)?.hash_part.to_vec();
-
-        concatenated.extend(ton_address_hash_buffer);
-        concatenated.extend(destination_chain.to_string().as_bytes());
-        concatenated.extend(payload_hash.as_slice());
-    }
-
-    Ok(Keccak256::digest(concatenated).into())
-}
-
-/// Calculates the hash of given `VerifierSet` in the same way as the TON gateway.
-#[allow(clippy::arithmetic_side_effects)]
-fn compute_verifier_set_hash(verifier_set: &VerifierSet) -> Result<Hash, TonCellError> {
-    let mut data = Vec::new();
-    data.extend(verifier_set.threshold.to_be_bytes());
-
-    // Convert nonce to 256-bit (32 bytes)
-    let mut nonce_bytes = [0u8; NONCE_BITS / 8];
-    let nonce_be = verifier_set.created_at.to_be_bytes();
-    nonce_bytes[NONCE_BITS / 8 - nonce_be.len()..].copy_from_slice(&nonce_be);
-    data.extend(nonce_bytes);
-
-    let mut current_hash = Keccak256::digest(&data);
-
-    // Sort the keys lexicographically
-    let mut sorted_keys: Vec<&String> = verifier_set.signers.keys().collect();
-    sorted_keys.sort();
-
-    for (i, key) in sorted_keys.iter().enumerate() {
-        let signer = verifier_set.signers.get(*key).unwrap(); // assert: key in verifier_set.signers since we iterate over the keys
-
-        let mut hasher = Keccak256::new();
-        hasher.update(
-            u16::try_from(i)
-                .map_err(|_| TonCellError::InternalError("Too many signers".to_string()))?
-                .to_be_bytes(),
-        ); // assert: less than 2^16 = 65536 signers
-        hasher.update(&signer.pub_key);
-        hasher.update(signer.weight.to_be_bytes());
-        hasher.update(current_hash);
-        current_hash = hasher.finalize();
-    }
-
-    Ok(current_hash.into())
-}
-
-/// Calculates the hash of given `Message` slice and `VerifierSet` in the same way as the TON gateway,
-/// for use an "approve messages" operation.
-pub fn compute_approve_messages_hash(
-    msgs: &[Message],
-    verifier_set: &VerifierSet,
-    domain_separator: &Hash,
-) -> Result<Hash, TonCellError> {
-    let data_hash = compute_data_hash(msgs)
-        .map_err(|_| TonCellError::InternalError("Failed to compute data hash".to_string()))?;
-    let signers_hash = compute_verifier_set_hash(verifier_set)?;
-
-    let mut result = Vec::new();
-    result.extend(data_hash.to_vec());
-    result.extend(signers_hash.to_vec());
-    result.extend(domain_separator.to_vec());
-
-    Ok(Keccak256::digest(result).into())
-}
-
-/// Calculates the hash of given two `VerifierSet` in the same way as the TON gateway, for use in
-/// a "rotate signers" operation.
-pub fn compute_signer_rotation_hash(
-    candidate_set: &VerifierSet,
-    current_set: &VerifierSet,
-    domain_separator: &Hash,
-) -> Result<Hash, TonCellError> {
-    let candidate_set_hash = compute_verifier_set_hash(candidate_set)?;
-    let current_set_hash = compute_verifier_set_hash(current_set)?;
-
-    let mut result = Vec::new();
-
-    result.extend(candidate_set_hash.to_vec());
-    result.extend(current_set_hash.to_vec());
-    result.extend(domain_separator);
-
-    Ok(Keccak256::digest(result).into())
 }
 
 // A wrapper to encode a TON `Cell` as a hex string.
@@ -711,23 +433,17 @@ pub fn cell_to_boc_hex(cell: Cell) -> Result<String, TonCellError> {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Write;
-
     use axelar_wasm_std::{nonempty, Participant};
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use itertools::Itertools;
-    use multisig::key::{KeyTyped, Signature};
-    use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{ChainName, ChainNameRaw, CrossChainId, Message};
+    use router_api::{CrossChainId, Message};
     use tonlib_core::cell::Cell;
     use tonlib_core::tlb_types::traits::TLBObject;
     use tonlib_core::TonAddress;
 
     use crate::{
-        buffer_to_cell, build_call_contract_log_cell, build_signer_rotation_body,
-        cell_parse_call_contract_log, cell_to_boc_hex, compute_approve_messages_hash,
-        message_to_cell, CellTo, WeightedSigners,
+        buffer_to_cell, build_call_contract_log_cell, cell_parse_call_contract_log,
+        cell_to_boc_hex, CellTo, WeightedSigners,
     };
 
     const LOREM_STR: &str = "Lorem ipsum dolor sit amet ullamco ipsum. Est nulla veniam fugiat ut consectetur mollit ipsum duis nostrud ullamco cupidatat ad Lorem eu incididunt adipisicing laboris nisi. Ad mollit exercitation, culpa aute esse incididunt officia anim sint adipisicing labore anim exercitation aliquip irure id nisi tempor. Ipsum anim dolore sit incididunt ipsum nisi.  Id quis veniam occaecat est ad. Aliquip adipisicing culpa sit esse eiusmod laboris voluptate, sit. Esse amet esse occaecat laboris minim culpa officia ullamco et reprehenderit proident occaecat ullamco ipsum sunt ipsum est quis enim esse veniam est ut. Deserunt fugiat aliqua proident officia enim laboris Lorem qui dolor irure qui.  Excepteur elit est adipisicing ex in commodo eiusmod elit ea minim velit, et id aute voluptate velit fugiat culpa. Ipsum fugiat non in adipisicing eu voluptate fugiat occaecat ex enim consequat consectetur ex in. Magna reprehenderit id nisi sunt pariatur minim officia elit a";
@@ -767,84 +483,10 @@ mod tests {
     }
 
     #[test]
-    fn message_to_cell_okay() {
-        let msg = Message {
-            cc_id: CrossChainId {
-                source_chain: ChainNameRaw::try_from("Testchain".to_string()).unwrap(),
-                message_id: "Some message".try_into().unwrap(),
-            },
-            source_address: "from-some-address".to_string().try_into().unwrap(),
-            destination_chain: ChainName::try_from("TestChain2".to_string()).unwrap(),
-            destination_address:
-                "0:4d3e1eb3fef978b01cfc0189d990804f03c922a63c61971963f80f2b1bd1761a"
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-            payload_hash: [0; 32],
-        };
-        let res = message_to_cell(msg);
-        assert!(res.is_ok());
-    }
-
-    #[test]
-    fn message_to_cell_invalid_ton_address() {
-        let msg = Message {
-            cc_id: CrossChainId {
-                source_chain: ChainNameRaw::try_from("Testchain".to_string()).unwrap(),
-                message_id: "Some message".try_into().unwrap(),
-            },
-            source_address: "0:4d3e1eb3fef978b01cfc0189d990804f03c922a63c61971963f80f2b1bd1761a"
-                .to_string()
-                .try_into()
-                .unwrap(),
-            destination_chain: ChainName::try_from("TestChain2".to_string()).unwrap(),
-            destination_address: "not-a-ton-address".to_string().try_into().unwrap(),
-            payload_hash: [0; 32],
-        };
-        let res = message_to_cell(msg);
-        assert!(res.is_err());
-    }
-
-    #[test]
     fn should_reject_conversion_incorrect_key_type() {
         let incorrect_verifier_set = incorrect_key_type_curr_ton_verifier_set();
         let weighted_signers = WeightedSigners::try_from(incorrect_verifier_set);
         assert!(weighted_signers.is_err());
-    }
-
-    #[test]
-    fn should_compute_correct_approve_messages_hash() {
-        let domain_separator = ton_domain_separator();
-        let current_set = curr_ton_verifier_set();
-        let msgs = ton_messages();
-
-        let digest = compute_approve_messages_hash(&msgs, &current_set, &domain_separator).unwrap();
-
-        assert_eq!(
-            hex_encode(digest.to_vec().as_slice()),
-            "e8214b369d9f4b11f4f0f7d2c921b56e9a34033e8f7f8599abe819b3cb7de2e0"
-        );
-    }
-
-    #[test]
-    fn should_encode_rotate_signers() {
-        let verifier_set = curr_ton_verifier_set();
-
-        let mut new_ton_set = curr_ton_verifier_set();
-        new_ton_set.created_at += 1;
-
-        let sigs: Vec<_> = vec![
-            "63d43de6b5780ea29849a82b9b616c3a7c8c5332e5a1b34408c2745eabf07e2c7d539134e3480e3b3e1ac689f9fff05047b9bb1ecf1208732cf53a39ae0fe701",
-            "e619721e05b552e3090dc4a48624ada4ff91a4a4fbd94e2347f1e9716d95c9f1e43c29c1613838ef7beb2daec16c036d0942cc274d15ea64020c5fd94af94205",
-            "9b7265c9660f8dd37e99e6c8e4e5fc020a1f0ddb9d55c3f352e826990af144485903cb41b47d6091f7c753ff5de667414be03bfe6a1d3f06513d949005a3500c",
-        ].into_iter().map(|sig| HexBinary::from_hex(sig).unwrap()).collect();
-
-        let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
-
-        let encoded_signer_rotation =
-            build_signer_rotation_body(&new_ton_set, &verifier_set, signers_with_sigs).unwrap();
-
-        assert_eq!(cell_to_boc_hex(encoded_signer_rotation).unwrap(), "b5ee9c72410208010001c10002080000001401020040ab98abb510250ae97f3834f06829b35e08d6711dd57753b9c16307aadb4e5d5c0161800000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000c0030202ce0405020120060700e1479b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664000000000000000000000000000000019b7265c9660f8dd37e99e6c8e4e5fc020a1f0ddb9d55c3f352e826990af144485903cb41b47d6091f7c753ff5de667414be03bfe6a1d3f06513d949005a3500c800e100e841effcf3842f875c374639d2f02659f9358c26e94357c777219904954c6e0000000000000000000000000000000058f50f79ad5e03a8a6126a0ae6d85b0e9f2314ccb9686cd102309d17aafc1f8b1f54e44d38d2038ecf86b1a27e7ffc1411ee6ec7b3c4821ccb3d4e8e6b83f9c06000e110f37008f48b57e7841f4681a4d15f4d747443adf4871c8464bd5bd779019974c000000000000000000000000000000079865c87816d54b8c243712921892b693fe469293ef65388d1fc7a5c5b65727c790f0a70584e0e3bdefacb6bb05b00db4250b309d3457a99008317f652be5081608ba483f1");
     }
 
     #[test]
@@ -890,68 +532,6 @@ mod tests {
         }]
     }
 
-    fn ton_messages() -> Vec<Message> {
-        vec![Message {
-            cc_id: CrossChainId::new(
-                "ganache-1",
-                "0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0",
-            )
-            .unwrap(),
-            source_address: "0x52444f1835Adc02086c37Cb226561605e2E1699b"
-                .parse()
-                .unwrap(),
-            destination_address:
-                "0:4686a2c066c784a915f3e01c853d3195ed254c948e21adbb3e4a9b3f5f3c74d7"
-                    .parse()
-                    .unwrap(),
-            destination_chain: "ton".parse().unwrap(),
-            payload_hash: HexBinary::from_hex(
-                "56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432", // keccak256("0x1234");
-            )
-            .unwrap()
-            .to_array::<32>()
-            .unwrap(),
-        }]
-    }
-
-    fn signers_with_sigs<'a>(
-        signers: impl Iterator<Item = &'a Signer>,
-        sigs: Vec<HexBinary>,
-    ) -> Vec<SignerWithSig> {
-        signers
-            .sorted_by(|s1, s2| Ord::cmp(&s1.pub_key, &s2.pub_key))
-            .zip(sigs)
-            .map(|(signer, sig)| {
-                signer.with_sig(Signature::try_from((signer.pub_key.key_type(), sig)).unwrap())
-            })
-            .collect()
-    }
-
-    fn curr_ton_verifier_set() -> VerifierSet {
-        let pub_keys = vec![
-            "03A107BFF3CE10BE1D70DD18E74BC09967E4D6309BA50D5F1DDC8664125531B8",
-            "43CDC023D22D5F9E107D1A0693457D35D1D10EB7D21C721192F56F5DE40665D3",
-            "79B5562E8FE654F94078B112E8A98BA7901F853AE695BED7E0E3910BAD049664",
-        ];
-
-        ton_verifier_set_from_pub_keys(&pub_keys)
-    }
-
-    fn ton_verifier_set_from_pub_keys(pub_keys: &[&str]) -> VerifierSet {
-        let participants: Vec<(_, _)> = (0..pub_keys.len())
-            .map(|i| {
-                (
-                    Participant {
-                        address: Addr::unchecked(format!("verifier{i}")),
-                        weight: nonempty::Uint128::one(),
-                    },
-                    multisig::key::PublicKey::Ed25519(HexBinary::from_hex(pub_keys[i]).unwrap()),
-                )
-            })
-            .collect();
-        VerifierSet::new(participants, Uint128::from(3u128), 1)
-    }
-
     fn incorrect_key_type_curr_ton_verifier_set() -> VerifierSet {
         let pub_keys = vec![
             "03A107BFF3CE10BE1D70DD18E74BC09967E4D6309BA50D5F1DDC8664125531B8",
@@ -975,20 +555,5 @@ mod tests {
             })
             .collect();
         VerifierSet::new(participants, Uint128::from(3u128), 1)
-    }
-
-    fn ton_domain_separator() -> [u8; 32] {
-        HexBinary::from_hex("6973c72935604464b28827141b0a463af8e3487616de69c5aa0c785392c9fb9f")
-            .unwrap()
-            .to_array()
-            .unwrap()
-    }
-
-    fn hex_encode(bytes: &[u8]) -> String {
-        bytes.iter().fold(String::new(), |mut output, b| {
-            // write! returns a Result; we can ignore the error here
-            let _ = write!(&mut output, "{:02x}", b);
-            output
-        })
     }
 }
