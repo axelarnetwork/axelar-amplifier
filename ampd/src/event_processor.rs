@@ -75,7 +75,7 @@ pub async fn consume_events<H, S, C>(
     event_processor_config: Config,
     token: CancellationToken,
     msg_queue_client: broadcaster_v2::MsgQueueClient<C>,
-    metric_client: monitoring::Client,
+    monitoring_client: monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -98,7 +98,7 @@ where
             Ok(Err(err)) => StreamStatus::Error(err),
             Err(_) => StreamStatus::TimedOut,
         })
-        .inspect(|event| log_block_end_event(event, &handler_label, &metric_client))
+        .inspect(|event| log_block_end_event(event, &monitoring_client))
         .take_while(should_task_continue(token));
     pin_mut!(event_stream);
 
@@ -163,21 +163,13 @@ fn should_task_continue(token: CancellationToken) -> impl Fn(&StreamStatus) -> f
     }
 }
 
-fn log_block_end_event(
-    event: &StreamStatus,
-    handler_label: &str,
-    metric_client: &monitoring::Client,
-) {
+fn log_block_end_event(event: &StreamStatus, monitoring_client: &monitoring::Client) {
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
         info!(height = height.value(), "handler finished processing block");
 
-        if let Err(err) = metric_client.metrics().record_metric(Msg::BlockReceived) {
-            warn!( handler = handler_label,
-                height = height.value(),
-                err = %err,
-                "failed to record block received metric"
-            );
-        }
+        monitoring_client
+            .metrics()
+            .record_metric(Msg::BlockReceived);
     }
 }
 

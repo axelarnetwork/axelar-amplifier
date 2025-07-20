@@ -26,8 +26,8 @@ use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_message;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::handlers::record_metrics::*;
 use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -214,11 +214,12 @@ where
                         })
                 })
                 .inspect(|vote| {
-                    record_vote_verification_metric(
-                        &self.monitoring_client,
-                        vote,
-                        handler_chain_name,
-                    );
+                    self.monitoring_client
+                        .metrics()
+                        .record_metric(MetricsMsg::VerificationVote {
+                            vote_status: vote.to_owned(),
+                            chain_name: handler_chain_name.to_owned(),
+                        });
                 })
                 .collect();
             info!(
@@ -415,7 +416,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_record_vote_verification_metric() {
+    async fn should_record_verification_vote_metric() {
         let mut rpc_client = MockEthereumClient::new();
         let mut block = Block::<Hash>::default();
         let block_number: U64 = 10.into();
@@ -454,7 +455,7 @@ mod tests {
 
             assert_eq!(
                 metrics,
-                MetricsMsg::VoteVerification {
+                MetricsMsg::VerificationVote {
                     vote_status: Vote::NotFound,
                     chain_name: "ethereum".to_string(),
                 }

@@ -22,8 +22,8 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::handlers::record_metrics::*;
 use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
 use crate::types::TMAddress;
@@ -150,7 +150,12 @@ where
                 }
             };
 
-            record_vote_verification_metric(&self.monitoring_client, &vote, handler_chain_name);
+            self.monitoring_client
+                .metrics()
+                .record_metric(MetricsMsg::VerificationVote {
+                    vote_status: vote.to_owned(),
+                    chain_name: handler_chain_name.to_owned(),
+                });
 
             info!(
                 vote = vote.as_value(),
@@ -238,7 +243,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_send_correct_vote_verification_messages() {
+    async fn should_record_verification_vote_metric() {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
 
@@ -265,7 +270,7 @@ mod tests {
 
         assert_eq!(
             receiver.try_recv().unwrap(),
-            MetricsMsg::VoteVerification {
+            MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
                 chain_name: "starknet".to_string(),
             }
