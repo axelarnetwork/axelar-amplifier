@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::pin::Pin;
 
 use clap::Subcommand;
@@ -13,7 +14,7 @@ use crate::asyncutil::future::RetryPolicy;
 use crate::config::Config;
 use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcaster_v2, cosmos, tofnd, Error, PREFIX};
+use crate::{broadcaster_v2, cosmos, monitoring, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -163,6 +164,7 @@ async fn instantiate_broadcaster(
         broadcaster_config.batch_gas_limit,
         broadcaster_config.broadcast_interval,
     );
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
@@ -170,6 +172,7 @@ async fn instantiate_broadcaster(
         .key_id(tofnd_config.key_uid.clone())
         .gas_adjustment(broadcaster_config.gas_adjustment)
         .gas_price(broadcaster_config.gas_price)
+        .monitoring_client(monitoring_client)
         .build()
         .await
         .change_context(Error::Broadcaster)?;

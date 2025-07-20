@@ -3,4 +3,8 @@
 blocks_received_total 3
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
+# HELP ampd_transactions number of transactions processed by the ampd.
+# TYPE ampd_transactions counter
+# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
+# TYPE ampd_transaction_duration_seconds histogram
 # EOF
