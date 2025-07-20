@@ -323,6 +323,7 @@ mod tests {
     use std::time::Duration;
 
     use tokio::test as async_test;
+    use tracing_test::traced_test;
 
     use super::*;
     use crate::monitoring::endpoints::status::Status;
@@ -379,21 +380,22 @@ mod tests {
     }
 
     #[test]
+    #[traced_test]
     fn disabled_client_discards_messages_without_error() {
         let (_, client) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server and client
 
         // Should succeed without doing anything
-        let result = client.metrics().record_metric(metrics::Msg::BlockReceived);
+        client.metrics().record_metric(metrics::Msg::BlockReceived);
         assert!(
-            result.is_ok(),
+            !logs_contain("failed to record metrics message"),
             "disabled client should discard messages successfully"
         );
 
         // Multiple messages should also work
         for _ in 0..100 {
-            let result = client.metrics().record_metric(metrics::Msg::BlockReceived);
+            client.metrics().record_metric(metrics::Msg::BlockReceived);
             assert!(
-                result.is_ok(),
+                !logs_contain("failed to record metrics message"),
                 "disabled client should handle multiple messages"
             );
         }
@@ -534,6 +536,7 @@ mod tests {
     }
 
     #[async_test(start_paused = true)]
+    #[traced_test]
     async fn enabled_server_shuts_down_gracefully_when_cancellation_token_triggered() {
         let (server, monitoring_client) = Server::new(Some(listener().await)).unwrap();
         let cancel = CancellationToken::new();
@@ -564,11 +567,12 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // client should not be able to send message after server shutdown
-        let send_result = monitoring_client
+        monitoring_client
             .metrics()
             .record_metric(metrics::Msg::BlockReceived);
+
         assert!(
-            send_result.is_err(),
+            logs_contain("failed to record metrics message"),
             "client should not be able to send messages after server shutdown"
         );
     }
@@ -629,11 +633,8 @@ mod tests {
         msg: metrics::Msg,
         number_of_messages: usize,
     ) {
-        for i in 0..number_of_messages {
-            monitoring_client
-                .metrics()
-                .record_metric(msg.clone())
-                .unwrap_or_else(|_| panic!("failed to send message {}", i));
+        for _ in 0..number_of_messages {
+            monitoring_client.metrics().record_metric(msg.clone());
         }
     }
 }

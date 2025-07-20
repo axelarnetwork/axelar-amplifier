@@ -18,8 +18,8 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::handlers::record_metrics::*;
 use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
@@ -149,7 +149,12 @@ where
                     })
             })
             .inspect(|vote| {
-                record_vote_verification_metric(&self.monitoring_client, vote, handler_chain_name);
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(MetricsMsg::VerificationVote {
+                        vote_status: vote.to_owned(),
+                        chain_name: handler_chain_name.to_owned(),
+                    });
             })
             .collect();
 
@@ -333,7 +338,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_record_vote_verification_metrics() {
+    async fn should_record_verification_vote_metric() {
         let mut rpc_client = MockSuiClient::new();
         rpc_client
             .expect_finalized_transaction_blocks()
@@ -361,7 +366,7 @@ mod tests {
         let metric = receiver.recv().await.unwrap();
         assert_eq!(
             metric,
-            MetricsMsg::VoteVerification {
+            MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
                 chain_name: "sui".to_string(),
             }
