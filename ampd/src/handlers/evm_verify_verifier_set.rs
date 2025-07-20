@@ -24,8 +24,8 @@ use crate::evm::finalizer::Finalization;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_verifier_set;
 use crate::handlers::errors::Error;
-use crate::handlers::record_metrics::*;
 use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
