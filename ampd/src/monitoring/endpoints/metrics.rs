@@ -89,7 +89,7 @@ impl Client {
     /// - For `Disabled` clients: Always succeeds without doing anything
     /// - For `WithChannel` clients: Attempts to send the message via channel
     /// - If sending fails, a warning is logged
-    /// - record_metrics never fails or disrupt the main flow of the application
+    /// - record_metrics should never disrupt the main flow of the application
     pub fn record_metric(&self, msg: Msg) {
         match self {
             Client::Disabled => (),
@@ -368,6 +368,8 @@ mod tests {
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
+
+        println!("{}", final_metrics.text());
 
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
     }
