@@ -111,7 +111,11 @@ where
     }
 }
 
-async fn confirm_tx<T>(client: &T, tx_hash: String, retry_policy: RetryPolicy) -> Result<TxResponse>
+pub async fn confirm_tx<T>(
+    client: &T,
+    tx_hash: String,
+    retry_policy: RetryPolicy,
+) -> Result<TxResponse>
 where
     T: cosmos::CosmosClient + Clone,
 {

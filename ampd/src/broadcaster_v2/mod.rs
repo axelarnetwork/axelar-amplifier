@@ -30,7 +30,7 @@ mod tx;
 
 pub use broadcaster::Broadcaster;
 pub use config::Config;
-pub use confirmer::TxConfirmer;
+pub use confirmer::{confirm_tx, TxConfirmer};
 #[cfg(test)]
 pub use msg_queue::QueueMsg;
 pub use msg_queue::{MsgQueue, MsgQueueClient};
