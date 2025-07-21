@@ -44,6 +44,9 @@ pub enum AppError {
 
     #[error("connection to the pool is unavailable")]
     ConnectionUnavailable,
+
+    #[error("connection pool is shut down")]
+    PoolShutdown,
 }
 
 #[derive(Error, Debug)]

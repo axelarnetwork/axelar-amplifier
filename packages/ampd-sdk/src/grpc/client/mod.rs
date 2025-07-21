@@ -29,7 +29,7 @@ pub(crate) fn parse_addr(addr: &str) -> error_stack::Result<cosmrs::AccountId, E
         .change_context(AppError::InvalidAddress.into())
         .attach_printable(addr.to_string())
 }
-use crate::grpc::connection_pool::ConnectionHandle;
+use crate::grpc::connection_pool::{ClientConnectionState, ConnectionHandle};
 use crate::grpc::error::{AppError, Error};
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
@@ -74,11 +74,14 @@ impl GrpcClient {
         Self { connection_handle }
     }
 
-    async fn get_channel(&mut self) -> Result<transport::Channel, Error> {
-        self.connection_handle
-            .get_connected_channel()
-            .await
-            .change_context(Error::from(AppError::ConnectionUnavailable))
+    async fn channel(&mut self) -> Result<transport::Channel, Error> {
+        match self.connection_handle.connected_channel().await {
+            Ok(ClientConnectionState::Connected(channel)) => Ok(channel),
+            Ok(ClientConnectionState::Shutdown) => {
+                Err(Error::from(AppError::PoolShutdown)).into_report()
+            }
+            Err(_) => Err(Error::from(AppError::ConnectionUnavailable)).into_report(),
+        }
     }
 }
 
@@ -91,7 +94,7 @@ impl Client for GrpcClient {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let request = SubscribeRequest {
@@ -120,7 +123,7 @@ impl Client for GrpcClient {
     }
 
     async fn address(&mut self) -> Result<AccountId, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let broadcaster_address = blockchain_client
@@ -135,7 +138,7 @@ impl Client for GrpcClient {
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let request = BroadcastRequest { msg: Some(msg) };
@@ -154,7 +157,7 @@ impl Client for GrpcClient {
         contract: nonempty::String,
         query: nonempty::Vec<u8>,
     ) -> Result<T, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         blockchain_client
@@ -173,7 +176,7 @@ impl Client for GrpcClient {
     }
 
     async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let response = blockchain_client
@@ -192,7 +195,7 @@ impl Client for GrpcClient {
         key: Option<Key>,
         message: nonempty::Vec<u8>,
     ) -> Result<nonempty::Vec<u8>, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut crypto_client = CryptoServiceClient::new(channel);
 
         crypto_client
@@ -209,7 +212,7 @@ impl Client for GrpcClient {
     }
 
     async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
-        let channel = self.get_channel().await?;
+        let channel = self.channel().await?;
         let mut crypto_client = CryptoServiceClient::new(channel);
 
         crypto_client
@@ -241,13 +244,13 @@ mod tests {
     use mockall::mock;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
-    use tokio::time::{sleep, timeout, Duration};
+    use tokio::time::{sleep, Duration};
     use tokio_util::sync::CancellationToken;
     use tonic::{Request, Response, Status};
 
     use super::*;
     use crate::grpc::client::types::KeyAlgorithm;
-    use crate::grpc::connection_pool::{ClientMessage, ConnectionPool, ConnectionState};
+    use crate::grpc::connection_pool::{ConnectionPool, ConnectionState};
     use crate::grpc::error::GrpcError;
 
     type ServerSubscribeStream =
@@ -321,25 +324,18 @@ mod tests {
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
 
-        let mut receiver = client.connection_handle.connection_receiver();
-        let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let result = client.address().await;
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
 
-        client
-            .connection_handle
-            .send_client_message(ClientMessage::ConnectionFailed(
-                "simulated failure".to_string(),
-            ))
-            .await
-            .unwrap();
+        client.connection_handle.request_reconnect().await.unwrap();
 
-        let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
-        assert_eq!(*receiver.borrow(), ConnectionState::Reconnecting);
-
-        let _ = timeout(Duration::from_millis(200), receiver.changed()).await;
-        assert!(matches!(*receiver.borrow(), ConnectionState::Connected(_)));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(matches!(
+            client.connection_handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
 
         let second_result = client.address().await;
         assert!(

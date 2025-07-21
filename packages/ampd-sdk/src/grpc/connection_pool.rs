@@ -21,7 +21,7 @@ pub enum Error {
     ClientNotificationFailed(#[from] watch::error::SendError<ConnectionState>),
 
     #[error(transparent)]
-    SelfNotificationFailed(#[from] mpsc::error::SendError<ClientMessage>),
+    SelfNotificationFailed(#[from] mpsc::error::SendError<ConnectionFailed>),
 
     #[error(transparent)]
     ConnectionStateReceiveFailed(#[from] watch::error::RecvError),
@@ -47,27 +47,24 @@ const KEEPALIVE_WHILE_IDLE: bool = true;
 const MESSAGE_RECEIVER_CHANNEL_CAPACITY: usize = 100;
 
 #[derive(Debug, Clone)]
-pub enum ClientMessage {
-    ConnectionFailed(String),
-}
+pub struct ConnectionFailed;
 
 /// Represents the state of a gRPC connection to the AMPD server.
-///
-/// This enum is used by the connection pool to communicate the connection status to clients.
 #[derive(Debug, Clone)]
 pub enum ConnectionState {
     /// The connection is established and ready for service calls.
-    /// Contains the active gRPC transport channel.
     Connected(transport::Channel),
 
-    /// The connection is not available and no reconnection attempt is in progress.
-    /// This is the initial state when the connection pool starts, or the final state after all reconnection attempts have failed.  
+    /// The connection is not available. A client request will trigger a reconnection attempt.
     Disconnected,
 
-    /// A reconnection attempt is currently in progress.
-    /// The connection pool is actively trying to re-establish the connection after a failure.
-    /// Clients should wait for the next state change rather than immediately failing their requests.
-    Reconnecting,
+    /// The connection pool is shut down.
+    Shutdown,
+}
+
+pub enum ClientConnectionState {
+    Connected(transport::Channel),
+    Shutdown,
 }
 
 impl PartialEq for ConnectionState {
@@ -80,57 +77,53 @@ impl PartialEq for ConnectionState {
 /// messages to the connection pool.
 ///
 /// This struct is used by clients to:
-/// - Monitor connection state changes via the `connection_receiver`
+/// - Monitor connection state changes via the `connection_state()` method
 /// - Send messages (like connection failure reports) to the connection pool
 /// - Coordinate with the connection pool for automatic reconnection
 #[derive(Clone, Debug)]
 pub struct ConnectionHandle {
     connection_receiver: watch::Receiver<ConnectionState>,
-    message_sender: mpsc::Sender<ClientMessage>,
+    message_sender: mpsc::Sender<ConnectionFailed>,
 }
 
 impl ConnectionHandle {
     /// This method encapsulates all the connection state management logic:
     /// - If connected, returns the channel immediately
-    /// - If disconnected, inform clients
-    /// - If reconnecting, waits for the connection to complete and returns the channel
+    /// - If disconnected, request a reconnection
+    /// - If shutdown, return a shutdown state
     ///
     /// Clients should use this method instead of manually handling connection states.
-    pub async fn get_connected_channel(&mut self) -> Result<transport::Channel, Error> {
+    pub async fn connected_channel(&mut self) -> Result<ClientConnectionState, Error> {
         timeout(DEFAULT_SERVER_TIMEOUT, async {
             loop {
-                let connection_state = self.connection_receiver.borrow_and_update().clone();
+                let pool_state = self.connection_receiver.borrow_and_update().clone();
 
-                match connection_state {
+                match pool_state {
                     ConnectionState::Connected(channel) => {
-                        return Ok(channel);
+                        return Ok(ClientConnectionState::Connected(channel))
                     }
                     ConnectionState::Disconnected => {
-                        self.send_client_message(ClientMessage::ConnectionFailed(
-                            "client requested connection while disconnected".to_string(),
-                        ))
-                        .await?;
-
-                        let mut receiver = self.connection_receiver.clone();
-                        receiver.changed().await.into_report()?;
+                        self.request_reconnect().await?;
                     }
-                    ConnectionState::Reconnecting => {
-                        let mut receiver = self.connection_receiver.clone();
-                        receiver.changed().await.into_report()?;
-                    }
+                    ConnectionState::Shutdown => return Ok(ClientConnectionState::Shutdown),
                 }
+
+                self.connection_receiver.changed().await.into_report()?;
             }
         })
         .await
         .into_report()?
     }
 
-    pub async fn send_client_message(&self, message: ClientMessage) -> Result<(), Error> {
-        self.message_sender.send(message).await.into_report()
+    pub async fn request_reconnect(&self) -> Result<(), Error> {
+        self.message_sender
+            .send(ConnectionFailed)
+            .await
+            .into_report()
     }
 
-    pub fn connection_receiver(&self) -> watch::Receiver<ConnectionState> {
-        self.connection_receiver.clone()
+    pub fn connection_state(&self) -> ConnectionState {
+        self.connection_receiver.borrow().clone()
     }
 }
 
@@ -145,7 +138,7 @@ impl ConnectionHandle {
 pub struct ConnectionPool {
     url: Url,
     connection_state: watch::Sender<ConnectionState>,
-    message_receiver: mpsc::Receiver<ClientMessage>,
+    message_receiver: mpsc::Receiver<ConnectionFailed>,
     retry_policy: RetryPolicy,
     is_reconnecting: bool,
 }
@@ -180,12 +173,12 @@ impl ConnectionPool {
             tokio::select! {
                 message = self.message_receiver.recv() => {
                     match message {
-                        Some(ClientMessage::ConnectionFailed(details)) => {
-                            warn!("client reported connection failure: {}", details);
-                            if !self.is_reconnecting {
-                                if let Err(e) = self.handle_connection_failure().await {
-                                    warn!(err = ?e, "reconnection attempt failed, will retry on next client request");
-                                }
+                        Some(ConnectionFailed) => {
+                            if self.is_reconnecting {
+                                info!("ignoring connection failure notification - already reconnecting");
+                            } else {
+                                warn!("client reported connection failure - starting reconnection");
+                                self.start_reconnection().await;
                             }
                         }
                         None => break,
@@ -193,6 +186,7 @@ impl ConnectionPool {
                 }
                 _ = token.cancelled() => {
                     info!("connection pool shutting down due to cancellation");
+                    self.notify_clients(ConnectionState::Shutdown);
                     break;
                 }
             }
@@ -219,22 +213,24 @@ impl ConnectionPool {
         }
     }
 
-    async fn handle_connection_failure(&mut self) -> Result<(), Error> {
+    async fn start_reconnection(&mut self) {
         self.is_reconnecting = true;
-        self.notify_clients(ConnectionState::Reconnecting);
+        while let Ok(ConnectionFailed) = self.message_receiver.try_recv() {
+            info!("draining additional connection failure notification during reconnection");
+        }
 
-        match with_retry(|| self.connect(), self.retry_policy).await {
+        let reconnect_result = with_retry(|| self.connect(), self.retry_policy).await;
+
+        match reconnect_result {
             Ok(()) => {
                 info!("successfully reconnected after failure");
-                self.is_reconnecting = false;
-                Ok(())
             }
-            Err(error_report) => {
+            Err(e) => {
+                warn!(err = ?e, "reconnection attempt failed, will retry on next client request");
                 self.notify_clients(ConnectionState::Disconnected);
-                self.is_reconnecting = false;
-                Err(error_report)
             }
         }
+        self.is_reconnecting = false;
     }
 
     fn notify_clients(&self, state: ConnectionState) {
@@ -246,7 +242,7 @@ impl ConnectionPool {
 
 #[cfg(test)]
 mod tests {
-    use tokio::time::{timeout, Duration};
+    use tokio::time::Duration;
 
     use super::*;
 
@@ -272,7 +268,7 @@ mod tests {
         let (_, handle) = test_setup().await;
 
         assert!(matches!(
-            *handle.connection_receiver.borrow(),
+            handle.connection_state(),
             ConnectionState::Disconnected
         ));
     }
@@ -285,7 +281,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(matches!(
-            *handle.connection_receiver.borrow(),
+            handle.connection_state(),
             ConnectionState::Disconnected
         ));
 
@@ -297,12 +293,12 @@ mod tests {
         let (pool, handle) = test_setup().await;
         let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
 
-        let mut receiver = handle.connection_receiver.clone();
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let result = timeout(Duration::from_secs(1), receiver.changed()).await;
-        assert!(result.is_ok());
-
-        assert!(matches!(*receiver.borrow(), ConnectionState::Connected(_)));
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
 
         pool_task.abort();
     }
@@ -312,24 +308,19 @@ mod tests {
         let (pool, handle) = test_setup().await;
         let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
 
-        let mut receiver = handle.connection_receiver.clone();
-        let _ = timeout(Duration::from_secs(1), receiver.changed()).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
 
-        handle
-            .message_sender
-            .send(ClientMessage::ConnectionFailed(
-                "test error from client".to_string(),
-            ))
-            .await
-            .unwrap();
+        handle.message_sender.send(ConnectionFailed).await.unwrap();
 
-        let result = timeout(Duration::from_millis(100), receiver.changed()).await;
-        assert!(result.is_ok());
-        assert!(matches!(*receiver.borrow(), ConnectionState::Reconnecting));
-
-        let result = timeout(Duration::from_millis(200), receiver.changed()).await;
-        assert!(result.is_ok());
-        assert!(matches!(*receiver.borrow(), ConnectionState::Connected(_)));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
 
         pool_task.abort();
     }
@@ -340,19 +331,13 @@ mod tests {
             ConnectionPool::new(Url::new_sensitive("https://localhost:1").unwrap());
         let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
 
-        let mut receiver = handle.connection_receiver.clone();
+        handle.message_sender.send(ConnectionFailed).await.unwrap();
 
-        handle
-            .message_sender
-            .send(ClientMessage::ConnectionFailed("test".to_string()))
-            .await
-            .unwrap();
-
-        let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
-        assert!(matches!(*receiver.borrow(), ConnectionState::Reconnecting));
-
-        let _ = timeout(Duration::from_millis(300), receiver.changed()).await;
-        assert!(matches!(*receiver.borrow(), ConnectionState::Disconnected));
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Disconnected
+        ));
 
         pool_task.abort();
     }
@@ -367,26 +352,69 @@ mod tests {
 
         let mut test_handle = handle.clone();
 
-        let first_result = tokio::time::timeout(
-            Duration::from_millis(100),
-            test_handle.get_connected_channel(),
-        )
-        .await;
+        let first_result =
+            tokio::time::timeout(Duration::from_millis(100), test_handle.connected_channel()).await;
         assert!(first_result.is_err());
 
-        let second_result = tokio::time::timeout(
-            Duration::from_millis(100),
-            test_handle.get_connected_channel(),
-        )
-        .await;
+        let second_result =
+            tokio::time::timeout(Duration::from_millis(100), test_handle.connected_channel()).await;
         assert!(second_result.is_err());
 
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // The state should still be Disconnected after both calls
         assert!(matches!(
-            *handle.connection_receiver.borrow(),
+            handle.connection_state(),
             ConnectionState::Disconnected
+        ));
+
+        pool_task.abort();
+    }
+
+    #[tokio::test]
+    async fn connection_pool_should_drain_multiple_failure_notifications() {
+        let (pool, handle) = test_setup().await;
+        let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
+
+        for _ in 0..5 {
+            handle.message_sender.send(ConnectionFailed).await.unwrap();
+        }
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
+
+        pool_task.abort();
+    }
+
+    #[tokio::test]
+    async fn connection_pool_should_handle_shutdown_state() {
+        let (pool, handle) = test_setup().await;
+        let token = CancellationToken::new();
+        let pool_token = token.clone();
+        let pool_task = tokio::spawn(async move { pool.run(pool_token).await });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Connected(_)
+        ));
+
+        token.cancel();
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(matches!(
+            handle.connection_state(),
+            ConnectionState::Shutdown
         ));
 
         pool_task.abort();
