@@ -5,7 +5,6 @@ use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, W
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
-use crate::client::Client;
 use crate::contract::errors::Error;
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
@@ -298,7 +297,6 @@ pub fn instantiate_chain_contracts(
 
 pub fn register_deployment(
     deps: DepsMut,
-    env: Env,
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
@@ -308,24 +306,22 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    let router = router_api::client::Router::new(protocol_contracts.router);
-    let coordinator: Client =
-        client::ContractClient::new(deps.querier, &env.contract.address).into();
+    register_chain(
+        deps,
+        deployed_contracts.chain_name.clone(),
+        deployed_contracts.multisig_prover,
+        deployed_contracts.gateway.clone(),
+        deployed_contracts.voting_verifier,
+    )?;
 
-    Ok(Response::new()
-        .add_message(
-            router.register_chain(
-                original_sender,
-                deployed_contracts.chain_name.clone(),
-                router_api::Address::try_from(deployed_contracts.gateway.to_string())
-                    .change_context(Error::ChainContractsInfo)?,
-                deployed_contracts.msg_id_format,
-            ),
-        )
-        .add_message(coordinator.register_chain(
+    let router = router_api::client::Router::new(protocol_contracts.router);
+    Ok(Response::new().add_message(
+        router.register_chain(
+            original_sender,
             deployed_contracts.chain_name,
-            deployed_contracts.multisig_prover.to_string(),
-            deployed_contracts.gateway.to_string(),
-            deployed_contracts.voting_verifier.to_string(),
-        )))
+            router_api::Address::try_from(deployed_contracts.gateway.to_string())
+                .change_context(Error::ChainContractsInfo)?,
+            deployed_contracts.msg_id_format,
+        ),
+    ))
 }
