@@ -1,21 +1,21 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
 blocks_received_total 0
-# HELP vote_verification_total number of messages verification votes.
-# TYPE vote_verification_total counter
-vote_verification_total_total{chain_name="ethereum",status="succeeded_on_chain"} 1
-vote_verification_total_total{chain_name="stellar",status="succeeded_on_chain"} 1
-vote_verification_total_total{chain_name="avalanche",status="not_found"} 1
-vote_verification_total_total{chain_name="solana",status="succeeded_on_chain"} 1
-vote_verification_total_total{chain_name="solana",status="failed_on_chain"} 1
-vote_verification_total_total{chain_name="solana",status="not_found"} 1
-vote_verification_total_total{chain_name="avalanche",status="succeeded_on_chain"} 1
-vote_verification_total_total{chain_name="ethereum",status="failed_on_chain"} 1
-vote_verification_total_total{chain_name="stellar",status="failed_on_chain"} 1
-vote_verification_total_total{chain_name="stellar",status="not_found"} 1
-vote_verification_total_total{chain_name="polygon",status="failed_on_chain"} 1
-vote_verification_total_total{chain_name="ethereum",status="not_found"} 1
-vote_verification_total_total{chain_name="polygon",status="not_found"} 1
-vote_verification_total_total{chain_name="avalanche",status="failed_on_chain"} 1
-vote_verification_total_total{chain_name="polygon",status="succeeded_on_chain"} 1
+# HELP verification_votes number of verification votes on cross-chain messages.
+# TYPE verification_votes counter
+verification_votes_total{chain_name="solana",status="succeeded_on_chain"} 1
+verification_votes_total{chain_name="avalanche",status="succeeded_on_chain"} 1
+verification_votes_total{chain_name="stellar",status="failed_on_chain"} 1
+verification_votes_total{chain_name="polygon",status="succeeded_on_chain"} 1
+verification_votes_total{chain_name="stellar",status="succeeded_on_chain"} 1
+verification_votes_total{chain_name="stellar",status="not_found"} 1
+verification_votes_total{chain_name="solana",status="failed_on_chain"} 1
+verification_votes_total{chain_name="avalanche",status="not_found"} 1
+verification_votes_total{chain_name="avalanche",status="failed_on_chain"} 1
+verification_votes_total{chain_name="ethereum",status="succeeded_on_chain"} 1
+verification_votes_total{chain_name="ethereum",status="failed_on_chain"} 1
+verification_votes_total{chain_name="polygon",status="failed_on_chain"} 1
+verification_votes_total{chain_name="solana",status="not_found"} 1
+verification_votes_total{chain_name="polygon",status="not_found"} 1
+verification_votes_total{chain_name="ethereum",status="not_found"} 1
 # EOF
