@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use axelar_wasm_std::voting::Vote;
 use axum::body::Body;
@@ -12,6 +13,10 @@ use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::gauge::Gauge;
+use std::sync::atomic::AtomicU64;
+use sysinfo::{get_current_pid, Pid, ProcessesToUpdate, ProcessRefreshKind};
+use sysinfo::System;
 use prometheus_client::registry::Registry;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -39,7 +44,7 @@ pub enum Msg {
     VerificationVote {
         vote_status: Vote,
         chain_name: String,
-    },
+    },  
 }
 
 /// Errors that can occur in metrics processing
@@ -105,6 +110,13 @@ impl Client {
     }
 }
 
+#[derive(Clone)]
+struct MetricsState {
+    registry: Arc<Registry>,
+    system_metrics_collector: SystemMetricsCollector,
+    metrics: Arc<Metrics>,
+}
+
 /// Creates a metrics endpoint with processor and client
 ///
 /// This function sets up the complete metrics infrastructure:
@@ -128,10 +140,17 @@ pub fn create_endpoint() -> (MethodRouter, Process, Client) {
 
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
+    let metrics_arc = Arc::new(metrics);
+
+    let state = MetricsState {
+        registry: Arc::new(registry),
+        system_metrics_collector: SystemMetricsCollector::new(),
+        metrics: metrics_arc.clone(),
+    };
 
     (
-        get(serve_metrics).with_state(Arc::new(registry)),
-        Process::new(rx, metrics),
+        get(serve_metrics).with_state(state),
+        Process::new(rx, Arc::clone(&metrics_arc)), // Use Arc::clone
         Client::WithChannel { sender: tx },
     )
 }
@@ -142,12 +161,12 @@ pub fn create_endpoint() -> (MethodRouter, Process, Client) {
 /// messages received from clients throughout the application.
 pub struct Process {
     stream: ReceiverStream<Msg>,
-    metrics: Metrics,
+    metrics: Arc<Metrics>, // Change to Arc<Metrics>
 }
 
 impl Process {
     /// Creates a new metrics processor
-    fn new(metrics_rx: mpsc::Receiver<Msg>, metrics: Metrics) -> Self {
+    fn new(metrics_rx: mpsc::Receiver<Msg>, metrics: Arc<Metrics>) -> Self {
         Self {
             stream: ReceiverStream::new(metrics_rx),
             metrics,
@@ -188,10 +207,12 @@ impl Process {
 }
 
 async fn serve_metrics(
-    State(registry): State<Arc<Registry>>,
+    State(state): State<MetricsState>,
 ) -> core::result::Result<Response<Body>, Error> {
+    state.metrics.update_system_metrics(&state.system_metrics_collector);
+
     let mut buffer = String::new();
-    encode(&mut buffer, &registry)?;
+    encode(&mut buffer, &state.registry)?;
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, OPENMETRICS_CONTENT_TYPE)
@@ -202,6 +223,12 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
+    system_info: SystemInfoMetrics,
+}
+
+struct SystemInfoMetrics {
+    cpu_usage: Gauge<f64, AtomicU64>,
+    memory_usage: Gauge<f64, AtomicU64>,
 }
 
 struct BlockReceivedMetrics {
@@ -228,13 +255,16 @@ impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
+        let system_info = SystemInfoMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
+        system_info.register(registry);
 
         Self {
             block_received,
             verification_vote,
+            system_info,
         }
     }
 
@@ -253,6 +283,13 @@ impl Metrics {
             }
         }
     }
+
+    pub fn update_system_metrics(&self, collector: &SystemMetricsCollector) {
+        if let Some(metrics) = collector.collect_metrics() {
+            self.system_info.update_metrics(metrics);
+        }
+    }
+
 }
 
 impl BlockReceivedMetrics {
@@ -299,6 +336,104 @@ impl VerificationVoteMetrics {
         self.total.get_or_create(&label).inc();
     }
 }
+
+impl SystemInfoMetrics {
+    fn new() -> Self {
+        let cpu_usage = Gauge::<f64, AtomicU64>::default();
+        let memory_usage = Gauge::<f64, AtomicU64>::default();
+        Self { cpu_usage, memory_usage }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register("cpu_usage", "ampd cpu usage in percentage", self.cpu_usage.clone());
+        registry.register("memory_usage", "ampd memory usage in bytes", self.memory_usage.clone());
+    }
+
+    fn update_metrics(&self, metrics: ProcessMetrics) {
+        self.cpu_usage.set(metrics.cpu_usage);
+        self.memory_usage.set(metrics.memory_usage);
+    }
+}
+
+
+
+// system metrics --------------------------------
+#[derive(Debug, Clone)]
+pub enum SystemMetricsCollector {
+    Active(ActiveCollector),
+    Dummy,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActiveCollector {
+    system: Arc<Mutex<System>>,
+    process_id: Pid,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessMetrics {
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+}
+
+
+impl SystemMetricsCollector {
+    pub fn new() -> Self {
+        match get_current_pid() {
+            Ok(pid) => {
+                Self::Active(ActiveCollector {
+                    system: Arc::new(Mutex::new(System::new())),
+                    process_id: pid,
+                })
+            }
+            Err(e) => {
+                warn!("system metrics will not be available: {}", e);
+                Self::Dummy
+            }
+        }
+    }
+
+    pub fn collect_metrics(&self) -> Option<ProcessMetrics> {
+        match self {
+            Self::Active(collector) => collector.collect_metrics(),
+            Self::Dummy => Some(ProcessMetrics {
+                cpu_usage: 0.0,
+                memory_usage: 0.0,
+            }),
+        }
+    }
+}
+
+impl ActiveCollector {
+    pub fn collect_metrics(&self) -> Option<ProcessMetrics> {
+        let mut system = self.system.lock().unwrap();
+        
+        // First refresh to get initial state
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[self.process_id]),
+            true,
+            ProcessRefreshKind::nothing().with_cpu().with_memory()
+        );
+        
+        // Wait for minimum interval and refresh again for accurate CPU usage
+        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+        
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[self.process_id]),
+            true,
+            ProcessRefreshKind::nothing().with_cpu().with_memory()
+        );
+        
+        system.process(self.process_id).map(|process| {
+            ProcessMetrics {
+                cpu_usage: process.cpu_usage() as f64,
+                memory_usage: process.memory() as f64,
+            }
+        })
+    }
+}
+
+    
 
 #[cfg(test)]
 mod tests {

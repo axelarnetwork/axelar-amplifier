@@ -13,6 +13,7 @@ config = []
 url = []
 
 [dependencies]
+sysinfo = "0.36.1"
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
 axelar-solana-encoding = { workspace = true }
