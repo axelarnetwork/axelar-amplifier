@@ -80,7 +80,7 @@ multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api"
 num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
-rand = "0.8.5"
+rand = "0.9.2"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
 router = { version = "^1.2.0", path = "contracts/router" }

@@ -2,13 +2,12 @@ use axelar_wasm_std::address;
 use cosmwasm_std::{Deps, Env, Order};
 use error_stack::report;
 use itertools::Itertools;
+use rand::{seq::SliceRandom, SeedableRng};
+use rand_pcg::Pcg64;
 use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
 use service_registry_api::*;
-use std::cmp::Ordering;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use crate::msg::{ServiceParamsOverride, VerifierDetails};
 use crate::state::{self, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
@@ -70,39 +69,36 @@ fn select_top_verifiers(
         verifiers[nth].weight
     };
 
-    // Now sort by weight descending, but for verifiers with the cutoff weight, break ties via pick_random
-    verifiers.sort_by(|a, b| {
-        b.weight.cmp(&a.weight).then_with(|| {
-            if a.weight == cutoff_weight {
-                pick_random(a, b, block_height)
-            } else {
-                Ordering::Equal
-            }
-        })
-    });
+    let active_verifiers = verifiers
+        .iter()
+        .filter(|v| v.weight > cutoff_weight)
+        .collect::<Vec<_>>();
+    if active_verifiers.len() >= max_verifiers as usize {
+        return active_verifiers
+            .into_iter()
+            .take(max_verifiers as usize)
+            .cloned()
+            .collect();
+    }
 
-    // Take up to max_verifiers from the sorted set
-    verifiers.truncate(max_verifiers as usize);
-    verifiers
-}
+    let remaining_slots = (max_verifiers as usize).saturating_sub(active_verifiers.len());
+    let mut possibly_included = verifiers
+        .iter()
+        .filter(|v| v.weight == cutoff_weight)
+        .collect::<Vec<_>>();
 
-fn pick_random(a: &WeightedVerifier, b: &WeightedVerifier, block_height: u64) -> Ordering {
-    let hash_a = hash_address_with_seed(
-        &a.verifier_info.address.to_string(),
-        &block_height.to_string(),
-    );
-    let hash_b = hash_address_with_seed(
-        &b.verifier_info.address.to_string(),
-        &block_height.to_string(),
-    );
-    hash_a.cmp(&hash_b)
-}
+    // Pcg64 is a fast, portable and deterministic RNG
+    let mut rng = Pcg64::seed_from_u64(block_height);
+    let selected = possibly_included
+        .partial_shuffle(&mut rng, remaining_slots)
+        .0
+        .to_vec();
 
-fn hash_address_with_seed(address: &str, seed: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    address.hash(&mut hasher);
-    seed.hash(&mut hasher);
-    hasher.finish()
+    active_verifiers
+        .into_iter()
+        .chain(selected.into_iter())
+        .cloned()
+        .collect()
 }
 
 pub fn verifier(
@@ -360,52 +356,5 @@ mod tests {
                 nonempty::Uint128::try_from(Uint128::from(100u128)).unwrap()
             );
         }
-    }
-
-    #[test]
-    fn hash_address_with_seed_consistency() {
-        let addr = "test_address";
-        let seed = "12345";
-
-        let hash1 = hash_address_with_seed(addr, seed);
-        let hash2 = hash_address_with_seed(addr, seed);
-
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
-    fn hash_address_with_seed_different_addresses() {
-        let addr1 = "test_address1";
-        let addr2 = "test_address2";
-        let seed = "12345";
-
-        let hash1 = hash_address_with_seed(addr1, seed);
-        let hash2 = hash_address_with_seed(addr2, seed);
-
-        assert_ne!(hash1, hash2);
-    }
-
-    #[test]
-    fn hash_address_with_seed_different_seeds() {
-        let addr1 = "test_address1";
-        let seed1 = "12345";
-        let seed2 = "54321";
-
-        let hash1 = hash_address_with_seed(addr1, seed1);
-        let hash2 = hash_address_with_seed(addr1, seed2);
-
-        assert_ne!(hash1, hash2);
-    }
-
-    #[test]
-    fn test_pick_random_consistency() {
-        let verifier1 = create_weighted_verifier("addr1", 100);
-        let verifier2 = create_weighted_verifier("addr2", 100);
-        let block_height = 12345;
-
-        let result1 = pick_random(&verifier1, &verifier2, block_height);
-        let result2 = pick_random(&verifier1, &verifier2, block_height);
-
-        assert_eq!(result1, result2);
     }
 }
