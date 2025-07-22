@@ -425,10 +425,7 @@ impl SystemMetricsCollector {
     pub fn collect_metrics(&self) -> ProcessMetrics {
         match self {
             Self::Available(collector) => collector.collect_metrics(),
-            Self::Unavailable => ProcessMetrics {
-                cpu_usage: 0.0,
-                memory_usage: 0.0,
-            },
+            Self::Unavailable => ProcessMetrics::zero(),
         }
     }
 }
@@ -440,23 +437,42 @@ impl SystemMetricsCollector {
 
 impl SysInfoCollector {
     pub fn collect_metrics(&self) -> ProcessMetrics {
-        let mut system = self.system.lock().unwrap();
+        let mut system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                warn!("Failed to acquire system metrics lock, returning zero metrics");
+                return ProcessMetrics::zero();
+            }
+        };
+
         refresh_process_metrics(&mut system, self.process_id);
 
         match system.process(self.process_id) {
-            Some(process) => ProcessMetrics {
-                cpu_usage: process.cpu_usage() as f64,
-                memory_usage: process.memory() as f64,
-            },
+            Some(process) => {
+                ProcessMetrics::new(process.cpu_usage() as f64, process.memory() as f64)
+            }
             // if the process info is not found, return zero metrics and log a warning
             // this may happens because of permission issues, process termination, or platform limitations
             None => {
                 warn!("system metrics is not available");
-                ProcessMetrics {
-                    cpu_usage: 0.0,
-                    memory_usage: 0.0,
-                }
+                ProcessMetrics::zero()
             }
+        }
+    }
+}
+
+impl ProcessMetrics {
+    pub fn new(cpu_usage: f64, memory_usage: f64) -> Self {
+        Self {
+            cpu_usage,
+            memory_usage,
+        }
+    }
+
+    pub fn zero() -> Self {
+        Self {
+            cpu_usage: 0.0,
+            memory_usage: 0.0,
         }
     }
 }
