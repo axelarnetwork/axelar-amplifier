@@ -43,7 +43,7 @@ pub enum Msg {
         vote_status: Vote,
         chain_name: String,
     },
-    /// Update the system metrics
+    /// Update the system metrics for ampd process
     UpdateSystemMetrics { cpu_usage: f64, memory_usage: f64 },
 }
 
@@ -141,7 +141,7 @@ pub fn create_endpoint() -> (MethodRouter, Process, Client) {
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
     let system_metrics_collector = SystemMetricsCollector::new();
-    
+
     let client = Client::WithChannel { sender: tx };
 
     let state = MetricsState {
@@ -151,7 +151,7 @@ pub fn create_endpoint() -> (MethodRouter, Process, Client) {
     };
 
     (
-        get(serve_metrics).with_state(state),
+        get(handle_metrics_request).with_state(state),
         Process::new(rx, metrics),
         client,
     )
@@ -207,14 +207,10 @@ impl Process {
     }
 }
 
-async fn serve_metrics(
+async fn handle_metrics_request(
     State(state): State<MetricsState>,
 ) -> core::result::Result<Response<Body>, Error> {
-    let system_metrics = state.system_metrics_collector.collect_metrics();
-    state.client.record_metric(Msg::UpdateSystemMetrics {
-        cpu_usage: system_metrics.cpu_usage,
-        memory_usage: system_metrics.memory_usage,
-    });
+    update_system_metrics(&state);
 
     let mut buffer = String::new();
     encode(&mut buffer, &state.registry)?;
@@ -223,6 +219,17 @@ async fn serve_metrics(
         .header(CONTENT_TYPE, OPENMETRICS_CONTENT_TYPE)
         .body(Body::from(buffer))?;
     Ok(response)
+}
+
+fn update_system_metrics(state: &MetricsState) {
+    let ProcessMetrics {
+        cpu_usage,
+        memory_usage,
+    } = state.system_metrics_collector.collect_metrics();
+    state.client.record_metric(Msg::UpdateSystemMetrics {
+        cpu_usage,
+        memory_usage,
+    });
 }
 
 struct Metrics {
@@ -376,16 +383,16 @@ impl SystemInfoMetrics {
 /// for the current AMPD process. It gracefully handles platform limitations
 /// and permission issues by falling back to dummy metrics when necessary.
 ///
-/// `Active` - Can collect real system metrics from the OS
-/// `Dummy` - Returns zero metrics when system access is unavailable
+/// `Available` - collect real system metrics from the OS
+/// `Unavailable` - Returns zero metrics when system access is unavailable
 #[derive(Debug, Clone)]
 pub enum SystemMetricsCollector {
-    Active(ActiveCollector),
-    Dummy,
+    Available(SysInfoCollector),
+    Unavailable,
 }
 
 #[derive(Debug, Clone)]
-pub struct ActiveCollector {
+pub struct SysInfoCollector {
     system: Arc<Mutex<System>>,
     process_id: Pid,
 }
@@ -402,23 +409,23 @@ impl SystemMetricsCollector {
             Ok(pid) => {
                 let mut system = System::new();
                 refresh_process_metrics(&mut system, pid);
-                
-                Self::Active(ActiveCollector {
+
+                Self::Available(SysInfoCollector {
                     system: Arc::new(Mutex::new(system)),
                     process_id: pid,
                 })
-            },
+            }
             Err(e) => {
                 warn!("system metrics will not be available: {}", e);
-                Self::Dummy
+                Self::Unavailable
             }
         }
     }
 
     pub fn collect_metrics(&self) -> ProcessMetrics {
         match self {
-            Self::Active(collector) => collector.collect_metrics(),
-            Self::Dummy => ProcessMetrics {
+            Self::Available(collector) => collector.collect_metrics(),
+            Self::Unavailable => ProcessMetrics {
                 cpu_usage: 0.0,
                 memory_usage: 0.0,
             },
@@ -430,7 +437,7 @@ impl SystemMetricsCollector {
 /// CPU usage calculation requires two measurements over time - since this is called
 /// on-demand during Prometheus scraping, the measurement interval matches the scrape period.
 
-impl ActiveCollector {
+impl SysInfoCollector {
     pub fn collect_metrics(&self) -> ProcessMetrics {
         let mut system = self.system.lock().unwrap();
         refresh_process_metrics(&mut system, self.process_id);
@@ -440,7 +447,7 @@ impl ActiveCollector {
                 cpu_usage: process.cpu_usage() as f64,
                 memory_usage: process.memory() as f64,
             },
-            // if the process is not found, return zero metrics and log a warning
+            // if the process info is not found, return zero metrics and log a warning
             // this may happens because of permission issues, process termination, or platform limitations
             None => {
                 warn!("system metrics is not available");
@@ -452,7 +459,6 @@ impl ActiveCollector {
         }
     }
 }
-
 
 fn refresh_process_metrics(system: &mut System, process_id: Pid) {
     system.refresh_processes_specifics(
@@ -469,8 +475,8 @@ mod tests {
     use axum::Router;
     use axum_test::TestServer;
     use tokio::time;
-    use super::test_utils::filter_system_metrics_output;
 
+    use super::test_utils::filter_system_metrics_output;
     use super::*;
 
     #[tokio::test(start_paused = true)]
@@ -532,7 +538,9 @@ mod tests {
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
 
-        goldie::assert!(sort_metrics_output(&filter_system_metrics_output(&final_metrics.text())))
+        goldie::assert!(sort_metrics_output(&filter_system_metrics_output(
+            &final_metrics.text()
+        )))
     }
 
     #[test]
@@ -548,7 +556,7 @@ mod tests {
         assert_eq!(sorted_data1, sorted_data2);
         goldie::assert!(sorted_data1);
     }
-   
+
     #[tokio::test(start_paused = true)]
     async fn should_include_system_metrics_in_prometheus_output() {
         let (router, process, _client) = create_endpoint();
@@ -559,23 +567,23 @@ mod tests {
 
         let initial_metrics = server.get("/test").await;
         initial_metrics.assert_status_ok();
-        time::sleep(Duration::from_secs(1)).await;   
+        time::sleep(Duration::from_secs(1)).await;
 
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
 
-        assert!(metric_value(&final_metrics.text(), "cpu_usage")    > 0.0);
+        assert!(metric_value(&final_metrics.text(), "cpu_usage") > 0.0);
         assert!(metric_value(&final_metrics.text(), "memory_usage") > 0.0);
     }
 
     /// Extracts the numeric value of a Prometheus metric from text output
-    /// 
+    ///
     /// panic if the metric is not found or not a number
     /// used when asserting system metrics
     fn metric_value(text: &str, name: &str) -> f64 {
         text.lines()
             .find(|l| l.starts_with(name))
-            .and_then(|line| line.split_whitespace().nth(1))  
+            .and_then(|line| line.split_whitespace().nth(1))
             .and_then(|num| num.parse::<f64>().ok())
             .expect(&format!("metric `{}` not found or not a number", name))
     }
@@ -620,14 +628,14 @@ mod tests {
 #[cfg(test)]
 pub mod test_utils {
     pub fn filter_system_metrics_output(text: &str) -> String {
-        let mut result = Vec::new();    
+        let mut result = Vec::new();
         for line in text.lines() {
             if line.contains("cpu_usage") || line.contains("memory_usage") {
                 continue;
             }
             result.push(line.to_string());
         }
-    
+
         result.join("\n") + "\n"
     }
 }
