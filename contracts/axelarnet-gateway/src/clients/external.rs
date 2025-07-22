@@ -31,7 +31,7 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn execute(&self, msg: AxelarExecutableMsg) -> CosmosMsg<Empty> {
+    pub fn execute(&self, msg: AxelarExecutableMsg) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::Execute(msg))
     }
 }
