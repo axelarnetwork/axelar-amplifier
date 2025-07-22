@@ -80,6 +80,7 @@ stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sysinfo = "0.36.1"
 tendermint = { workspace = true }
 tendermint-rpc = { version = "0.35.0", features = ["http-client"] }
 thiserror = { workspace = true }

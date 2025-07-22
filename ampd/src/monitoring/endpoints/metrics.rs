@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Mutex};
 
 use axelar_wasm_std::voting::Vote;
 use axum::body::Body;
@@ -12,7 +13,9 @@ use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::registry::Registry;
+use sysinfo::{get_current_pid, Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -40,6 +43,8 @@ pub enum Msg {
         vote_status: Vote,
         chain_name: String,
     },
+    /// Update the system metrics for ampd process
+    UpdateSystemMetrics { cpu_usage: f64, memory_usage: f64 },
 }
 
 /// Errors that can occur in metrics processing
@@ -105,6 +110,13 @@ impl Client {
     }
 }
 
+#[derive(Clone)]
+struct MetricsState {
+    registry: Arc<Registry>,
+    client: Client,
+    system_metrics_collector: SystemMetricsCollector,
+}
+
 /// Creates a metrics endpoint with processor and client
 ///
 /// This function sets up the complete metrics infrastructure:
@@ -128,14 +140,22 @@ pub fn create_endpoint() -> (MethodRouter, Process, Client) {
 
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
+    let system_metrics_collector = SystemMetricsCollector::new();
+
+    let client = Client::WithChannel { sender: tx };
+
+    let state = MetricsState {
+        registry: Arc::new(registry),
+        client: client.clone(),
+        system_metrics_collector,
+    };
 
     (
-        get(serve_metrics).with_state(Arc::new(registry)),
+        get(handle_metrics_request).with_state(state),
         Process::new(rx, metrics),
-        Client::WithChannel { sender: tx },
+        client,
     )
 }
-
 /// Background processor for handling metrics messages
 ///
 /// This processor runs in a separate task and updates metrics based on
@@ -187,11 +207,13 @@ impl Process {
     }
 }
 
-async fn serve_metrics(
-    State(registry): State<Arc<Registry>>,
+async fn handle_metrics_request(
+    State(state): State<MetricsState>,
 ) -> core::result::Result<Response<Body>, Error> {
+    update_system_metrics(&state);
+
     let mut buffer = String::new();
-    encode(&mut buffer, &registry)?;
+    encode(&mut buffer, &state.registry)?;
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(CONTENT_TYPE, OPENMETRICS_CONTENT_TYPE)
@@ -199,9 +221,26 @@ async fn serve_metrics(
     Ok(response)
 }
 
+fn update_system_metrics(state: &MetricsState) {
+    let ProcessMetrics {
+        cpu_usage,
+        memory_usage,
+    } = state.system_metrics_collector.collect_metrics();
+    state.client.record_metric(Msg::UpdateSystemMetrics {
+        cpu_usage,
+        memory_usage,
+    });
+}
+
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
+    system_info: SystemInfoMetrics,
+}
+
+struct SystemInfoMetrics {
+    cpu_usage: Gauge<f64, AtomicU64>,
+    memory_usage: Gauge<f64, AtomicU64>,
 }
 
 struct BlockReceivedMetrics {
@@ -228,13 +267,16 @@ impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
+        let system_info = SystemInfoMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
+        system_info.register(registry);
 
         Self {
             block_received,
             verification_vote,
+            system_info,
         }
     }
 
@@ -250,6 +292,12 @@ impl Metrics {
             } => {
                 self.verification_vote
                     .record_verification_vote(vote_status, chain_name);
+            }
+            Msg::UpdateSystemMetrics {
+                cpu_usage,
+                memory_usage,
+            } => {
+                self.system_info.update_metrics(cpu_usage, memory_usage);
             }
         }
     }
@@ -300,6 +348,143 @@ impl VerificationVoteMetrics {
     }
 }
 
+impl SystemInfoMetrics {
+    fn new() -> Self {
+        let cpu_usage = Gauge::<f64, AtomicU64>::default();
+        let memory_usage = Gauge::<f64, AtomicU64>::default();
+        Self {
+            cpu_usage,
+            memory_usage,
+        }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "cpu_usage",
+            "ampd cpu usage in percentage",
+            self.cpu_usage.clone(),
+        );
+        registry.register(
+            "memory_usage",
+            "ampd memory usage in bytes",
+            self.memory_usage.clone(),
+        );
+    }
+
+    fn update_metrics(&self, cpu_usage: f64, memory_usage: f64) {
+        self.cpu_usage.set(cpu_usage);
+        self.memory_usage.set(memory_usage);
+    }
+}
+
+/// System metrics collector
+///
+/// This collector provides on-demand collection of CPU and memory metrics
+/// for the current AMPD process. It gracefully handles platform limitations
+/// and permission issues by falling back to dummy metrics when necessary.
+///
+/// `Available` - collect real system metrics from the OS
+/// `Unavailable` - Returns zero metrics when system access is unavailable
+#[derive(Debug, Clone)]
+pub enum SystemMetricsCollector {
+    Available(SysInfoCollector),
+    Unavailable,
+}
+
+#[derive(Debug, Clone)]
+pub struct SysInfoCollector {
+    system: Arc<Mutex<System>>,
+    process_id: Pid,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessMetrics {
+    pub cpu_usage: f64,
+    pub memory_usage: f64,
+}
+
+impl SystemMetricsCollector {
+    pub fn new() -> Self {
+        match get_current_pid() {
+            Ok(pid) => {
+                let mut system = System::new();
+                refresh_process_metrics(&mut system, pid);
+
+                Self::Available(SysInfoCollector {
+                    system: Arc::new(Mutex::new(system)),
+                    process_id: pid,
+                })
+            }
+            Err(e) => {
+                warn!("system metrics is not available: {}", e);
+                Self::Unavailable
+            }
+        }
+    }
+
+    pub fn collect_metrics(&self) -> ProcessMetrics {
+        match self {
+            Self::Available(collector) => collector.collect_metrics(),
+            Self::Unavailable => ProcessMetrics::zero(),
+        }
+    }
+}
+
+/// Collects system metrics by querying the OS for process information.
+/// CPU usage calculation requires two measurements over time. Since this is called
+/// on-demand during Prometheus scraping, the measurement interval matches the scrape period.
+/// This will calculate the average CPU usage between the scraping period.
+
+impl SysInfoCollector {
+    pub fn collect_metrics(&self) -> ProcessMetrics {
+        let mut system = match self.system.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                warn!("Failed to acquire system metrics lock, returning zero metrics");
+                return ProcessMetrics::zero();
+            }
+        };
+
+        refresh_process_metrics(&mut system, self.process_id);
+
+        match system.process(self.process_id) {
+            Some(process) => {
+                ProcessMetrics::new(process.cpu_usage() as f64, process.memory() as f64)
+            }
+            // if the process info is not found, return zero metrics and log a warning
+            // this may happens because of permission issues, process termination, or platform limitations
+            None => {
+                warn!("system metrics is not available");
+                ProcessMetrics::zero()
+            }
+        }
+    }
+}
+
+impl ProcessMetrics {
+    pub fn new(cpu_usage: f64, memory_usage: f64) -> Self {
+        Self {
+            cpu_usage,
+            memory_usage,
+        }
+    }
+
+    pub fn zero() -> Self {
+        Self {
+            cpu_usage: 0.0,
+            memory_usage: 0.0,
+        }
+    }
+}
+
+fn refresh_process_metrics(system: &mut System, process_id: Pid) {
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[process_id]),
+        true,
+        ProcessRefreshKind::nothing().with_cpu().with_memory(),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -307,7 +492,9 @@ mod tests {
     use axum::Router;
     use axum_test::TestServer;
     use tokio::time;
+    use tracing_test::traced_test;
 
+    use super::test_utils::filter_system_metrics_output;
     use super::*;
 
     #[tokio::test(start_paused = true)]
@@ -334,7 +521,7 @@ mod tests {
         final_metrics.assert_status_ok();
 
         // Ensure the final metrics are in the expected format
-        goldie::assert!(final_metrics.text())
+        goldie::assert!(filter_system_metrics_output(&final_metrics.text()))
     }
 
     #[tokio::test(start_paused = true)]
@@ -369,9 +556,9 @@ mod tests {
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
 
-        println!("{}", final_metrics.text());
-
-        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+        goldie::assert!(sort_metrics_output(&filter_system_metrics_output(
+            &final_metrics.text()
+        )))
     }
 
     #[test]
@@ -386,6 +573,54 @@ mod tests {
 
         assert_eq!(sorted_data1, sorted_data2);
         goldie::assert!(sorted_data1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    #[traced_test]
+    async fn should_show_valid_system_metrics_in_prometheus_output() {
+        let (router, process, _client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+        time::sleep(Duration::from_secs(1)).await;
+
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+
+        let cpu_usage = metric_value(&final_metrics.text(), "cpu_usage");
+        let memory_usage = metric_value(&final_metrics.text(), "memory_usage");
+
+        assert!(
+            cpu_usage >= 0.0,
+            "CPU usage should be non-negative, got {}",
+            cpu_usage
+        );
+        assert!(
+            memory_usage >= 0.0,
+            "Memory usage should be non-negative, got {}",
+            memory_usage
+        );
+
+        // if the system metrics are not available, there should be a log message
+        if cpu_usage == 0.0 || memory_usage == 0.0 {
+            assert!(logs_contain("system metrics is not available"));
+        }
+    }
+
+    /// Extracts the numeric value of a Prometheus metric from text output
+    ///
+    /// panic if the metric is not found or not a number
+    /// used when asserting system metrics
+    fn metric_value(text: &str, name: &str) -> f64 {
+        text.lines()
+            .find(|l| l.starts_with(name))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|num| num.parse::<f64>().ok())
+            .unwrap_or_else(|| panic!("metric `{}` not found or not a number", name))
     }
 
     /// Sort metrics text alphabetically by line for consistent output
@@ -416,6 +651,24 @@ mod tests {
             } else {
                 current_metrics.push(line.to_string());
             }
+        }
+
+        result.join("\n") + "\n"
+    }
+}
+
+/// Filters out dynamic system metrics from Prometheus output for stable golden file tests
+/// System metrics like CPU and memory usage are inherently dynamic and change between test runs
+/// This function removes these metrics to create stable, predictable output for testing.
+#[cfg(test)]
+pub mod test_utils {
+    pub fn filter_system_metrics_output(text: &str) -> String {
+        let mut result = Vec::new();
+        for line in text.lines() {
+            if line.contains("cpu_usage") || line.contains("memory_usage") {
+                continue;
+            }
+            result.push(line.to_string());
         }
 
         result.join("\n") + "\n"

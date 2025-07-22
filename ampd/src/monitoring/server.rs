@@ -326,6 +326,7 @@ mod tests {
     use tracing_test::traced_test;
 
     use super::*;
+    use crate::monitoring::endpoints::metrics::test_utils::filter_system_metrics_output;
     use crate::monitoring::endpoints::status::Status;
 
     #[test]
@@ -530,7 +531,7 @@ mod tests {
             initial_text, updated_text
         );
 
-        goldie::assert!(output);
+        goldie::assert!(filter_system_metrics_output(&output));
         cancel.cancel();
         _ = server_handle.await;
     }
