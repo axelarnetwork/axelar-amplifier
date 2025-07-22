@@ -58,7 +58,7 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
                     // If it's not a size issue, try progressively smaller sizes
                     let mut max_size = events_vec.len();
                     while max_size > 0 {
-                        max_size = max_size / 2;
+                        max_size /= 2;
                         events_vec.truncate(max_size);
                         if let Ok(vec_m) = events_vec.clone().try_into() {
                             warn!(
