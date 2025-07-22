@@ -11,7 +11,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.81.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.85.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -98,7 +98,7 @@ starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
 starknet-types-core = { version = "0.1.7" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
-stellar-xdr = { version = "21.2.0" }
+stellar-xdr = { version = "23.0.0-rc.2" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }

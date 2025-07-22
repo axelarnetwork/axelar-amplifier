@@ -188,8 +188,22 @@ mod tests {
             address::Error::InvalidAddress(..)
         );
 
-        // invalid
-        let invalid = "MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK";
+        // muxed account (Protocol 23 CAP-0067 support)
+        let muxed_addr = "MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK";
+        assert_ok!(address::validate_address(
+            muxed_addr,
+            &address::AddressFormat::Stellar
+        ));
+
+        let lower_case = muxed_addr.to_lowercase();
+        assert_err_contains!(
+            address::validate_address(&lower_case, &address::AddressFormat::Stellar),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        // invalid - use clearly malformed address with invalid characters
+        let invalid = "INVALID_STELLAR_ADDRESS_WITH_BAD_CHARS_123!@#";
         assert_err_contains!(
             address::validate_address(invalid, &address::AddressFormat::Stellar),
             address::Error,

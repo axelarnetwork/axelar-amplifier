@@ -4,7 +4,7 @@ use std::str::FromStr;
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
 use stellar_rpc_client::GetTransactionResponse;
-use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta, VecM};
+use stellar_xdr::curr::{ContractEvent, Hash, VecM};
 use thiserror::Error;
 use tracing::warn;
 
@@ -28,12 +28,15 @@ const STATUS_SUCCESS: &str = "SUCCESS";
 
 impl From<(Hash, GetTransactionResponse)> for TxResponse {
     fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
+        // Protocol 23 (CAP-0067): Extract contract events from the unified events structure
+        // contract_events is Vec<Vec<ContractEvent>> (per operation), so we flatten it
         let contract_events = response
-            .result_meta
-            .and_then(|meta| match meta {
-                TransactionMeta::V3(data) => data.soroban_meta.map(|meta| meta.events),
-                _ => None,
-            })
+            .events
+            .contract_events
+            .into_iter()
+            .flatten()
+            .collect::<Vec<ContractEvent>>()
+            .try_into()
             .unwrap_or_default();
 
         Self {
