@@ -30,7 +30,7 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
     fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
         // Protocol 23 (CAP-0067): Extract contract events from the unified events structure
         // contract_events is Vec<Vec<ContractEvent>> (per operation), so we flatten it
-        let events_vec = response
+        let mut events_vec = response
             .events
             .contract_events
             .into_iter()
@@ -38,15 +38,52 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
             .collect::<Vec<ContractEvent>>();
 
         let event_count = events_vec.len();
-        let contract_events = match events_vec.try_into() {
+        let contract_events = match events_vec.clone().try_into() {
             Ok(vec_m) => vec_m,
             Err(_) => {
-                warn!(
-                    tx_hash = %transaction_hash,
-                    event_count,
-                    "Contract events exceed VecM capacity, truncating to empty list"
-                );
-                VecM::default()
+                // VecM has a maximum capacity (typically 4294967295 elements for XDR)
+                // but we need to find the actual limit by binary search or use a reasonable limit
+                const MAX_EVENTS: usize = 1000; // Conservative limit to prevent memory issues
+
+                if events_vec.len() > MAX_EVENTS {
+                    events_vec.truncate(MAX_EVENTS);
+                    warn!(
+                        tx_hash = %transaction_hash,
+                        original_count = event_count,
+                        truncated_count = events_vec.len(),
+                        "Contract events exceed VecM capacity, truncating to {} events",
+                        MAX_EVENTS
+                    );
+                } else {
+                    // If it's not a size issue, try progressively smaller sizes
+                    let mut max_size = events_vec.len();
+                    while max_size > 0 {
+                        max_size = max_size / 2;
+                        events_vec.truncate(max_size);
+                        if let Ok(vec_m) = events_vec.clone().try_into() {
+                            warn!(
+                                tx_hash = %transaction_hash,
+                                original_count = event_count,
+                                truncated_count = events_vec.len(),
+                                "Contract events exceed VecM capacity, truncated to {} events",
+                                events_vec.len()
+                            );
+                            return Self {
+                                transaction_hash: transaction_hash.to_string(),
+                                successful: response.status == STATUS_SUCCESS,
+                                contract_events: vec_m,
+                            };
+                        }
+                    }
+
+                    warn!(
+                        tx_hash = %transaction_hash,
+                        event_count,
+                        "Failed to fit any contract events in VecM, returning empty list"
+                    );
+                }
+
+                events_vec.try_into().unwrap_or_else(|_| VecM::default())
             }
         };
 
