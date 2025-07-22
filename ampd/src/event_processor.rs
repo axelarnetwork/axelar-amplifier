@@ -165,7 +165,7 @@ fn should_task_continue(token: CancellationToken) -> impl Fn(&StreamStatus) -> f
 
 fn log_block_end_event(event: &StreamStatus, monitoring_client: &monitoring::Client) {
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
-        info!(height = height.value(), "handler finished processing block");
+        //info!(height = height.value(), "handler finished processing block");
 
         monitoring_client
             .metrics()

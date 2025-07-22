@@ -22,6 +22,7 @@ use tracing_error::ErrorLayer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 use valuable::Valuable;
+use sysinfo::{get_current_pid, Pid};
 
 #[derive(Debug, Parser, Valuable)]
 #[command(version)]
@@ -49,7 +50,12 @@ async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
+
+
     let cfg = init_config(&args.config);
+
+    let ampd_pid = get_current_pid().expect("Failed to get current PID");
+    tracing::info!("tracked inside main, pid: {}", ampd_pid);
 
     let result = match args.cmd {
         Some(SubCommand::Daemon) | None => {

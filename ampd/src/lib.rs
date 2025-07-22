@@ -55,6 +55,7 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
+use sysinfo::{get_current_pid, Pid};
 
 use crate::config::Config;
 
@@ -84,6 +85,9 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
 
     let (monitoring_server, monitoring_client) =
         monitoring::Server::new(monitoring_server.bind_address).change_context(Error::Monitor)?;
+
+    let ampd_pid = get_current_pid().expect("failed to get current pid");
+    tracing::info!( "tracked inside prepare_app, pid: {}", ampd_pid);
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
         .change_context(Error::Connection)

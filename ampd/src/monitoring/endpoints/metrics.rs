@@ -407,6 +407,7 @@ impl SystemMetricsCollector {
     pub fn new() -> Self {
         match get_current_pid() {
             Ok(pid) => {
+                tracing::info!("tracked inside metrics collector, current pid: {}", pid);
                 let mut system = System::new();
                 refresh_process_metrics(&mut system, pid);
 

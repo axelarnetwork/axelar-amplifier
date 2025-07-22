@@ -154,6 +154,7 @@ impl Server {
     }
 
     fn create_server_with_client(tcp_connector: TcpConnector) -> Result<(Server, Client), Error> {
+        
         let status_router = status::create_endpoint();
         let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
 
