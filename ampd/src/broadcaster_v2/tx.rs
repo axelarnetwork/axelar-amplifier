@@ -109,7 +109,7 @@ mod tests {
     use tokio::test;
 
     use super::{Error, Tx, DUMMY_CHAIN_ID};
-    use crate::broadcaster::tx::zero_fee;
+    use crate::broadcaster_v2::tx::zero_fee;
     use crate::types::CosmosPublicKey;
 
     #[test]

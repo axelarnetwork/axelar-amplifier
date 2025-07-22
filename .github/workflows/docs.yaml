@@ -1,0 +1,54 @@
+name: Docs
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: Build and validate documentation
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.81.0
+
+      - name: Cache cargo and tools
+        id: cache-cargo
+        uses: "actions/cache@v4"
+        with:
+          path: |
+            ~/.cargo
+          save-always: true
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install mdBook and plugins
+        run: |
+          cargo install --locked \
+          mdbook@0.4.40 \
+          mdbook-mermaid@0.15.0 \
+          mdbook-linkcheck@0.7.7
+
+      - name: Build and verify documentation
+        run: |
+          cd doc
+          mdbook build
+          cd ..
+          
+          if [ ! -d "target/book" ]; then
+            echo "Error: Documentation build failed - target/book directory not found"
+            exit 1
+          fi
+          echo "Documentation built successfully"
