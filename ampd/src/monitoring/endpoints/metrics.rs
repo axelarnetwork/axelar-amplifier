@@ -416,7 +416,7 @@ impl SystemMetricsCollector {
                 })
             }
             Err(e) => {
-                warn!("system metrics will not be available: {}", e);
+                warn!("system metrics is not available: {}", e);
                 Self::Unavailable
             }
         }
@@ -476,6 +476,7 @@ mod tests {
     use axum::Router;
     use axum_test::TestServer;
     use tokio::time;
+    use tracing_test::traced_test;
 
     use super::test_utils::filter_system_metrics_output;
     use super::*;
@@ -559,6 +560,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    #[traced_test]
     async fn should_show_valid_system_metrics_in_prometheus_output() {
         let (router, process, _client) = create_endpoint();
         _ = process.run(CancellationToken::new());
@@ -573,8 +575,24 @@ mod tests {
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
 
-        assert!(metric_value(&final_metrics.text(), "cpu_usage") > 0.0);
-        assert!(metric_value(&final_metrics.text(), "memory_usage") > 0.0);
+        let cpu_usage = metric_value(&final_metrics.text(), "cpu_usage");
+        let memory_usage = metric_value(&final_metrics.text(), "memory_usage");
+
+        assert!(
+            cpu_usage >= 0.0,
+            "CPU usage should be non-negative, got {}",
+            cpu_usage
+        );
+        assert!(
+            memory_usage >= 0.0,
+            "Memory usage should be non-negative, got {}",
+            memory_usage
+        );
+
+        // if the system metrics are not available, there should be a log message
+        if cpu_usage == 0.0 || memory_usage == 0.0 {
+            assert!(logs_contain("system metrics is not available"));
+        }
     }
 
     /// Extracts the numeric value of a Prometheus metric from text output
