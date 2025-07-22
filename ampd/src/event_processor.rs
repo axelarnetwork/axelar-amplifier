@@ -212,6 +212,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
 
+    use crate::broadcaster_v2::DecCoin;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{broadcaster_v2, cosmos, event_sub, monitoring, PREFIX};
@@ -243,6 +244,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -267,7 +271,13 @@ mod tests {
             })
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -305,6 +315,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -325,7 +338,13 @@ mod tests {
             })
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -363,6 +382,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -383,7 +405,13 @@ mod tests {
             })
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -421,6 +449,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -454,7 +485,13 @@ mod tests {
             mock_client
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -496,6 +533,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -523,7 +563,13 @@ mod tests {
             mock_client
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -563,6 +609,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let event_config = setup_event_config(
             Duration::from_secs(1),
             Duration::from_secs(1000),
@@ -590,7 +639,13 @@ mod tests {
             })
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -628,6 +683,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let token = CancellationToken::new();
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -642,7 +700,13 @@ mod tests {
             })
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
@@ -707,6 +771,9 @@ mod tests {
             account_number,
             sequence,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Ok(Event::BlockEnd(1_u32.into())),
@@ -736,7 +803,13 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(mock_client, chain_id, pub_key)
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
             .await
             .unwrap();
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(

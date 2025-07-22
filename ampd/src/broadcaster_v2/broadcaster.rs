@@ -1,14 +1,18 @@
 use std::future::Future;
+use std::ops::Mul;
 use std::sync::Arc;
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
-use cosmrs::{tendermint, Any, Gas};
-use error_stack::{Context, ResultExt};
+use cosmrs::{tendermint, Any, Coin, Denom, Gas};
+use error_stack::{ensure, report, Context, ResultExt};
+use num_traits::cast;
 use report::ResultCompatExt;
 use tokio::sync::{RwLock, RwLockWriteGuard};
+use typed_builder::TypedBuilder;
 
 use super::{Error, Result};
+use crate::broadcaster_v2::dec_coin::DecCoin;
 use crate::broadcaster_v2::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
@@ -44,7 +48,14 @@ use crate::{cosmos, PREFIX};
 /// # Example Usage
 ///
 /// ```rust,ignore
-/// let broadcaster = Broadcaster::new(cosmos_client, chain_id, public_key).await?;
+/// let broadcaster = Broadcaster::builder()
+///            .client(mock_client)
+///            .chain_id(chain_id)
+///            .pub_key(pub_key)
+///            .gas_adjustment(gas_adjustment)
+///            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+///            .build()
+///            .await?;
 /// let gas = broadcaster.estimate_gas(messages).await?;
 /// let tx_response = broadcaster
 ///     .broadcast(messages, fee, sign_function)
@@ -55,30 +66,51 @@ pub struct Broadcaster<T>
 where
     T: cosmos::CosmosClient,
 {
-    pub client: T,
+    client: T,
     chain_id: tendermint::chain::Id,
     pub pub_key: CosmosPublicKey,
     pub address: TMAddress,
     acc_number: u64,
     acc_sequence: Arc<RwLock<u64>>,
+    gas_adjustment: f64,
+    gas_price: DecCoin,
 }
 
-impl<T> Broadcaster<T>
+// Required parameters for the builder
+#[derive(TypedBuilder)]
+#[builder(builder_type(vis = "pub", name = BroadcasterBuilder), build_method(vis = "", name = build_internal))]
+struct BroadcasterBuilderParams<T>
 where
     T: cosmos::CosmosClient,
 {
-    /// Creates a new `Broadcaster` instance.
+    client: T,
+    chain_id: tendermint::chain::Id,
+    pub pub_key: CosmosPublicKey,
+    gas_adjustment: f64,
+    gas_price: DecCoin,
+}
+
+impl<T>
+    BroadcasterBuilder<
+        T,
+        (
+            (T,),
+            (tendermint::chain::Id,),
+            (CosmosPublicKey,),
+            (f64,),
+            (DecCoin,),
+        ),
+    >
+where
+    T: cosmos::CosmosClient,
+{
+    /// Builds a new `Broadcaster` instance.
     ///
     /// This method:
     /// 1. Derives the account address from the provided public key
     /// 2. Queries the account information from the blockchain
     /// 3. Initializes the broadcaster with the account's sequence number
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - A client that implements the `CosmosClient` trait for blockchain communication
-    /// * `chain_id` - The ID of the Cosmos blockchain to broadcast to
-    /// * `pub_key` - The public key used for signing transactions
+    /// 4. Validates that the account has a balance
     ///
     /// # Returns
     ///
@@ -87,12 +119,18 @@ where
     /// # Errors
     ///
     /// * `Error::InvalidPubKey` - If the public key cannot be converted to a valid Cosmos account address
-    /// * `Error::QueryAccount` - If querying the account information from the blockchain fails
-    pub async fn new(
-        mut client: T,
-        chain_id: tendermint::chain::Id,
-        pub_key: CosmosPublicKey,
-    ) -> Result<Self> {
+    /// * `Error::AccountQuery` - If querying the account information from the blockchain fails
+    /// * `Error::BalanceQuery` - If querying the account balance fails
+    /// * `Error::InsufficientBalance` - If the account has no balance
+    pub async fn build(self) -> Result<Broadcaster<T>> {
+        let BroadcasterBuilderParams {
+            mut client,
+            chain_id,
+            pub_key,
+            gas_adjustment,
+            gas_price,
+        } = self.build_internal();
+
         let address = pub_key
             .account_id(PREFIX)
             .change_context(Error::InvalidPubKey)?
@@ -101,14 +139,38 @@ where
             .await
             .change_context(Error::AccountQuery)?;
 
-        Ok(Self {
+        let mut broadcaster = Broadcaster {
             client,
             chain_id,
             pub_key,
             address,
             acc_number: account.account_number,
             acc_sequence: Arc::new(RwLock::new(account.sequence)),
-        })
+            gas_adjustment,
+            gas_price,
+        };
+
+        let denom: Denom = broadcaster.gas_price.denom.clone().into();
+        let address = broadcaster.address.clone();
+
+        let balance = cosmos::balance(&mut broadcaster.client, &address, &denom)
+            .await
+            .change_context(Error::BalanceQuery)?;
+        ensure!(
+            balance.amount > 0,
+            Error::InsufficientBalance { address, balance }
+        );
+
+        Ok(broadcaster)
+    }
+}
+
+impl<T> Broadcaster<T>
+where
+    T: cosmos::CosmosClient,
+{
+    pub fn builder() -> BroadcasterBuilder<T> {
+        BroadcasterBuilderParams::builder()
     }
 
     /// Estimates the gas required for a transaction containing the given messages.
@@ -163,17 +225,13 @@ where
     ///
     /// This method acquires a write lock on the account sequence, ensuring that
     /// concurrent broadcasts use distinct sequence numbers.
-    pub async fn broadcast<F, Fut, Err>(
-        &mut self,
-        msgs: Vec<Any>,
-        fee: Fee,
-        sign_fn: F,
-    ) -> Result<TxResponse>
+    pub async fn broadcast<F, Fut, Err>(&mut self, msgs: Vec<Any>, sign_fn: F) -> Result<TxResponse>
     where
         F: Fn(Vec<u8>) -> Fut,
         Fut: Future<Output = error_stack::Result<Vec<u8>, Err>>,
         Err: Context,
     {
+        let fee = self.estimate_fee(msgs.clone()).await?;
         let mut acc_sequence = self.acc_sequence.write().await;
 
         let tx = Tx::builder()
@@ -203,6 +261,21 @@ where
             }
         }
     }
+
+    async fn estimate_fee(&mut self, msgs: Vec<Any>) -> Result<Fee> {
+        let gas = self.estimate_gas(msgs).await? as f64 * self.gas_adjustment;
+
+        let fee = Fee::from_amount_and_gas(
+            Coin::new(
+                cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::FeeAdjustment))?,
+                self.gas_price.denom.as_ref(),
+            )
+            .change_context(Error::FeeAdjustment)?,
+            cast::<f64, u64>(gas).ok_or(report!(Error::FeeAdjustment))?,
+        );
+
+        Ok(fee)
+    }
 }
 
 async fn reset_sequence<T>(
@@ -226,14 +299,15 @@ mod tests {
     use std::sync::{Arc, RwLock};
 
     use axelar_wasm_std::assert_err_contains;
+    use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
     use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastTxResponse, SimulateResponse};
-    use cosmrs::Coin;
     use cosmwasm_std::to_hex;
     use error_stack::Report;
     use k256::sha2::Sha256;
-    use mockall::Sequence;
+    use mockall::{predicate, Sequence};
     use prost::Message;
     use rand::rngs::OsRng;
     use sha3::Digest;
@@ -242,6 +316,8 @@ mod tests {
     use crate::broadcaster_v2::Error;
     use crate::types::{random_cosmos_public_key, PublicKey};
     use crate::PREFIX;
+
+    const DENOM: &str = "uaxl";
 
     fn dummy_msg() -> Any {
         Any {
@@ -261,29 +337,193 @@ mod tests {
         auth_info.signer_infos.first().unwrap().sequence
     }
 
-    #[tokio::test]
-    async fn broadcaster_new_should_succeed() {
-        let pub_key = random_cosmos_public_key();
-        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let account_number = 42u64;
-        let sequence = 10u64;
+    fn decode_gas_fee<R>(req: &R) -> cosmos_sdk_proto::cosmos::tx::v1beta1::Fee
+    where
+        R: AsRef<[u8]> + ?Sized,
+    {
+        let tx_raw = cosmrs::proto::cosmos::tx::v1beta1::TxRaw::decode(req.as_ref()).unwrap();
 
+        cosmrs::proto::cosmos::tx::v1beta1::AuthInfo::decode(tx_raw.auth_info_bytes.as_slice())
+            .unwrap()
+            .fee
+            .unwrap()
+    }
+
+    fn setup_client(
+        address: String,
+        account_number: u64,
+        sequence: u64,
+    ) -> (cosmos::MockCosmosClient, Sequence) {
         let base_account = BaseAccount {
-            address: address.to_string(),
+            address,
             pub_key: None,
             account_number,
             sequence,
         };
 
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut seq = Sequence::new();
 
-        let result = Broadcaster::new(mock_client, chain_id, pub_key).await;
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+
+        (mock_client, seq)
+    }
+
+    fn setup_client_with_account_missing() -> (cosmos::MockCosmosClient, Sequence) {
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        let mut seq = Sequence::new();
+
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| Err(error_stack::report!(cosmos::Error::AccountMissing)));
+
+        (mock_client, seq)
+    }
+
+    fn setup_client_with_balance(
+        address: String,
+        account_number: u64,
+        sequence: u64,
+        balance: String,
+    ) -> (cosmos::MockCosmosClient, Sequence) {
+        let (mut mock_client, mut seq) = setup_client(address.clone(), account_number, sequence);
+
+        mock_client
+            .expect_balance()
+            .once()
+            .in_sequence(&mut seq)
+            .with(predicate::eq(QueryBalanceRequest {
+                address,
+                denom: DENOM.to_string(),
+            }))
+            .return_once(move |_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: DENOM.to_string(),
+                        amount: balance,
+                    }),
+                })
+            });
+
+        (mock_client, seq)
+    }
+
+    fn setup_client_with_balance_error(
+        address: String,
+        account_number: u64,
+        sequence: u64,
+    ) -> (cosmos::MockCosmosClient, Sequence) {
+        let (mut mock_client, mut seq) = setup_client(address.clone(), account_number, sequence);
+
+        mock_client
+            .expect_balance()
+            .once()
+            .in_sequence(&mut seq)
+            .with(predicate::eq(QueryBalanceRequest {
+                address,
+                denom: DENOM.to_string(),
+            }))
+            .return_once(move |_| {
+                Err(report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal("balance query failed")
+                )))
+            });
+
+        (mock_client, seq)
+    }
+
+    async fn setup_broadcaster_with_gas_info(
+        mock_client: cosmos::MockCosmosClient,
+        pub_key: CosmosPublicKey,
+        gas_adjustment: f64,
+        gas_price_amount: f64,
+    ) -> Result<Broadcaster<cosmos::MockCosmosClient>> {
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+
+        Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, DENOM).unwrap())
+            .build()
+            .await
+    }
+
+    async fn setup_broadcaster(
+        mock_client: cosmos::MockCosmosClient,
+        pub_key: CosmosPublicKey,
+    ) -> Result<Broadcaster<cosmos::MockCosmosClient>> {
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+
+        setup_broadcaster_with_gas_info(mock_client, pub_key, gas_adjustment, gas_price_amount)
+            .await
+    }
+
+    fn setup_broadcast_expectations(
+        mut mock_client: cosmos::MockCosmosClient,
+        mock_seq: &mut Sequence,
+        txhash: String,
+        sequence: u64,
+    ) -> cosmos::MockCosmosClient {
+        let gas_used = 100000u64;
+
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(mock_seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used,
+                    }),
+                    result: None,
+                })
+            });
+
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(mock_seq)
+            .withf(move |req| sequence == decode_sequence(&req.tx_bytes))
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash,
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        mock_client
+    }
+
+    #[tokio::test]
+    async fn broadcaster_build_should_succeed() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let sequence = 10u64;
+
+        let (mock_client, _) = setup_client_with_balance(
+            address.to_string(),
+            account_number,
+            sequence,
+            "1000000".to_string(),
+        );
+        let result = setup_broadcaster(mock_client, pub_key).await;
 
         assert!(result.is_ok());
         let broadcaster = result.unwrap();
@@ -293,9 +533,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn broadcaster_new_should_fail_with_invalid_public_key() {
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let invalid_pub_key = PublicKey::new_ed25519(
+    async fn broadcaster_build_should_fail_if_balance_query_fails() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let sequence = 10u64;
+
+        let (mock_client, _) =
+            setup_client_with_balance_error(address.to_string(), account_number, sequence);
+        let result = setup_broadcaster(mock_client, pub_key).await;
+
+        assert_err_contains!(result, Error, Error::BalanceQuery);
+    }
+
+    #[tokio::test]
+    async fn broadcaster_build_should_fail_if_balance_is_zero() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let sequence = 10u64;
+
+        let (mock_client, _) = setup_client_with_balance(
+            address.to_string(),
+            account_number,
+            sequence,
+            "0".to_string(),
+        );
+        let result = setup_broadcaster(mock_client, pub_key).await;
+
+        assert_err_contains!(result, Error, Error::InsufficientBalance { .. });
+    }
+
+    #[tokio::test]
+    async fn broadcaster_build_should_fail_with_invalid_public_key() {
+        let invalid_pub_key: CosmosPublicKey = PublicKey::new_ed25519(
             ed25519_dalek::SigningKey::generate(&mut OsRng)
                 .verifying_key()
                 .to_bytes(),
@@ -305,22 +576,17 @@ mod tests {
         .unwrap();
 
         let mock_client = cosmos::MockCosmosClient::new();
+        let result = setup_broadcaster(mock_client, invalid_pub_key).await;
 
-        let result = Broadcaster::new(mock_client, chain_id, invalid_pub_key).await;
         assert_err_contains!(result, Error, Error::InvalidPubKey);
     }
 
     #[tokio::test]
-    async fn broadcaster_new_should_fail_with_query_account_error() {
+    async fn broadcaster_build_should_fail_with_query_account_error() {
         let pub_key = random_cosmos_public_key();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
 
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .return_once(move |_| Err(error_stack::report!(cosmos::Error::AccountMissing)));
-
-        let result = Broadcaster::new(mock_client, chain_id, pub_key).await;
+        let (mock_client, _) = setup_client_with_account_missing();
+        let result = setup_broadcaster(mock_client, pub_key).await;
 
         assert_err_contains!(result, Error, Error::AccountQuery);
     }
@@ -329,39 +595,32 @@ mod tests {
     async fn estimate_gas_should_succeed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let sequence = 10u64;
-
         let gas_used = 100000u64;
 
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mut mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
             account_number,
             sequence,
-        };
+            "1000000".to_string(),
+        );
 
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used,
+                    }),
+                    result: None,
+                })
+            });
 
-        mock_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: 0,
-                    gas_used,
-                }),
-                result: None,
-            })
-        });
-
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
 
         let msgs = vec![dummy_msg()];
         let result = broadcaster.estimate_gas(msgs).await;
@@ -375,55 +634,100 @@ mod tests {
     async fn broadcast_should_succeed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let sequence = 10u64;
-
-        let gas_limit = 150000u64;
-        let fee = Fee::from_amount_and_gas(Coin::new(3750u128, "uaxl").unwrap(), gas_limit);
         let tx_hash = "ABC123";
 
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
             account_number,
             sequence,
-        };
+            "1000000".to_string(),
+        );
 
-        let mut seq = Sequence::new();
-        let mut mock_client = cosmos::MockCosmosClient::new();
+        let mock_client =
+            setup_broadcast_expectations(mock_client, &mut seq, tx_hash.to_string(), sequence);
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
+
+        let msgs = vec![dummy_msg()];
+        let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
+
+        let result = broadcaster.broadcast(msgs, sign_fn).await;
+
+        assert!(result.is_ok());
+        let tx_response = result.unwrap();
+        assert_eq!(tx_response.txhash, tx_hash);
+        assert_eq!(*broadcaster.acc_sequence.read().await, sequence + 1);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_apply_gas_adjustment_and_gas_price() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let gas_adjustment = 2.0;
+        let gas_price_amount = 0.025;
+        let simulated_gas_used = 100000u64;
+        let expected_gas_limit = 200000u64; // 100000 * 2 = 200000
+        let expected_fee_amount = 5000u64; // 200000 * 0.025 = 5000
+
+        let tx_hash = "ABC123";
+
+        let (mut mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
+            account_number,
+            sequence,
+            "1000000".to_string(),
+        );
+
         mock_client
-            .expect_account()
+            .expect_simulate()
             .once()
             .in_sequence(&mut seq)
             .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: simulated_gas_used,
+                    }),
+                    result: None,
                 })
             });
-
         mock_client
             .expect_broadcast_tx()
             .once()
             .in_sequence(&mut seq)
-            .withf(move |req| sequence == decode_sequence(&req.tx_bytes))
+            .withf(move |req| {
+                let actual_fee = decode_gas_fee(&req.tx_bytes);
+                assert_eq!(actual_fee.amount.len(), 1);
+
+                actual_fee.gas_limit == expected_gas_limit
+                    && actual_fee.amount.first().unwrap().amount == expected_fee_amount.to_string()
+                    && actual_fee.amount.first().unwrap().denom == DENOM
+            })
             .return_once(move |_| {
                 Ok(BroadcastTxResponse {
                     tx_response: Some(TxResponse {
                         txhash: tx_hash.to_string(),
+                        gas_wanted: expected_gas_limit as i64,
+                        gas_used: 95000,
+                        code: 0,
                         ..Default::default()
                     }),
                 })
             });
 
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        let mut broadcaster =
+            setup_broadcaster_with_gas_info(mock_client, pub_key, gas_adjustment, gas_price_amount)
+                .await
+                .unwrap();
 
         let msgs = vec![dummy_msg()];
         let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
 
-        let result = broadcaster.broadcast(msgs, fee, sign_fn).await;
+        let result = broadcaster.broadcast(msgs, sign_fn).await;
 
         assert!(result.is_ok());
         let tx_response = result.unwrap();
@@ -435,31 +739,21 @@ mod tests {
     async fn estimate_gas_should_fail_with_gas_info_missing() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let sequence = 10u64;
 
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mut mock_client, _) = setup_client_with_balance(
+            address.to_string(),
             account_number,
             sequence,
-        };
-
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+            "1000000".to_string(),
+        );
 
         mock_client
             .expect_simulate()
             .return_once(move |_| Err(error_stack::report!(cosmos::Error::GasInfoMissing)));
 
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
 
         let result = broadcaster.estimate_gas(vec![dummy_msg()]).await;
 
@@ -471,28 +765,34 @@ mod tests {
     async fn broadcast_should_fail_if_signing_fails() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let sequence = 10u64;
+        let gas_used = 100000u64;
 
-        let fee = Fee::from_amount_and_gas(Coin::new(3750u128, "uaxl").unwrap(), 150000u64);
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mut mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
             account_number,
             sequence,
-        };
+            "1000000".to_string(),
+        );
 
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used,
+                    }),
+                    result: None,
+                })
+            });
 
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        mock_client.expect_broadcast_tx().never();
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
 
         let sign_fn = |_: Vec<u8>| async {
             Err::<Vec<u8>, Report<cosmos::Error>>(error_stack::report!(
@@ -500,7 +800,7 @@ mod tests {
             ))
         };
 
-        let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
 
         assert_err_contains!(result, Error, Error::SignTx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
@@ -510,27 +810,27 @@ mod tests {
     async fn broadcast_should_fail_with_broadcast_tx_error() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let sequence = 10u64;
-        let gas_limit = 150000u64;
-        let fee = Fee::from_amount_and_gas(Coin::new(3750u128, "uaxl").unwrap(), gas_limit);
+        let gas_used = 100000u64;
 
-        let mut seq = Sequence::new();
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mut mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
             account_number,
             sequence,
-        };
+            "1000000".to_string(),
+        );
         mock_client
-            .expect_account()
+            .expect_simulate()
             .once()
             .in_sequence(&mut seq)
             .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used,
+                    }),
+                    result: None,
                 })
             });
         mock_client
@@ -554,13 +854,11 @@ mod tests {
                 })
             });
 
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
 
         let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
 
-        let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
 
         assert_err_contains!(result, Error, Error::BroadcastTx);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
@@ -570,71 +868,40 @@ mod tests {
     async fn sequential_broadcasts_should_use_increasing_sequence_numbers() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let initial_sequence = 10u64;
 
-        let fee = Fee::from_amount_and_gas(Coin::new(3750u128, "uaxl").unwrap(), 150000u64);
-
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
             account_number,
-            sequence: initial_sequence,
-        };
+            initial_sequence,
+            "1000000".to_string(),
+        );
 
-        let mut seq = Sequence::new();
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_broadcast_tx()
-            .once()
-            .in_sequence(&mut seq)
-            .withf(move |req| initial_sequence == decode_sequence(&req.tx_bytes))
-            .return_once(move |_| {
-                Ok(BroadcastTxResponse {
-                    tx_response: Some(TxResponse {
-                        txhash: "tx1".to_string(),
-                        ..Default::default()
-                    }),
-                })
-            });
-        mock_client
-            .expect_broadcast_tx()
-            .once()
-            .in_sequence(&mut seq)
-            .withf(move |req| (initial_sequence + 1) == decode_sequence(&req.tx_bytes))
-            .return_once(move |_| {
-                Ok(BroadcastTxResponse {
-                    tx_response: Some(TxResponse {
-                        txhash: "tx2".to_string(),
-                        ..Default::default()
-                    }),
-                })
-            });
+        let mock_client = setup_broadcast_expectations(
+            mock_client,
+            &mut seq,
+            "tx1".to_string(),
+            initial_sequence,
+        );
 
-        let mut broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        let mock_client = setup_broadcast_expectations(
+            mock_client,
+            &mut seq,
+            "tx2".to_string(),
+            initial_sequence + 1,
+        );
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
 
         let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
 
-        let result = broadcaster
-            .broadcast(vec![dummy_msg()], fee.clone(), sign_fn)
-            .await;
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().txhash, "tx1");
         assert_eq!(*broadcaster.acc_sequence.read().await, initial_sequence + 1);
 
-        let result = broadcaster.broadcast(vec![dummy_msg()], fee, sign_fn).await;
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().txhash, "tx2");
         assert_eq!(*broadcaster.acc_sequence.read().await, initial_sequence + 2);
@@ -644,28 +911,18 @@ mod tests {
     async fn sequence_management_should_be_thread_safe() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let account_number = 42u64;
         let initial_sequence = 10u64;
         let sequence = Arc::new(RwLock::new(initial_sequence));
         let gas_used = 100000u64;
 
-        // Create a fee that will be used in broadcasts
-        let fee = Fee::from_amount_and_gas(Coin::new(3750u128, "uaxl").unwrap(), 150000u64);
-
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
+        let (mut mock_client, _) = setup_client_with_balance(
+            address.to_string(),
             account_number,
-            sequence: *sequence.read().unwrap(),
-        };
+            *sequence.read().unwrap(),
+            "1000000".to_string(),
+        );
 
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
         let sequence_clone = sequence.clone();
         mock_client.expect_simulate().returning(move |req| {
             assert_eq!(
@@ -741,9 +998,7 @@ mod tests {
             mock_client
         });
 
-        let broadcaster = Broadcaster::new(mock_client, chain_id, pub_key)
-            .await
-            .unwrap();
+        let broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
 
         let gas_estimate_count = 30u64;
         let broadcast_count = 50u64;
@@ -763,11 +1018,10 @@ mod tests {
         let broadcast_handles: Vec<_> = (0..broadcast_count)
             .map(|_| {
                 let mut broadcaster_clone = broadcaster.clone();
-                let fee_clone = fee.clone();
 
                 tokio::spawn(async move {
                     let _tx = broadcaster_clone
-                        .broadcast(vec![dummy_msg(), dummy_msg()], fee_clone, |_| async {
+                        .broadcast(vec![dummy_msg(), dummy_msg()], |_| async {
                             Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64])
                         })
                         .await
