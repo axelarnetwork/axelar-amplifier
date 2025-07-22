@@ -59,14 +59,15 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
                     let mut max_size = events_vec.len();
                     while max_size > 0 {
                         max_size /= 2;
-                        events_vec.truncate(max_size);
-                        if let Ok(vec_m) = events_vec.clone().try_into() {
+                        let mut working_vec = events_vec.clone();
+                        working_vec.truncate(max_size);
+                        if let Ok(vec_m) = working_vec.try_into() {
                             warn!(
                                 tx_hash = %transaction_hash,
                                 original_count = event_count,
-                                truncated_count = events_vec.len(),
+                                truncated_count = max_size,
                                 "Contract events exceed VecM capacity, truncated to {} events",
-                                events_vec.len()
+                                max_size
                             );
                             return Self {
                                 transaction_hash: transaction_hash.to_string(),

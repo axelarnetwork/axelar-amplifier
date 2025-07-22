@@ -102,7 +102,7 @@ jobs:
         with:
           command: install
           toolchain: 1.85.0
-          args: --version 2.2.1 --locked cosmwasm-check
+          args: --version 3.0.1 --locked cosmwasm-check
 
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
