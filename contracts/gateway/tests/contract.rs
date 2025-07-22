@@ -23,6 +23,9 @@ use voting_verifier::msg::MessageStatus;
 const ROUTER: &str = "router";
 const VERIFIER: &str = "verifier";
 
+// Type alias to simplify part of complex return types
+type TestCases = Vec<Vec<Message>>;
+
 #[test]
 fn instantiate_works() {
     let mut deps = mock_dependencies();
@@ -280,8 +283,9 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     )));
 }
 
+#[allow(clippy::type_complexity)]
 fn test_cases_for_correct_verifier() -> (
-    Vec<Vec<Message>>,
+    TestCases,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
@@ -305,8 +309,9 @@ fn test_cases_for_correct_verifier() -> (
     (test_cases, handler)
 }
 
+#[allow(clippy::type_complexity)]
 fn test_cases_for_duplicate_msgs() -> (
-    Vec<Vec<Message>>,
+    TestCases,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
