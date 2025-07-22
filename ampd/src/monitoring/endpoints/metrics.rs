@@ -434,8 +434,9 @@ impl SystemMetricsCollector {
 }
 
 /// Collects system metrics by querying the OS for process information.
-/// CPU usage calculation requires two measurements over time - since this is called
+/// CPU usage calculation requires two measurements over time. Since this is called
 /// on-demand during Prometheus scraping, the measurement interval matches the scrape period.
+/// This will calculate the average CPU usage between the scraping period.
 
 impl SysInfoCollector {
     pub fn collect_metrics(&self) -> ProcessMetrics {
@@ -558,7 +559,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_include_system_metrics_in_prometheus_output() {
+    async fn should_show_valid_system_metrics_in_prometheus_output() {
         let (router, process, _client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -585,7 +586,7 @@ mod tests {
             .find(|l| l.starts_with(name))
             .and_then(|line| line.split_whitespace().nth(1))
             .and_then(|num| num.parse::<f64>().ok())
-            .expect(&format!("metric `{}` not found or not a number", name))
+            .unwrap_or_else(|| panic!("metric `{}` not found or not a number", name))
     }
 
     /// Sort metrics text alphabetically by line for consistent output
