@@ -54,8 +54,6 @@ jobs:
   cosmwasm-compilation:
     name: Cosmwasm Compilation
     runs-on: blacksmith-32vcpu-ubuntu-2204
-    env:
-      RUSTFLAGS: "-C target-feature=-reference-types"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,13 +88,13 @@ jobs:
         run: cat /home/runner/.cargo/.crates.toml
 
       - name: Build wasm release
+        env:
+          RUSTFLAGS: "-C target-feature=-reference-types -C target-feature=-multivalue -C target-feature=-bulk-memory -C target-feature=-sign-ext -C link-arg=-s"
         run: |
           for C in ./contracts/*/
           do
             echo "Compiling `basename $C`..."
-            cd $C
-            cargo build --release --lib --target wasm32-unknown-unknown --locked
-            cd - > /dev/null
+            (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
 
       - name: Install cosmwasm-check
@@ -104,7 +102,7 @@ jobs:
         with:
           command: install
           toolchain: 1.85.0
-          args: --version 2.2.1 --locked cosmwasm-check
+          args: --version 2.3.0 --locked cosmwasm-check
 
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
