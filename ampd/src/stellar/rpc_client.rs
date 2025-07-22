@@ -30,14 +30,25 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
     fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
         // Protocol 23 (CAP-0067): Extract contract events from the unified events structure
         // contract_events is Vec<Vec<ContractEvent>> (per operation), so we flatten it
-        let contract_events = response
+        let events_vec = response
             .events
             .contract_events
             .into_iter()
             .flatten()
-            .collect::<Vec<ContractEvent>>()
-            .try_into()
-            .unwrap_or_default();
+            .collect::<Vec<ContractEvent>>();
+
+        let event_count = events_vec.len();
+        let contract_events = match events_vec.try_into() {
+            Ok(vec_m) => vec_m,
+            Err(_) => {
+                warn!(
+                    tx_hash = %transaction_hash,
+                    event_count,
+                    "Contract events exceed VecM capacity, truncating to empty list"
+                );
+                VecM::default()
+            }
+        };
 
         Self {
             transaction_hash: transaction_hash.to_string(),
