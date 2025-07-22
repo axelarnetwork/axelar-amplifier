@@ -1,23 +1,23 @@
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{Addr, CosmosMsg, Empty};
+use cosmwasm_std::{Addr, CosmosMsg};
 
 use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::primitives::{Address, ChainName};
 use crate::Message;
 
-pub struct Client<'a, T = Empty> {
-    pub client: client::ContractClient<'a, ExecuteMsg, QueryMsg, T>,
+pub struct Client<'a> {
+    pub client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<'a, T> From<client::ContractClient<'a, ExecuteMsg, QueryMsg, T>> for Client<'a, T> {
-    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg, T>) -> Self {
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
         Client { client }
     }
 }
 
-impl<'a, T> Client<'a, T> {
-    pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg<T>> {
+impl<'a> Client<'a> {
+    pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg> {
         msgs.to_none_if_empty()
             .map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs)))
     }
@@ -28,7 +28,7 @@ impl<'a, T> Client<'a, T> {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
-    ) -> CosmosMsg<T> {
+    ) -> CosmosMsg {
         self.client.execute_as_proxy(
             original_sender,
             ExecuteMsg::RegisterChain {
