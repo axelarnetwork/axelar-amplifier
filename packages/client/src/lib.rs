@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use cosmwasm_std::{
-    to_json_binary, Addr, Coin, CosmosMsg, CustomQuery, Empty, QuerierWrapper, QueryRequest,
-    StdError, WasmMsg, WasmQuery,
+    to_json_binary, Addr, Coin, CosmosMsg, CustomQuery, QuerierWrapper, QueryRequest, StdError,
+    WasmMsg, WasmQuery,
 };
 use error_stack::Report;
 use serde::de::DeserializeOwned;
@@ -101,15 +101,14 @@ impl<'a, M, Q> CosmosClient<'a, M, Q> {
 ///
 /// These types are defined at the client level, so calls to [`ContractClient::execute`] and [`ContractClient::query`]
 /// can enforce that the messages are of the correct type.
-pub struct ContractClient<'a, M, Q, T = Empty> {
+pub struct ContractClient<'a, M, Q> {
     inner: CosmosClient<'a, WasmMsg, QueryRequest>,
     pub address: &'a Addr,
     execute_msg_type: PhantomData<M>,
     query_msg_type: PhantomData<Q>,
-    custom_msg_type: PhantomData<T>,
 }
 
-impl<'a, M, Q, T> ContractClient<'a, M, Q, T> {
+impl<'a, M, Q> ContractClient<'a, M, Q> {
     /// Creates a new `ContractClient` instance.
     ///
     /// # Arguments
@@ -122,7 +121,6 @@ impl<'a, M, Q, T> ContractClient<'a, M, Q, T> {
             address,
             execute_msg_type: PhantomData,
             query_msg_type: PhantomData,
-            custom_msg_type: PhantomData,
         }
     }
 
@@ -135,7 +133,7 @@ impl<'a, M, Q, T> ContractClient<'a, M, Q, T> {
     /// # Returns
     ///
     /// A `CosmosMsg` ready for execution
-    pub fn execute(&self, msg: &M) -> CosmosMsg<T>
+    pub fn execute(&self, msg: &M) -> CosmosMsg
     where
         M: Serialize,
     {
@@ -152,7 +150,7 @@ impl<'a, M, Q, T> ContractClient<'a, M, Q, T> {
     /// # Returns
     ///
     /// A `CosmosMsg` ready for execution with attached funds
-    pub fn execute_with_funds(&self, msg: &M, coin: Coin) -> CosmosMsg<T>
+    pub fn execute_with_funds(&self, msg: &M, coin: Coin) -> CosmosMsg
     where
         M: Serialize,
     {
@@ -169,14 +167,14 @@ impl<'a, M, Q, T> ContractClient<'a, M, Q, T> {
     /// # Returns
     ///
     /// A `CosmosMsg` ready for execution with proxy information attached
-    pub fn execute_as_proxy(&self, original_sender: Addr, msg: M) -> CosmosMsg<T>
+    pub fn execute_as_proxy(&self, original_sender: Addr, msg: M) -> CosmosMsg
     where
         M: MsgFromProxy,
     {
         self.execute_wrapped(&msg.via_proxy(original_sender), None)
     }
 
-    fn execute_wrapped(&self, msg: &impl Serialize, coin: Option<Coin>) -> CosmosMsg<T> {
+    fn execute_wrapped(&self, msg: &impl Serialize, coin: Option<Coin>) -> CosmosMsg {
         self.inner.execute(WasmMsg::Execute {
             contract_addr: self.address.to_string(),
             msg: to_json_binary(msg).expect("msg should always be serializable"),
