@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, CosmosMsg, Empty, HexBinary, QuerierWrapper};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, QuerierWrapper};
 use router_api::{Address, CrossChainId};
 
 /// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
