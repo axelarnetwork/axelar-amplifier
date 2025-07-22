@@ -9722,6 +9722,7 @@ version = "1.0.0"
 dependencies = [
  "client",
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
