@@ -37,55 +37,32 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
             .flatten()
             .collect::<Vec<ContractEvent>>();
 
-        let event_count = events_vec.len();
-        let contract_events = match events_vec.clone().try_into() {
-            Ok(vec_m) => vec_m,
-            Err(_) => {
-                // VecM has a maximum capacity (typically 4294967295 elements for XDR)
-                // but we need to find the actual limit by binary search or use a reasonable limit
-                const MAX_EVENTS: usize = 1000; // Conservative limit to prevent memory issues
+        let original_count = events_vec.len();
 
-                if events_vec.len() > MAX_EVENTS {
-                    events_vec.truncate(MAX_EVENTS);
-                    warn!(
-                        tx_hash = %transaction_hash,
-                        original_count = event_count,
-                        truncated_count = events_vec.len(),
-                        "Contract events exceed VecM capacity, truncating to {} events",
-                        MAX_EVENTS
-                    );
-                } else {
-                    // If it's not a size issue, try progressively smaller sizes
-                    let mut max_size = events_vec.len();
-                    while max_size > 0 {
-                        max_size /= 2;
-                        let mut working_vec = events_vec.clone();
-                        working_vec.truncate(max_size);
-                        if let Ok(vec_m) = working_vec.try_into() {
-                            warn!(
-                                tx_hash = %transaction_hash,
-                                original_count = event_count,
-                                truncated_count = max_size,
-                                "Contract events exceed VecM capacity, truncated to {} events",
-                                max_size
-                            );
-                            return Self {
-                                transaction_hash: transaction_hash.to_string(),
-                                successful: response.status == STATUS_SUCCESS,
-                                contract_events: vec_m,
-                            };
-                        }
-                    }
+        // Check if we need to truncate before conversion
+        let max_capacity = find_max_vecm_capacity(&events_vec);
 
-                    warn!(
-                        tx_hash = %transaction_hash,
-                        event_count,
-                        "Failed to fit any contract events in VecM, returning empty list"
-                    );
-                }
-
-                events_vec.try_into().unwrap_or_else(|_| VecM::default())
-            }
+        let contract_events = if max_capacity == original_count {
+            // Full vector fits, convert directly
+            events_vec.try_into().unwrap_or_else(|_| VecM::default())
+        } else if max_capacity == 0 {
+            warn!(
+                tx_hash = %transaction_hash,
+                original_count,
+                "No contract events could fit in VecM, returning empty list"
+            );
+            VecM::default()
+        } else {
+            // Truncate and convert
+            events_vec.truncate(max_capacity);
+            warn!(
+                tx_hash = %transaction_hash,
+                original_count,
+                truncated_count = max_capacity,
+                "Contract events exceed VecM capacity, truncated to {} events",
+                max_capacity
+            );
+            events_vec.try_into().unwrap_or_else(|_| VecM::default())
         };
 
         Self {
@@ -94,6 +71,36 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
             contract_events,
         }
     }
+}
+
+/// Find the maximum number of events that can fit in a VecM using binary search
+fn find_max_vecm_capacity(events: &[ContractEvent]) -> usize {
+    if events.is_empty() {
+        return 0;
+    }
+
+    let mut left = 0;
+    let mut right = events.len();
+    let mut max_valid = 0;
+
+    while left <= right {
+        let mid = left + (right - left) / 2;
+
+        // Test if we can convert this many events to VecM
+        let test_vec: Result<VecM<ContractEvent>, _> = events[..mid].to_vec().try_into();
+
+        if test_vec.is_ok() {
+            max_valid = mid;
+            left = mid + 1;
+        } else {
+            if mid == 0 {
+                break;
+            }
+            right = mid - 1;
+        }
+    }
+
+    max_valid
 }
 
 impl TxResponse {
