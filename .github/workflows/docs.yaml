@@ -14,7 +14,7 @@ jobs:
   docs:
     name: Build and validate documentation
     runs-on: ubuntu-22.04
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.81.0
+          toolchain: 1.85.0
 
       - name: Cache cargo and tools
         id: cache-cargo
@@ -46,7 +46,7 @@ jobs:
           cd doc
           mdbook build
           cd ..
-          
+
           if [ ! -d "target/book" ]; then
             echo "Error: Documentation build failed - target/book directory not found"
             exit 1

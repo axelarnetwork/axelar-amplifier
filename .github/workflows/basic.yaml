@@ -24,7 +24,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.81.0
+          toolchain: 1.85.0
           override: true
 
       - name: Install protoc
@@ -63,7 +63,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.81.0
+          toolchain: 1.85.0
           target: wasm32-unknown-unknown
           default: true
           override: true
@@ -72,7 +72,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.81.0
+          toolchain: 1.85.0
           target: wasm32-unknown-unknown
           default: false
           override: false
@@ -99,7 +99,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: install
-          toolchain: 1.81.0
+          toolchain: 1.85.0
           args: --version 2.2.1 --locked cosmwasm-check
 
       - name: Check wasm contracts
@@ -117,7 +117,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.81.0
+          toolchain: 1.85.0
           target: wasm32-unknown-unknown
           override: true
 
@@ -185,7 +185,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.81.0
+          toolchain: 1.85.0
           components: clippy
           override: true
 
