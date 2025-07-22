@@ -87,12 +87,12 @@ jobs:
         if: steps.cache.outputs.cache-hit == 'true'
         run: cat /home/runner/.cargo/.crates.toml
 
-      - name: Build wasm release
+      - name: Build wasm release (with reference-types disabled)
         run: |
           for C in ./contracts/*/
           do
             echo "Compiling `basename $C`..."
-            (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
+            (cd $C && RUSTFLAGS="-C target-feature=-reference-types" cargo build --release --lib --target wasm32-unknown-unknown --locked)
           done
 
       - name: Install cosmwasm-check

@@ -7,6 +7,3 @@ sort-check = "sort --workspace --check --check-format"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]
-
-[target.wasm32-unknown-unknown]
-rustflags = ["-C", "target-feature=-reference-types"]
