@@ -94,7 +94,9 @@ jobs:
           for C in ./contracts/*/
           do
             echo "Compiling `basename $C`..."
-            (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
+            cd $C
+            cargo build --release --lib --target wasm32-unknown-unknown --locked
+            cd - > /dev/null
           done
 
       - name: Install cosmwasm-check
