@@ -84,19 +84,19 @@ fn find_max_vecm_capacity(events: &[ContractEvent]) -> usize {
     let mut max_valid = 0;
 
     while left <= right {
-        let mid = left + (right - left) / 2;
+        let mid = left.saturating_add((right.saturating_sub(left)) / 2);
 
         // Test if we can convert this many events to VecM
         let test_vec: Result<VecM<ContractEvent>, _> = events[..mid].to_vec().try_into();
 
         if test_vec.is_ok() {
             max_valid = mid;
-            left = mid + 1;
+            left = mid.saturating_add(1);
         } else {
             if mid == 0 {
                 break;
             }
-            right = mid - 1;
+            right = mid.saturating_sub(1);
         }
     }
 
