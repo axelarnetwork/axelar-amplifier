@@ -96,6 +96,7 @@ impl Client {
     /// - If sending fails, a warning is logged
     /// - record_metrics should never disrupt the main flow of the application
     pub fn record_metric(&self, msg: Msg) {
+        tracing::info!("send metrics message: {:?}", msg);
         match self {
             Client::Disabled => (),
             Client::WithChannel { sender } => {
