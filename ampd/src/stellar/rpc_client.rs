@@ -128,3 +128,84 @@ impl Client {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stellar_rpc_client::{GetTransactionEvents, GetTransactionResponse};
+    use stellar_xdr::curr::{
+        ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
+        ScVal, VecM,
+    };
+
+    fn create_mock_contract_event(data: u32) -> ContractEvent {
+        ContractEvent {
+            ext: ExtensionPoint::V0,
+            contract_id: None,
+            type_: ContractEventType::Contract,
+            body: ContractEventBody::V0(ContractEventV0 {
+                topics: VecM::default(),
+                data: ScVal::U32(data),
+            }),
+        }
+    }
+
+    fn create_mock_transaction_response(
+        events: Vec<Vec<ContractEvent>>,
+        status: &str,
+    ) -> GetTransactionResponse {
+        GetTransactionResponse {
+            status: status.to_string(),
+            envelope: None,
+            result: None,
+            result_meta: None,
+            events: GetTransactionEvents {
+                contract_events: events,
+                diagnostic_events: vec![],
+                transaction_events: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn test_tx_response_from_successful_transaction_with_events() {
+        let hash = Hash::from([1u8; 32]);
+        let contract_events = vec![
+            vec![create_mock_contract_event(1), create_mock_contract_event(2)],
+            vec![create_mock_contract_event(3)],
+        ];
+        let response = create_mock_transaction_response(contract_events, STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert!(tx_response.successful);
+        assert_eq!(tx_response.contract_events.len(), 3); // Flattened: 2 + 1 = 3 events
+        assert!(!tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_from_failed_transaction() {
+        let hash = Hash::from([2u8; 32]);
+        let response = create_mock_transaction_response(vec![], "FAILED");
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert!(!tx_response.successful);
+        assert!(tx_response.has_failed());
+        assert_eq!(tx_response.contract_events.len(), 0);
+    }
+
+    #[test]
+    fn test_tx_response_from_empty_events() {
+        let hash = Hash::from([3u8; 32]);
+        let response = create_mock_transaction_response(vec![], STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert!(tx_response.successful);
+        assert_eq!(tx_response.contract_events.len(), 0);
+    }
+}
