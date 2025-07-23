@@ -2,8 +2,7 @@ use axelar_wasm_std::address;
 use cosmwasm_std::{Deps, Env, Order};
 use error_stack::report;
 use itertools::Itertools;
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
+use rand::{seq::SliceRandom, SeedableRng};
 use rand_pcg::Pcg64;
 use report::ResultExt;
 use router_api::ChainName;
@@ -147,11 +146,10 @@ pub fn service_params_override(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::{Addr, Uint128};
     use service_registry_api::{AuthorizationState, BondingState, Verifier};
-
-    use super::*;
 
     fn create_weighted_verifier(address: &str, weight: u128) -> WeightedVerifier {
         WeightedVerifier {
