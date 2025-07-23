@@ -6,7 +6,7 @@ use crate::msg::{ExecuteMsg, QueryMsg};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("could not query the signature verifier contract with {signature:?}, {message:?}, {public_key:?}, {signer_address:?}, {session_id:?}")]
+    #[error("could not query the signature verifier contract with {signature}, {message}, {public_key}, {signer_address}, {session_id}")]
     VerifySignature {
         signature: HexBinary,
         message: HexBinary,
