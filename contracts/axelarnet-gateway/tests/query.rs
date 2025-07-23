@@ -146,7 +146,7 @@ pub fn reply_rand_tx_hash_and_nonce(query: &AxelarQueryMsg) -> MockQuerierCustom
         AxelarQueryMsg::Nexus(nexus_query) => match nexus_query {
             axelar_core_std::nexus::query::QueryMsg::TxHashAndNonce {} => {
                 let mut tx_hash = [0u8; 32];
-                rand::rng().fill_bytes(&mut tx_hash);
+                rand::thread_rng().fill_bytes(&mut tx_hash);
                 let nonce: u32 = rand::random();
 
                 json!({

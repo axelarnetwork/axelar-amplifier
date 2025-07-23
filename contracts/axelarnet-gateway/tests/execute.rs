@@ -256,7 +256,7 @@ fn route_to_router_without_contract_call_ignores_message() {
 #[test]
 fn route_to_router_after_contract_call_with_tempered_data_fails() {
     let mut tx_hash = [0u8; 32];
-    rand::rng().fill_bytes(&mut tx_hash);
+    rand::thread_rng().fill_bytes(&mut tx_hash);
     let nonce = rand::random();
 
     let mut deps = mock_axelar_dependencies();

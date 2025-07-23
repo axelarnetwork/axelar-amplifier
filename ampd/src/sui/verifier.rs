@@ -151,11 +151,11 @@ mod tests {
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use k256::elliptic_curve::rand_core::OsRng;
     use move_core_types::language_storage::StructTag;
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
+    use rand::rngs::OsRng;
     use random_string::generate;
     use serde_json::json;
     use sui_gateway::events::{ContractCall, SignersRotated};

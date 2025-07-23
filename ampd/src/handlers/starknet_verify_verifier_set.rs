@@ -171,7 +171,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use rand::RngCore;
+    use rand::Rng;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
@@ -223,9 +223,9 @@ mod tests {
 
     fn random_hash() -> String {
         // Generate a random 256-bit value
-        let mut rng = rand::rng();
+        let mut rng = rand::thread_rng();
         let mut bytes = [0u8; 32]; // Allocate a fixed-size array of 32 bytes
-        rng.fill_bytes(&mut bytes); // Fill the array with random bytes
+        rng.fill(&mut bytes); // Fill the array with random bytes
 
         let number = U256::from_big_endian(&bytes);
 

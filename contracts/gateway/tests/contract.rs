@@ -15,7 +15,7 @@ use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use router_api::{CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
@@ -262,9 +262,9 @@ fn reject_reroute_outgoing_message_with_different_contents() {
 
     // re-route with different payload
     msgs.iter_mut().for_each(|msg| {
-        let mut rng = rand::rng();
+        let mut rng = thread_rng();
         msg.payload_hash.iter_mut().for_each(|byte| {
-            *byte = rng.random();
+            *byte = rng.gen();
         });
     });
     let response = execute(

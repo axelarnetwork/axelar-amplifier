@@ -69,8 +69,8 @@ where
 mod tests {
     use ampd_proto::{Algorithm, KeyId, KeyRequest, SignRequest};
     use error_stack::report;
-    use k256::elliptic_curve::rand_core::OsRng;
     use mockall::predicate;
+    use rand::rngs::OsRng;
     use tonic::{Code, Request};
 
     use super::*;

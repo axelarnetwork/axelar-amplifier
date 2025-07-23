@@ -101,7 +101,7 @@ mod tests {
 
     fn random_hash() -> String {
         // Generate a random 256-bit value
-        let mut rng = rand::rng();
+        let mut rng = rand::thread_rng();
         let mut bytes = [0u8; 32];
         rng.fill(&mut bytes);
         let number = U256::from_be_bytes::<32>(bytes);

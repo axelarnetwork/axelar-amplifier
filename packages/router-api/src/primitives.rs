@@ -597,8 +597,8 @@ impl ChainEndpoint {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::to_json_vec;
-    use rand::distr::Alphanumeric;
-    use rand::{rng, Rng};
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
 
     use super::*;
@@ -868,7 +868,7 @@ mod tests {
     }
 
     fn random_chain_name() -> String {
-        rng()
+        thread_rng()
             .sample_iter(&Alphanumeric)
             .take(10)
             .map(char::from)
@@ -876,7 +876,7 @@ mod tests {
     }
 
     fn random_address() -> String {
-        rng()
+        thread_rng()
             .sample_iter(&Alphanumeric)
             .take(10)
             .map(char::from)

@@ -127,7 +127,7 @@ impl From<CosmosPublicKey> for PublicKey {
 
 #[cfg(test)]
 pub mod test_utils {
-    use k256::elliptic_curve::rand_core::OsRng;
+    use rand::rngs::OsRng;
 
     use super::CosmosPublicKey;
 
@@ -139,8 +139,8 @@ pub mod test_utils {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::assert_err_contains;
-    use k256::elliptic_curve::rand_core::OsRng;
     use rand::random;
+    use rand::rngs::OsRng;
 
     use super::*;
 

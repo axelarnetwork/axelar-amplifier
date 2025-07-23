@@ -111,7 +111,7 @@ mod test {
     #[test]
     fn query_tx_hash_and_nonce() {
         let mut tx_hash = [0u8; 32];
-        rand::rng().fill_bytes(&mut tx_hash);
+        rand::thread_rng().fill_bytes(&mut tx_hash);
         let nonce = rand::random();
 
         let querier: MockQuerier<AxelarQueryMsg> =

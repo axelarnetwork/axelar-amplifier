@@ -147,10 +147,10 @@ mod test {
     use cosmrs::tx::MessageExt;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ed25519_dalek::SigningKey;
-    use k256::elliptic_curve::rand_core::OsRng;
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
+    use rand::rngs::OsRng;
     use stellar::WeightedSigners;
     use stellar_xdr::curr::{
         AccountId, BytesM, ContractEvent, ContractEventBody, ContractEventType, ContractEventV0,
