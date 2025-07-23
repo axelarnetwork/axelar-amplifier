@@ -46,7 +46,7 @@ impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     }
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn verify_signature(
         &self,
         signature: HexBinary,
