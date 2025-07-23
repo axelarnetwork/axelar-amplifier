@@ -131,12 +131,13 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use stellar_rpc_client::{GetTransactionEvents, GetTransactionResponse};
     use stellar_xdr::curr::{
         ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
         ScVal, VecM,
     };
+
+    use super::*;
 
     fn create_mock_contract_event(data: u32) -> ContractEvent {
         ContractEvent {
