@@ -6,7 +6,6 @@ license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
 [dependencies]
-client = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }

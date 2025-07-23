@@ -9720,7 +9720,6 @@ dependencies = [
 name = "signature-verifier-api"
 version = "1.0.0"
 dependencies = [
- "client",
  "axelar-wasm-std",
  "client",
  "cosmwasm-schema",
