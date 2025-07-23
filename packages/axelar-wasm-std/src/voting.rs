@@ -402,7 +402,7 @@ impl WeightedPoll {
 mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Addr, Uint64};
-    use rand::distributions::Alphanumeric;
+    use rand::distr::Alphanumeric;
     use rand::Rng;
 
     use super::*;
@@ -447,15 +447,15 @@ mod tests {
 
     #[test]
     fn voter_not_a_participant() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let poll = new_poll(
-            rng.gen::<u64>(),
-            rng.gen_range(1..50),
+            rng.random::<u64>(),
+            rng.random_range(1..50),
             vec!["addr1", "addr2"],
         );
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
-        let rand_addr: String = rand::thread_rng()
+        let rand_addr: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(5)
             .map(char::from)
@@ -469,11 +469,7 @@ mod tests {
 
     #[test]
     fn poll_expired() {
-        let poll = new_poll(
-            1,
-            rand::thread_rng().gen_range(1..50),
-            vec!["addr1", "addr2"],
-        );
+        let poll = new_poll(1, rand::rng().random_range(1..50), vec!["addr1", "addr2"]);
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         assert_eq!(
             poll.cast_vote(2, &MockApi::default().addr_make("addr1"), votes),

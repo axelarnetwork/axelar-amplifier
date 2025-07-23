@@ -253,13 +253,13 @@ mod tests {
         // Randomly remove an element from either vector
         match rand::random::<bool>() {
             true if !keys_data.is_empty() => {
-                let random_index = rand::random::<usize>()
+                let random_index = (rand::random::<u32>() as usize)
                     .checked_rem(keys_data.len())
                     .unwrap();
                 keys_data.remove(random_index);
             }
             false if !event_data.is_empty() => {
-                let random_index = rand::random::<usize>()
+                let random_index = (rand::random::<u32>() as usize)
                     .checked_rem(event_data.len())
                     .unwrap();
                 event_data.remove(random_index);

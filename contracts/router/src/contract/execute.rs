@@ -287,7 +287,7 @@ mod test {
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
 
         let id = HexTxHashAndEventIndex {
             tx_hash: bytes,
@@ -296,15 +296,15 @@ mod test {
         .to_string();
 
         let mut bytes = [0; 20];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         let source_address = format!("0x{}", hex::encode(bytes)).try_into().unwrap();
 
         let mut bytes = [0; 20];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         let destination_address = format!("0x{}", hex::encode(bytes)).try_into().unwrap();
 
         let mut payload_hash = [0; 32];
-        rand::thread_rng().fill_bytes(&mut payload_hash);
+        rand::rng().fill_bytes(&mut payload_hash);
 
         Message {
             cc_id: CrossChainId::new(source_chain, id).unwrap(),

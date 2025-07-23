@@ -97,7 +97,7 @@ mod test {
 
     #[test]
     fn should_pass_bech32m() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         const CHARS: [char; 32] = [
             'q', 'p', 'z', 'r', 'y', '9', 'x', '8', 'g', 'f', '2', 't', 'v', 'd', 'w', '0', 's',
@@ -106,12 +106,12 @@ mod test {
         let char_set = CHARS.len();
 
         for _ in 0..100 {
-            let hrp_str = (0..rng.gen_range(1..=83))
-                .map(|_| CHARS[rng.gen_range(0..char_set)])
+            let hrp_str = (0..rng.random_range(1..=83))
+                .map(|_| CHARS[rng.random_range(0..char_set)])
                 .collect::<String>();
 
             let data = (0..80)
-                .map(|_| char::from(rng.gen_range(32..=126)))
+                .map(|_| char::from(rng.random_range(32..=126)))
                 .collect::<String>();
 
             let hrp = Hrp::parse(hrp_str.as_str()).expect("valid hrp");
@@ -124,9 +124,9 @@ mod test {
 
     #[test]
     fn should_pass_edge_cases() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let data = (0..80)
-            .map(|_| char::from(rng.gen_range(32..=126)))
+            .map(|_| char::from(rng.random_range(32..=126)))
             .collect::<String>();
 
         // Minimum prefix length

@@ -64,44 +64,44 @@ mod tests {
     #[test]
     fn sui_address_try_from() {
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         let address = SuiAddress::try_from(&bytes[..]).unwrap();
         assert_eq!(address.as_bytes(), &bytes);
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH + 1];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::try_from(&bytes[..]).is_err());
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH - 1];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::try_from(&bytes[..]).is_err());
     }
 
     #[test]
     fn sui_address_from_str() {
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         let address = SuiAddress::from_str(format!("0x{}", hex::encode(bytes)).as_str()).unwrap();
         assert_eq!(address.as_bytes(), &bytes);
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH + 1];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::from_str(format!("0x{}", hex::encode(bytes)).as_str()).is_err());
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH - 1];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::from_str(format!("0x{}", hex::encode(bytes)).as_str()).is_err());
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::from_str(format!("0x0x{}", hex::encode(bytes)).as_str()).is_err());
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::from_str(format!("test{}", hex::encode(bytes)).as_str()).is_err());
 
         let mut bytes = [0u8; SUI_ADDRESS_LENGTH];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        rand::rng().fill_bytes(&mut bytes);
         assert!(SuiAddress::from_str(hex::encode(bytes).as_str()).is_err());
     }
 }

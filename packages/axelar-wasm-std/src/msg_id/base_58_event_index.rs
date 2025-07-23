@@ -81,8 +81,8 @@ impl Display for Base58TxDigestAndEventIndex {
 
 #[cfg(test)]
 mod tests {
-
     use hex::ToHex;
+    use rand::Rng;
 
     use super::*;
 
@@ -297,7 +297,7 @@ mod tests {
             let mut bytes = random_bytes();
 
             // set a random (non-zero) number of leading bytes to 0
-            let leading_zeroes = rand::random::<usize>() % bytes.len() + 1;
+            let leading_zeroes = rand::rng().random_range(1..=bytes.len());
             for b in bytes.iter_mut().take(leading_zeroes) {
                 *b = 0;
             }
@@ -310,7 +310,7 @@ mod tests {
             }
 
             // trim a random (non-zero) number of leading 1's
-            let trim = rand::random::<usize>() % leading_zeroes + 1;
+            let trim = rand::rng().random_range(1..=leading_zeroes);
 
             // converting back to bytes should yield a different result
             let decoded = bs58::decode(&b58[trim..]).into_vec().unwrap();

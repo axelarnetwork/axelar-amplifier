@@ -192,10 +192,10 @@ mod test {
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
+    use k256::elliptic_curve::rand_core::OsRng;
     use multisig::events::Event;
     use multisig::key::PublicKey;
     use multisig::types::MsgToSign;
-    use rand::rngs::OsRng;
     use router_api::ChainName;
     use tendermint::abci;
     use tokio::sync::watch;

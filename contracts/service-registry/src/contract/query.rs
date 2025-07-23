@@ -65,10 +65,11 @@ fn select_top_verifiers(
 
     // Figure out the min weight that will make it into the set
     let cutoff_weight = {
-        let nth = max_verifiers as usize - 1;
+        let nth = (max_verifiers as usize).saturating_sub(1);
         verifiers.select_nth_unstable_by(nth, |a, b| b.weight.cmp(&a.weight));
         verifiers[nth].weight
     };
+    println!("cutoff_weight: {}", cutoff_weight.into_inner());
 
     let active_verifiers = verifiers
         .iter()
@@ -83,6 +84,7 @@ fn select_top_verifiers(
     }
 
     let remaining_slots = (max_verifiers as usize).saturating_sub(active_verifiers.len());
+    println!("remaining_slots: {}", remaining_slots);
     let mut possibly_included = verifiers
         .iter()
         .filter(|v| v.weight == cutoff_weight)
@@ -97,7 +99,7 @@ fn select_top_verifiers(
 
     active_verifiers
         .into_iter()
-        .chain(selected.into_iter())
+        .chain(selected)
         .cloned()
         .collect()
 }

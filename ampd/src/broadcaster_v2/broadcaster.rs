@@ -232,10 +232,10 @@ mod tests {
     use cosmrs::Coin;
     use cosmwasm_std::to_hex;
     use error_stack::Report;
+    use k256::elliptic_curve::rand_core::OsRng;
     use k256::sha2::Sha256;
     use mockall::Sequence;
     use prost::Message;
-    use rand::rngs::OsRng;
     use sha3::Digest;
 
     use super::*;
