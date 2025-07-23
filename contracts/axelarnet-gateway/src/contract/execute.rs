@@ -3,13 +3,13 @@ use std::str::FromStr;
 use axelar_core_std::nexus;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::{address, FnExt, IntoContractError};
+use client::ContractClient;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
 };
 use error_stack::{bail, ensure, report, ResultExt};
 use itertools::Itertools;
-use router_api::client::Router;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};
 
@@ -123,12 +123,12 @@ pub fn route_messages(
         chain_name, router, ..
     } = state::load_config(storage);
 
-    let router = Router::new(router);
+    let router_client: router_api::Client = ContractClient::new(querier, &router).into();
     let client: nexus::Client = client::CosmosClient::new(querier).into();
 
     // Router-sent messages are assumed pre-verified and routable
     // Otherwise, only route routable messages instantiated from CallContract
-    let msgs = if sender != router.address {
+    let msgs = if sender != router {
         msgs.into_iter()
             .unique()
             .map(|msg| try_load_routable_msg(storage, msg))
@@ -146,14 +146,14 @@ pub fn route_messages(
                 &sender,
                 &client,
                 &dest_chain,
-                &router.address,
+                &router,
                 &chain_name,
             )? {
                 RoutingDestination::This => {
                     prepare_for_execution(storage, chain_name.clone(), msgs.collect())
                 }
                 RoutingDestination::Nexus => route_to_nexus(&client, msgs.collect()),
-                RoutingDestination::Router => route_to_router(&router, msgs.collect()),
+                RoutingDestination::Router => route_to_router(&router_client, msgs.collect()),
             }?;
 
             Ok(acc.add_messages(messages).add_events(events))
@@ -193,7 +193,7 @@ pub fn execute(
 }
 
 pub fn route_messages_from_nexus(
-    storage: &dyn Storage,
+    deps: DepsMut,
     msgs: Vec<nexus::execute::Message>,
 ) -> Result<Response<nexus::execute::Message>> {
     let msgs: Vec<_> = msgs
@@ -202,9 +202,13 @@ pub fn route_messages_from_nexus(
         .collect::<error_stack::Result<Vec<_>, _>>()
         .change_context(Error::InvalidNexusMessageForRouter)?;
 
-    let router = Router::new(state::load_config(storage).router);
+    let router_address = state::load_config(deps.storage).router;
+    let router: router_api::Client = ContractClient::new(deps.querier, &router_address).into();
 
-    Ok(Response::new().add_messages(router.route(msgs)))
+    Ok(Response::new().add_messages(router.route(msgs).map(|msg| {
+        msg.change_custom()
+            .expect("the msg can never be a CosmosMsg::Custom")
+    })))
 }
 
 fn ensure_same_payload_hash(
@@ -256,12 +260,16 @@ fn prepare_for_execution(
 }
 
 /// Route messages to the router, ignore unknown messages.
-fn route_to_router(
-    router: &Router<nexus::execute::Message>,
-    msgs: Vec<Message>,
-) -> Result<CosmosMsgWithEvent> {
+fn route_to_router(router: &router_api::Client, msgs: Vec<Message>) -> Result<CosmosMsgWithEvent> {
     Ok((
-        router.route(msgs.clone()).into_iter().collect(),
+        router
+            .route(msgs.clone())
+            .into_iter()
+            .map(|msg| {
+                msg.change_custom()
+                    .expect("the msg can never be a CosmosMsg::Custom")
+            })
+            .collect(),
         msgs.into_iter()
             .map(|msg| AxelarnetGatewayEvent::Routing { msg }.into())
             .collect(),

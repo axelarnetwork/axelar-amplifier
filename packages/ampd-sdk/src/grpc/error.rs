@@ -27,8 +27,8 @@ pub enum AppError {
     #[error("failed to convert event")]
     EventConversion,
 
-    #[error("invalid {0} address")]
-    InvalidAddress(&'static str),
+    #[error("invalid address")]
+    InvalidAddress,
 
     #[error("missing event in response")]
     InvalidResponse,
@@ -41,13 +41,16 @@ pub enum AppError {
 
     #[error("invalid byte array")]
     InvalidByteArray,
+
+    #[error("connection to the pool is unavailable")]
+    ConnectionUnavailable,
+
+    #[error("connection pool is shut down")]
+    PoolShutdown,
 }
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to connect to the grpc endpoint")]
-    GrpcConnection(#[from] tonic::transport::Error),
-
     #[error(transparent)]
     Grpc(#[from] GrpcError),
 

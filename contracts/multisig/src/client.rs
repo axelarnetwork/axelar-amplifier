@@ -38,8 +38,8 @@ impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     }
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
+impl Error {
+    fn for_query(value: QueryMsg) -> Self {
         match value {
             QueryMsg::Multisig { session_id } => Error::MultisigSession(session_id),
             QueryMsg::VerifierSet { verifier_set_id } => Error::VerifierSet(verifier_set_id),
@@ -133,12 +133,16 @@ impl Client<'_> {
 
     pub fn multisig(&self, session_id: Uint64) -> Result<Multisig, Error> {
         let msg = QueryMsg::Multisig { session_id };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn verifier_set(&self, verifier_set_id: String) -> Result<VerifierSet, Error> {
         let msg = QueryMsg::VerifierSet { verifier_set_id };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn public_key(
@@ -150,7 +154,9 @@ impl Client<'_> {
             verifier_address,
             key_type,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn is_caller_authorized(
@@ -162,7 +168,9 @@ impl Client<'_> {
             contract_address,
             chain_name,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 }
 

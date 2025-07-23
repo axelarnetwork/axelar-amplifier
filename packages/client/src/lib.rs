@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use cosmwasm_std::{
-    to_json_binary, Addr, Coin, CosmosMsg, CustomQuery, Empty, QuerierWrapper, QueryRequest,
-    StdError, WasmMsg, WasmQuery,
+    to_json_binary, Addr, Coin, CosmosMsg, CustomQuery, QuerierWrapper, QueryRequest, StdError,
+    WasmMsg, WasmQuery,
 };
 use error_stack::Report;
 use serde::de::DeserializeOwned;
@@ -133,7 +133,7 @@ impl<'a, M, Q> ContractClient<'a, M, Q> {
     /// # Returns
     ///
     /// A `CosmosMsg` ready for execution
-    pub fn execute(&self, msg: &M) -> CosmosMsg<Empty>
+    pub fn execute(&self, msg: &M) -> CosmosMsg
     where
         M: Serialize,
     {
@@ -150,7 +150,7 @@ impl<'a, M, Q> ContractClient<'a, M, Q> {
     /// # Returns
     ///
     /// A `CosmosMsg` ready for execution with attached funds
-    pub fn execute_with_funds(&self, msg: &M, coin: Coin) -> CosmosMsg<Empty>
+    pub fn execute_with_funds(&self, msg: &M, coin: Coin) -> CosmosMsg
     where
         M: Serialize,
     {
@@ -167,14 +167,14 @@ impl<'a, M, Q> ContractClient<'a, M, Q> {
     /// # Returns
     ///
     /// A `CosmosMsg` ready for execution with proxy information attached
-    pub fn execute_as_proxy(&self, original_sender: Addr, msg: M) -> CosmosMsg<Empty>
+    pub fn execute_as_proxy(&self, original_sender: Addr, msg: M) -> CosmosMsg
     where
         M: MsgFromProxy,
     {
         self.execute_wrapped(&msg.via_proxy(original_sender), None)
     }
 
-    fn execute_wrapped(&self, msg: &impl Serialize, coin: Option<Coin>) -> CosmosMsg<Empty> {
+    fn execute_wrapped(&self, msg: &impl Serialize, coin: Option<Coin>) -> CosmosMsg {
         self.inner.execute(WasmMsg::Execute {
             contract_addr: self.address.to_string(),
             msg: to_json_binary(msg).expect("msg should always be serializable"),
