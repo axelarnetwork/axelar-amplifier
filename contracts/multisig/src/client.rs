@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{CosmosMsg, HexBinary, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint64};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -38,8 +38,8 @@ impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     }
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
+impl Error {
+    fn for_query(value: QueryMsg) -> Self {
         match value {
             QueryMsg::Multisig { session_id } => Error::MultisigSession(session_id),
             QueryMsg::VerifierSet { verifier_set_id } => Error::VerifierSet(verifier_set_id),
@@ -109,6 +109,15 @@ impl Client<'_> {
             .execute(&ExecuteMsg::AuthorizeCallers { contracts })
     }
 
+    pub fn authorize_callers_from_proxy(
+        &self,
+        original_sender: Addr,
+        contracts: HashMap<String, ChainName>,
+    ) -> CosmosMsg {
+        self.client
+            .execute_as_proxy(original_sender, ExecuteMsg::AuthorizeCallers { contracts })
+    }
+
     pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
@@ -124,12 +133,16 @@ impl Client<'_> {
 
     pub fn multisig(&self, session_id: Uint64) -> Result<Multisig, Error> {
         let msg = QueryMsg::Multisig { session_id };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn verifier_set(&self, verifier_set_id: String) -> Result<VerifierSet, Error> {
         let msg = QueryMsg::VerifierSet { verifier_set_id };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn public_key(
@@ -141,7 +154,9 @@ impl Client<'_> {
             verifier_address,
             key_type,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn is_caller_authorized(
@@ -153,23 +168,31 @@ impl Client<'_> {
             contract_address,
             chain_name,
         };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 }
 
 #[cfg(test)]
 mod test {
 
+    use std::collections::HashMap;
+
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, Addr, QuerierWrapper, SystemError, Uint64, WasmQuery,
+        from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmMsg,
+        WasmQuery,
     };
+    use router_api::ChainName;
 
     use crate::client::Client;
     use crate::key::{KeyType, PublicKey, Signature};
-    use crate::msg::QueryMsg;
+    use crate::msg::{ExecuteMsg, QueryMsg};
     use crate::multisig::Multisig;
-    use crate::test::common::{build_verifier_set, ecdsa_test_data};
+    use crate::test::common::{
+        build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
+    };
     use crate::types::MultisigState;
 
     #[test]
@@ -342,5 +365,166 @@ mod test {
         });
 
         (querier, MockApi::default().addr_make(addr))
+    }
+
+    fn signing_keys() -> (String, String) {
+        (
+            build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()).id(),
+            build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()).id(),
+        )
+    }
+
+    fn validate_submit_signature_msgs_construction(
+        client: &Client,
+        contract_addr: Addr,
+        session_id: Uint64,
+        signers: Vec<TestSigner>,
+    ) {
+        for signer in signers {
+            assert_eq!(
+                client.submit_signature(session_id, signer.signature.clone()),
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_addr.to_string().clone(),
+                    msg: to_json_binary(&ExecuteMsg::SubmitSignature {
+                        session_id,
+                        signature: signer.signature
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                })
+            );
+        }
+    }
+
+    fn validate_register_public_key_msgs_construction(
+        client: &Client,
+        contract_addr: Addr,
+        key_type: KeyType,
+        signers: Vec<TestSigner>,
+    ) {
+        for signer in signers {
+            let pub_key = match key_type {
+                KeyType::Ecdsa => PublicKey::Ecdsa(signer.pub_key.clone()),
+                KeyType::Ed25519 => PublicKey::Ed25519(signer.pub_key.clone()),
+            };
+
+            assert_eq!(
+                client.register_public_key(pub_key.clone(), signer.signed_address.clone()),
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_addr.to_string().clone(),
+                    msg: to_json_binary(&ExecuteMsg::RegisterPublicKey {
+                        public_key: pub_key,
+                        signed_sender_address: signer.signed_address
+                    })
+                    .unwrap(),
+                    funds: vec![],
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn construct_submit_signature_msg() {
+        let (ecdsa_subkey, ed25519_subkey) = signing_keys();
+
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        for (_, _, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+            validate_submit_signature_msgs_construction(&client, addr.clone(), session_id, signers);
+        }
+    }
+
+    #[test]
+    fn construct_register_public_key_msg() {
+        let (ecdsa_subkey, ed25519_subkey) = signing_keys();
+
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        for (key_type, _, signers, _) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+            validate_register_public_key_msgs_construction(
+                &client,
+                addr.clone(),
+                key_type,
+                signers,
+            );
+        }
+    }
+
+    #[test]
+    fn construct_authorize_callers_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let contracts: HashMap<String, ChainName> = HashMap::from([(
+            MockApi::default().addr_make("prover").to_string(),
+            ChainName::try_from("ethereum").unwrap(),
+        )]);
+
+        assert_eq!(
+            client.authorize_callers(contracts.clone()),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: addr.to_string().clone(),
+                msg: to_json_binary(&ExecuteMsg::AuthorizeCallers { contracts }).unwrap(),
+                funds: vec![],
+            }),
+        );
+    }
+
+    #[test]
+    fn construct_unauthorize_callers_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let contracts: HashMap<String, ChainName> = HashMap::from([(
+            MockApi::default().addr_make("prover").to_string(),
+            ChainName::try_from("ethereum").unwrap(),
+        )]);
+
+        assert_eq!(
+            client.unauthorize_callers(contracts.clone()),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: addr.to_string().clone(),
+                msg: to_json_binary(&ExecuteMsg::UnauthorizeCallers { contracts }).unwrap(),
+                funds: vec![],
+            }),
+        );
+    }
+
+    #[test]
+    fn construct_disable_signing_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        assert_eq!(
+            client.disable_signing(),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: addr.to_string().clone(),
+                msg: to_json_binary(&ExecuteMsg::DisableSigning {}).unwrap(),
+                funds: vec![],
+            }),
+        );
+    }
+
+    #[test]
+    fn construct_enable_signing_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        assert_eq!(
+            client.enable_signing(),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: addr.to_string().clone(),
+                msg: to_json_binary(&ExecuteMsg::EnableSigning {}).unwrap(),
+                funds: vec![],
+            }),
+        );
     }
 }

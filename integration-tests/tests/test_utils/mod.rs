@@ -451,6 +451,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         admin_address.clone(),
         rewards.contract_addr.clone(),
         SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
+        coordinator.contract_address(),
     );
 
     let service_registry =

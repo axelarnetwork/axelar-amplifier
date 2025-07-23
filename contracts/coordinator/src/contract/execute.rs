@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
@@ -306,22 +306,33 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
+    let querier = deps.querier;
+
     register_chain(
         deps,
         deployed_contracts.chain_name.clone(),
-        deployed_contracts.multisig_prover,
+        deployed_contracts.multisig_prover.clone(),
         deployed_contracts.gateway.clone(),
         deployed_contracts.voting_verifier,
     )?;
 
-    let router = router_api::client::Router::new(protocol_contracts.router);
-    Ok(Response::new().add_message(
-        router.register_chain(
-            original_sender,
-            deployed_contracts.chain_name,
-            router_api::Address::try_from(deployed_contracts.gateway.to_string())
-                .change_context(Error::ChainContractsInfo)?,
+    let router: router_api::Client =
+        client::ContractClient::new(querier, &protocol_contracts.router).into();
+    let multisig: multisig::Client =
+        client::ContractClient::new(querier, &protocol_contracts.multisig).into();
+
+    Ok(Response::new()
+        .add_message(router.register_chain(
+            original_sender.clone(),
+            deployed_contracts.chain_name.clone(),
+            router_api::Address::from(deployed_contracts.gateway),
             deployed_contracts.msg_id_format,
-        ),
-    ))
+        ))
+        .add_message(multisig.authorize_callers_from_proxy(
+            original_sender,
+            HashMap::from([(
+                deployed_contracts.multisig_prover.to_string(),
+                deployed_contracts.chain_name,
+            )]),
+        )))
 }
