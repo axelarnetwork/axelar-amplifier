@@ -14,4 +14,6 @@ pub enum Error {
     Sign,
     #[error("failed to get transaction receipts")]
     TxReceipts,
+    #[error("failed to fetch domain separator")]
+    DomainSeparator,
 }

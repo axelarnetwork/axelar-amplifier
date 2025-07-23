@@ -38,6 +38,7 @@ struct PollStartedEvent {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
     source_chain: ChainName,
+    source_gateway_address: String,
     expires_at: u64,
     participants: Vec<TMAddress>,
 }
@@ -47,7 +48,6 @@ pub struct Handler<C: SolanaRpcClientProxy> {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
     rpc_client: C,
-    solana_gateway_domain_separator: [u8; 32],
     latest_block_height: Receiver<u64>,
 }
 
@@ -59,15 +59,9 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
-        let domain_separator = rpc_client
-            .domain_separator()
-            .await
-            .expect("cannot start handler without fetching domain separator for Solana");
-
         Self {
             chain_name,
             verifier,
-            solana_gateway_domain_separator: domain_separator,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
@@ -111,6 +105,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         let PollStartedEvent {
             poll_id,
             source_chain,
+            source_gateway_address,
             expires_at,
             participants,
             verifier_set,
@@ -135,6 +130,12 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             return Ok(vec![]);
         }
 
+        let domain_separator = self
+            .rpc_client
+            .domain_separator(&source_gateway_address)
+            .await
+            .ok_or(Error::DomainSeparator)?;
+
         let tx_receipt = self.fetch_message(&verifier_set).await;
         let vote = info_span!(
             "verify a new verifier set for Solana",
@@ -149,7 +150,8 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                 verify_verifier_set(
                     (&signature, &tx_receipt),
                     &verifier_set,
-                    &self.solana_gateway_domain_separator,
+                    &domain_separator,
+                    &source_gateway_address,
                 )
             });
             info!(
@@ -198,7 +200,7 @@ mod tests {
             None
         }
 
-        async fn domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self, _source_gateway_address: &str) -> Option<[u8; 32]> {
             Some([42; 32])
         }
     }
@@ -224,7 +226,7 @@ mod tests {
             })
         }
 
-        async fn domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self, _source_gateway_address: &str) -> Option<[u8; 32]> {
             Some([42; 32])
         }
     }

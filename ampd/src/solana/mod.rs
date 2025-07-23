@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
+use axelar_solana_gateway::{processor::GatewayEvent, seed_prefixes};
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
 use futures::FutureExt;
@@ -20,7 +20,7 @@ pub mod verifier_set_verifier;
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
     async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta>;
-    async fn domain_separator(&self) -> Option<[u8; 32]>;
+    async fn domain_separator(&self, source_gateway_address: &str) -> Option<[u8; 32]>;
 }
 
 #[async_trait::async_trait]
@@ -39,8 +39,10 @@ impl SolanaRpcClientProxy for RpcClient {
         .await
     }
 
-    async fn domain_separator(&self) -> Option<[u8; 32]> {
-        let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
+    async fn domain_separator(&self, source_gateway_address: &str) -> Option<[u8; 32]> {
+        let gateway_program_id = Pubkey::from_str(&source_gateway_address).ok()?;
+        let (gateway_root_pda, ..) =
+            Pubkey::find_program_address(&[seed_prefixes::GATEWAY_SEED], &gateway_program_id);
 
         let config_data = self.get_account(&gateway_root_pda).await.ok()?.data;
         let config = *GatewayConfig::read(&config_data)?;
@@ -60,6 +62,7 @@ where
 pub fn verify<F>(
     tx: (&Signature, &UiTransactionStatusMeta),
     message_id: &Base58SolanaTxSignatureAndEventIndex,
+    source_gateway_address: &str,
     events_are_equal: F,
 ) -> Vote
 where
@@ -98,7 +101,7 @@ where
     };
 
     // Check in the logs in a backward way the invocation comes from the gateway
-    let log = match event_comes_from_gateway(logs, desired_event_idx) {
+    let log = match event_comes_from_gateway(logs, desired_event_idx, source_gateway_address) {
         Ok(log) => log,
         Err(err) => {
             error!("Cannot find the gateway log: {}", err);
@@ -137,11 +140,11 @@ where
 // which is determined by scanning log lines backwards till we find the pattern "Program <gateway_id> invoke" at 1 for the first time.
 // It will fail if it finds any other invocation before the gateway invocation, except for the system program. In that case it will omit it and
 // continue scanning.
-fn event_comes_from_gateway(
-    logs: &[String],
+fn event_comes_from_gateway<'a>(
+    logs: &'a [String],
     desired_event_idx: usize,
-) -> Result<&str, Box<dyn std::error::Error>> {
-    let solana_gateway_id = axelar_solana_gateway::id().to_string();
+    solana_gateway_id: &str,
+) -> Result<&'a str, Box<dyn std::error::Error>> {
     let system_program_id = solana_sdk::system_program::id().to_string();
 
     // From the logs, we take only the logs from the desired event index to the first log
