@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use axelar_wasm_std::nonempty;
+use client::ContractClient;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
@@ -306,7 +307,8 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    let router = router_api::client::Router::new(protocol_contracts.router);
+    let router: router_api::Client =
+        ContractClient::new(deps.querier, &protocol_contracts.router).into();
 
     Ok(Response::new().add_message(
         router.register_chain(

@@ -85,7 +85,7 @@ pub fn execute(
             execute::execute(deps, cc_id, payload).change_context(Error::Execute)
         }
         ExecuteMsg::RouteMessagesFromNexus(msgs) => {
-            Ok(execute::route_messages_from_nexus(deps.storage, msgs)?)
+            Ok(execute::route_messages_from_nexus(deps, msgs)?)
         }
     }?
     .then(Ok)

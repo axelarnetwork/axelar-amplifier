@@ -1,39 +1,52 @@
-use std::marker::PhantomData;
-
 use cosmwasm_schema::serde::de::DeserializeOwned;
-use cosmwasm_std::{
-    to_json_binary, Addr, CosmosMsg, Empty, HexBinary, QuerierWrapper, QueryRequest, Uint64,
-    WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{CosmosMsg, HexBinary, Uint64};
 use error_stack::{Result, ResultExt};
 
 use crate::msg::{ExecuteMsg, QueryMsg};
 
-#[derive(Clone)]
-pub struct SignatureVerifier<'a, T = Empty> {
-    pub address: Addr,
-    pub querier: QuerierWrapper<'a>,
-    custom_msg_type: PhantomData<T>,
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("could not query the signature verifier contract with {signature}, {message}, {public_key}, {signer_address}, {session_id}")]
+    VerifySignature {
+        signature: HexBinary,
+        message: HexBinary,
+        public_key: HexBinary,
+        signer_address: String,
+        session_id: Uint64,
+    },
 }
 
-impl<'a, T> SignatureVerifier<'a, T> {
-    pub fn new(address: Addr, querier: QuerierWrapper<'a>) -> Self {
-        SignatureVerifier::<'a, T> {
-            address,
-            querier,
-            custom_msg_type: PhantomData,
+impl Error {
+    fn for_query(value: QueryMsg) -> Self {
+        match value {
+            QueryMsg::VerifySignature {
+                signature,
+                message,
+                public_key,
+                signer_address,
+                session_id,
+            } => Error::VerifySignature {
+                signature,
+                message,
+                public_key,
+                signer_address,
+                session_id,
+            },
         }
     }
+}
 
-    fn execute(&self, msg: &ExecuteMsg) -> CosmosMsg<T> {
-        WasmMsg::Execute {
-            contract_addr: self.address.to_string(),
-            msg: to_json_binary(&msg).expect("msg should always be serializable"),
-            funds: vec![],
-        }
-        .into()
+pub struct Client<'a> {
+    client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
+}
+
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
+        Client { client }
     }
+}
 
+impl<'a> Client<'a> {
     pub fn verify_signature(
         &self,
         signature: HexBinary,
@@ -41,8 +54,8 @@ impl<'a, T> SignatureVerifier<'a, T> {
         public_key: HexBinary,
         signer_address: String,
         session_id: Uint64,
-    ) -> CosmosMsg<T> {
-        self.execute(&ExecuteMsg::VerifySignature {
+    ) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::VerifySignature {
             signature,
             message,
             public_key,
@@ -51,13 +64,10 @@ impl<'a, T> SignatureVerifier<'a, T> {
         })
     }
 
-    fn query<U: DeserializeOwned + 'static>(&self, msg: &QueryMsg) -> Result<U, Error> {
-        self.querier
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: self.address.to_string(),
-                msg: to_json_binary(msg).expect("msg should always be serializable"),
-            }))
-            .change_context(Error::QuerySignatureVerifier)
+    fn query<U: DeserializeOwned + 'static>(&self, msg: QueryMsg) -> Result<U, Error> {
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn verify_signature_query(
@@ -68,7 +78,7 @@ impl<'a, T> SignatureVerifier<'a, T> {
         signer_address: String,
         session_id: Uint64,
     ) -> Result<bool, Error> {
-        self.query(&QueryMsg::VerifySignature {
+        self.query(QueryMsg::VerifySignature {
             signature,
             message,
             public_key,
@@ -76,10 +86,4 @@ impl<'a, T> SignatureVerifier<'a, T> {
             session_id,
         })
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("could not query the signature verifier contract")]
-    QuerySignatureVerifier,
 }
