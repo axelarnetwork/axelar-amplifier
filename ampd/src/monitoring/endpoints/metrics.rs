@@ -56,7 +56,10 @@ pub enum Msg {
     /// Duration is only recorded for transactions that were successfully
     ///  queried from the blockchain: SucceededOnChain or FailedOnChain
     /// not found or query error are not recorded because they always reaches the timeout limit
-    TransactionDiscovered { status: TransactionExecutionStatus, duration: Duration },
+    TransactionDiscovered {
+        status: TransactionExecutionStatus,
+        duration: Duration,
+    },
     /// Record the transaction execution status
     TransactionExecutionStatus { status: TransactionExecutionStatus },
 }
