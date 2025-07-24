@@ -290,7 +290,7 @@ dependencies = [
  "prometheus-client",
  "prost 0.13.5",
  "prost-types 0.13.5",
- "rand 0.9.2",
+ "rand 0.8.5",
  "random-string",
  "report",
  "reqwest 0.11.27",
@@ -978,7 +978,7 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "rand 0.9.2",
+ "rand 0.8.5",
  "router-api",
  "schemars",
  "serde",
@@ -1074,7 +1074,7 @@ dependencies = [
  "itertools 0.14.0",
  "lazy_static",
  "num-traits",
- "rand 0.9.2",
+ "rand 0.8.5",
  "regex",
  "report",
  "schemars",
@@ -1130,7 +1130,7 @@ dependencies = [
  "hex",
  "itertools 0.14.0",
  "msgs-derive",
- "rand 0.9.2",
+ "rand 0.8.5",
  "report",
  "router-api",
  "semver 1.0.26",
@@ -4168,7 +4168,7 @@ dependencies = [
  "gateway-api",
  "goldie",
  "itertools 0.14.0",
- "rand 0.9.2",
+ "rand 0.8.5",
  "report",
  "router-api",
  "semver 1.0.26",
@@ -5156,7 +5156,7 @@ dependencies = [
  "multisig",
  "multisig-prover",
  "multisig-prover-api",
- "rand 0.9.2",
+ "rand 0.8.5",
  "report",
  "rewards",
  "router",
@@ -8057,7 +8057,7 @@ checksum = "bcbafbbdbb0f638fe3f35f3c56739f77a8a1d070cb25603226c83339b391472b"
 dependencies = [
  "bytes",
  "getrandom 0.3.2",
- "rand 0.9.2",
+ "rand 0.9.1",
  "ring 0.17.14",
  "rustc-hash 2.1.1",
  "rustls 0.23.27",
@@ -8146,9 +8146,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.2"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db2770f06117d490610c7488547d543617b21bfa07796d7a12f6f1bd53850d1"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
@@ -8218,15 +8218,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core 0.5.1",
-]
-
-[[package]]
-name = "rand_pcg"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b48ac3f7ffaab7fac4d2376632268aa5f89abdb55f7ebf8f4d11fffccb2320f7"
-dependencies = [
- "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -8737,7 +8728,7 @@ dependencies = [
  "itertools 0.14.0",
  "mockall 0.12.1",
  "msgs-derive",
- "rand 0.9.2",
+ "rand 0.8.5",
  "report",
  "router-api",
  "semver 1.0.26",
@@ -8759,7 +8750,7 @@ dependencies = [
  "flagset",
  "hex",
  "msgs-derive",
- "rand 0.9.2",
+ "rand 0.8.5",
  "report",
  "schemars",
  "serde",
@@ -8818,7 +8809,7 @@ dependencies = [
  "primitive-types 0.12.2",
  "proptest",
  "rand 0.8.5",
- "rand 0.9.2",
+ "rand 0.9.1",
  "rlp",
  "ruint-macro",
  "serde",
@@ -9565,8 +9556,6 @@ dependencies = [
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
- "rand 0.9.2",
- "rand_pcg",
  "report",
  "router-api",
  "schemars",
@@ -11528,7 +11517,7 @@ dependencies = [
  "goldie",
  "hex",
  "multisig",
- "rand 0.9.2",
+ "rand 0.8.5",
  "router-api",
  "serde",
  "serde_json",
@@ -11718,7 +11707,7 @@ dependencies = [
  "error-stack",
  "hex",
  "multisig",
- "rand 0.9.2",
+ "rand 0.8.5",
  "router-api",
  "serde",
  "serde_json",
@@ -11978,7 +11967,7 @@ version = "1.0.0"
 dependencies = [
  "error-stack",
  "hex",
- "rand 0.9.2",
+ "rand 0.8.5",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -13328,7 +13317,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "458f7a779bf54acc9f347480ac654f68407d3aab21269a6e3c9f922acd9e2da9"
 dependencies = [
  "getrandom 0.3.2",
- "rand 0.9.2",
+ "rand 0.9.1",
 ]
 
 [[package]]
@@ -13415,7 +13404,7 @@ dependencies = [
  "itertools 0.14.0",
  "msgs-derive",
  "multisig",
- "rand 0.9.2",
+ "rand 0.8.5",
  "report",
  "rewards",
  "router-api",

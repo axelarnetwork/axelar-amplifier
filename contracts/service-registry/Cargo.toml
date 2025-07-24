@@ -31,8 +31,6 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 itertools = { workspace = true }
 msgs-derive = { workspace = true }
-rand = { workspace = true }
-rand_pcg = "0.9.0"
 report = { workspace = true }
 router-api = { workspace = true }
 schemars = "0.8.10"
