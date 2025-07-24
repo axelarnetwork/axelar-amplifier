@@ -172,14 +172,13 @@ mod test {
 
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmMsg,
-        WasmQuery,
+        from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmQuery,
     };
     use router_api::ChainName;
 
     use crate::client::Client;
     use crate::key::{KeyType, PublicKey, Signature};
-    use crate::msg::{ExecuteMsg, QueryMsg};
+    use crate::msg::QueryMsg;
     use crate::multisig::Multisig;
     use crate::test::common::{
         build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
@@ -367,51 +366,41 @@ mod test {
 
     fn validate_submit_signature_msgs_construction(
         client: &Client,
-        contract_addr: Addr,
         session_id: Uint64,
         signers: Vec<TestSigner>,
-    ) {
+    ) -> String {
+        let mut res: String = String::new();
+
         for signer in signers {
-            assert_eq!(
-                client.submit_signature(session_id, signer.signature.clone()),
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: contract_addr.to_string().clone(),
-                    msg: to_json_binary(&ExecuteMsg::SubmitSignature {
-                        session_id,
-                        signature: signer.signature
-                    })
-                    .unwrap(),
-                    funds: vec![],
-                })
-            );
+            match client.submit_signature(session_id, signer.signature.clone()) {
+                CosmosMsg::Wasm(msg) => res.push_str(&serde_json::to_string(&msg).unwrap()),
+                _ => panic!("cannot deserialize wasm message"),
+            }
         }
+
+        res
     }
 
     fn validate_register_public_key_msgs_construction(
         client: &Client,
-        contract_addr: Addr,
         key_type: KeyType,
         signers: Vec<TestSigner>,
-    ) {
+    ) -> String {
+        let mut res: String = String::new();
+
         for signer in signers {
             let pub_key = match key_type {
                 KeyType::Ecdsa => PublicKey::Ecdsa(signer.pub_key.clone()),
                 KeyType::Ed25519 => PublicKey::Ed25519(signer.pub_key.clone()),
             };
 
-            assert_eq!(
-                client.register_public_key(pub_key.clone(), signer.signed_address.clone()),
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: contract_addr.to_string().clone(),
-                    msg: to_json_binary(&ExecuteMsg::RegisterPublicKey {
-                        public_key: pub_key,
-                        signed_sender_address: signer.signed_address
-                    })
-                    .unwrap(),
-                    funds: vec![],
-                })
-            );
+            match client.register_public_key(pub_key.clone(), signer.signed_address.clone()) {
+                CosmosMsg::Wasm(msg) => res.push_str(&serde_json::to_string(&msg).unwrap()),
+                _ => panic!("cannot deserialize wasm message"),
+            }
         }
+
+        res
     }
 
     #[test]
@@ -422,9 +411,15 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
+        let mut res = String::new();
+
         for (_, _, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
-            validate_submit_signature_msgs_construction(&client, addr.clone(), session_id, signers);
+            res.push_str(&validate_submit_signature_msgs_construction(
+                &client, session_id, signers,
+            ));
         }
+
+        goldie::assert!(res);
     }
 
     #[test]
@@ -435,14 +430,15 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
+        let mut res = String::new();
+
         for (key_type, _, signers, _) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
-            validate_register_public_key_msgs_construction(
-                &client,
-                addr.clone(),
-                key_type,
-                signers,
-            );
+            res.push_str(&validate_register_public_key_msgs_construction(
+                &client, key_type, signers,
+            ));
         }
+
+        goldie::assert!(res);
     }
 
     #[test]
@@ -456,14 +452,10 @@ mod test {
             ChainName::try_from("ethereum").unwrap(),
         )]);
 
-        assert_eq!(
-            client.authorize_callers(contracts.clone()),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&ExecuteMsg::AuthorizeCallers { contracts }).unwrap(),
-                funds: vec![],
-            }),
-        );
+        match client.authorize_callers(contracts.clone()) {
+            CosmosMsg::Wasm(msg) => goldie::assert!(serde_json::to_string(&msg).unwrap()),
+            _ => panic!(""),
+        }
     }
 
     #[test]
@@ -477,14 +469,10 @@ mod test {
             ChainName::try_from("ethereum").unwrap(),
         )]);
 
-        assert_eq!(
-            client.unauthorize_callers(contracts.clone()),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&ExecuteMsg::UnauthorizeCallers { contracts }).unwrap(),
-                funds: vec![],
-            }),
-        );
+        match client.unauthorize_callers(contracts.clone()) {
+            CosmosMsg::Wasm(msg) => goldie::assert!(serde_json::to_string(&msg).unwrap()),
+            _ => panic!(""),
+        }
     }
 
     #[test]
@@ -493,14 +481,10 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(
-            client.disable_signing(),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&ExecuteMsg::DisableSigning {}).unwrap(),
-                funds: vec![],
-            }),
-        );
+        match client.disable_signing() {
+            CosmosMsg::Wasm(msg) => goldie::assert!(serde_json::to_string(&msg).unwrap()),
+            _ => panic!(""),
+        }
     }
 
     #[test]
@@ -509,13 +493,9 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(
-            client.enable_signing(),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: addr.to_string().clone(),
-                msg: to_json_binary(&ExecuteMsg::EnableSigning {}).unwrap(),
-                funds: vec![],
-            }),
-        );
+        match client.enable_signing() {
+            CosmosMsg::Wasm(msg) => goldie::assert!(serde_json::to_string(&msg).unwrap()),
+            _ => panic!(""),
+        }
     }
 }
