@@ -9,7 +9,6 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
-use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
 use crate::error::ContractError;
@@ -76,10 +75,6 @@ pub enum PollStarted {
         messages: Vec<TxEventConfirmation>,
         metadata: PollMetadata,
     },
-    VerifierSet {
-        verifier_set: VerifierSetConfirmation,
-        metadata: PollMetadata,
-    },
 }
 
 impl From<PollMetadata> for Vec<Attribute> {
@@ -120,29 +115,11 @@ impl From<PollStarted> for Event {
                     serde_json::to_string(&data).expect("failed to serialize messages"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
-            PollStarted::VerifierSet {
-                verifier_set: data,
-                metadata,
-            } => Event::new("verifier_set_poll_started")
-                .add_attribute(
-                    "verifier_set",
-                    serde_json::to_string(&data)
-                        .expect("failed to serialize verifier set confirmation"),
-                )
-                .add_attributes(Vec::<_>::from(metadata)),
         }
     }
 }
 
-#[cw_serde]
-pub struct VerifierSetConfirmation {
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub tx_id: nonempty::String,
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub event_index: u32,
-    pub message_id: nonempty::String,
-    pub verifier_set: VerifierSet,
-}
+
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
 #[deprecated(since = "1.1.0", note = "don't parse message id, just emit as is")]
@@ -204,25 +181,7 @@ fn parse_message_id(
     }
 }
 
-impl VerifierSetConfirmation {
-    pub fn new(
-        message_id: nonempty::String,
-        msg_id_format: MessageIdFormat,
-        verifier_set: VerifierSet,
-    ) -> Result<Self, ContractError> {
-        #[allow(deprecated)]
-        let (tx_id, event_index) = parse_message_id(&message_id, &msg_id_format)?;
 
-        #[allow(deprecated)]
-        // TODO: remove this attribute when tx_id and event_index are removed from the event
-        Ok(Self {
-            tx_id,
-            event_index,
-            message_id,
-            verifier_set,
-        })
-    }
-}
 
 #[cw_serde]
 pub struct TxEventConfirmation {
@@ -336,23 +295,19 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
-
     use axelar_wasm_std::address::AddressFormat;
     use axelar_wasm_std::msg_id::{
-        Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
+        Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat
     };
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::MockApi;
-    use cosmwasm_std::{Attribute, Uint128};
-    use multisig::key::KeyType;
-    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use multisig::verifier_set::VerifierSet;
+    use cosmwasm_std::Attribute;
+
     use router_api::{CrossChainId, Message};
     use serde_json::json;
 
-    use super::{TxEventConfirmation, VerifierSetConfirmation};
+    use super::TxEventConfirmation;
     use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
     use crate::state::Config;
 
@@ -452,86 +407,7 @@ mod test {
         assert!(event.is_err());
     }
 
-    #[test]
-    fn should_make_verifier_set_confirmation_with_hex_msg_id() {
-        let msg_id = HexTxHashAndEventIndex {
-            tx_hash: random_32_bytes(),
-            event_index: rand::random::<u32>() as u64,
-        };
-        let verifier_set = VerifierSet {
-            signers: BTreeMap::new(),
-            threshold: Uint128::one(),
-            created_at: 1,
-        };
-        let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
-            MessageIdFormat::HexTxHashAndEventIndex,
-            verifier_set.clone(),
-        )
-        .unwrap();
 
-        assert_eq!(event.message_id, msg_id.to_string().as_str());
-        assert_eq!(event.verifier_set, verifier_set);
-    }
-
-    #[test]
-    fn should_make_verifier_set_confirmation_with_base58_msg_id() {
-        let msg_id = Base58TxDigestAndEventIndex {
-            tx_digest: random_32_bytes(),
-            event_index: rand::random::<u32>() as u64,
-        };
-        let verifier_set = VerifierSet {
-            signers: BTreeMap::new(),
-            threshold: Uint128::one(),
-            created_at: 1,
-        };
-        let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
-            MessageIdFormat::Base58TxDigestAndEventIndex,
-            verifier_set.clone(),
-        )
-        .unwrap();
-
-        assert_eq!(event.message_id, msg_id.to_string().as_str());
-        assert_eq!(event.verifier_set, verifier_set);
-    }
-
-    #[test]
-    fn make_verifier_set_confirmation_should_fail_with_invalid_message_id() {
-        let msg_id = "foobar";
-        let verifier_set = VerifierSet {
-            signers: BTreeMap::new(),
-            threshold: Uint128::one(),
-            created_at: 1,
-        };
-
-        let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
-            MessageIdFormat::Base58TxDigestAndEventIndex,
-            verifier_set,
-        );
-        assert!(event.is_err());
-    }
-
-    #[test]
-    fn make_verifier_set_confirmation_should_fail_with_different_msg_id_format() {
-        let msg_id = HexTxHashAndEventIndex {
-            tx_hash: random_32_bytes(),
-            event_index: rand::random::<u64>(),
-        };
-        let verifier_set = VerifierSet {
-            signers: BTreeMap::new(),
-            threshold: Uint128::one(),
-            created_at: 1,
-        };
-
-        let event = VerifierSetConfirmation::new(
-            msg_id.to_string().parse().unwrap(),
-            MessageIdFormat::Base58TxDigestAndEventIndex,
-            verifier_set,
-        );
-        assert!(event.is_err());
-    }
 
     #[test]
     #[allow(deprecated)]
@@ -589,27 +465,7 @@ mod test {
         }
         .into();
 
-        let event_verifier_set_poll_started: cosmwasm_std::Event = PollStarted::VerifierSet {
-            verifier_set: VerifierSetConfirmation {
-                tx_id: "txId".try_into().unwrap(),
-                event_index: 1,
-                message_id: "messageId".try_into().unwrap(),
-                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
-            },
-            metadata: PollMetadata {
-                poll_id: 2.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
-                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
-                confirmation_height: 1,
-                expires_at: 1,
-                participants: vec![
-                    api.addr_make("participant4"),
-                    api.addr_make("participant5"),
-                    api.addr_make("participant6"),
-                ],
-            },
-        }
-        .into();
+
 
         let event_quorum_reached: cosmwasm_std::Event = QuorumReached {
             content: "content".to_string(),
@@ -640,7 +496,6 @@ mod test {
         goldie::assert_json!(json!({
             "event_instantiated": event_instantiated,
             "event_messages_poll_started": event_messages_poll_started,
-            "event_verifier_set_poll_started": event_verifier_set_poll_started,
             "event_quorum_reached": event_quorum_reached,
             "event_voted": event_voted,
             "event_poll_ended": event_poll_ended,

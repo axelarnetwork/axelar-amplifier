@@ -3,25 +3,24 @@ use std::collections::HashMap;
 use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
-use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
     to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     Response, Storage, WasmMsg,
 };
 use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
-use multisig::verifier_set::VerifierSet;
+
 use router_api::{ChainName, Message};
 use service_registry::WeightedVerifier;
 
-use crate::contract::query::{message_status, verifier_set_status};
+use crate::contract::query::message_status;
 use crate::error::ContractError;
 use crate::events::{
-    PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
-    VerifierSetConfirmation, Voted,
+    PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted,
 };
 use crate::state::{
-    self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
+    self, poll_messages, Poll, CONFIG, POLLS, POLL_ID, VOTES,
 };
 
 pub fn update_voting_threshold(
@@ -40,49 +39,7 @@ pub fn update_voting_threshold(
     Ok(Response::new())
 }
 
-pub fn verify_verifier_set(
-    deps: DepsMut,
-    env: Env,
-    message_id: nonempty::String,
-    new_verifier_set: VerifierSet,
-) -> Result<Response, ContractError> {
-    let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;
-    if status.is_confirmed() {
-        return Ok(Response::new());
-    }
 
-    let config = CONFIG.load(deps.storage).expect("failed to load config");
-
-    let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
-    let participants = snapshot.participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
-
-    let poll_id = create_verifier_set_poll(deps.storage, expires_at, snapshot)?;
-
-    poll_verifier_sets()
-        .save(
-            deps.storage,
-            &new_verifier_set.hash(),
-            &PollContent::<VerifierSet>::new(new_verifier_set.clone(), poll_id),
-        )
-        .change_context(ContractError::StorageError)?;
-
-    Ok(Response::new().add_event(PollStarted::VerifierSet {
-        verifier_set: VerifierSetConfirmation::new(
-            message_id,
-            config.msg_id_format,
-            new_verifier_set,
-        )?,
-        metadata: PollMetadata {
-            poll_id,
-            source_chain: config.source_chain,
-            source_gateway_address: config.source_gateway_address,
-            confirmation_height: config.confirmation_height,
-            expires_at,
-            participants,
-        },
-    }))
-}
 
 pub fn verify_messages(
     deps: DepsMut,
@@ -160,7 +117,6 @@ pub fn verify_messages(
 fn poll_results(poll: &Poll) -> PollResults {
     match poll {
         Poll::Messages(weighted_poll) => weighted_poll.results(),
-        Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll.results(),
     }
 }
 
@@ -188,22 +144,6 @@ fn make_quorum_event(
             Ok(status.map(|status| {
                 QuorumReached {
                     content: msg,
-                    status,
-                    poll_id: *poll_id,
-                }
-                .into()
-            }))
-        }
-        Poll::ConfirmVerifierSet(_) => {
-            let verifier_set = poll_verifier_sets()
-                .idx
-                .load_verifier_set(deps.storage, *poll_id)
-                .change_context(ContractError::StorageError)
-                .expect("verifier set not found in poll");
-
-            Ok(status.map(|status| {
-                QuorumReached {
-                    content: verifier_set,
                     status,
                     poll_id: *poll_id,
                 }
@@ -283,7 +223,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .change_context(ContractError::StorageError)?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => {
+        Poll::Messages(poll) => {
             poll.state(HashMap::from_iter(votes))
         }
     };
@@ -336,22 +276,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     ))
 }
 
-fn create_verifier_set_poll(
-    store: &mut dyn Storage,
-    expires_at: u64,
-    snapshot: snapshot::Snapshot,
-) -> Result<PollId, ContractError> {
-    let id = POLL_ID
-        .incr(store)
-        .change_context(ContractError::StorageError)?;
 
-    let poll = WeightedPoll::new(id, snapshot, expires_at, 1);
-    POLLS
-        .save(store, id, &Poll::ConfirmVerifierSet(poll))
-        .change_context(ContractError::StorageError)?;
-
-    Ok(id)
-}
 
 fn create_messages_poll(
     store: &mut dyn Storage,

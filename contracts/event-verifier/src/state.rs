@@ -6,7 +6,6 @@ use axelar_wasm_std::{counter, nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
 use crate::error::ContractError;
@@ -28,7 +27,6 @@ pub struct Config {
 #[cw_serde]
 pub enum Poll {
     Messages(WeightedPoll),
-    ConfirmVerifierSet(WeightedPoll),
 }
 
 impl Poll {
@@ -39,14 +37,12 @@ impl Poll {
     {
         match self {
             Poll::Messages(poll) => Ok(Poll::Messages(func(poll)?)),
-            Poll::ConfirmVerifierSet(poll) => Ok(Poll::ConfirmVerifierSet(func(poll)?)),
         }
     }
 
     pub fn weighted_poll(self) -> WeightedPoll {
         match self {
             Poll::Messages(poll) => poll,
-            Poll::ConfirmVerifierSet(poll) => poll,
         }
     }
 }
@@ -68,15 +64,7 @@ impl PollContent<Message> {
     }
 }
 
-impl PollContent<VerifierSet> {
-    pub fn new(verifier_set: VerifierSet, poll_id: PollId) -> Self {
-        Self {
-            content: verifier_set,
-            poll_id,
-            index_in_poll: 0,
-        }
-    }
-}
+
 
 pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
@@ -152,59 +140,4 @@ impl IndexList<PollContent<Message>> for PollMessagesIndex<'_> {
     }
 }
 
-/// A multi-index that indexes a verifier set by PollID. The primary key of the underlying
-/// map is the hash of the verifier set (typed as Hash). This allows looking up a VerifierSet by it's hash,
-/// or by a PollID. PollIDs are stored as String.
-pub struct PollVerifierSetsIndex<'a>(MultiIndex<'a, String, PollContent<VerifierSet>, &'a Hash>);
 
-impl<'a> PollVerifierSetsIndex<'a> {
-    fn new(
-        idx_fn: fn(&[u8], &PollContent<VerifierSet>) -> String,
-        pk_namespace: &'a str,
-        idx_namespace: &'static str,
-    ) -> Self {
-        PollVerifierSetsIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
-    }
-
-    pub fn load_verifier_set(
-        &self,
-        storage: &dyn Storage,
-        poll_id: PollId,
-    ) -> StdResult<Option<VerifierSet>> {
-        match self
-            .0
-            .prefix(poll_id.to_string())
-            .range(storage, None, None, Order::Ascending)
-            .collect::<Result<Vec<([u8; 32], PollContent<VerifierSet>)>, _>>()?
-            .as_slice()
-        {
-            [] => Ok(None),
-            [(_, content)] => Ok(Some(content.content.to_owned())),
-            _ => panic!("More than one verifier_set for poll_id"),
-        }
-    }
-}
-
-const POLL_VERIFIER_SETS_PKEY_NAMESPACE: &str = "poll_verifier_sets";
-const POLL_VERIFIER_SETS_IDX_NAMESPACE: &str = "poll_verifier_sets_idx";
-
-pub fn poll_verifier_sets<'a>(
-) -> IndexedMap<&'a Hash, PollContent<VerifierSet>, PollVerifierSetsIndex<'a>> {
-    IndexedMap::new(
-        POLL_VERIFIER_SETS_PKEY_NAMESPACE,
-        PollVerifierSetsIndex::new(
-            |_pk: &[u8], d: &PollContent<VerifierSet>| d.poll_id.to_string(),
-            POLL_VERIFIER_SETS_PKEY_NAMESPACE,
-            POLL_VERIFIER_SETS_IDX_NAMESPACE,
-        ),
-    )
-}
-
-impl IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndex<'_> {
-    fn get_indexes(
-        &'_ self,
-    ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<VerifierSet>>> + '_> {
-        let v: Vec<&dyn Index<PollContent<VerifierSet>>> = vec![&self.0];
-        Box::new(v.into_iter())
-    }
-}

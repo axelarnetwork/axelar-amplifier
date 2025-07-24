@@ -1,9 +1,9 @@
 use axelar_wasm_std::vec::VecExt;
 use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
-use multisig::verifier_set::VerifierSet;
+
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg};
@@ -12,8 +12,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to query voting verifier for verifier set status. verifier_set: {0:?}")]
-    VerifierSetStatus(VerifierSet),
+
     #[error("failed to query voting verifier for current voting threshold")]
     CurrentThreshold,
     #[error("failed to query voting verifier for messages status. messages: {0:?}")]
@@ -26,7 +25,6 @@ impl Error {
     fn for_query(value: QueryMsg) -> Self {
         match value {
             QueryMsg::MessagesStatus(messages) => Error::MessagesStatus(messages),
-            QueryMsg::VerifierSetStatus(verifier_set) => Error::VerifierSetStatus(verifier_set),
             QueryMsg::Poll { poll_id } => Error::Poll(poll_id),
             QueryMsg::CurrentThreshold => Error::CurrentThreshold,
         }
@@ -58,16 +56,7 @@ impl Client<'_> {
         self.client.execute(&ExecuteMsg::EndPoll { poll_id })
     }
 
-    pub fn verify_verifier_set(
-        &self,
-        message_id: nonempty::String,
-        new_verifier_set: VerifierSet,
-    ) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::VerifyVerifierSet {
-            message_id,
-            new_verifier_set,
-        })
-    }
+
 
     pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::UpdateVotingThreshold {
@@ -94,12 +83,7 @@ impl Client<'_> {
         }
     }
 
-    pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
-        let msg = QueryMsg::VerifierSetStatus(new_verifier_set);
-        self.client
-            .query(&msg)
-            .change_context_lazy(|| Error::for_query(msg))
-    }
+
 
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         let msg = QueryMsg::CurrentThreshold;
@@ -111,15 +95,12 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
-
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
+        from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint64, WasmQuery,
     };
-    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use crate::contract::{instantiate, query};
@@ -177,23 +158,7 @@ mod test {
         );
     }
 
-    #[test]
-    fn query_verifier_set_status() {
-        let (querier, _, addr) = setup();
-        let client: Client =
-            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(
-            client
-                .verifier_set_status(VerifierSet {
-                    signers: BTreeMap::new(),
-                    threshold: Uint128::one(),
-                    created_at: 0
-                })
-                .unwrap(),
-            VerificationStatus::Unknown
-        );
-    }
 
     #[test]
     fn query_current_threshold() {
@@ -207,20 +172,7 @@ mod test {
         );
     }
 
-    #[test]
-    fn query_verifier_set_returns_error_when_query_fails() {
-        let (querier, addr) = setup_queries_to_fail();
-        let client: Client =
-            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.verifier_set_status(VerifierSet {
-            signers: BTreeMap::new(),
-            threshold: Uint128::one(),
-            created_at: 0,
-        });
 
-        assert!(res.is_err());
-        goldie::assert!(res.unwrap_err().to_string());
-    }
 
     #[test]
     fn query_messages_status_returns_error_when_query_fails() {

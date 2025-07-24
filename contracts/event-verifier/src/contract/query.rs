@@ -2,12 +2,12 @@ use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
-use multisig::verifier_set::VerifierSet;
+
 use router_api::Message;
 
 use crate::error::ContractError;
 use crate::msg::{MessageStatus, PollData, PollResponse};
-use crate::state::{poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};
+use crate::state::{poll_messages, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG
@@ -70,16 +70,6 @@ pub fn poll_response(
 
             (PollData::Messages(msgs), poll.status(current_block_height))
         }
-        Poll::ConfirmVerifierSet(poll) => (
-            PollData::VerifierSet(
-                poll_verifier_sets()
-                    .idx
-                    .load_verifier_set(deps.storage, poll_id)
-                    .change_context(ContractError::StorageError)?
-                    .expect("verifier set not found in poll"),
-            ),
-            poll.status(current_block_height),
-        ),
     };
 
     Ok(PollResponse {
@@ -89,25 +79,7 @@ pub fn poll_response(
     })
 }
 
-pub fn verifier_set_status(
-    deps: Deps,
-    verifier_set: &VerifierSet,
-    cur_block_height: u64,
-) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = poll_verifier_sets()
-        .may_load(
-            deps.storage,
-            &verifier_set.hash().as_slice().try_into().unwrap(),
-        )
-        .change_context(ContractError::StorageError)?;
 
-    Ok(verification_status(
-        deps,
-        loaded_poll_content,
-        verifier_set,
-        cur_block_height,
-    ))
-}
 
 fn verification_status<T: PartialEq + std::fmt::Debug>(
     deps: Deps,
@@ -127,7 +99,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 .expect("invalid invariant: content's poll not found");
 
             let consensus = match &poll {
-                Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => poll
+                Poll::Messages(poll) => poll
                     .consensus(stored.index_in_poll)
                     .expect("invalid invariant: message not found in poll"),
             };
@@ -148,7 +120,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
 
 fn voting_completed(poll: &Poll, cur_block_height: u64) -> bool {
     match poll {
-        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => {
+        Poll::Messages(poll) => {
             matches!(
                 poll.status(cur_block_height),
                 PollStatus::Expired | PollStatus::Finished
