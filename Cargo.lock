@@ -346,6 +346,7 @@ dependencies = [
 name = "ampd-handlers"
 version = "0.1.0"
 dependencies = [
+ "ampd",
  "ampd-sdk",
  "error-stack",
  "events",
@@ -6369,6 +6370,7 @@ name = "msgs-derive"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
@@ -8534,6 +8536,7 @@ version = "1.2.0"
 dependencies = [
  "assert_ok",
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -8542,7 +8545,6 @@ dependencies = [
  "error-stack",
  "itertools 0.11.0",
  "msgs-derive",
- "report",
  "router-api",
  "semver 1.0.26",
  "serde_json",
@@ -9717,6 +9719,7 @@ dependencies = [
 name = "signature-verifier-api"
 version = "1.0.0"
 dependencies = [
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",

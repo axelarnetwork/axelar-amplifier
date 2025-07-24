@@ -14,8 +14,8 @@ pub enum Error {
     ToBytes,
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
+impl Error {
+    fn for_query(value: QueryMsg) -> Self {
         match value {
             QueryMsg::FromBytes { .. } => Error::FromBytes,
             QueryMsg::ToBytes { .. } => Error::ToBytes,
@@ -37,12 +37,16 @@ impl Client<'_> {
     /// Query the translation contract to decode a chain-specific payload into a HubMessage
     pub fn from_bytes(&self, payload: HexBinary) -> Result<HubMessage> {
         let msg = QueryMsg::FromBytes { payload };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     /// Query the translation contract to encode a HubMessage into a chain-specific payload
     pub fn to_bytes(&self, message: HubMessage) -> Result<HexBinary> {
         let msg = QueryMsg::ToBytes { message };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 }
