@@ -4,14 +4,14 @@ Initial Metrics:
 blocks_received_total 0
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
-# HELP ampd_transactions number of transactions processed by the ampd.
-# TYPE ampd_transactions counter
-# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
-# TYPE ampd_transaction_duration_seconds histogram
-# HELP ampd_transactions number of transactions processed by the ampd.
-# TYPE ampd_transactions counter
-# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
-# TYPE ampd_transaction_duration_seconds histogram
+# HELP ampd_transaction_broadcast number of transactions broadcast by the ampd.
+# TYPE ampd_transaction_broadcast counter
+# HELP ampd_transaction_broadcast_duration_seconds Duration of transaction broadcast in seconds.
+# TYPE ampd_transaction_broadcast_duration_seconds histogram
+# HELP ampd_transaction_confirmed_duration_seconds Duration of successful blockchain queries for transaction confirmation in seconds.
+# TYPE ampd_transaction_confirmed_duration_seconds histogram
+# HELP ampd_transaction_execution_results number of transaction execution results by status.
+# TYPE ampd_transaction_execution_results counter
 # EOF
 
 
@@ -21,12 +21,12 @@ Updated Metrics:
 blocks_received_total 3
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
-# HELP ampd_transactions number of transactions processed by the ampd.
-# TYPE ampd_transactions counter
-# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
-# TYPE ampd_transaction_duration_seconds histogram
-# HELP ampd_transactions number of transactions processed by the ampd.
-# TYPE ampd_transactions counter
-# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
-# TYPE ampd_transaction_duration_seconds histogram
+# HELP ampd_transaction_broadcast number of transactions broadcast by the ampd.
+# TYPE ampd_transaction_broadcast counter
+# HELP ampd_transaction_broadcast_duration_seconds Duration of transaction broadcast in seconds.
+# TYPE ampd_transaction_broadcast_duration_seconds histogram
+# HELP ampd_transaction_confirmed_duration_seconds Duration of successful blockchain queries for transaction confirmation in seconds.
+# TYPE ampd_transaction_confirmed_duration_seconds histogram
+# HELP ampd_transaction_execution_results number of transaction execution results by status.
+# TYPE ampd_transaction_execution_results counter
 # EOF

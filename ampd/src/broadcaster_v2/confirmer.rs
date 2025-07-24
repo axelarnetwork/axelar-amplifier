@@ -11,7 +11,7 @@ use tracing::{debug, info, instrument, warn};
 use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::monitoring::metrics::Msg;
+use crate::monitoring::metrics::{Msg, TransactionExecutionStatus};
 use crate::{cosmos, monitoring};
 
 // TODO: move these constants to the config. In the meantime, these were chosen as reasonable heuristics.
@@ -107,11 +107,11 @@ where
         } = self;
         let mut stream = ReceiverStream::new(rx)
             .inspect(|tx_hash| info!(tx_hash, "received tx hash to confirm"))
-            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy, monitoring_client.clone()))
+            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy, &monitoring_client))
             .buffer_unordered(TX_CONFIRMATION_BUFFER_SIZE);
 
         while let Some(result) = stream.next().await {
-            log_confirm_tx_result(result);
+            log_confirm_tx_result(result, &monitoring_client);
         }
 
         Ok(())
@@ -122,7 +122,7 @@ pub async fn confirm_tx<T>(
     client: &T,
     tx_hash: String,
     retry_policy: RetryPolicy,
-    monitoring_client: monitoring::Client,
+    monitoring_client: &monitoring::Client,
 ) -> Result<TxResponse>
 where
     T: cosmos::CosmosClient + Clone,
@@ -131,27 +131,20 @@ where
     let start_time = Instant::now();
 
     let res = with_retry(|| tx(client.clone(), tx_hash.clone()), retry_policy).await?;
+
     let duration = start_time.elapsed();
-    tracing::info!("duration: {:?}", duration);
-    match res.code {
-        0 => {
-            monitoring_client
-                .metrics()
-                .record_metric(Msg::TransactionExecution {
-                    success: true,
-                    duration,
-                });
-            Ok(res)
-        }
-        _ => {
-            monitoring_client
-                .metrics()
-                .record_metric(Msg::TransactionExecution {
-                    success: false,
-                    duration,
-                });
-            Err(report!(Error::FailureOnChain(Box::new(res))))
-        }
+    let res_code = res.code;
+
+    monitoring_client
+        .metrics()
+        .record_metric(Msg::TransactionConfirmed {
+            success: res_code == 0,
+            duration,
+        });
+
+    match res_code {
+        0 => Ok(res),
+        _ => Err(report!(Error::FailureOnChain(Box::new(res)))),
     }
 }
 
@@ -165,11 +158,23 @@ where
         .ok_or(report!(Error::NotFound(tx_hash)))
 }
 
-fn log_confirm_tx_result(result: Result<TxResponse>) {
+fn log_confirm_tx_result(result: Result<TxResponse>, monitoring_client: &monitoring::Client) {
     match result {
-        Ok(res) => info!(tx_hash = res.txhash, "tx succeeded on chain"),
+        Ok(res) => {
+            info!(tx_hash = res.txhash, "tx succeeded on chain");
+            monitoring_client
+                .metrics()
+                .record_metric(Msg::TransactionExecutionStatus {
+                    status: TransactionExecutionStatus::SucceededOnChain,
+                });
+        }
         Err(err) => match err.current_context() {
             Error::FailureOnChain(res) => {
+                monitoring_client
+                    .metrics()
+                    .record_metric(Msg::TransactionExecutionStatus {
+                        status: TransactionExecutionStatus::FailedOnChain,
+                    });
                 warn!(
                     err = LoggableError::from(&err).as_value(),
                     tx_hash = res.txhash,
@@ -177,12 +182,22 @@ fn log_confirm_tx_result(result: Result<TxResponse>) {
                 )
             }
             Error::NotFound(tx_hash) => {
+                monitoring_client
+                    .metrics()
+                    .record_metric(Msg::TransactionExecutionStatus {
+                        status: TransactionExecutionStatus::NotFound,
+                    });
                 warn!(
                     err = LoggableError::from(&err).as_value(),
                     tx_hash, "tx not found on chain"
                 )
             }
             Error::TxQuery(tx_hash) => {
+                monitoring_client
+                    .metrics()
+                    .record_metric(Msg::TransactionExecutionStatus {
+                        status: TransactionExecutionStatus::QueryError,
+                    });
                 warn!(
                     err = LoggableError::from(&err).as_value(),
                     tx_hash, "failed to query for tx"
@@ -205,7 +220,7 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::asyncutil::future::RetryPolicy;
-    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::metrics::{Msg, TransactionExecutionStatus};
     use crate::monitoring::test_utils::create_test_monitoring_client;
     use crate::{cosmos, monitoring};
 
@@ -236,7 +251,7 @@ mod tests {
 
             client
         });
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, mut rx) = create_test_monitoring_client();
 
         let (confirmer, confirmer_client) =
             super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
@@ -245,6 +260,29 @@ mod tests {
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx succeeded on chain"));
+
+        // Duration is recorded in the metrics
+        let msg1 = rx.recv().await.unwrap();
+        match msg1 {
+            Msg::TransactionConfirmed {
+                success,
+                duration: _,
+            } => {
+                assert!(success, "should record success=true for code 0");
+            }
+            _ => panic!("expected TransactionConfirmed metric, got {:?}", msg1),
+        }
+
+        // TransactionExecutionStatus is recorded in the metrics
+        let msg2 = rx.recv().await.unwrap();
+        assert_eq!(
+            msg2,
+            Msg::TransactionExecutionStatus {
+                status: TransactionExecutionStatus::SucceededOnChain,
+            }
+        );
+
+        assert!(rx.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -274,7 +312,7 @@ mod tests {
 
             client
         });
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, mut rx) = create_test_monitoring_client();
 
         let (confirmer, confirmer_client) =
             super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
@@ -283,6 +321,28 @@ mod tests {
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx failed on chain"));
+
+        // TransactionExecutionStatus is recorded in the metrics
+        let msg1 = rx.recv().await.unwrap();
+        match msg1 {
+            Msg::TransactionConfirmed {
+                success,
+                duration: _,
+            } => {
+                assert!(!success, "should record success=false for code 1");
+            }
+            _ => panic!("expected TransactionConfirmed metric, got {:?}", msg1),
+        }
+
+        let msg2 = rx.recv().await.unwrap();
+        assert_eq!(
+            msg2,
+            Msg::TransactionExecutionStatus {
+                status: TransactionExecutionStatus::FailedOnChain,
+            }
+        );
+
+        assert!(rx.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -304,7 +364,7 @@ mod tests {
             client
         });
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, mut rx) = create_test_monitoring_client();
 
         let (confirmer, confirmer_client) =
             super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
@@ -313,6 +373,16 @@ mod tests {
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx not found on chain"));
+
+        let msg1 = rx.recv().await.unwrap();
+        assert_eq!(
+            msg1,
+            Msg::TransactionExecutionStatus {
+                status: TransactionExecutionStatus::NotFound,
+            }
+        );
+
+        assert!(rx.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -334,44 +404,6 @@ mod tests {
             client
         });
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
-
-        let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
-        confirmer_client.send(tx_hash.to_string()).await.unwrap();
-        drop(confirmer_client);
-        confirmer.run().await.unwrap();
-
-        assert!(logs_contain("failed to query for tx"));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn should_record_success_transaction_execution_result_successfully() {
-        let tx_hash = "tx_hash";
-        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
-
-        let mut client = cosmos::MockCosmosClient::default();
-        client.expect_clone().return_once(|| {
-            let mut client = cosmos::MockCosmosClient::default();
-            client
-                .expect_tx()
-                .with(predicate::eq(GetTxRequest {
-                    hash: tx_hash.to_string(),
-                }))
-                .return_once(|req| {
-                    Ok(GetTxResponse {
-                        tx_response: Some(TxResponse {
-                            code: 0,
-                            txhash: req.hash,
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    })
-                });
-
-            client
-        });
-
         let (monitoring_client, mut rx) = create_test_monitoring_client();
 
         let (confirmer, confirmer_client) =
@@ -380,16 +412,16 @@ mod tests {
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
-        let msg = rx.recv().await.unwrap();
+        assert!(logs_contain("failed to query for tx"));
 
-        match msg {
-            Msg::TransactionExecution { success, duration } => {
-                assert!(success, "should record success=true for code 0");
+        let msg1 = rx.recv().await.unwrap();
+        assert_eq!(
+            msg1,
+            Msg::TransactionExecutionStatus {
+                status: TransactionExecutionStatus::QueryError,
             }
-            _ => panic!("expected TransactionExecution metric, got {:?}", msg),
-        }
+        );
 
         assert!(rx.try_recv().is_err());
     }
-    // need a nother test for failure case
 }
