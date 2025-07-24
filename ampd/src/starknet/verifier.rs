@@ -82,7 +82,13 @@ impl PartialEq<VerifierSetConfirmation> for SignersRotatedEvent {
             .signers
             .signers
             .iter()
-            .map(|signer| (HexBinary::from_hex(&signer.signer).unwrap(), signer.weight))
+            .map(|signer| {
+                (
+                    HexBinary::from_hex(&signer.signer)
+                        .expect("signer should create a HexBinary validly"),
+                    signer.weight,
+                )
+            })
             .collect::<Vec<_>>();
         actual_signers.sort();
 
