@@ -164,7 +164,8 @@ async fn instantiate_broadcaster(
         broadcaster_config.batch_gas_limit,
         broadcaster_config.broadcast_interval,
     );
-    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+    let (_, monitoring_client) =
+        monitoring::Server::new(None::<SocketAddr>).expect("dummy monitoring server never fails");
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
@@ -205,7 +206,8 @@ async fn confirm_tx(
             .saturating_add(1)
             .into(),
     );
-    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+    let (_, monitoring_client) =
+        monitoring::Server::new(None::<SocketAddr>).expect("dummy monitoring server never fails");
 
     broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy, &monitoring_client)
         .await

@@ -137,7 +137,7 @@ where
 
     monitoring_client
         .metrics()
-        .record_metric(Msg::TransactionDiscovered {
+        .record_metric(Msg::TransactionConfirmed {
             status: match res_code {
                 0 => TransactionExecutionStatus::SucceededOnChain,
                 _ => TransactionExecutionStatus::FailedOnChain,
@@ -266,11 +266,11 @@ mod tests {
         // Duration is recorded in the metrics
         let msg1 = rx.recv().await.unwrap();
         match msg1 {
-            Msg::TransactionDiscovered { status, duration } => {
+            Msg::TransactionConfirmed { status, duration } => {
                 assert_eq!(status, TransactionExecutionStatus::SucceededOnChain);
                 assert!(duration >= Duration::from_millis(0));
             }
-            _ => panic!("expected TransactionDiscovered metric, got {:?}", msg1),
+            _ => panic!("expected TransactionConfirmed metric, got {:?}", msg1),
         }
 
         // TransactionExecutionStatus is recorded in the metrics
@@ -325,11 +325,11 @@ mod tests {
         // TransactionExecutionStatus is recorded in the metrics
         let msg1 = rx.recv().await.unwrap();
         match msg1 {
-            Msg::TransactionDiscovered { status, duration } => {
+            Msg::TransactionConfirmed { status, duration } => {
                 assert_eq!(status, TransactionExecutionStatus::FailedOnChain);
                 assert!(duration >= Duration::from_millis(0));
             }
-            _ => panic!("expected TransactionDiscovered metric, got {:?}", msg1),
+            _ => panic!("expected TransactionConfirmed metric, got {:?}", msg1),
         }
 
         let msg2 = rx.recv().await.unwrap();

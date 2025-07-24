@@ -52,11 +52,11 @@ pub enum Msg {
     },
     /// Record the transaction broadcast results and duration
     TransactionBroadcast { success: bool, duration: Duration },
-    /// Record the transaction discovery duration
+    /// Record the transaction confirmation duration
     /// Duration is only recorded for transactions that were successfully
-    ///  queried from the blockchain: SucceededOnChain or FailedOnChain
-    /// not found or query error are not recorded because they always reaches the timeout limit
-    TransactionDiscovered {
+    /// queried from the blockchain: SucceededOnChain or FailedOnChain
+    /// NotFound or QueryError are not recorded because they always reaches the timeout limit
+    TransactionConfirmed {
         status: TransactionExecutionStatus,
         duration: Duration,
     },
@@ -239,7 +239,7 @@ struct TransactionLabel {
 
 struct TransactionMetrics {
     broadcast: TransactionBroadcastMetrics,
-    discovery_duration: TransactionDiscoveryMetrics,
+    confirmation_duration: TransactionConfirmationMetrics,
     execution_status: TransactionExecutionStatusMetrics,
 }
 
@@ -248,7 +248,7 @@ struct TransactionBroadcastMetrics {
     duration: Family<TransactionLabel, Histogram>,
 }
 
-struct TransactionDiscoveryMetrics {
+struct TransactionConfirmationMetrics {
     duration: Family<TransactionLabel, Histogram>,
 }
 
@@ -308,10 +308,10 @@ impl Metrics {
                     .record_transaction_broadcast(success, duration);
             }
 
-            Msg::TransactionDiscovered { status, duration } => {
+            Msg::TransactionConfirmed { status, duration } => {
                 self.transaction_processed
-                    .discovery_duration
-                    .record_transaction_discovery(status, duration);
+                    .confirmation_duration
+                    .record_transaction_confirmation(status, duration);
             }
 
             Msg::TransactionExecutionStatus { status } => {
@@ -371,22 +371,22 @@ impl VerificationVoteMetrics {
 impl TransactionMetrics {
     fn new() -> Self {
         let broadcast = TransactionBroadcastMetrics::new();
-        let discovery_duration = TransactionDiscoveryMetrics::new();
+        let confirmation_duration = TransactionConfirmationMetrics::new();
         let execution_status = TransactionExecutionStatusMetrics::new();
         Self {
             broadcast,
-            discovery_duration,
+            confirmation_duration,
             execution_status,
         }
     }
 
     fn register(&self, registry: &mut Registry) {
         self.broadcast.register(registry);
-        self.discovery_duration.register(registry);
+        self.confirmation_duration.register(registry);
         self.execution_status.register(registry);
     }
 }
-impl TransactionDiscoveryMetrics {
+impl TransactionConfirmationMetrics {
     fn new() -> Self {
         let duration = Family::<TransactionLabel, Histogram>::new_with_constructor(|| {
             Histogram::new(vec![0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 5.5, 6.0, 10.0])
@@ -396,17 +396,21 @@ impl TransactionDiscoveryMetrics {
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "ampd_transaction_discovery_duration_seconds",
-            "Duration of successful blockchain queries for transaction discovery in seconds",
+            "ampd_transaction_confirmation_duration_seconds",
+            "Duration of successful blockchain queries for transaction confirmation in seconds",
             self.duration.clone(),
         );
     }
 
-    fn record_transaction_discovery(&self, status: TransactionExecutionStatus, duration: Duration) {
+    fn record_transaction_confirmation(
+        &self,
+        status: TransactionExecutionStatus,
+        duration: Duration,
+    ) {
         let status = match status {
             TransactionExecutionStatus::SucceededOnChain => "succeeded_on_chain".to_string(),
             TransactionExecutionStatus::FailedOnChain => "failed_on_chain".to_string(),
-            _ => "".to_string(), // should never happen
+            _ => "".to_string(), // only succeeded_on_chain and failed_on_chain are recorded, this should never happen
         };
 
         let label = TransactionLabel { status };
@@ -637,7 +641,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_record_transaction_discovery_result_successfully() {
+    async fn should_record_transaction_confirmation_result_successfully() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -647,19 +651,19 @@ mod tests {
         let initial_metrics = server.get("/test").await;
         initial_metrics.assert_status_ok();
 
-        client.record_metric(Msg::TransactionDiscovered {
+        client.record_metric(Msg::TransactionConfirmed {
             status: TransactionExecutionStatus::SucceededOnChain,
             duration: Duration::from_secs(1),
         });
-        client.record_metric(Msg::TransactionDiscovered {
+        client.record_metric(Msg::TransactionConfirmed {
             status: TransactionExecutionStatus::SucceededOnChain,
             duration: Duration::from_secs(2),
         });
-        client.record_metric(Msg::TransactionDiscovered {
+        client.record_metric(Msg::TransactionConfirmed {
             status: TransactionExecutionStatus::SucceededOnChain,
             duration: Duration::from_secs(2),
         });
-        client.record_metric(Msg::TransactionDiscovered {
+        client.record_metric(Msg::TransactionConfirmed {
             status: TransactionExecutionStatus::FailedOnChain,
             duration: Duration::from_secs(3),
         });
