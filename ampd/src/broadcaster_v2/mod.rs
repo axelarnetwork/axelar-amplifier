@@ -1399,10 +1399,9 @@ mod tests {
             .returning(|_, _, _, _| Ok(vec![0u8; 64]));
 
         let mut mock_client = cosmos::MockCosmosClient::new();
-        let base_account_clone = base_account.clone();
         mock_client.expect_account().times(2).returning(move |_| {
             Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account_clone).unwrap()),
+                account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
         mock_client

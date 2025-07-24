@@ -874,6 +874,14 @@ mod tests {
                 account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
+        mock_cosmos_client.expect_balance().return_once(move |_| {
+            Ok(QueryBalanceResponse {
+                balance: Some(Coin {
+                    denom: "uaxl".to_string(),
+                    amount: "1000000".to_string(),
+                }),
+            })
+        });
         let broadcaster = broadcaster_v2::Broadcaster::builder()
             .client(mock_cosmos_client)
             .chain_id("chain-id".parse().unwrap())
