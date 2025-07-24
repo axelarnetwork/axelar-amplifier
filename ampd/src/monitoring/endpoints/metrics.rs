@@ -44,6 +44,8 @@ pub enum Msg {
     },
     /// Record the transaction processing results and duration
     TransactionProcessed { success: bool, duration: Duration },
+    /// Record the execution prcoessing results and duration
+    TransactionExecution { success: bool, duration: Duration },
 }
 
 /// Errors that can occur in metrics processing
@@ -207,6 +209,7 @@ struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
     transaction_processed: TransactionMetrics,
+    transaction_executed: ExecutionMetrics,
 }
 
 struct BlockReceivedMetrics {
@@ -219,6 +222,11 @@ struct TransactionLabel {
 }
 
 struct TransactionMetrics {
+    total: Family<TransactionLabel, Counter>,
+    duration: Family<TransactionLabel, Histogram>,
+}
+
+struct ExecutionMetrics {
     total: Family<TransactionLabel, Counter>,
     duration: Family<TransactionLabel, Histogram>,
 }
@@ -244,15 +252,18 @@ impl Metrics {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
         let transaction_processed = TransactionMetrics::new();
+        let transaction_executed = ExecutionMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
         transaction_processed.register(registry);
+        transaction_executed.register(registry);
 
         Self {
             block_received,
             verification_vote,
             transaction_processed,
+            transaction_executed,
         }
     }
 
@@ -271,6 +282,11 @@ impl Metrics {
             }
             Msg::TransactionProcessed { success, duration } => {
                 self.transaction_processed
+                    .record_transaction(success, duration);
+            }
+
+            Msg::TransactionExecution { success, duration } => {
+                self.transaction_executed
                     .record_transaction(success, duration);
             }
         }
@@ -319,6 +335,43 @@ impl VerificationVoteMetrics {
 
         let label = VerificationVoteLabel { chain_name, status };
         self.total.get_or_create(&label).inc();
+    }
+}
+
+impl ExecutionMetrics {
+    fn new() -> Self {
+        let total = Family::<TransactionLabel, Counter>::default();
+        let duration = Family::<TransactionLabel, Histogram>::new_with_constructor(|| {
+            Histogram::new(vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0])
+        });
+        Self { total, duration }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "ampd_transactions",
+            "number of transactions processed by the ampd",
+            self.total.clone(),
+        );
+        registry.register(
+            "ampd_transaction_duration_seconds",
+            "Duration of transaction processing in seconds",
+            self.duration.clone(),
+        );
+    }
+
+    fn record_transaction(&self, success: bool, duration: Duration) {
+        let status = match success {
+            true => "success".to_string(),
+            false => "failure".to_string(),
+        };
+        let label = TransactionLabel { status };
+
+        self.total.get_or_create(&label).inc();
+
+        self.duration
+            .get_or_create(&label)
+            .observe(duration.as_secs_f64());
     }
 }
 
@@ -509,6 +562,35 @@ mod tests {
         client.record_metric(Msg::TransactionProcessed {
             success: false,
             duration: Duration::from_secs(3),
+        });
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_transaction_execution_result_successfully() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        client.record_metric(Msg::TransactionExecution {
+            success: true,
+            duration: Duration::from_secs(1),
+        });
+        client.record_metric(Msg::TransactionExecution {
+            success: true,
+            duration: Duration::from_secs(2),
+        });
+        client.record_metric(Msg::TransactionExecution {
+            success: true,
+            duration: Duration::from_secs(2),
         });
 
         time::sleep(Duration::from_secs(1)).await;

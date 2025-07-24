@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use error_stack::{report, ResultExt};
 use futures::StreamExt;
@@ -9,7 +11,8 @@ use tracing::{debug, info, instrument, warn};
 use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::cosmos;
+use crate::monitoring::metrics::Msg;
+use crate::{cosmos, monitoring};
 
 // TODO: move these constants to the config. In the meantime, these were chosen as reasonable heuristics.
 // Maximum number of transaction confirmations to process concurrently.
@@ -54,6 +57,7 @@ where
     rx: mpsc::Receiver<String>,
     client: T,
     retry_policy: RetryPolicy,
+    monitoring_client: monitoring::Client,
 }
 
 impl<T> TxConfirmer<T>
@@ -71,12 +75,14 @@ where
     pub fn new_confirmer_and_client(
         client: T,
         retry_policy: RetryPolicy,
+        monitoring_client: monitoring::Client,
     ) -> (Self, TxConfirmerClient) {
         let (tx, rx) = mpsc::channel(TX_CONFIRMATION_QUEUE_CAP);
         let confirmer = Self {
             rx,
             client,
             retry_policy,
+            monitoring_client,
         };
 
         (confirmer, tx)
@@ -97,10 +103,11 @@ where
             rx,
             client,
             retry_policy,
+            monitoring_client,
         } = self;
         let mut stream = ReceiverStream::new(rx)
             .inspect(|tx_hash| info!(tx_hash, "received tx hash to confirm"))
-            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy))
+            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy, monitoring_client.clone()))
             .buffer_unordered(TX_CONFIRMATION_BUFFER_SIZE);
 
         while let Some(result) = stream.next().await {
@@ -115,17 +122,36 @@ pub async fn confirm_tx<T>(
     client: &T,
     tx_hash: String,
     retry_policy: RetryPolicy,
+    monitoring_client: monitoring::Client,
 ) -> Result<TxResponse>
 where
     T: cosmos::CosmosClient + Clone,
 {
     debug!(tx_hash, "confirming tx");
+    let start_time = Instant::now();
 
     let res = with_retry(|| tx(client.clone(), tx_hash.clone()), retry_policy).await?;
-
+    let duration = start_time.elapsed();
+    tracing::info!("duration: {:?}", duration);
     match res.code {
-        0 => Ok(res),
-        _ => Err(report!(Error::FailureOnChain(Box::new(res)))),
+        0 => {
+            monitoring_client
+                .metrics()
+                .record_metric(Msg::TransactionExecution {
+                    success: true,
+                    duration,
+                });
+            Ok(res)
+        }
+        _ => {
+            monitoring_client
+                .metrics()
+                .record_metric(Msg::TransactionExecution {
+                    success: false,
+                    duration,
+                });
+            Err(report!(Error::FailureOnChain(Box::new(res))))
+        }
     }
 }
 
@@ -168,6 +194,7 @@ fn log_confirm_tx_result(result: Result<TxResponse>) {
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
     use std::time::Duration;
 
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -178,7 +205,9 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::asyncutil::future::RetryPolicy;
-    use crate::cosmos;
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::{cosmos, monitoring};
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
@@ -207,9 +236,10 @@ mod tests {
 
             client
         });
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
@@ -244,9 +274,10 @@ mod tests {
 
             client
         });
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
@@ -273,8 +304,10 @@ mod tests {
             client
         });
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
@@ -301,12 +334,62 @@ mod tests {
             client
         });
 
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("failed to query for tx"));
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_success_transaction_execution_result_successfully() {
+        let tx_hash = "tx_hash";
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
+
+        let mut client = cosmos::MockCosmosClient::default();
+        client.expect_clone().return_once(|| {
+            let mut client = cosmos::MockCosmosClient::default();
+            client
+                .expect_tx()
+                .with(predicate::eq(GetTxRequest {
+                    hash: tx_hash.to_string(),
+                }))
+                .return_once(|req| {
+                    Ok(GetTxResponse {
+                        tx_response: Some(TxResponse {
+                            code: 0,
+                            txhash: req.hash,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    })
+                });
+
+            client
+        });
+
+        let (monitoring_client, mut rx) = create_test_monitoring_client();
+
+        let (confirmer, confirmer_client) =
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
+        confirmer_client.send(tx_hash.to_string()).await.unwrap();
+        drop(confirmer_client);
+        confirmer.run().await.unwrap();
+
+        let msg = rx.recv().await.unwrap();
+
+        match msg {
+            Msg::TransactionExecution { success, duration } => {
+                assert!(success, "should record success=true for code 0");
+            }
+            _ => panic!("expected TransactionExecution metric, got {:?}", msg),
+        }
+
+        assert!(rx.try_recv().is_err());
+    }
+    // need a nother test for failure case
 }

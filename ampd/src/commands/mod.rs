@@ -205,8 +205,9 @@ async fn confirm_tx(
             .saturating_add(1)
             .into(),
     );
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
 
-    broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy)
+    broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy, monitoring_client)
         .await
         .map(|res| res.txhash)
         .change_context(Error::TxConfirmation)

@@ -5,34 +5,22 @@ blocks_received_total 0
 # TYPE verification_votes counter
 # HELP ampd_transactions number of transactions processed by the ampd.
 # TYPE ampd_transactions counter
-ampd_transactions_total{status="failure"} 1
+# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
+# TYPE ampd_transaction_duration_seconds histogram
+# HELP ampd_transactions number of transactions processed by the ampd.
+# TYPE ampd_transactions counter
 ampd_transactions_total{status="success"} 3
 # HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
 # TYPE ampd_transaction_duration_seconds histogram
-ampd_transaction_duration_seconds_bucket{le="+Inf",status="failure"} 1
 ampd_transaction_duration_seconds_bucket{le="+Inf",status="success"} 3
-ampd_transaction_duration_seconds_bucket{le="0.1",status="failure"} 0
 ampd_transaction_duration_seconds_bucket{le="0.1",status="success"} 0
-ampd_transaction_duration_seconds_bucket{le="0.5",status="failure"} 0
 ampd_transaction_duration_seconds_bucket{le="0.5",status="success"} 0
-ampd_transaction_duration_seconds_bucket{le="1.0",status="failure"} 0
 ampd_transaction_duration_seconds_bucket{le="1.0",status="success"} 1
-ampd_transaction_duration_seconds_bucket{le="10.0",status="failure"} 1
 ampd_transaction_duration_seconds_bucket{le="10.0",status="success"} 3
-ampd_transaction_duration_seconds_bucket{le="2.0",status="failure"} 0
 ampd_transaction_duration_seconds_bucket{le="2.0",status="success"} 3
-ampd_transaction_duration_seconds_bucket{le="30.0",status="failure"} 1
 ampd_transaction_duration_seconds_bucket{le="30.0",status="success"} 3
-ampd_transaction_duration_seconds_bucket{le="5.0",status="failure"} 1
 ampd_transaction_duration_seconds_bucket{le="5.0",status="success"} 3
-ampd_transaction_duration_seconds_bucket{le="60.0",status="failure"} 1
 ampd_transaction_duration_seconds_bucket{le="60.0",status="success"} 3
-ampd_transaction_duration_seconds_count{status="failure"} 1
 ampd_transaction_duration_seconds_count{status="success"} 3
-ampd_transaction_duration_seconds_sum{status="failure"} 3.0
 ampd_transaction_duration_seconds_sum{status="success"} 5.0
-# HELP ampd_transactions number of transactions processed by the ampd.
-# TYPE ampd_transactions counter
-# HELP ampd_transaction_duration_seconds Duration of transaction processing in seconds.
-# TYPE ampd_transaction_duration_seconds histogram
 # EOF

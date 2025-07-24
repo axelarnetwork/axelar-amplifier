@@ -137,6 +137,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
             broadcast.tx_fetch_interval,
             broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         ),
+        monitoring_client.clone(),
     );
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
