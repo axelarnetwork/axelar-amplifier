@@ -204,7 +204,7 @@ where
 
             self.monitoring_client
                 .metrics()
-                .record_metric(MetricsMsg::TransactionProcessed {
+                .record_metric(MetricsMsg::TransactionBroadcast {
                     success: tx_hash.is_ok(),
                     duration: transaction_start_time.elapsed(),
                 });
@@ -427,7 +427,8 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
+            .expect("dummy monitoring server never fails ");
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -485,7 +486,8 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
+            .expect("dummy monitoring server never fails ");
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -1763,7 +1765,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_record_transaction_metrics_successfully_for_success_and_failure() {
+    async fn should_record_transaction_broadcast_metrics_successfully_for_success_and_failure() {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -1909,21 +1911,21 @@ mod tests {
         let msg1 = rx.recv().await.unwrap();
 
         match msg1 {
-            Msg::TransactionProcessed { success, duration } => {
+            Msg::TransactionBroadcast { success, duration } => {
                 assert!(!success);
                 assert!(duration > Duration::from_millis(0));
             }
-            _ => panic!("Expected TransactionProcessed message"),
+            _ => panic!("expect TransactionBroadcast message"),
         }
 
         let msg2 = rx.recv().await.unwrap();
 
         match msg2 {
-            Msg::TransactionProcessed { success, duration } => {
+            Msg::TransactionBroadcast { success, duration } => {
                 assert!(success);
                 assert!(duration > Duration::from_millis(0));
             }
-            _ => panic!("Expected TransactionProcessed message"),
+            _ => panic!("expect TransactionBroadcast message"),
         }
 
         assert!(rx.try_recv().is_err());
