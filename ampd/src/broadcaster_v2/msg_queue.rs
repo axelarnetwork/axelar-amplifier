@@ -402,37 +402,50 @@ impl Queue {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::{assert_err_contains, err_contains};
-    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmos_sdk_proto::cosmos::bank::v1beta1::QueryBalanceResponse;
+    use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
+    use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
     use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 
     use super::*;
     use crate::broadcaster_v2::dec_coin::DecCoin;
+    use crate::broadcaster_v2::test_utils::create_base_account;
     use crate::broadcaster_v2::Error;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::PREFIX;
 
-    #[tokio::test]
-    async fn msg_queue_client_address_returns_broadcaster_address() {
-        let pub_key = random_cosmos_public_key();
-        let expected_address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let base_account = BaseAccount {
-            address: expected_address.to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
-        let gas_adjustment = 1.5;
-        let gas_price_amount = 0.025;
-        let gas_price_denom = "uaxl";
-
+    fn setup_client(address: &TMAddress) -> cosmos::MockCosmosClient {
         let mut cosmos_client = cosmos::MockCosmosClient::new();
+        let base_account = create_base_account(address);
+
         cosmos_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {
                 account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
+        cosmos_client.expect_balance().return_once(move |_| {
+            Ok(QueryBalanceResponse {
+                balance: Some(Coin {
+                    denom: "uaxl".to_string(),
+                    amount: "1000000".to_string(),
+                }),
+            })
+        });
+
+        cosmos_client
+    }
+
+    #[tokio::test]
+    async fn msg_queue_client_address_returns_broadcaster_address() {
+        let pub_key = random_cosmos_public_key();
+        let expected_address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+
+        let cosmos_client = setup_client(&expected_address);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -456,22 +469,11 @@ mod tests {
     #[tokio::test]
     async fn msg_queue_client_enqueue_and_forget() {
         let gas_cap = 1000u64;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -518,22 +520,11 @@ mod tests {
     #[tokio::test]
     async fn msg_queue_client_enqueue() {
         let gas_cap = 1000u64;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -585,22 +576,11 @@ mod tests {
         let gas_cost = 100;
         let msg_count_per_client = 10;
         let client_count = 10;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client
             .expect_clone()
             .times(client_count)
@@ -664,22 +644,11 @@ mod tests {
 
     #[tokio::test]
     async fn msg_queue_client_error_handling() {
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: None,
@@ -713,22 +682,11 @@ mod tests {
     #[tokio::test]
     async fn msg_queue_msg_dropped() {
         let gas_cap = 100;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client.expect_simulate().once().returning(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -769,22 +727,11 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn msg_queue_stream_timeout() {
         let gas_cap = 1000u64;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client.expect_simulate().return_once(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -834,22 +781,11 @@ mod tests {
         let gas_cap = 1000;
         let gas_cost = 100;
         let msg_count = 11;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client
             .expect_simulate()
             .times(msg_count)
@@ -908,22 +844,11 @@ mod tests {
     async fn msg_queue_msg_with_gas_cost_above_cap() {
         let gas_cap = 100;
         let gas_cost = 101;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client.expect_simulate().once().returning(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -969,22 +894,11 @@ mod tests {
     async fn msg_queue_gas_overflow() {
         let gas_cap = u64::MAX;
         let gas_cost = gas_cap - 1;
-        let base_account = BaseAccount {
-            address: TMAddress::random(PREFIX).to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        cosmos_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
         cosmos_client
             .expect_simulate()
             .times(2)

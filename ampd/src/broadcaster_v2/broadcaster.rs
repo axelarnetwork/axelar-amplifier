@@ -313,6 +313,7 @@ mod tests {
     use sha3::Digest;
 
     use super::*;
+    use crate::broadcaster_v2::test_utils::decode_gas_fee;
     use crate::broadcaster_v2::Error;
     use crate::types::{random_cosmos_public_key, PublicKey};
     use crate::PREFIX;
@@ -335,18 +336,6 @@ mod tests {
             cosmrs::proto::cosmos::tx::v1beta1::AuthInfo::decode(tx_raw.auth_info_bytes.as_slice())
                 .unwrap();
         auth_info.signer_infos.first().unwrap().sequence
-    }
-
-    fn decode_gas_fee<R>(req: &R) -> cosmos_sdk_proto::cosmos::tx::v1beta1::Fee
-    where
-        R: AsRef<[u8]> + ?Sized,
-    {
-        let tx_raw = cosmrs::proto::cosmos::tx::v1beta1::TxRaw::decode(req.as_ref()).unwrap();
-
-        cosmrs::proto::cosmos::tx::v1beta1::AuthInfo::decode(tx_raw.auth_info_bytes.as_slice())
-            .unwrap()
-            .fee
-            .unwrap()
     }
 
     fn setup_client(

@@ -240,37 +240,14 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use axelar_wasm_std::{assert_err_contains, err_contains};
-    use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
-    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
-    use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
-    use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
-    use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastTxResponse, Fee, SimulateResponse};
-    use cosmrs::{tendermint, Any};
-    use error_stack::report;
-    use futures::StreamExt;
-    use mockall::{predicate, Sequence};
+pub(crate) mod test_utils {
+    use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
+    use cosmrs::proto::cosmos::tx::v1beta1::Fee;
     use prost::Message;
-    use tokio::sync::{mpsc, oneshot};
-    use tokio_stream::wrappers::ReceiverStream;
-    use tokio_stream::{empty, iter};
 
-    use crate::broadcaster_v2::dec_coin::DecCoin;
-    use crate::broadcaster_v2::msg_queue::QueueMsg;
-    use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
-    use crate::tofnd::{self, MockMultisig};
-    use crate::types::{random_cosmos_public_key, TMAddress};
-    use crate::{cosmos, PREFIX};
+    use crate::types::TMAddress;
 
-    fn dummy_msg() -> Any {
-        Any {
-            type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
-            value: vec![1, 2, 3],
-        }
-    }
-
-    fn create_base_account(address: &TMAddress) -> BaseAccount {
+    pub fn create_base_account(address: &TMAddress) -> BaseAccount {
         BaseAccount {
             address: address.to_string(),
             pub_key: None,
@@ -279,7 +256,7 @@ mod tests {
         }
     }
 
-    fn decode_gas_fee<R>(req: &R) -> Fee
+    pub fn decode_gas_fee<R>(req: &R) -> Fee
     where
         R: AsRef<[u8]> + ?Sized,
     {
@@ -289,6 +266,38 @@ mod tests {
             .unwrap()
             .fee
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axelar_wasm_std::{assert_err_contains, err_contains};
+    use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
+    use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
+    use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
+    use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
+    use cosmrs::proto::cosmos::tx::v1beta1::{BroadcastTxResponse, SimulateResponse};
+    use cosmrs::{tendermint, Any};
+    use error_stack::report;
+    use futures::StreamExt;
+    use mockall::{predicate, Sequence};
+    use tokio::sync::{mpsc, oneshot};
+    use tokio_stream::wrappers::ReceiverStream;
+    use tokio_stream::{empty, iter};
+
+    use crate::broadcaster_v2::dec_coin::DecCoin;
+    use crate::broadcaster_v2::msg_queue::QueueMsg;
+    use crate::broadcaster_v2::test_utils::{create_base_account, decode_gas_fee};
+    use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
+    use crate::tofnd::{self, MockMultisig};
+    use crate::types::random_cosmos_public_key;
+    use crate::{cosmos, PREFIX};
+
+    fn dummy_msg() -> Any {
+        Any {
+            type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
+            value: vec![1, 2, 3],
+        }
     }
 
     #[tokio::test]
