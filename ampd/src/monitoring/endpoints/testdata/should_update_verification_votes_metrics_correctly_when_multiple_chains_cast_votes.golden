@@ -22,8 +22,8 @@ verification_votes_total{chain_name="stellar",status="succeeded_on_chain"} 1
 # TYPE ampd_transaction_broadcast counter
 # HELP ampd_transaction_broadcast_duration_seconds Duration of transaction broadcast in seconds.
 # TYPE ampd_transaction_broadcast_duration_seconds histogram
-# HELP ampd_transaction_confirmed_duration_seconds Duration of successful blockchain queries for transaction confirmation in seconds.
-# TYPE ampd_transaction_confirmed_duration_seconds histogram
+# HELP ampd_transaction_discovery_duration_seconds Duration of successful blockchain queries for transaction discovery in seconds.
+# TYPE ampd_transaction_discovery_duration_seconds histogram
 # HELP ampd_transaction_execution_results number of transaction execution results by status.
 # TYPE ampd_transaction_execution_results counter
 # EOF
