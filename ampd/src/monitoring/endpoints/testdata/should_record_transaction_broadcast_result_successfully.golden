@@ -31,8 +31,8 @@ ampd_transaction_broadcast_duration_seconds_count{status="failure"} 1
 ampd_transaction_broadcast_duration_seconds_count{status="success"} 3
 ampd_transaction_broadcast_duration_seconds_sum{status="failure"} 3.0
 ampd_transaction_broadcast_duration_seconds_sum{status="success"} 5.0
-# HELP ampd_transaction_discovery_duration_seconds Duration of successful blockchain queries for transaction discovery in seconds.
-# TYPE ampd_transaction_discovery_duration_seconds histogram
+# HELP ampd_transaction_confirmation_duration_seconds Duration of successful blockchain queries for transaction confirmation in seconds.
+# TYPE ampd_transaction_confirmation_duration_seconds histogram
 # HELP ampd_transaction_execution_results number of transaction execution results by status.
 # TYPE ampd_transaction_execution_results counter
 # EOF
