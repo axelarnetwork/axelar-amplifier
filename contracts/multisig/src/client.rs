@@ -372,7 +372,7 @@ mod test {
         signers
             .into_iter()
             .map(
-                |signer| match client.submit_signature(session_id, signer.signature.clone()) {
+                |signer| match client.submit_signature(session_id, signer.signature) {
                     CosmosMsg::Wasm(msg) => msg,
                     _ => panic!("cannot deserialize wasm message"),
                 },
@@ -389,11 +389,11 @@ mod test {
             .into_iter()
             .map(|signer| {
                 let pub_key = match key_type {
-                    KeyType::Ecdsa => PublicKey::Ecdsa(signer.pub_key.clone()),
-                    KeyType::Ed25519 => PublicKey::Ed25519(signer.pub_key.clone()),
+                    KeyType::Ecdsa => PublicKey::Ecdsa(signer.pub_key),
+                    KeyType::Ed25519 => PublicKey::Ed25519(signer.pub_key),
                 };
 
-                match client.register_public_key(pub_key.clone(), signer.signed_address.clone()) {
+                match client.register_public_key(pub_key, signer.signed_address) {
                     CosmosMsg::Wasm(msg) => msg,
                     _ => panic!("cannot deserialize wasm message"),
                 }
@@ -448,7 +448,7 @@ mod test {
             ChainName::try_from("ethereum").unwrap(),
         )]);
 
-        match client.authorize_callers(contracts.clone()) {
+        match client.authorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
             _ => panic!("cannot deserialize wasm message"),
         }
@@ -465,7 +465,7 @@ mod test {
             ChainName::try_from("ethereum").unwrap(),
         )]);
 
-        match client.unauthorize_callers(contracts.clone()) {
+        match client.unauthorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
             _ => panic!("cannot deserialize wasm message"),
         }
