@@ -7,22 +7,30 @@ use router_api::ChainName;
 use service_registry_api::msg::ExecuteMsg;
 use valuable::Valuable;
 
-use crate::commands::{broadcast_tx, verifier_pub_key};
+use crate::commands::{broadcast_tx, verifier_pub_key, BroadcastArgs};
 use crate::config::Config;
 use crate::{Error, PREFIX};
 
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {
-    pub service_name: nonempty::String,
-    pub chains: Vec<ChainName>,
+    service_name: nonempty::String,
+    chains: Vec<ChainName>,
+    #[clap(flatten)]
+    broadcast: BroadcastArgs,
 }
 
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
+    let Args {
+        service_name,
+        chains,
+        broadcast,
+    } = args;
+
     let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let msg = serde_json::to_vec(&ExecuteMsg::DeregisterChainSupport {
-        service_name: args.service_name.into(),
-        chains: args.chains,
+        service_name: service_name.into(),
+        chains,
     })
     .expect("deregister chain support msg should serialize");
 
@@ -35,7 +43,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     .into_any()
     .expect("failed to serialize proto message");
 
-    let tx_hash = broadcast_tx(config, tx, pub_key).await?;
+    let tx_hash = broadcast_tx(config, tx, pub_key, broadcast.skip_confirmation).await?;
 
     Ok(Some(format!(
         "successfully broadcast deregister chain support transaction, tx hash: {}",

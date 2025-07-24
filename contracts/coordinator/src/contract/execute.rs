@@ -306,7 +306,8 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    let router = router_api::client::Router::new(protocol_contracts.router);
+    let router: router_api::Client =
+        client::ContractClient::new(deps.querier, &protocol_contracts.router).into();
     let multisig: multisig::Client =
         client::ContractClient::new(deps.querier, &protocol_contracts.multisig).into();
 

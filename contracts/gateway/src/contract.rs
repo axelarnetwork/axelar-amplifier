@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::{address, FnExt};
+use client::ContractClient;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
 use error_stack::ResultExt;
-use router_api::client::Router;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
@@ -71,9 +71,9 @@ pub fn execute(
             execute::verify_messages(&verifier, msgs).change_context(Error::VerifyMessages)
         }
         ExecuteMsg::RouteMessages(msgs) => {
-            let router = Router::new(config.router);
+            let router = ContractClient::new(deps.querier, &config.router).into();
 
-            if info.sender == router.address {
+            if info.sender == config.router {
                 execute::route_outgoing_messages(deps.storage, msgs)
                     .change_context(Error::RouteOutgoingMessages)
             } else {
