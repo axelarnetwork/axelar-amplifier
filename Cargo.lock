@@ -2064,9 +2064,8 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "clarity-serialization"
 version = "0.0.1"
-source = "git+https://github.com/Jiloc/stacks-core?branch=feat/clarity-serialization-crate#a7ffe583c6b831e142fa2617a11913efabb497e0"
+source = "git+https://github.com/stacks-network/stacks-core?branch=release/3.2.0.0.0#6c769636d5d598d1872960ca2744ad1b64fa6385"
 dependencies = [
- "hashbrown 0.15.3",
  "lazy_static",
  "regex",
  "serde",
@@ -11467,7 +11466,7 @@ dependencies = [
 [[package]]
 name = "stacks-common"
 version = "0.0.1"
-source = "git+https://github.com/Jiloc/stacks-core?branch=feat/clarity-serialization-crate#a7ffe583c6b831e142fa2617a11913efabb497e0"
+source = "git+https://github.com/stacks-network/stacks-core?branch=release/3.2.0.0.0#6c769636d5d598d1872960ca2744ad1b64fa6385"
 dependencies = [
  "chrono",
  "curve25519-dalek 4.1.3",

@@ -23,7 +23,7 @@ base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 # TODO: Update this dependencies after Stacks releases proper version
-clarity-serialization = { git = "https://github.com/Jiloc/stacks-core", branch = "feat/clarity-serialization-crate", default-features = false, features = ["wasm-deterministic"] }
+clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", branch = "release/3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = "0.15.11"
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
