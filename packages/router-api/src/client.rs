@@ -1,51 +1,25 @@
-use std::marker::PhantomData;
-
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::vec::VecExt;
-use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Empty, WasmMsg};
+use cosmwasm_std::{Addr, CosmosMsg};
 
-use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy};
+use crate::msg::{ExecuteMsg, QueryMsg};
 use crate::primitives::{Address, ChainName};
 use crate::Message;
 
-pub struct Router<T = Empty> {
-    pub address: Addr,
-    custom_msg_type: PhantomData<T>,
+pub struct Client<'a> {
+    pub client: client::ContractClient<'a, ExecuteMsg, QueryMsg>,
 }
 
-impl<T> Router<T> {
-    pub fn new(address: Addr) -> Self {
-        Router {
-            address,
-            custom_msg_type: PhantomData,
-        }
+impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
+        Client { client }
     }
+}
 
-    fn execute(&self, msg: &ExecuteMsg) -> CosmosMsg<T> {
-        WasmMsg::Execute {
-            contract_addr: self.address.to_string(),
-            msg: to_json_binary(&msg).expect("msg should always be serializable"),
-            funds: vec![],
-        }
-        .into()
-    }
-
-    pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg<T>> {
+impl<'a> Client<'a> {
+    pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg> {
         msgs.to_none_if_empty()
-            .map(|msgs| self.execute(&ExecuteMsg::RouteMessages(msgs)))
-    }
-
-    pub fn execute_from_contract(&self, original_sender: Addr, msg: &ExecuteMsg) -> CosmosMsg<T> {
-        WasmMsg::Execute {
-            contract_addr: self.address.to_string(),
-            msg: to_json_binary(&ExecuteMsgFromProxy::Relay {
-                sender: original_sender,
-                msg: msg.clone(),
-            })
-            .expect("msg should always be serializable"),
-            funds: vec![],
-        }
-        .into()
+            .map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs)))
     }
 
     pub fn register_chain(
@@ -54,10 +28,10 @@ impl<T> Router<T> {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
-    ) -> CosmosMsg<T> {
-        self.execute_from_contract(
+    ) -> CosmosMsg {
+        self.client.execute_as_proxy(
             original_sender,
-            &ExecuteMsg::RegisterChain {
+            ExecuteMsg::RegisterChain {
                 chain,
                 gateway_address,
                 msg_id_format,

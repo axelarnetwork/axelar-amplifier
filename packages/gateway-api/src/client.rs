@@ -13,8 +13,8 @@ pub enum Error {
     OutgoingMessages(Vec<CrossChainId>),
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
+impl Error {
+    fn for_query(value: QueryMsg) -> Self {
         match value {
             QueryMsg::OutgoingMessages(message_ids) => Error::OutgoingMessages(message_ids),
         }
@@ -34,7 +34,9 @@ pub struct Client<'a> {
 impl Client<'_> {
     pub fn outgoing_messages(&self, message_ids: Vec<CrossChainId>) -> Result<Vec<Message>> {
         let msg = QueryMsg::OutgoingMessages(message_ids);
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn verify_messages(&self, messages: Vec<Message>) -> Option<CosmosMsg> {
