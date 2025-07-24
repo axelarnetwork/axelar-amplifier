@@ -137,8 +137,11 @@ where
 
     monitoring_client
         .metrics()
-        .record_metric(Msg::TransactionConfirmed {
-            success: res_code == 0,
+        .record_metric(Msg::TransactionDiscovered {
+            status: match res_code {
+                0 => TransactionExecutionStatus::SucceededOnChain,
+                _ => TransactionExecutionStatus::FailedOnChain,
+            },
             duration,
         });
 
@@ -209,7 +212,6 @@ fn log_confirm_tx_result(result: Result<TxResponse>, monitoring_client: &monitor
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::time::Duration;
 
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -222,7 +224,7 @@ mod tests {
     use crate::asyncutil::future::RetryPolicy;
     use crate::monitoring::metrics::{Msg, TransactionExecutionStatus};
     use crate::monitoring::test_utils::create_test_monitoring_client;
-    use crate::{cosmos, monitoring};
+    use crate::cosmos;
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
@@ -264,13 +266,14 @@ mod tests {
         // Duration is recorded in the metrics
         let msg1 = rx.recv().await.unwrap();
         match msg1 {
-            Msg::TransactionConfirmed {
-                success,
-                duration: _,
+            Msg::TransactionDiscovered {
+                status,
+                duration,
             } => {
-                assert!(success, "should record success=true for code 0");
+                assert_eq!(status, TransactionExecutionStatus::SucceededOnChain);
+                assert!(duration >= Duration::from_millis(0));
             }
-            _ => panic!("expected TransactionConfirmed metric, got {:?}", msg1),
+            _ => panic!("expected TransactionDiscovered metric, got {:?}", msg1),
         }
 
         // TransactionExecutionStatus is recorded in the metrics
@@ -325,13 +328,15 @@ mod tests {
         // TransactionExecutionStatus is recorded in the metrics
         let msg1 = rx.recv().await.unwrap();
         match msg1 {
-            Msg::TransactionConfirmed {
-                success,
-                duration: _,
+            Msg::TransactionDiscovered {
+                status,
+                duration,
             } => {
-                assert!(!success, "should record success=false for code 1");
+                assert_eq!(status, TransactionExecutionStatus::FailedOnChain);
+                assert!(duration >= Duration::from_millis(0));
             }
-            _ => panic!("expected TransactionConfirmed metric, got {:?}", msg1),
+            _ => panic!("expected TransactionDiscovered metric, got {:?}", msg1),
+
         }
 
         let msg2 = rx.recv().await.unwrap();
