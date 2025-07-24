@@ -69,37 +69,21 @@ fn select_top_verifiers(
         verifiers[nth].weight
     };
 
+    // these verifiers are guaranteed to be included
     let active_verifiers = verifiers
         .iter()
         .filter(|v| v.weight > cutoff_weight)
         .collect::<Vec<_>>();
-    if active_verifiers.len() >= max_verifiers as usize {
-        return active_verifiers
-            .into_iter()
-            .take(max_verifiers as usize)
-            .cloned()
-            .collect();
-    }
 
+    // figure out how many spots are left
     let remaining_slots = (max_verifiers as usize).saturating_sub(active_verifiers.len());
-    let mut hasher = DefaultHasher::new();
-    let mut possibly_included = verifiers
+
+    // these verifiers are potentially included, need to select a subset of them
+    let possibly_included = verifiers
         .iter()
         .filter(|v| v.weight == cutoff_weight)
-        .map(|v| {
-            (
-                v,
-                hash_address_with_seed(&mut hasher, &v.verifier_info.address, block_height),
-            )
-        })
         .collect::<Vec<_>>();
-
-    possibly_included.sort_by_key(|(_, hash)| *hash);
-    let selected = possibly_included
-        .into_iter()
-        .take(remaining_slots)
-        .map(|(v, _)| v)
-        .collect::<Vec<_>>();
+    let selected = select_k_random(possibly_included, remaining_slots, block_height);
 
     active_verifiers
         .into_iter()
@@ -108,13 +92,37 @@ fn select_top_verifiers(
         .collect()
 }
 
-fn hash_address_with_seed(
-    mut hasher: &mut DefaultHasher,
-    address: &Addr,
-    block_height: u64,
-) -> u64 {
+// select k random verifiers from the given list
+// k should be less than or equal to the length of the list
+fn select_k_random(
+    verifiers: Vec<&WeightedVerifier>,
+    k: usize,
+    seed: u64,
+) -> Vec<&WeightedVerifier> {
+    if k == verifiers.len() {
+        return verifiers;
+    }
+
+    let mut hasher = DefaultHasher::new();
+    verifiers
+        .into_iter()
+        .map(|v| {
+            (
+                v,
+                hash_address_with_seed(&mut hasher, &v.verifier_info.address, seed),
+            )
+        })
+        .collect::<Vec<_>>()
+        .select_nth_unstable_by(k, |a, b| a.1.cmp(&b.1))
+        .0
+        .iter()
+        .map(|(v, _)| *v)
+        .collect::<Vec<_>>()
+}
+
+fn hash_address_with_seed(mut hasher: &mut DefaultHasher, address: &Addr, seed: u64) -> u64 {
     address.hash(&mut hasher);
-    block_height.hash(&mut hasher);
+    seed.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -372,6 +380,174 @@ mod tests {
             assert_eq!(
                 verifier.weight,
                 nonempty::Uint128::try_from(Uint128::from(100u128)).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn select_k_random_basic_functionality() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 80),
+            create_weighted_verifier("addr4", 70),
+            create_weighted_verifier("addr5", 60),
+        ];
+
+        // Test selecting fewer than total
+        let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+        let result = select_k_random(refs.clone(), 3, 12345);
+        assert_eq!(result.len(), 3);
+
+        // Test selecting all
+        let result_all = select_k_random(refs.clone(), 5, 12345);
+        assert_eq!(result_all.len(), 5);
+
+        // Test selecting zero
+        let result_zero = select_k_random(refs.clone(), 0, 12345);
+        assert_eq!(result_zero.len(), 0);
+    }
+
+    #[test]
+    fn select_k_random_returns_all_when_k_equals_length() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 80),
+        ];
+
+        let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+        let result = select_k_random(refs.clone(), 3, 12345);
+
+        assert_eq!(result.len(), 3);
+        // Should return all verifiers when k equals length
+        let result_addresses: std::collections::HashSet<String> = result
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+
+        assert!(result_addresses.contains("addr1"));
+        assert!(result_addresses.contains("addr2"));
+        assert!(result_addresses.contains("addr3"));
+    }
+
+    #[test]
+    fn select_k_random_deterministic_with_same_seed() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 80),
+            create_weighted_verifier("addr4", 70),
+            create_weighted_verifier("addr5", 60),
+        ];
+
+        let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+        let result1 = select_k_random(refs.clone(), 3, 12345);
+        let result2 = select_k_random(refs.clone(), 3, 12345);
+
+        assert_eq!(result1.len(), result2.len());
+
+        // Results should be identical with same seed
+        let addresses1: Vec<String> = result1
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+        let addresses2: Vec<String> = result2
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+
+        assert_eq!(addresses1, addresses2);
+    }
+
+    #[test]
+    fn select_k_random_different_results_with_different_seed() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+            create_weighted_verifier("addr3", 80),
+            create_weighted_verifier("addr4", 70),
+            create_weighted_verifier("addr5", 60),
+            create_weighted_verifier("addr6", 50),
+            create_weighted_verifier("addr7", 40),
+            create_weighted_verifier("addr8", 30),
+        ];
+
+        let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+        let result1 = select_k_random(refs.clone(), 4, 12345);
+        let result2 = select_k_random(refs.clone(), 4, 54321);
+
+        assert_eq!(result1.len(), result2.len());
+
+        let addresses1: std::collections::HashSet<String> = result1
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+        let addresses2: std::collections::HashSet<String> = result2
+            .iter()
+            .map(|v| v.verifier_info.address.to_string())
+            .collect();
+
+        // With enough verifiers and different seeds, results should be different
+        // (very high probability with 8 verifiers, selecting 4)
+        assert_ne!(addresses1, addresses2);
+    }
+
+    #[test]
+    fn select_k_random_handles_single_verifier() {
+        let verifiers = [create_weighted_verifier("addr1", 100)];
+
+        let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+        let result = select_k_random(refs.clone(), 1, 12345);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].verifier_info.address.to_string(), "addr1");
+    }
+
+    #[test]
+    fn select_k_random_handles_empty_selection() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 90),
+        ];
+
+        let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+        let result = select_k_random(refs, 0, 12345);
+
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn select_k_random_distribution_appears_random() {
+        let verifiers = vec![
+            create_weighted_verifier("addr1", 100),
+            create_weighted_verifier("addr2", 100),
+            create_weighted_verifier("addr3", 100),
+            create_weighted_verifier("addr4", 100),
+        ];
+
+        let mut selection_counts = std::collections::HashMap::new();
+
+        // Run multiple selections with different seeds
+        for seed in 1..=50 {
+            let refs: Vec<&WeightedVerifier> = verifiers.iter().collect();
+            let result = select_k_random(refs, 2, seed);
+
+            for verifier in result {
+                let addr = verifier.verifier_info.address.to_string();
+                *selection_counts.entry(addr).or_insert(0) += 1;
+            }
+        }
+
+        // Each verifier should be selected at least a few times
+        // (with 50 runs selecting 2 out of 4, each should be selected ~25 times)
+        for addr in ["addr1", "addr2", "addr3", "addr4"] {
+            let count = selection_counts.get(addr).unwrap_or(&0);
+            assert!(
+                *count >= 10,
+                "Verifier {} was selected {} times, expected at least 10",
+                addr,
+                count
             );
         }
     }
