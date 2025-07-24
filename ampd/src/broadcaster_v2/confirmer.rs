@@ -222,9 +222,9 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::asyncutil::future::RetryPolicy;
+    use crate::cosmos;
     use crate::monitoring::metrics::{Msg, TransactionExecutionStatus};
     use crate::monitoring::test_utils::create_test_monitoring_client;
-    use crate::cosmos;
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
@@ -266,10 +266,7 @@ mod tests {
         // Duration is recorded in the metrics
         let msg1 = rx.recv().await.unwrap();
         match msg1 {
-            Msg::TransactionDiscovered {
-                status,
-                duration,
-            } => {
+            Msg::TransactionDiscovered { status, duration } => {
                 assert_eq!(status, TransactionExecutionStatus::SucceededOnChain);
                 assert!(duration >= Duration::from_millis(0));
             }
@@ -328,15 +325,11 @@ mod tests {
         // TransactionExecutionStatus is recorded in the metrics
         let msg1 = rx.recv().await.unwrap();
         match msg1 {
-            Msg::TransactionDiscovered {
-                status,
-                duration,
-            } => {
+            Msg::TransactionDiscovered { status, duration } => {
                 assert_eq!(status, TransactionExecutionStatus::FailedOnChain);
                 assert!(duration >= Duration::from_millis(0));
             }
             _ => panic!("expected TransactionDiscovered metric, got {:?}", msg1),
-
         }
 
         let msg2 = rx.recv().await.unwrap();
