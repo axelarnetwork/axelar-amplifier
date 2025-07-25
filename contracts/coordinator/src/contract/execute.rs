@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
+use cosmwasm_std::{
+    Addr, Binary, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
+};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -28,14 +30,14 @@ pub fn register_protocol(
 }
 
 pub fn register_chain(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     chain_name: ChainName,
     prover_addr: Addr,
     gateway_addr: Addr,
     voting_verifier_address: Addr,
 ) -> Result<Response, Error> {
     state::save_chain_contracts(
-        deps.storage,
+        storage,
         chain_name.clone(),
         prover_addr,
         gateway_addr,
@@ -306,10 +308,8 @@ pub fn register_deployment(
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
 
-    let querier = deps.querier;
-
     register_chain(
-        deps,
+        deps.storage,
         deployed_contracts.chain_name.clone(),
         deployed_contracts.multisig_prover.clone(),
         deployed_contracts.gateway.clone(),
@@ -317,9 +317,9 @@ pub fn register_deployment(
     )?;
 
     let router: router_api::Client =
-        client::ContractClient::new(querier, &protocol_contracts.router).into();
+        client::ContractClient::new(deps.querier, &protocol_contracts.router).into();
     let multisig: multisig::Client =
-        client::ContractClient::new(querier, &protocol_contracts.multisig).into();
+        client::ContractClient::new(deps.querier, &protocol_contracts.multisig).into();
 
     Ok(Response::new()
         .add_message(router.register_chain(
