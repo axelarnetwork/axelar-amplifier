@@ -316,7 +316,7 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.latest_block).then(|_| Ok(Block { burn_block_height: 1 }));
         faux::when!(client.finalized_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -343,7 +343,7 @@ mod tests {
     #[async_test]
     async fn should_skip_expired_poll() {
         let mut client = Client::faux();
-        faux::when!(client.latest_block).then(|_| Ok(Block { height: 1 }));
+        faux::when!(client.latest_block).then(|_| Ok(Block { burn_block_height: 1 }));
         faux::when!(client.finalized_transactions).then(|_| HashMap::new());
 
         let voting_verifier = TMAddress::random(PREFIX);

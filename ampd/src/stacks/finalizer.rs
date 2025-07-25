@@ -12,7 +12,7 @@ where
 {
     let block = http_client.latest_block().await?;
 
-    let block_number: U64 = block.height.into();
+    let block_number: U64 = block.burn_block_height.into();
 
     // order of operations is important here when saturating, otherwise the finalization window could be cut short
     // if we add 1 afterwards
@@ -32,7 +32,7 @@ mod tests {
     #[async_test]
     async fn latest_finalized_block_height_should_work() {
         let mut client = Client::faux();
-        faux::when!(client.latest_block).then(|_| Ok(Block { height: 10 }));
+        faux::when!(client.latest_block).then(|_| Ok(Block { burn_block_height: 10 }));
 
         assert_eq!(10, latest_finalized_block_height(&client, 1).await.unwrap());
 

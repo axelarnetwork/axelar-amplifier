@@ -51,12 +51,12 @@ pub struct Transaction {
     pub tx_id: Hash,
     pub tx_status: String, // 'success'
     pub events: Vec<TransactionEvents>,
-    pub block_height: u64,
+    pub burn_block_height: u64,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Block {
-    pub height: u64,
+    pub burn_block_height: u64, // Height of Bitcoin block
 }
 
 #[cfg_attr(test, faux::create)]
@@ -145,7 +145,7 @@ impl Client {
     }
 
     fn is_valid_transaction(tx: &Transaction, finalized_block_height: u64) -> bool {
-        tx.tx_status == *STATUS_SUCCESS && tx.block_height <= finalized_block_height
+        tx.tx_status == *STATUS_SUCCESS && tx.burn_block_height <= finalized_block_height
     }
 }
 
@@ -245,7 +245,7 @@ mod tests {
         );
         assert_eq!(transaction.tx_status, "success");
         assert_eq!(transaction.events.len(), 2);
-        assert_eq!(transaction.block_height, 168868);
+        assert_eq!(transaction.burn_block_height, 864594);
 
         let event = transaction.events.first().unwrap();
 
@@ -295,7 +295,7 @@ mod tests {
         "#;
 
         let block = serde_json::from_str::<Block>(data).unwrap();
-        assert_eq!(block.height, 88985);
+        assert_eq!(block.burn_block_height, 9037);
     }
 
     #[test]
@@ -312,7 +312,7 @@ mod tests {
     fn should_not_be_valid_transaction_invalid_block_height() {
         let tx = Transaction {
             tx_status: "success".into(),
-            block_height: 2,
+            burn_block_height: 2,
             ..Transaction::default()
         };
 
@@ -323,7 +323,7 @@ mod tests {
     fn should_be_valid_transaction() {
         let tx = Transaction {
             tx_status: "success".into(),
-            block_height: 1,
+            burn_block_height: 1,
             ..Transaction::default()
         };
 
@@ -331,7 +331,7 @@ mod tests {
 
         let tx = Transaction {
             tx_status: "success".into(),
-            block_height: 1,
+            burn_block_height: 1,
             ..Transaction::default()
         };
 
