@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{CosmosMsg, HexBinary, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint64};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -109,6 +109,15 @@ impl Client<'_> {
             .execute(&ExecuteMsg::AuthorizeCallers { contracts })
     }
 
+    pub fn authorize_callers_from_proxy(
+        &self,
+        original_sender: Addr,
+        contracts: HashMap<String, ChainName>,
+    ) -> CosmosMsg {
+        self.client
+            .execute_as_proxy(original_sender, ExecuteMsg::AuthorizeCallers { contracts })
+    }
+
     pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
@@ -167,17 +176,22 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
 
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{
-        from_json, to_json_binary, Addr, QuerierWrapper, SystemError, Uint64, WasmQuery,
+        from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmMsg,
+        WasmQuery,
     };
+    use router_api::ChainName;
 
     use crate::client::Client;
     use crate::key::{KeyType, PublicKey, Signature};
     use crate::msg::QueryMsg;
     use crate::multisig::Multisig;
-    use crate::test::common::{build_verifier_set, ecdsa_test_data};
+    use crate::test::common::{
+        build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
+    };
     use crate::types::MultisigState;
 
     #[test]
@@ -350,5 +364,143 @@ mod test {
         });
 
         (querier, MockApi::default().addr_make(addr))
+    }
+
+    fn signing_keys() -> (String, String) {
+        (
+            build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()).id(),
+            build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()).id(),
+        )
+    }
+
+    fn validate_submit_signature_msgs_construction(
+        client: &Client,
+        session_id: Uint64,
+        signers: Vec<TestSigner>,
+    ) -> Vec<WasmMsg> {
+        signers
+            .into_iter()
+            .map(
+                |signer| match client.submit_signature(session_id, signer.signature) {
+                    CosmosMsg::Wasm(msg) => msg,
+                    _ => panic!("cannot deserialize wasm message"),
+                },
+            )
+            .collect::<Vec<WasmMsg>>()
+    }
+
+    fn validate_register_public_key_msgs_construction(
+        client: &Client,
+        key_type: KeyType,
+        signers: Vec<TestSigner>,
+    ) -> Vec<WasmMsg> {
+        signers
+            .into_iter()
+            .map(|signer| {
+                let pub_key = match key_type {
+                    KeyType::Ecdsa => PublicKey::Ecdsa(signer.pub_key),
+                    KeyType::Ed25519 => PublicKey::Ed25519(signer.pub_key),
+                };
+
+                match client.register_public_key(pub_key, signer.signed_address) {
+                    CosmosMsg::Wasm(msg) => msg,
+                    _ => panic!("cannot deserialize wasm message"),
+                }
+            })
+            .collect::<Vec<WasmMsg>>()
+    }
+
+    #[test]
+    fn construct_submit_signature_msg() {
+        let (ecdsa_subkey, ed25519_subkey) = signing_keys();
+
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        goldie::assert_json!(&signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+            .into_iter()
+            .flat_map(
+                |(_, _, signers, session_id)| validate_submit_signature_msgs_construction(
+                    &client, session_id, signers
+                )
+            )
+            .collect::<Vec<WasmMsg>>());
+    }
+
+    #[test]
+    fn construct_register_public_key_msg() {
+        let (ecdsa_subkey, ed25519_subkey) = signing_keys();
+
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        goldie::assert_json!(&signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+            .into_iter()
+            .flat_map(
+                |(key_type, _, signers, _)| validate_register_public_key_msgs_construction(
+                    &client, key_type, signers
+                )
+            )
+            .collect::<Vec<WasmMsg>>());
+    }
+
+    #[test]
+    fn construct_authorize_callers_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let contracts: HashMap<String, ChainName> = HashMap::from([(
+            MockApi::default().addr_make("prover").to_string(),
+            ChainName::try_from("ethereum").unwrap(),
+        )]);
+
+        match client.authorize_callers(contracts) {
+            CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
+            _ => panic!("cannot deserialize wasm message"),
+        }
+    }
+
+    #[test]
+    fn construct_unauthorize_callers_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let contracts: HashMap<String, ChainName> = HashMap::from([(
+            MockApi::default().addr_make("prover").to_string(),
+            ChainName::try_from("ethereum").unwrap(),
+        )]);
+
+        match client.unauthorize_callers(contracts) {
+            CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
+            _ => panic!("cannot deserialize wasm message"),
+        }
+    }
+
+    #[test]
+    fn construct_disable_signing_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        match client.disable_signing() {
+            CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
+            _ => panic!("cannot deserialize wasm message"),
+        }
+    }
+
+    #[test]
+    fn construct_enable_signing_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        match client.enable_signing() {
+            CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
+            _ => panic!("cannot deserialize wasm message"),
+        }
     }
 }
