@@ -42,10 +42,10 @@ pub struct Client<'a> {
 }
 
 impl Client<'_> {
-    pub fn verify_messages(&self, messages: Vec<Message>) -> Option<CosmosMsg> {
-        messages
+    pub fn verify_events(&self, events: Vec<crate::msg::EventToVerify>) -> Option<CosmosMsg> {
+        events
             .to_none_if_empty()
-            .map(|messages| self.client.execute(&ExecuteMsg::VerifyMessages(messages)))
+            .map(|events| self.client.execute(&ExecuteMsg::VerifyEvents(events)))
     }
 
     pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> CosmosMsg {

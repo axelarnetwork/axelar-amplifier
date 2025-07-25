@@ -1,9 +1,11 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256};
 use msgs_derive::Permissions;
-use router_api::{Address, ChainName, Message};
+use router_api::{Address, ChainName, Message, FIELD_DELIMITER};
+use sha3::{Digest, Keccak256};
 pub use voting_verifier_api::msg::InstantiateMsg;
 
 pub use crate::contract::MigrateMsg;
@@ -20,10 +22,10 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     Vote { poll_id: PollId, votes: Vec<Vote> },
 
-    // returns a vector of true/false values, indicating current verification status for each message
-    // starts a poll for any not yet verified messages
+    // returns a vector of true/false values, indicating current verification status for each event
+    // starts a poll for any not yet verified events
     #[permission(Any)]
-    VerifyMessages(Vec<Message>),
+    VerifyEvents(Vec<EventToVerify>),
 
 
 
@@ -36,18 +38,18 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct EventToVerify {
-    event_id: EventId,
-    event_data: EventData,
+    pub event_id: EventId,
+    pub event_data: EventData,
 }
 
 #[cw_serde]
 pub struct EventId {
     // chain that emitted the event in question
-    source_chain: ChainName,
+    pub source_chain: ChainName,
     // same message id type as used for GMP
-    message_id: String,
+    pub message_id: String,
     // address of contract emitting the event
-    contract_address: Address
+    pub contract_address: Address
 
 }
 
@@ -63,6 +65,7 @@ pub enum EventData {
 #[cw_serde]
 pub enum PollData {
     Messages(Vec<Message>),
+    Events(Vec<EventToVerify>),
 }
 #[cw_serde]
 pub struct PollResponse {
@@ -93,5 +96,26 @@ pub struct MessageStatus {
 impl MessageStatus {
     pub fn new(message: Message, status: VerificationStatus) -> Self {
         Self { message, status }
+    }
+}
+
+impl EventToVerify {
+    pub fn hash(&self) -> Hash {
+        let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
+        hasher.update(self.event_id.source_chain.as_ref());
+        hasher.update(delimiter_bytes);
+        hasher.update(&self.event_id.message_id);
+        hasher.update(delimiter_bytes);
+        hasher.update(self.event_id.contract_address.as_str());
+        hasher.update(delimiter_bytes);
+        
+        // Hash the event data
+        let event_data_bytes = serde_json::to_vec(&self.event_data)
+            .expect("failed to serialize event data");
+        hasher.update(event_data_bytes);
+
+        hasher.finalize().into()
     }
 }

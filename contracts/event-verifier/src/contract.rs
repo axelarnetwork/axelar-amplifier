@@ -64,7 +64,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::VerifyMessages(messages) => Ok(execute::verify_messages(deps, env, messages)?),
+        ExecuteMsg::VerifyEvents(events) => Ok(execute::verify_events(deps, env, events)?),
         ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
         ExecuteMsg::EndPoll { poll_id } => Ok(execute::end_poll(deps, env, poll_id)?),
         ExecuteMsg::UpdateVotingThreshold {
@@ -122,7 +122,22 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::events::TxEventConfirmation;
-    use crate::msg::MessageStatus;
+    use crate::msg::{MessageStatus, EventToVerify, EventId, EventData};
+    
+    // Helper function to convert Message to EventToVerify for testing
+    fn message_to_event(message: Message) -> EventToVerify {
+        EventToVerify {
+            event_id: EventId {
+                source_chain: message.cc_id.source_chain.to_string().parse().unwrap(),
+                message_id: message.cc_id.message_id.to_string(),
+                contract_address: message.source_address,
+            },
+            event_data: EventData::Evm {
+                topics: vec![],
+                data: message.payload_hash.into(),
+            },
+        }
+    }
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
@@ -288,6 +303,13 @@ mod test {
             .collect()
     }
 
+    fn events(len: u64, msg_id_format: &MessageIdFormat) -> Vec<EventToVerify> {
+        messages(len, msg_id_format)
+            .into_iter()
+            .map(message_to_event)
+            .collect()
+    }
+
     #[allow(clippy::arithmetic_side_effects)]
     fn mock_env_expired() -> Env {
         let mut env = mock_env();
@@ -450,8 +472,8 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let api = deps.api;
 
-        let msg = ExecuteMsg::VerifyMessages(vec![
-            Message {
+        let msg = ExecuteMsg::VerifyEvents(vec![
+            message_to_event(Message {
                 cc_id: CrossChainId::new(source_chain(), message_id("id", 1, &msg_id_format))
                     .unwrap(),
                 source_address: alloy_primitives::Address::random()
@@ -461,15 +483,15 @@ mod test {
                 destination_chain: "destination-chain1".parse().unwrap(),
                 destination_address: "destination-address1".parse().unwrap(),
                 payload_hash: [0; 32],
-            },
-            Message {
+            }),
+            message_to_event(Message {
                 cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
                     .unwrap(),
                 source_address: "source-address2".parse().unwrap(),
                 destination_chain: "destination-chain2".parse().unwrap(),
                 destination_address: "destination-address2".parse().unwrap(),
                 payload_hash: [0; 32],
-            },
+            }),
         ]);
         let err = execute(
             deps.as_mut(),
@@ -488,10 +510,10 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let api = deps.api;
 
-        let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
-        messages[0].cc_id = CrossChainId::new(source_chain(), "foobar").unwrap();
+        let mut events = events(1, &MessageIdFormat::HexTxHashAndEventIndex);
+        events[0].event_id.message_id = "foobar".to_string();
 
-        let msg = ExecuteMsg::VerifyMessages(messages);
+        let msg = ExecuteMsg::VerifyEvents(events);
 
         let err = execute(
             deps.as_mut(),
@@ -513,8 +535,8 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let api = deps.api;
 
-        let messages = messages(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
-        let msg = ExecuteMsg::VerifyMessages(messages.clone());
+        let events = events(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
+        let msg = ExecuteMsg::VerifyEvents(events.clone());
 
         let err = execute(
             deps.as_mut(),
@@ -525,7 +547,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
+            ContractError::InvalidMessageID(events[0].event_id.message_id.clone()),
         );
     }
 
@@ -535,8 +557,8 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
-        let msg = ExecuteMsg::VerifyMessages(messages.clone());
+        let events = events(1, &MessageIdFormat::HexTxHashAndEventIndex);
+        let msg = ExecuteMsg::VerifyEvents(events.clone());
         let api = deps.api;
 
         let err = execute(
@@ -548,7 +570,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
+            ContractError::InvalidMessageID(events[0].event_id.message_id.clone()),
         );
     }
 
@@ -559,8 +581,8 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let api = deps.api;
 
-        let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
-        let msg = ExecuteMsg::VerifyMessages(messages.clone());
+        let events = events(1, &MessageIdFormat::HexTxHashAndEventIndex);
+        let msg = ExecuteMsg::VerifyEvents(events.clone());
 
         let err = execute(
             deps.as_mut(),
@@ -571,7 +593,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_strings_equal(
             err,
-            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
+            ContractError::InvalidMessageID(events[0].event_id.message_id.clone()),
         );
     }
 
@@ -581,16 +603,16 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let api = deps.api;
-        let messages_count = 5;
-        let messages_in_progress = 3;
-        let messages = messages(messages_count as u64, &msg_id_format);
+        let events_count = 5;
+        let events_in_progress = 3;
+        let events = events(events_count as u64, &msg_id_format);
 
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(
-                messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
+            ExecuteMsg::VerifyEvents(
+                events[0..events_in_progress].to_vec(), // verify a subset of the events
             ),
         )
         .unwrap();
@@ -599,8 +621,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(
-                messages.clone(), // verify all messages including the ones from previous execution
+            ExecuteMsg::VerifyEvents(
+                events.clone(), // verify all events including the ones from previous execution
             ),
         )
         .unwrap();
@@ -608,12 +630,12 @@ mod test {
         let actual: Vec<TxEventConfirmation> = serde_json::from_str(
             &res.events
                 .into_iter()
-                .find(|event| event.ty == "messages_poll_started")
+                .find(|event| event.ty == "events_poll_started")
                 .unwrap()
                 .attributes
                 .into_iter()
                 .find_map(|attribute| {
-                    if attribute.key == "messages" {
+                    if attribute.key == "events" {
                         Some(attribute.value)
                     } else {
                         None
@@ -623,8 +645,8 @@ mod test {
         )
         .unwrap();
 
-        // messages starting after the ones already in progress
-        let expected = messages[messages_in_progress..]
+        // events starting after the ones already in progress
+        let expected = events[events_in_progress..]
             .iter()
             .cloned()
             .map(|e| {
@@ -643,9 +665,10 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let api = deps.api;
-        let messages = messages(5, &msg_id_format);
+        let events = events(5, &msg_id_format);
+        let messages = messages(5, &msg_id_format); // for status checking
 
-        let msg = ExecuteMsg::VerifyMessages(messages.clone());
+        let msg = ExecuteMsg::VerifyEvents(events.clone());
         execute(
             deps.as_mut(),
             mock_env(),
@@ -716,10 +739,11 @@ mod test {
         let api = deps.api;
 
         let messages = messages(4, &msg_id_format);
+        let events = events(4, &msg_id_format);
 
         // 1. First verification
 
-        let msg_verify = ExecuteMsg::VerifyMessages(messages.clone());
+        let msg_verify = ExecuteMsg::VerifyEvents(events.clone());
 
         let res = execute(
             deps.as_mut(),
@@ -860,13 +884,14 @@ mod test {
         let api = deps.api;
 
         let messages = messages(10, &msg_id_format);
+        let events = events(10, &msg_id_format);
 
         // starts verification process
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(messages.clone()),
+            ExecuteMsg::VerifyEvents(events.clone()),
         )
         .unwrap();
 
@@ -893,13 +918,14 @@ mod test {
         let api = deps.api;
 
         let messages = messages(10, &msg_id_format);
+        let events = events(10, &msg_id_format);
 
         // starts verification process
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(messages.clone()),
+            ExecuteMsg::VerifyEvents(events.clone()),
         )
         .unwrap();
 
@@ -944,13 +970,14 @@ mod test {
             let api = deps.api;
 
             let messages = messages(10, &msg_id_format);
+            let events = events(10, &msg_id_format);
 
             // starts verification process
             execute(
                 deps.as_mut(),
                 mock_env(),
                 message_info(&api.addr_make(SENDER), &[]),
-                ExecuteMsg::VerifyMessages(messages.clone()),
+                ExecuteMsg::VerifyEvents(events.clone()),
             )
             .unwrap();
 
@@ -1047,12 +1074,13 @@ mod test {
         let api = deps.api;
 
         let messages = messages(1, &msg_id_format);
+        let events = events(1, &msg_id_format);
 
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(messages.clone()),
+            ExecuteMsg::VerifyEvents(events.clone()),
         )
         .unwrap();
 
@@ -1150,13 +1178,14 @@ mod test {
         .unwrap();
 
         let messages = messages(1, &msg_id_format);
+        let events = events(1, &msg_id_format);
 
         // start the poll, should just the new threshold
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(messages.clone()),
+            ExecuteMsg::VerifyEvents(events.clone()),
         )
         .unwrap();
 
@@ -1223,10 +1252,11 @@ mod test {
         );
 
         let messages = messages(3, &msg_id_format);
+        let events = events(3, &msg_id_format);
 
         // 1. First verification
 
-        let msg_verify = ExecuteMsg::VerifyMessages(messages.clone());
+        let msg_verify = ExecuteMsg::VerifyEvents(events.clone());
 
         let res = execute(
             deps.as_mut(),
@@ -1352,7 +1382,8 @@ mod test {
         for case in cases {
             let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
             messages[0].source_address = case.parse().unwrap();
-            let msg = ExecuteMsg::VerifyMessages(messages);
+            let events = vec![message_to_event(messages[0].clone())];
+            let msg = ExecuteMsg::VerifyEvents(events);
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -1369,7 +1400,8 @@ mod test {
         // should not fail if address is valid
         let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         messages[0].source_address = eip55_address.parse().unwrap();
-        let msg = ExecuteMsg::VerifyMessages(messages);
+        let events = vec![message_to_event(messages[0].clone())];
+        let msg = ExecuteMsg::VerifyEvents(events);
         let res = execute(
             deps.as_mut(),
             mock_env(),

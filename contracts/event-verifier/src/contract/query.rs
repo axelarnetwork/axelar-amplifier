@@ -6,8 +6,8 @@ use error_stack::{Result, ResultExt};
 use router_api::Message;
 
 use crate::error::ContractError;
-use crate::msg::{MessageStatus, PollData, PollResponse};
-use crate::state::{poll_messages, Poll, PollContent, CONFIG, POLLS};
+use crate::msg::{MessageStatus, PollData, PollResponse, EventToVerify};
+use crate::state::{poll_messages, poll_events, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG
@@ -47,6 +47,23 @@ pub fn message_status(
     ))
 }
 
+pub fn event_status(
+    deps: Deps,
+    event: &EventToVerify,
+    cur_block_height: u64,
+) -> Result<VerificationStatus, ContractError> {
+    let loaded_poll_content = poll_events()
+        .may_load(deps.storage, &event.hash())
+        .change_context(ContractError::StorageError)?;
+
+    Ok(verification_status(
+        deps,
+        loaded_poll_content,
+        event,
+        cur_block_height,
+    ))
+}
+
 pub fn poll_response(
     deps: Deps,
     current_block_height: u64,
@@ -69,6 +86,20 @@ pub fn poll_response(
             );
 
             (PollData::Messages(msgs), poll.status(current_block_height))
+        }
+        Poll::Events(poll) => {
+            let events = poll_events()
+                .idx
+                .load_events(deps.storage, poll_id)
+                .change_context(ContractError::StorageError)?;
+            assert_eq!(
+                poll.tallies.len(),
+                events.len(),
+                "data inconsistency for number of events in poll {}",
+                poll.poll_id
+            );
+
+            (PollData::Events(events), poll.status(current_block_height))
         }
     };
 
@@ -102,6 +133,9 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 Poll::Messages(poll) => poll
                     .consensus(stored.index_in_poll)
                     .expect("invalid invariant: message not found in poll"),
+                Poll::Events(poll) => poll
+                    .consensus(stored.index_in_poll)
+                    .expect("invalid invariant: event not found in poll"),
             };
 
             match consensus {
@@ -121,6 +155,12 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
 fn voting_completed(poll: &Poll, cur_block_height: u64) -> bool {
     match poll {
         Poll::Messages(poll) => {
+            matches!(
+                poll.status(cur_block_height),
+                PollStatus::Expired | PollStatus::Finished
+            )
+        }
+        Poll::Events(poll) => {
             matches!(
                 poll.status(cur_block_height),
                 PollStatus::Expired | PollStatus::Finished

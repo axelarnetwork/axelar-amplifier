@@ -38,6 +38,7 @@ semver = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true, features = ["library"] }
 service-registry-api = { workspace = true }
+sha3 = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier-api = { workspace = true }
 

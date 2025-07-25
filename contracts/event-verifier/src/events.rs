@@ -10,6 +10,7 @@ use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 use router_api::{Address, ChainName, Message};
+use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -75,6 +76,10 @@ pub enum PollStarted {
         messages: Vec<TxEventConfirmation>,
         metadata: PollMetadata,
     },
+    Events {
+        events: Vec<TxEventConfirmation>,
+        metadata: PollMetadata,
+    },
 }
 
 impl From<PollMetadata> for Vec<Attribute> {
@@ -113,6 +118,15 @@ impl From<PollStarted> for Event {
                 .add_attribute(
                     "messages",
                     serde_json::to_string(&data).expect("failed to serialize messages"),
+                )
+                .add_attributes(Vec::<_>::from(metadata)),
+            PollStarted::Events {
+                events: data,
+                metadata,
+            } => Event::new("events_poll_started")
+                .add_attribute(
+                    "events",
+                    serde_json::to_string(&data).expect("failed to serialize events"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
         }
@@ -216,6 +230,35 @@ impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
             destination_chain: msg.destination_chain,
             source_address: msg.source_address,
             payload_hash: msg.payload_hash,
+        })
+    }
+}
+
+impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmation {
+    type Error = ContractError;
+    fn try_from((event, msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat)) -> Result<Self, Self::Error> {
+        #[allow(deprecated)]
+        let (tx_id, event_index) = parse_message_id(&event.event_id.message_id, msg_id_format)?;
+
+        // For events, we need to create a payload hash from the event data
+        let payload_hash = {
+            let event_data_bytes = serde_json::to_vec(&event.event_data)
+                .expect("failed to serialize event data");
+            let mut hasher = Keccak256::new();
+            hasher.update(event_data_bytes);
+            hasher.finalize().into()
+        };
+
+        #[allow(deprecated)]
+        // TODO: remove this attribute when tx_id and event_index are removed from the event
+        Ok(TxEventConfirmation {
+            tx_id,
+            event_index,
+            message_id: event.event_id.message_id.try_into().unwrap(),
+            destination_address: "".parse().unwrap(), // Events don't have destination address
+            destination_chain: event.event_id.source_chain, // Use source chain as destination for events
+            source_address: event.event_id.contract_address,
+            payload_hash,
         })
     }
 }

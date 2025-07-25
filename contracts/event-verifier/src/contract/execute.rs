@@ -14,7 +14,7 @@ use itertools::Itertools;
 use router_api::{ChainName, Message};
 use service_registry::WeightedVerifier;
 
-use crate::contract::query::message_status;
+use crate::contract::query::event_status;
 use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted,
@@ -41,39 +41,39 @@ pub fn update_voting_threshold(
 
 
 
-pub fn verify_messages(
+pub fn verify_events(
     deps: DepsMut,
     env: Env,
-    messages: Vec<Message>,
+    events: Vec<crate::msg::EventToVerify>,
 ) -> Result<Response, ContractError> {
-    if messages.is_empty() {
-        return Err(report!(ContractError::EmptyMessages));
+    if events.is_empty() {
+        return Err(report!(ContractError::EmptyEvents));
     }
 
     let config = CONFIG.load(deps.storage).expect("failed to load config");
 
-    let messages = messages.try_map(|message| {
-        validate_source_chain(message, &config.source_chain)
-            .and_then(|message| validate_source_address(message, &config.address_format))
-            .and_then(|message| {
-                message_status(deps.as_ref(), &message, env.block.height)
-                    .map(|status| (status, message))
+    let events = events.try_map(|event| {
+        validate_event_source_chain(event, &config.source_chain)
+            .and_then(|event| validate_event_source_address(event, &config.address_format))
+            .and_then(|event| {
+                event_status(deps.as_ref(), &event, env.block.height)
+                    .map(|status| (status, event))
             })
     })?;
 
-    let msgs_to_verify: Vec<Message> = messages
+    let events_to_verify: Vec<crate::msg::EventToVerify> = events
         .into_iter()
-        .filter_map(|(status, message)| match status {
+        .filter_map(|(status, event)| match status {
             VerificationStatus::NotFoundOnSourceChain
             | VerificationStatus::FailedToVerify
-            | VerificationStatus::Unknown => Some(message),
+            | VerificationStatus::Unknown => Some(event),
             VerificationStatus::InProgress
             | VerificationStatus::SucceededOnSourceChain
             | VerificationStatus::FailedOnSourceChain => None,
         })
         .collect();
 
-    if msgs_to_verify.is_empty() {
+    if events_to_verify.is_empty() {
         return Ok(Response::new());
     }
 
@@ -81,28 +81,28 @@ pub fn verify_messages(
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
-    let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
+    let id = create_events_poll(deps.storage, expires_at, snapshot, events_to_verify.len())?;
 
-    for (idx, message) in msgs_to_verify.iter().enumerate() {
-        poll_messages()
+    for (idx, event) in events_to_verify.iter().enumerate() {
+        state::poll_events()
             .save(
                 deps.storage,
-                &message.hash(),
-                &state::PollContent::<Message>::new(message.clone(), id, idx),
+                &event.hash(),
+                &state::PollContent::<crate::msg::EventToVerify>::new(event.clone(), id, idx),
             )
             .change_context(ContractError::StorageError)?;
     }
 
-    let messages = msgs_to_verify
+    let event_confirmations = events_to_verify
         .into_iter()
-        .map(|msg| {
-            TxEventConfirmation::try_from((msg.clone(), &config.msg_id_format))
+        .map(|event| {
+            TxEventConfirmation::try_from((event.clone(), &config.msg_id_format))
                 .map_err(|err| report!(err))
         })
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
-    Ok(Response::new().add_event(PollStarted::Messages {
-        messages,
+    Ok(Response::new().add_event(PollStarted::Events {
+        events: event_confirmations,
         metadata: PollMetadata {
             poll_id: id,
             source_chain: config.source_chain,
@@ -117,6 +117,7 @@ pub fn verify_messages(
 fn poll_results(poll: &Poll) -> PollResults {
     match poll {
         Poll::Messages(weighted_poll) => weighted_poll.results(),
+        Poll::Events(weighted_poll) => weighted_poll.results(),
     }
 }
 
@@ -144,6 +145,22 @@ fn make_quorum_event(
             Ok(status.map(|status| {
                 QuorumReached {
                     content: msg,
+                    status,
+                    poll_id: *poll_id,
+                }
+                .into()
+            }))
+        }
+        Poll::Events(_) => {
+            let event = state::poll_events()
+                .idx
+                .load_event(deps.storage, *poll_id, index_in_poll)
+                .change_context(ContractError::StorageError)
+                .expect("event not found in poll");
+
+            Ok(status.map(|status| {
+                QuorumReached {
+                    content: event,
                     status,
                     poll_id: *poll_id,
                 }
@@ -226,6 +243,9 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         Poll::Messages(poll) => {
             poll.state(HashMap::from_iter(votes))
         }
+        Poll::Events(poll) => {
+            poll.state(HashMap::from_iter(votes))
+        }
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
@@ -296,6 +316,24 @@ fn create_messages_poll(
     Ok(id)
 }
 
+fn create_events_poll(
+    store: &mut dyn Storage,
+    expires_at: u64,
+    snapshot: snapshot::Snapshot,
+    poll_size: usize,
+) -> Result<PollId, ContractError> {
+    let id = POLL_ID
+        .incr(store)
+        .change_context(ContractError::StorageError)?;
+
+    let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
+    POLLS
+        .save(store, id, &Poll::Events(poll))
+        .change_context(ContractError::StorageError)?;
+
+    Ok(id)
+}
+
 fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, ContractError> {
     block_height
         .checked_add(block_expiry)
@@ -325,4 +363,27 @@ fn validate_source_address(
         .change_context(ContractError::InvalidSourceAddress)?;
 
     Ok(message)
+}
+
+fn validate_event_source_chain(
+    event: crate::msg::EventToVerify,
+    source_chain: &ChainName,
+) -> Result<crate::msg::EventToVerify, ContractError> {
+    if event.event_id.source_chain != *source_chain {
+        Err(report!(ContractError::SourceChainMismatch(
+            source_chain.clone()
+        )))
+    } else {
+        Ok(event)
+    }
+}
+
+fn validate_event_source_address(
+    event: crate::msg::EventToVerify,
+    address_format: &AddressFormat,
+) -> Result<crate::msg::EventToVerify, ContractError> {
+    validate_address(&event.event_id.contract_address, address_format)
+        .change_context(ContractError::InvalidSourceAddress)?;
+
+    Ok(event)
 }

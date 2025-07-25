@@ -23,6 +23,9 @@ pub enum ContractError {
     #[error("empty batch of messages")]
     EmptyMessages,
 
+    #[error("empty batch of events")]
+    EmptyEvents,
+
     #[error("all messages must have the same source chain {0}")]
     SourceChainMismatch(ChainName),
 
