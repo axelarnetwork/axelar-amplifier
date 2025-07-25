@@ -1660,7 +1660,7 @@ mod test {
             assert!(res.is_err_and(|err| err_contains!(
                 err.report,
                 ContractError,
-                ContractError::InvalidSourceAddress { .. }
+                ContractError::InvalidSourceAddress
             )));
         }
 

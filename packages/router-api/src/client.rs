@@ -16,7 +16,7 @@ impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     }
 }
 
-impl<'a> Client<'a> {
+impl Client<'_> {
     pub fn route(&self, msgs: Vec<Message>) -> Option<CosmosMsg> {
         msgs.to_none_if_empty()
             .map(|msgs| self.client.execute(&ExecuteMsg::RouteMessages(msgs)))

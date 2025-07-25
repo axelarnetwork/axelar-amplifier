@@ -5,7 +5,9 @@ PollStartedEvent {
         ),
     ),
     source_gateway_address: Contract(
-        Hash(0202020202020202020202020202020202020202020202020202020202020202),
+        ContractId(
+            Hash(0202020202020202020202020202020202020202020202020202020202020202),
+        ),
     ),
     verifier_set: VerifierSetConfirmation {
         message_id: HexTxHashAndEventIndex {
