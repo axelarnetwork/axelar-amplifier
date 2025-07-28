@@ -410,7 +410,7 @@ impl TransactionConfirmationMetrics {
         let status = match status {
             TransactionExecutionStatus::SucceededOnChain => "succeeded_on_chain".to_string(),
             TransactionExecutionStatus::FailedOnChain => "failed_on_chain".to_string(),
-            _ => "".to_string(), // only succeeded_on_chain and failed_on_chain are recorded, this should never happen
+            _ => "unexpected".to_string(), // only succeeded_on_chain and failed_on_chain are recorded, this should never happen
         };
 
         let label = TransactionLabel { status };

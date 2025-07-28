@@ -7,7 +7,7 @@ blocks_received_total 0
 # TYPE ampd_transaction_broadcast counter
 # HELP ampd_transaction_broadcast_duration_seconds Duration of transaction broadcast in seconds.
 # TYPE ampd_transaction_broadcast_duration_seconds histogram
-# HELP ampd_transaction_confirmation_duration_seconds Duration of successful blockchain queries for transaction confirmation in seconds.
+# HELP ampd_transaction_confirmation_duration_seconds Duration of transaction confirmation queries that returned a result (excludes timeouts/not found).
 # TYPE ampd_transaction_confirmation_duration_seconds histogram
 # HELP ampd_transaction_execution_results number of transaction execution results by status.
 # TYPE ampd_transaction_execution_results counter
