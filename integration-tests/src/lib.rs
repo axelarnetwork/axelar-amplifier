@@ -9,7 +9,7 @@
     allow(msg_without_explicit_permissions)
 )]
 #![cfg_attr(dylint_lib = "amplifier_lints", allow(ref_opt_type))]
-#![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outsisde_tests))]
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outside_tests))]
 
 pub mod contract;
 pub mod coordinator_contract;
