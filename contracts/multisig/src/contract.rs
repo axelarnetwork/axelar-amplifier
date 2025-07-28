@@ -227,7 +227,7 @@ mod tests {
             admin_address: admin.into_string(),
             rewards_address: rewards.into_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
-            coordinator_address: coordinator,
+            coordinator_address: coordinator.to_string(),
         };
 
         instantiate(deps, env, info, msg)
