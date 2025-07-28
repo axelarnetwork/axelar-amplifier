@@ -99,6 +99,7 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
+event-verifier = { workspace = true }
 xrpl-types = { workspace = true }
 xrpl_http_client = { version = "0.15.0" }
 

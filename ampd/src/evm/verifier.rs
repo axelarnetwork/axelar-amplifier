@@ -7,6 +7,7 @@ use tracing::debug;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
+use crate::handlers::evm_verify_event::Event;
 use crate::types::EVMAddress;
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
@@ -129,6 +130,95 @@ pub fn verify_verifier_set(
         confirmation.message_id.tx_hash.into(),
         confirmation.message_id.event_index,
     )
+}
+
+pub fn verify_event(
+    _gateway_address: &EVMAddress,
+    tx_receipt: &TransactionReceipt,
+    event: &Event,
+) -> Vote {
+    if has_failed(tx_receipt) {
+        return Vote::FailedOnChain;
+    }
+
+    let expected_transaction_hash = event.message_id.tx_hash.into();
+    let expected_event_index = event.message_id.event_index;
+
+    // Check transaction hash matches
+    if tx_receipt.transaction_hash != expected_transaction_hash {
+        return Vote::NotFound;
+    }
+
+    // Get the log at the specified event index
+    let log_index: usize = match usize::try_from(expected_event_index) {
+        Ok(index) => index,
+        Err(_) => return Vote::NotFound,
+    };
+
+    let log = match tx_receipt.logs.get(log_index) {
+        Some(log) => log,
+        None => return Vote::NotFound,
+    };
+
+    // Parse the contract address from the event
+    let expected_contract_address = match event.contract_address.as_str().parse::<ethers_core::types::Address>() {
+        Ok(addr) => addr,
+        Err(e) => {
+            debug!(error = ?e, "failed to parse contract address");
+            return Vote::NotFound;
+        }
+    };
+
+    // Check contract address matches
+    if log.address != expected_contract_address {
+        return Vote::NotFound;
+    }
+
+    // Check event data matches
+    match &event.event_data {
+        crate::handlers::evm_verify_event::EventData::Evm { topics, data } => {
+            // Parse expected topics from hex strings to H256
+            let expected_topics: Result<Vec<H256>, _> = topics
+                .iter()
+                .map(|topic| topic.parse::<H256>())
+                .collect();
+
+            let expected_topics = match expected_topics {
+                Ok(topics) => topics,
+                Err(e) => {
+                    debug!(error = ?e, "failed to parse topics");
+                    return Vote::NotFound;
+                }
+            };
+
+            // Parse expected data from hex string
+            let expected_data = match hex::decode(data.strip_prefix("0x").unwrap_or(data)) {
+                Ok(data) => data,
+                Err(e) => {
+                    debug!(error = ?e, "failed to parse event data");
+                    return Vote::NotFound;
+                }
+            };
+
+            // Compare topics - they should match exactly in order
+            if log.topics.len() != expected_topics.len() {
+                return Vote::NotFound;
+            }
+
+            for (actual, expected) in log.topics.iter().zip(expected_topics.iter()) {
+                if actual != expected {
+                    return Vote::NotFound;
+                }
+            }
+
+            // Compare data
+            if log.data.to_vec() != expected_data {
+                return Vote::NotFound;
+            }
+
+            Vote::SucceededOnChain
+        }
+    }
 }
 
 #[cfg(test)]
