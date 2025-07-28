@@ -1,0 +1,1157 @@
+Building workspace metadata entry `amplifier_lints`
+   Compiling proc-macro2 v1.0.95
+   Compiling unicode-ident v1.0.18
+   Compiling serde v1.0.219
+   Compiling memchr v2.7.5
+   Compiling equivalent v1.0.2
+   Compiling hashbrown v0.15.4
+   Compiling toml_write v0.1.2
+   Compiling camino v1.1.10
+   Compiling winnow v0.7.11
+   Compiling thiserror v2.0.12
+   Compiling serde_json v1.0.140
+   Compiling semver v1.0.26
+   Compiling ryu v1.0.20
+   Compiling indexmap v2.10.0
+   Compiling aho-corasick v1.1.3
+   Compiling regex-syntax v0.8.5
+   Compiling itoa v1.0.15
+   Compiling anyhow v1.0.98
+   Compiling paste v1.0.15
+   Compiling quote v1.0.40
+   Compiling rustversion v1.0.21
+   Compiling syn v2.0.104
+   Compiling regex-automata v0.4.9
+   Compiling serde_derive v1.0.219
+   Compiling serde_spanned v0.6.9
+   Compiling toml_datetime v0.6.11
+   Compiling thiserror-impl v2.0.12
+   Compiling toml_edit v0.22.27
+   Compiling regex v1.11.1
+   Compiling toml v0.8.23
+   Compiling dylint_linting v4.1.0
+   Compiling cargo-platform v0.1.9
+   Compiling cargo_metadata v0.19.2
+   Compiling dylint_internal v4.1.0
+   Compiling get_fn v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints/get_fn)
+   Compiling ref_opt_type v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints/ref_opt_type)
+   Compiling warn_on_unwraps v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints/warn_on_unwraps)
+   Compiling msg_without_explicit_permissions v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints/msg_without_explicit_permissions)
+   Compiling execute_without_explicit_permissions v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints/execute_without_explicit_permissions)
+   Compiling cosmwasm_addr_in_msg_struct v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints/cosmwasm_addr_in_msg_struct)
+   Compiling amplifier_lints v0.1.0 (/Users/andrewjia/Desktop/axelar-lints/amplifier-lints)
+    Finished `release` profile [optimized] target(s) in 9.10s
+Checking with toolchain `nightly-2025-04-03-aarch64-apple-darwin`
+   Compiling proc-macro2 v1.0.95
+   Compiling unicode-ident v1.0.18
+   Compiling serde v1.0.219
+    Checking cfg-if v1.0.0
+   Compiling libc v0.2.172
+   Compiling version_check v0.9.5
+   Compiling autocfg v1.4.0
+   Compiling typenum v1.18.0
+   Compiling zerocopy v0.8.25
+    Checking once_cell v1.21.3
+   Compiling syn v1.0.109
+    Checking subtle v2.6.1
+   Compiling shlex v1.3.0
+    Checking const-oid v0.9.6
+   Compiling thiserror v1.0.69
+   Compiling generic-array v0.14.7
+    Checking itoa v1.0.15
+   Compiling libm v0.2.14
+   Compiling num-traits v0.2.19
+    Checking memchr v2.7.4
+    Checking ryu v1.0.20
+    Checking foldhash v0.1.5
+    Checking equivalent v1.0.2
+    Checking byteorder v1.5.0
+    Checking hashbrown v0.15.3
+   Compiling semver v1.0.26
+    Checking pin-project-lite v0.2.16
+   Compiling quote v1.0.40
+   Compiling crunchy v0.2.3
+   Compiling syn v2.0.101
+   Compiling jobserver v0.1.33
+   Compiling cc v1.2.21
+   Compiling valuable v0.1.1
+    Checking getrandom v0.2.16
+    Checking cpufeatures v0.2.17
+    Checking rand_core v0.6.4
+   Compiling serde_json v1.0.140
+    Checking zerocopy v0.7.35
+   Compiling crossbeam-utils v0.8.21
+    Checking ppv-lite86 v0.2.21
+   Compiling paste v1.0.15
+    Checking rand_chacha v0.3.1
+    Checking smallvec v1.15.0
+    Checking rand v0.8.5
+   Compiling ahash v0.8.11
+   Compiling sha2-asm v0.6.4
+    Checking spin v0.9.8
+    Checking lazy_static v1.5.0
+    Checking either v1.15.0
+   Compiling rayon-core v1.12.1
+    Checking num-integer v0.1.46
+    Checking base64ct v1.7.3
+    Checking num-bigint v0.4.6
+    Checking base64 v0.22.1
+    Checking tap v1.0.1
+   Compiling radium v0.7.0
+   Compiling indexmap v2.9.0
+   Compiling ident_case v1.0.1
+   Compiling strsim v0.11.1
+    Checking crossbeam-epoch v0.9.18
+   Compiling fnv v1.0.7
+    Checking crossbeam-deque v0.8.6
+   Compiling darling_core v0.20.11
+    Checking keccak v0.1.5
+   Compiling winnow v0.7.12
+    Checking hashbrown v0.13.2
+   Compiling toml_write v0.1.1
+   Compiling rustversion v1.0.20
+   Compiling unicode-xid v0.2.6
+    Checking arrayvec v0.7.6
+    Checking itertools v0.10.5
+    Checking static_assertions v1.1.0
+    Checking opaque-debug v0.3.1
+    Checking rayon v1.10.0
+    Checking futures-core v0.3.31
+   Compiling bs58 v0.5.1
+   Compiling cfg_aliases v0.2.1
+   Compiling ark-serialize-derive v0.4.2
+   Compiling derivative v2.2.0
+   Compiling ark-ff-asm v0.4.2
+   Compiling serde_derive v1.0.219
+   Compiling zeroize_derive v1.4.2
+   Compiling thiserror-impl v1.0.69
+   Compiling valuable-derive v0.1.1
+   Compiling tracing-attributes v0.1.28
+    Checking wyz v0.5.1
+   Compiling ark-ff-macros v0.4.2
+   Compiling lock_api v0.4.12
+    Checking zeroize v1.8.1
+    Checking funty v2.0.0
+    Checking scopeguard v1.2.0
+   Compiling parking_lot_core v0.9.10
+    Checking futures-sink v0.3.31
+    Checking ark-std v0.4.0
+    Checking tracing-core v0.1.33
+   Compiling darling_macro v0.20.11
+   Compiling slab v0.4.9
+    Checking futures-io v0.3.31
+    Checking regex-syntax v0.8.5
+    Checking core-foundation-sys v0.8.7
+    Checking futures-channel v0.3.31
+   Compiling block-buffer v0.10.4
+   Compiling darling v0.20.11
+   Compiling crypto-common v0.1.6
+   Compiling eyre v0.6.12
+    Checking pin-utils v0.1.0
+   Compiling futures-macro v0.3.31
+   Compiling digest v0.10.7
+    Checking socket2 v0.5.9
+    Checking futures-task v0.3.31
+   Compiling tokio-macros v2.5.0
+    Checking mio v1.0.3
+    Checking signal-hook-registry v1.4.5
+   Compiling derive_more-impl v1.0.0
+    Checking parking_lot v0.12.3
+    Checking base16ct v0.2.0
+   Compiling anyhow v1.0.98
+   Compiling log v0.4.27
+   Compiling bytemuck_derive v1.8.1
+   Compiling num-bigint v0.3.3
+   Compiling serde_with_macros v3.12.0
+    Checking futures-util v0.3.31
+    Checking bitvec v1.0.1
+   Compiling borsh v1.5.7
+   Compiling heck v0.5.0
+    Checking percent-encoding v2.3.1
+   Compiling serde_derive_internals v0.29.1
+    Checking aho-corasick v1.1.3
+   Compiling borsh-schema-derive-internal v0.10.4
+   Compiling borsh-derive-internal v0.10.4
+    Checking solana-sanitize v2.1.21
+   Compiling der_derive v0.7.3
+    Checking pem-rfc7468 v0.7.0
+    Checking bytemuck v1.23.0
+    Checking solana-atomic-u64 v2.1.21
+    Checking indenter v0.3.3
+    Checking solana-decode-error v2.1.21
+    Checking regex-automata v0.4.9
+    Checking five8_core v0.1.2
+    Checking five8_const v0.1.4
+   Compiling itertools v0.14.0
+   Compiling schemars_derive v0.8.22
+    Checking allocator-api2 v0.2.21
+    Checking arrayref v0.3.9
+   Compiling sha2 v0.10.9
+   Compiling ring v0.17.14
+   Compiling httparse v1.10.1
+    Checking der v0.7.10
+   Compiling addchain v0.2.0
+    Checking tower-service v0.3.3
+   Compiling ff_derive v0.13.1
+   Compiling tiny-keccak v2.0.2
+   Compiling rand_xorshift v0.3.0
+    Checking spki v0.7.3
+    Checking regex v1.11.1
+    Checking pkcs8 v0.10.2
+    Checking dyn-clone v1.0.19
+    Checking untrusted v0.9.0
+   Compiling digest v0.9.0
+   Compiling convert_case v0.4.0
+    Checking try-lock v0.2.5
+   Compiling heck v0.4.1
+    Checking httpdate v1.0.3
+    Checking want v0.3.1
+    Checking ff v0.13.1
+    Checking bytes v1.10.1
+    Checking hex v0.4.3
+    Checking tracing v0.1.41
+    Checking bitflags v2.9.0
+   Compiling toml v0.5.11
+   Compiling serde_spanned v0.6.8
+   Compiling toml_datetime v0.6.9
+    Checking serde_with v3.12.0
+   Compiling rustc_version v0.4.1
+   Compiling toml_edit v0.22.26
+    Checking serde_bytes v0.11.17
+    Checking tokio v1.45.0
+   Compiling curve25519-dalek v4.1.3
+    Checking block-buffer v0.9.0
+    Checking sha2 v0.9.9
+    Checking sha3 v0.10.8
+    Checking hmac v0.12.1
+    Checking ark-serialize v0.4.2
+    Checking signature v2.2.0
+    Checking bincode v1.3.3
+   Compiling proc-macro-crate v0.1.5
+    Checking crypto-bigint v0.5.5
+    Checking group v0.13.0
+    Checking rfc6979 v0.4.0
+    Checking ark-ff v0.4.2
+   Compiling borsh-derive v0.10.4
+    Checking sec1 v0.7.3
+    Checking borsh v0.10.4
+   Compiling derive_more v0.99.20
+   Compiling error-stack v0.4.1
+   Compiling proc-macro-crate v3.3.0
+   Compiling pkg-config v0.3.32
+    Checking constant_time_eq v0.3.1
+    Checking base64 v0.13.1
+    Checking elliptic-curve v0.13.8
+   Compiling getrandom v0.3.2
+    Checking hashbrown v0.14.5
+   Compiling getrandom v0.1.16
+    Checking derive_more v1.0.0
+   Compiling displaydoc v0.2.5
+    Checking ecdsa v0.16.9
+   Compiling synstructure v0.13.2
+   Compiling schemars v0.8.22
+    Checking hex-literal v0.4.1
+    Checking regex-syntax v0.6.29
+    Checking rand_core v0.5.1
+   Compiling borsh-derive v1.5.7
+   Compiling rustix v1.0.7
+    Checking overload v0.1.1
+   Compiling crate-git-revision v0.0.6
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.7.5
+    Checking tokio-util v0.7.15
+    Checking nu-ansi-term v0.46.0
+    Checking crypto-mac v0.8.0
+   Compiling solana-sdk-macro v2.1.21
+    Checking sharded-slab v0.1.7
+    Checking errno v0.3.11
+    Checking thread_local v1.1.8
+    Checking stable_deref_trait v1.2.0
+    Checking hmac v0.8.1
+    Checking rand_chacha v0.2.2
+    Checking regex-automata v0.1.10
+    Checking primeorder v0.13.6
+    Checking ed25519 v2.2.3
+   Compiling libsecp256k1-core v0.2.2
+   Compiling num-derive v0.4.2
+   Compiling cosmwasm-derive v2.2.2
+   Compiling zerovec-derive v0.10.3
+    Checking zerofrom v0.1.6
+    Checking pem-rfc7468 v0.6.0
+   Compiling ruint-macro v1.2.1
+    Checking matchers v0.1.0
+    Checking yoke v0.7.5
+    Checking der v0.6.1
+    Checking p256 v0.13.2
+    Checking rand v0.7.3
+    Checking hmac-drbg v0.3.0
+    Checking k256 v0.13.4
+   Compiling impl-trait-for-tuples v0.2.3
+    Checking solana-msg v2.1.21
+   Compiling libsecp256k1-gen-genmult v0.2.1
+   Compiling libsecp256k1-gen-ecmult v0.2.1
+    Checking solana-hash v2.1.21
+    Checking zerovec v0.10.4
+    Checking spki v0.6.0
+    Checking security-framework-sys v2.14.0
+    Checking solana-sha256-hasher v2.1.21
+   Compiling feature-probe v0.1.1
+    Checking base64 v0.21.7
+    Checking solana-pubkey v2.1.21
+    Checking pkcs8 v0.9.0
+   Compiling libsecp256k1 v0.6.0
+   Compiling const-hex v1.14.0
+   Compiling bv v0.11.1
+    Checking solana-instruction v2.1.21
+    Checking solana-sysvar-id v2.1.21
+    Checking iana-time-zone v0.1.63
+    Checking solana-program-memory v2.1.21
+   Compiling memoffset v0.9.1
+    Checking solana-clock v2.1.21
+    Checking solana-epoch-schedule v2.1.21
+    Checking litemap v0.7.5
+    Checking writeable v0.5.5
+   Compiling icu_locid_transform_data v1.5.1
+    Checking solana-program-error v2.1.21
+    Checking chrono v0.4.41
+    Checking solana-account-info v2.1.21
+   Compiling valuable-serde v0.1.1
+    Checking tinystr v0.7.6
+   Compiling icu_provider_macros v1.5.0
+   Compiling blake3 v1.8.2
+   Compiling ahash v0.7.8
+   Compiling icu_properties_data v1.5.1
+    Checking cosmwasm-core v2.2.2
+    Checking base64 v0.12.3
+    Checking icu_locid v1.5.0
+   Compiling tracing-serde v0.2.0
+   Compiling tracing-log v0.2.0
+   Compiling strum_macros v0.25.3
+    Checking solana-serde-varint v2.1.21
+    Checking form_urlencoded v1.2.1
+    Checking bech32 v0.11.0
+   Compiling icu_normalizer_data v1.5.1
+    Checking icu_provider v1.5.0
+    Checking solana-slot-history v2.1.21
+    Checking ark-poly v0.4.2
+    Checking icu_collections v1.5.0
+    Checking solana-cpi v2.1.21
+    Checking solana-program-entrypoint v2.1.21
+    Checking solana-program-pack v2.1.21
+    Checking solana-serialize-utils v2.1.21
+    Checking solana-stable-layout v2.1.21
+    Checking icu_locid_transform v1.5.0
+    Checking solana-transaction-error v2.1.21
+    Checking solana-bincode v2.1.21
+    Checking solana-slot-hashes v2.1.21
+   Compiling tracing-subscriber v0.3.19
+    Checking solana-rent v2.1.21
+    Checking solana-last-restart-slot v2.1.21
+    Checking solana-borsh v2.1.21
+    Checking ruint v1.14.0
+    Checking solana-fee-calculator v2.1.21
+    Checking solana-short-vec v2.1.21
+   Compiling cosmwasm-schema-derive v2.2.2
+    Checking num-iter v0.1.45
+    Checking mime v0.3.17
+    Checking ark-ec v0.4.2
+    Checking solana-program-option v2.1.21
+    Checking solana-native-token v2.1.21
+    Checking bnum v0.11.0
+    Checking icu_properties v1.5.1
+    Checking hashbrown v0.12.3
+   Compiling stellar-strkey v0.0.8
+   Compiling num_enum_derive v0.7.3
+    Checking core-foundation v0.9.4
+   Compiling cw-storage-macro v2.0.0
+    Checking lambdaworks-math v0.10.0
+   Compiling tracing-error v0.2.1
+    Checking fastrand v2.3.0
+    Checking utf16_iter v1.0.5
+    Checking utf8_iter v1.0.4
+    Checking write16 v1.0.0
+    Checking tempfile v3.19.1
+    Checking http v0.2.12
+   Compiling indexmap v1.9.3
+    Checking size-of v0.1.5
+    Checking icu_normalizer v1.5.0
+    Checking signature v1.6.4
+    Checking security-framework v2.11.1
+    Checking ed25519 v1.5.3
+    Checking ark-bls12-381 v0.4.0
+    Checking idna_adapter v1.2.0
+    Checking alloy-primitives v0.7.7
+    Checking idna v1.0.3
+    Checking ed25519-zebra v4.0.3
+   Compiling rmp v0.8.14
+    Checking url v2.5.4
+    Checking byte-slice-cast v1.2.3
+    Checking cosmwasm-crypto v2.2.2
+    Checking lambdaworks-crypto v0.10.0
+    Checking num_enum v0.7.3
+   Compiling report v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/report)
+    Checking strum v0.25.0
+    Checking rmp-serde v1.3.0
+    Checking solana-secp256k1-recover v2.1.21
+    Checking solana-program v2.1.21
+    Checking sct v0.7.1
+   Compiling serde-json-wasm v1.0.1
+    Checking rustc-hex v2.1.0
+    Checking base32 v0.4.0
+    Checking cosmwasm-std v2.2.2
+    Checking starknet-types-core v0.1.8
+    Checking http-body v0.4.6
+    Checking h2 v0.3.26
+   Compiling stellar-xdr v21.2.0
+   Compiling async-trait v0.1.88
+    Checking escape-bytes v0.1.1
+   Compiling into-inner-derive v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/into-inner-derive)
+    Checking ark-bn254 v0.4.0
+    Checking itertools v0.12.1
+    Checking cosmwasm-schema v2.2.2
+   Compiling zstd-sys v2.0.15+zstd.1.5.7
+   Compiling openssl-src v300.5.0+3.5.0
+   Compiling vcpkg v0.2.15
+   Compiling openssl-sys v0.9.108
+    Checking serde_urlencoded v0.7.1
+    Checking rustls-pemfile v1.0.4
+   Compiling zstd-safe v7.2.4
+    Checking rustls-native-certs v0.6.3
+    Checking starknet-checked-felt v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/starknet-checked-felt)
+    Checking sui-types v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/sui-types)
+    Checking curve25519-dalek v3.2.0
+    Checking uint v0.9.5
+   Compiling flagset v0.4.7
+    Checking futures-executor v0.3.31
+    Checking foreign-types-shared v0.1.1
+   Compiling native-tls v0.2.14
+   Compiling openssl v0.10.72
+    Checking hyper v0.14.32
+    Checking futures v0.3.31
+    Checking foreign-types v0.3.2
+    Checking ed25519-dalek v1.0.1
+    Checking solana-feature-set v2.1.21
+   Compiling proc-macro-crate v1.1.3
+    Checking cw-storage-plus v2.0.0
+    Checking http v1.3.1
+   Compiling openssl-macros v0.1.1
+    Checking alloc-no-stdlib v2.0.4
+    Checking adler2 v2.0.0
+    Checking derivation-path v0.2.0
+    Checking miniz_oxide v0.8.8
+    Checking alloc-stdlib v0.2.2
+    Checking client v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/client)
+    Checking solana-account v2.1.21
+    Checking solana-precompile-error v2.1.21
+    Checking qstring v0.7.2
+   Compiling cfg_eval v0.1.2
+    Checking uriparse v0.6.4
+    Checking cw2 v2.0.0
+    Checking crc32fast v1.4.2
+   Compiling unicase v2.8.1
+    Checking flate2 v1.1.1
+    Checking tokio-native-tls v0.3.1
+   Compiling mime_guess v2.0.5
+    Checking ed25519-dalek-bip32 v0.2.0
+    Checking brotli-decompressor v5.0.0
+    Checking solana-packet v2.1.21
+    Checking solana-signature v2.1.21
+    Checking solana-bn254 v2.1.21
+    Checking solana-derivation-path v2.1.21
+    Checking pbkdf2 v0.11.0
+    Checking solana-inflation v2.1.21
+    Checking memmap2 v0.5.10
+    Checking encoding_rs v0.8.35
+    Checking siphasher v0.3.11
+    Checking const-str v0.6.2
+    Checking block-padding v0.3.3
+    Checking bcs v0.1.6
+   Compiling num-conv v0.1.0
+   Compiling time-core v0.1.4
+    Checking brotli v8.0.1
+    Checking bitflags v1.3.2
+    Checking powerfmt v0.2.0
+    Checking inout v0.1.4
+   Compiling time-macros v0.2.22
+    Checking rustls-webpki v0.101.7
+    Checking deranged v0.4.0
+    Checking ipnet v2.11.0
+    Checking data-encoding v2.9.0
+   Compiling rustls v0.21.12
+    Checking cipher v0.4.4
+   Compiling pin-project-internal v1.1.10
+    Checking tower-layer v0.3.3
+    Checking http-body v1.0.1
+   Compiling proc-macro-error-attr v1.0.4
+   Compiling linked-hash-map v0.5.6
+   Compiling thiserror v2.0.12
+    Checking time v0.3.41
+   Compiling yaml-rust v0.4.5
+    Checking pin-project v1.1.10
+   Compiling thiserror-impl v2.0.12
+   Compiling const_format_proc_macros v0.2.34
+   Compiling proc-macro-error v1.0.4
+   Compiling radium v0.6.2
+    Checking tokio-rustls v0.24.1
+   Compiling serde_yaml v0.8.26
+   Compiling parity-scale-codec v3.7.4
+   Compiling prost-derive v0.13.5
+   Compiling parity-scale-codec-derive v3.7.4
+    Checking universal-hash v0.5.1
+    Checking funty v1.1.0
+    Checking wyz v0.2.0
+    Checking rustls-pki-types v1.11.0
+   Compiling system-configuration-sys v0.5.0
+    Checking bitvec v0.20.4
+    Checking polyval v0.6.2
+    Checking hyper-rustls v0.24.2
+    Checking ctr v0.9.2
+    Checking aes v0.8.4
+   Compiling parity-scale-codec-derive v2.3.1
+   Compiling rlp-derive v0.1.0
+    Checking aead v0.5.2
+    Checking atomic-waker v1.1.2
+    Checking webpki-roots v0.25.4
+   Compiling ref-cast v1.0.24
+   Compiling wasm-bindgen-shared v0.2.100
+    Checking h2 v0.4.10
+    Checking system-configuration v0.5.1
+   Compiling enum-compat-util v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking hyper-tls v0.5.0
+    Checking http-body-util v0.1.3
+    Checking fixed-hash v0.7.0
+    Checking impl-serde v0.3.2
+   Compiling ref-cast-impl v1.0.24
+    Checking num-rational v0.4.2
+    Checking num-complex v0.4.6
+    Checking parity-scale-codec v2.3.1
+    Checking sync_wrapper v0.1.2
+   Compiling move-proc-macros v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking num v0.4.3
+   Compiling scale-info-derive v2.11.6
+    Checking sync_wrapper v1.0.2
+    Checking itertools v0.11.0
+    Checking ethnum v1.5.1
+   Compiling bumpalo v3.17.0
+   Compiling axelar-wasm-std v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/axelar-wasm-std)
+    Checking leb128 v0.2.5
+   Compiling rustls v0.23.27
+   Compiling wasm-bindgen-backend v0.2.100
+    Checking rustls-webpki v0.103.2
+   Compiling variant_count v1.1.0
+   Compiling wasm-bindgen v0.2.100
+    Checking impl-codec v0.5.1
+   Compiling axelar-wasm-std-derive v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/axelar-wasm-std-derive)
+    Checking primitive-types v0.10.1
+    Checking tower v0.5.2
+    Checking ed25519-dalek v2.1.1
+    Checking rand_core v0.9.3
+   Compiling num-bigint v0.2.6
+   Compiling wasm-bindgen-macro-support v0.2.100
+    Checking same-file v1.0.6
+    Checking walkdir v2.5.0
+    Checking move-core-types v0.0.4 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking rand_chacha v0.9.0
+    Checking hyper v1.6.0
+    Checking tokio-stream v0.1.17
+   Compiling synstructure v0.12.6
+   Compiling num-complex v0.2.4
+   Compiling num-rational v0.2.4
+    Checking subtle-ng v2.5.0
+    Checking curve25519-dalek-ng v4.1.1
+    Checking hyper-util v0.1.11
+    Checking rand v0.9.1
+   Compiling wasm-bindgen-macro v0.2.100
+    Checking prost v0.13.5
+    Checking cw-utils v2.0.0
+    Checking sha1 v0.10.6
+    Checking move-binary-format v0.0.3 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+   Compiling serde_repr v0.1.20
+    Checking crossbeam-channel v0.5.15
+    Checking num_cpus v1.16.0
+   Compiling prettyplease v0.2.32
+    Checking void v1.0.2
+    Checking utf-8 v0.7.6
+    Checking anstyle v1.0.10
+    Checking unreachable v1.0.0
+    Checking ed25519-consensus v2.1.0
+    Checking js-sys v0.3.77
+   Compiling enum-iterator-derive v1.4.0
+   Compiling enum-display-derive v0.1.1
+    Checking gethostname v0.2.3
+    Checking minimal-lexical v0.2.1
+   Compiling dunce v1.0.5
+   Compiling siphasher v1.0.1
+   Compiling msgs-derive v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/msgs-derive)
+    Checking ascii v0.9.3
+    Checking send_wrapper v0.4.0
+    Checking tinyvec_macros v0.1.1
+    Checking tinyvec v1.9.0
+   Compiling phf_shared v0.11.3
+    Checking nom v7.1.3
+    Checking num v0.2.1
+    Checking combine v3.8.1
+    Checking const_format v0.2.34
+   Compiling ring v0.16.20
+    Checking enum-iterator v1.5.0
+    Checking hash32 v0.2.1
+    Checking solana-measure v2.1.21
+    Checking rustc-demangle v0.1.24
+    Checking eager v0.1.0
+    Checking scroll v0.11.0
+    Checking unicode-width v0.1.14
+    Checking event-listener v2.5.3
+    Checking percentage v0.1.0
+   Compiling phf_generator v0.11.3
+   Compiling asn1-rs-derive v0.4.0
+    Checking rusticata-macros v4.1.0
+    Checking rlp v0.5.2
+    Checking solana-log-collector v2.1.21
+    Checking beef v0.5.2
+    Checking core-foundation v0.10.0
+   Compiling asn1-rs-impl v0.1.0
+    Checking hdrhistogram v7.5.4
+    Checking solana-type-overrides v2.1.21
+    Checking gloo-timers v0.2.6
+    Checking futures-timer v3.0.3
+   Compiling camino v1.1.9
+    Checking security-framework v3.2.0
+    Checking tower v0.4.13
+    Checking asn1-rs v0.5.2
+   Compiling phf_macros v0.11.3
+    Checking move-vm-config v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking solana_rbpf v0.8.5
+    Checking hyper-timeout v0.5.2
+    Checking router-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/router-api)
+    Checking signature-verifier-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/signature-verifier-api)
+   Compiling quinn-udp v0.5.12
+    Checking utf8parse v0.2.2
+   Compiling oid-registry v0.6.1
+    Checking untrusted v0.7.1
+    Checking anstyle-parse v0.2.6
+    Checking phf v0.11.3
+    Checking rustls-platform-verifier v0.5.3
+    Checking zstd v0.13.3
+    Checking impl-rlp v0.3.0
+    Checking impl-codec v0.6.0
+    Checking scale-info v2.11.6
+    Checking aes-gcm-siv v0.11.1
+    Checking async-compression v0.4.23
+    Checking fixed-hash v0.8.0
+    Checking solana-curve25519 v2.1.21
+    Checking impl-serde v0.4.0
+   Compiling spl-program-error-derive v0.4.1
+    Checking rewards v1.2.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/rewards)
+   Compiling spl-discriminator-syn v0.2.0
+    Checking merlin v3.0.0
+   Compiling auto_impl v1.3.0
+   Compiling quinn v0.11.7
+    Checking dirs-sys-next v0.1.2
+    Checking rustc-hash v2.1.1
+   Compiling bitcoin-private v0.1.0
+    Checking reqwest v0.11.27
+    Checking colorchoice v1.0.3
+    Checking anstyle-query v1.1.2
+    Checking unicode-width v0.2.0
+    Checking is_terminal_polyfill v1.70.1
+    Checking anstream v0.6.18
+    Checking spl-program-error v0.5.0
+    Checking console v0.15.11
+    Checking quinn-proto v0.11.11
+   Compiling spl-discriminator-derive v0.2.0
+    Checking dirs-next v2.0.0
+    Checking gateway-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/gateway-api)
+    Checking der-parser v8.2.0
+    Checking tokio-rustls v0.26.2
+    Checking webpki-roots v0.26.10
+    Checking multisig v2.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/multisig)
+    Checking terminal_size v0.4.2
+    Checking webpki v0.22.4
+   Compiling open-fastrlp-derive v0.1.1
+    Checking blake2 v0.10.6
+   Compiling strum_macros v0.26.4
+   Compiling secp256k1-sys v0.8.1
+    Checking difference v2.0.0
+    Checking termcolor v1.4.1
+    Checking clap_lex v0.7.4
+   Compiling rustls v0.20.9
+    Checking vfs v0.10.0
+   Compiling num-bigint-dig v0.8.4
+   Compiling ucd-trie v0.1.7
+    Checking clap_builder v4.5.37
+    Checking move-command-line-common v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+   Compiling pest v2.8.0
+    Checking x509-parser v0.14.0
+    Checking spl-discriminator v0.3.0
+    Checking primitive-types v0.12.2
+    Checking ethbloom v0.13.0
+    Checking move-symbol-pool v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+warning: no msg types should use cosmwasm::Addr
+  --> contracts/multisig/src/msg.rs:15:1
+   |
+15 | / pub struct InstantiateMsg {
+16 | |     /// The governance address is allowed to modify the authorized caller list for this contract
+17 | |     pub governance_address: String,
+18 | |     /// The admin address (or governance) is allowed to disable signing and enable signing
+...  |
+24 | |     pub coordinator_address: Addr,
+25 | | }
+   | |_^
+   |
+   = note: `#[warn(cosmwasm_addr_in_msg_struct)]` on by default
+
+    Checking tungstenite v0.24.0
+warning: `multisig` (lib) generated 1 warning
+    Checking rustls-pemfile v2.2.0
+    Checking sha-1 v0.9.8
+   Compiling clap_derive v4.5.32
+   Compiling ptr_meta_derive v0.1.4
+   Compiling blst v0.3.14
+    Checking bstr v1.12.0
+   Compiling bytecheck v0.6.12
+   Compiling portable-atomic v1.11.0
+    Checking ptr_meta v0.1.4
+    Checking globset v0.4.16
+   Compiling threadpool v1.8.1
+    Checking move-ir-types v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking tokio-tungstenite v0.24.0
+    Checking soketto v0.7.1
+   Compiling pest_meta v2.8.0
+    Checking ethereum-types v0.14.1
+    Checking multisig-prover-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/multisig-prover-api)
+    Checking bitcoin_hashes v0.12.0
+    Checking clap v4.5.37
+    Checking service-registry-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/service-registry-api)
+    Checking voting-verifier-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/voting-verifier-api)
+    Checking solana-account-decoder-client-types v2.1.21
+    Checking jsonrpsee-types v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+    Checking async-lock v2.8.0
+    Checking uuid v1.16.0
+    Checking axum-core v0.4.5
+    Checking ghash v0.5.1
+    Checking pkcs1 v0.4.1
+    Checking dashmap v5.5.3
+    Checking serde_path_to_error v0.1.17
+    Checking Inflector v0.11.4
+    Checking flex-error v0.4.4
+    Checking subtle-encoding v0.5.1
+   Compiling axum-macros v0.4.2
+   Compiling bytecheck_derive v0.6.12
+   Compiling syn-solidity v0.7.7
+    Checking rustc-hash v1.1.0
+    Checking simdutf8 v0.1.5
+   Compiling system-configuration-sys v0.6.0
+   Compiling rend v0.4.2
+    Checking fixedbitset v0.2.0
+    Checking matchit v0.7.3
+   Compiling blake2b_simd v1.0.3
+    Checking petgraph v0.5.1
+    Checking coordinator v1.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/coordinator)
+    Checking jsonrpsee-core v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+   Compiling data-encoding-macro-internal v0.1.16
+    Checking rsa v0.8.2
+    Checking aes-gcm v0.10.3
+    Checking secp256k1 v0.27.0
+    Checking tokio-rustls v0.23.4
+   Compiling pest_generator v2.8.0
+    Checking codespan-reporting v0.11.1
+    Checking webpki-roots v0.22.6
+    Checking hyper-rustls v0.27.5
+    Checking axelar-core-std v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/axelar-core-std)
+    Checking move-bytecode-verifier-meter v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking axum v0.7.9
+   Compiling alloy-sol-macro-input v0.7.7
+    Checking cbc v0.1.2
+    Checking ark-secp256r1 v0.4.0
+   Compiling pairing v0.23.0
+    Checking hkdf v0.12.4
+   Compiling async-stream-impl v0.3.6
+   Compiling readonly v0.2.13
+   Compiling fastcrypto-derive v0.1.3 (https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c7)
+    Checking pem v3.0.5
+   Compiling psm v0.1.26
+    Checking auto_ops v0.3.0
+    Checking bs58 v0.4.0
+   Compiling protobuf v2.28.0
+   Compiling proc-macro2 v0.4.30
+   Compiling rkyv v0.7.45
+    Checking bech32 v0.9.1
+   Compiling fixedbitset v0.5.7
+    Checking async-stream v0.3.6
+    Checking fastcrypto v0.1.8 (https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c7)
+   Compiling petgraph v0.7.1
+   Compiling pest_derive v2.8.0
+   Compiling prost-types v0.13.5
+   Compiling alloy-sol-macro-expander v0.7.7
+   Compiling blstrs v0.7.1
+    Checking move-abstract-interpreter v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking toml v0.8.22
+    Checking data-encoding-macro v0.1.18
+   Compiling pasta_curves v0.5.1
+    Checking move-bytecode-source-map v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+   Compiling multihash-derive v0.8.1
+   Compiling ouroboros_macro v0.17.2
+    Checking yasna v0.5.2
+    Checking ark-relations v0.4.0
+    Checking blake2s_simd v1.0.3
+   Compiling cargo-platform v0.1.9
+    Checking task-local-extensions v0.1.4
+   Compiling rkyv_derive v0.7.45
+   Compiling stacker v0.1.21
+    Checking core2 v0.4.0
+    Checking half v2.6.0
+    Checking base-x v0.2.11
+    Checking unsigned-varint v0.7.2
+    Checking aliasable v0.1.3
+   Compiling multimap v0.10.0
+   Compiling unicode-xid v0.1.0
+    Checking similar v2.7.0
+   Compiling snap v1.1.1
+    Checking seahash v4.1.0
+   Compiling prometheus v0.13.4
+    Checking ciborium-io v0.2.2
+    Checking ciborium-ll v0.2.2
+    Checking ouroboros v0.17.2
+   Compiling prost-build v0.13.5
+   Compiling alloy-sol-macro v0.7.7
+    Checking multihash v0.17.0
+    Checking multibase v0.9.1
+    Checking tonic v0.12.3
+   Compiling neptune v13.0.0
+    Checking cargo_metadata v0.18.1
+    Checking reqwest-middleware v0.2.5
+    Checking bellpepper-core v0.4.0
+   Compiling prost-derive v0.12.6
+    Checking rcgen v0.13.2
+    Checking ark-snark v0.4.0
+    Checking system-configuration v0.6.1
+    Checking service-registry v1.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/service-registry)
+   Compiling open-fastrlp v0.1.4
+   Compiling ethabi v18.0.0
+    Checking move-ir-to-bytecode-syntax v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking strum v0.26.3
+    Checking hyper-tls v0.6.0
+    Checking rustls-webpki v0.102.8
+    Checking solana-version v2.1.21
+    Checking jsonrpc-core v18.0.0
+    Checking solana-inline-spl v2.1.21
+    Checking concurrent-queue v2.5.0
+    Checking bitmaps v2.1.0
+   Compiling im v15.1.0
+    Checking move-borrow-graph v0.0.1 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking matchit v0.5.0
+    Checking iri-string v0.7.8
+   Compiling syn v0.15.44
+    Checking predicates-core v1.0.9
+    Checking move-abstract-stack v0.0.1 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking http-range-header v0.4.2
+    Checking move-bytecode-verifier v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking ethers-core v2.0.14
+    Checking anemo v0.0.0 (https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b#e609f769)
+    Checking sized-chunks v0.6.5
+    Checking prost v0.12.6
+    Checking reqwest v0.12.15
+    Checking move-ir-to-bytecode v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking tonic-health v0.12.3
+    Checking tower-http v0.5.2
+    Checking bellpepper v0.4.1
+    Checking ark-crypto-primitives v0.4.0
+    Checking multiaddr v0.17.1
+   Compiling tonic-build v0.13.1
+    Checking alloy-sol-types v0.7.7
+   Compiling quote v0.6.13
+    Checking ciborium v0.2.2
+    Checking axelarnet-gateway v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/axelarnet-gateway)
+    Checking codespan v0.11.1
+    Checking jsonrpsee-client-transport v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+    Checking hyper-rustls v0.23.2
+    Checking interchain-token-service-std v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/interchain-token-service-std)
+    Checking move-vm-profiler v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking lsp-types v0.95.1
+    Checking axum-core v0.5.2
+   Compiling sui-enum-compat-util v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking spl-token v6.0.0
+    Checking spl-memo v5.0.0
+    Checking ripemd v0.1.3
+   Compiling libsecp256k1-core v0.3.0
+   Compiling typeshare-annotation v1.0.4
+   Compiling dlopen2_derive v0.3.0
+   Compiling nix v0.29.0
+   Compiling trait-set v0.3.0
+    Checking colored v2.2.0
+    Checking rand_xoshiro v0.6.0
+    Checking wait-timeout v0.2.1
+   Compiling solana-perf v2.1.21
+    Checking quick-error v1.2.3
+    Checking solana-security-txt v1.1.1
+    Checking bit-vec v0.8.0
+    Checking matchit v0.8.4
+    Checking bit-set v0.8.0
+    Checking rusty-fork v0.3.0
+    Checking axum v0.8.4
+    Checking move-coverage v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking dlopen2 v0.5.0
+    Checking typeshare v1.0.4
+    Checking mysten-network v0.2.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking its-msg-translator-api v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/its-msg-translator-api)
+   Compiling sui-proc-macros v0.7.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking jsonrpsee-ws-client v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+    Checking move-vm-types v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking coset v0.3.8
+    Checking jsonrpsee-http-client v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+    Checking ark-groth16 v0.4.0
+    Checking prost-types v0.12.6
+    Checking prometheus-closure-metric v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking voting-verifier v1.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/voting-verifier)
+    Checking insta v1.43.1
+    Checking shared-crypto v0.0.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking jsonrpsee-server v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+   Compiling ethers-contract-abigen v2.0.14
+    Checking tendermint-proto v0.40.4
+    Checking solana-rayon-threadlimit v2.1.21
+    Checking webpki-roots v0.24.0
+   Compiling num_enum_derive v0.6.1
+   Compiling jsonrpsee-proc-macros v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+    Checking serde-env v0.2.0
+   Compiling stellar-strkey v0.0.10
+    Checking pem v1.1.1
+   Compiling strum_macros v0.24.3
+    Checking serde-reflection v0.3.6
+    Checking serde-big-array v0.5.1
+    Checking roaring v0.10.12
+   Compiling sui-protocol-config-macros v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+   Compiling better_typeid_derive v0.1.1
+    Checking itertools v0.13.0
+    Checking inline_colorization v0.1.6
+    Checking termtree v0.5.1
+    Checking winnow v0.6.26
+   Compiling unicode-segmentation v1.12.0
+    Checking unarray v0.1.4
+    Checking simple-server-timing-header v0.1.1
+    Checking number_prefix v0.4.0
+    Checking bnum v0.12.1
+    Checking indicatif v0.17.11
+   Compiling convert_case v0.6.0
+    Checking strum v0.24.1
+    Checking mysten-metrics v0.7.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking proptest v1.6.0
+    Checking jsonrpsee v0.16.2 (https://github.com/wlmyng/jsonrpsee.git?rev=b1b300784795f6a64d0fcdf8f03081a9bc38bde8#b1b30078)
+    Checking predicates-tree v1.0.12
+   Compiling ethers-contract-derive v2.0.14
+    Checking better_any v0.1.1
+    Checking sui-protocol-config v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking move-bytecode-utils v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking num_enum v0.6.1
+    Checking bnum v0.10.0
+   Compiling proptest-derive v0.3.0
+    Checking tungstenite v0.20.1
+    Checking tonic v0.13.1
+    Checking consensus-config v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking move-compiler v0.0.1 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking sui-sdk-types v0.0.1 (https://github.com/MystenLabs/sui-rust-sdk.git?rev=24c34933c421319e9aa1c48b3b7108c756e1422f#24c34933)
+    Checking sui-macros v0.7.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking tendermint-proto v0.35.0
+    Checking move-vm-test-utils v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking fastcrypto-zkp v0.1.3 (https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c7)
+    Checking passkey-types v0.2.0
+    Checking interchain-token-service v1.3.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/interchain-token-service)
+   Compiling libsecp256k1-gen-ecmult v0.3.0
+   Compiling libsecp256k1-gen-genmult v0.3.0
+    Checking fastcrypto-tbls v0.1.0 (https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c7)
+   Compiling const-random-macro v0.1.16
+    Checking serde-name v0.2.1
+    Checking typed-store-error v0.4.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking spinning_top v0.3.0
+   Compiling optfield v0.3.0
+   Compiling enum_dispatch v0.3.13
+   Compiling enumflags2_derive v0.7.11
+    Checking lru v0.10.1
+    Checking quanta v0.12.5
+    Checking no-std-compat v0.4.1
+    Checking nonempty v0.9.0
+   Compiling keccak-const v0.2.0
+    Checking nonzero_ext v0.3.0
+    Checking fragile v2.0.1
+    Checking parking v2.2.1
+    Checking downcast v0.11.0
+   Compiling bitcoin-internals v0.2.0
+    Checking event-listener v5.4.0
+   Compiling event-macros v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking governor v0.6.3
+   Compiling documented-macros v0.6.0
+    Checking enumflags2 v0.7.11
+    Checking const-random v0.1.18
+   Compiling libsecp256k1 v0.7.2
+    Checking axelar-message-primitives v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking ethers-contract v2.0.14
+    Checking tokio-tungstenite v0.20.1
+    Checking bip32 v0.5.3
+   Compiling ampd-proto v0.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/ampd-proto)
+    Checking async-channel v1.9.0
+   Compiling udigest-derive v0.3.1
+   Compiling serde_json_pythonic v0.1.2
+    Checking histogram v0.6.9
+    Checking bytecount v0.6.8
+    Checking ascii v1.1.0
+    Checking papergrid v0.9.1
+    Checking evm-gateway v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/evm-gateway)
+    Checking xrpl_types v0.15.0
+    Checking udigest v0.2.2
+    Checking documented v0.6.0
+    Checking stellar v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/external-gateways/stellar)
+    Checking dlv-list v0.5.2
+    Checking cosmos-sdk-proto v0.27.0
+    Checking tendermint v0.40.4
+    Checking event-utils v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking event-listener-strategy v0.5.4
+    Checking program-utils v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking sui-gateway v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/sui-gateway)
+    Checking jsonrpsee-types v0.20.4
+   Compiling tabled_derive v0.6.0
+    Checking tendermint v0.35.0
+    Checking starknet-curve v0.5.1
+    Checking openapiv3 v2.0.0 (https://github.com/bmwill/openapiv3.git?rev=ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963#ca4b4845)
+    Checking rs_merkle v1.5.0
+    Checking ordered-float v2.10.1
+    Checking hex-conservative v0.1.2
+   Compiling peg-runtime v0.8.5
+    Checking bitcoin_hashes v0.13.0
+    Checking serde-value v0.7.0
+   Compiling peg-macros v0.8.5
+    Checking tabled v0.12.2
+    Checking axelar-solana-encoding v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking jsonrpsee-core v0.20.4
+    Checking starknet-crypto v0.7.4
+    Checking role-management v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking async-lock v3.4.0
+    Checking ordered-multimap v0.7.3
+    Checking predicates v3.1.3
+    Checking toml_parser v1.0.1
+    Checking move-disassembler v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking unicode-normalization v0.1.22
+    Checking simple_asn1 v0.6.3
+    Checking sui-types v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking salsa20 v0.10.2
+   Compiling events-derive v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/events-derive)
+    Checking pbkdf2 v0.12.2
+    Checking toml_datetime v0.7.0
+    Checking serde_spanned v1.0.0
+   Compiling mockall_derive v0.12.1
+   Compiling starknet-core-derive v0.1.0
+    Checking password-hash v0.5.0
+    Checking float-cmp v0.9.0
+    Checking hashlink v0.10.0
+    Checking fxhash v0.2.1
+   Compiling termcolor_output_impl v1.0.0
+   Compiling prometheus-client v0.23.1
+    Checking arraydeque v0.5.1
+    Checking normalize-line-endings v0.3.0
+    Checking difflib v0.4.0
+    Checking assert_matches v1.5.0
+    Checking option-ext v0.2.0
+    Checking yaml-rust2 v0.10.3
+    Checking dirs-sys v0.4.1
+    Checking predicates v2.1.5
+    Checking peg v0.8.5
+    Checking termcolor_output v1.0.1
+    Checking starknet-core v0.12.2
+    Checking tendermint-config v0.35.0
+    Checking hashers v1.0.1
+    Checking scrypt v0.11.0
+    Checking toml v0.9.2
+    Checking bip39 v2.1.0
+    Checking jsonwebtoken v8.3.0
+    Checking json_to_table v0.6.0 (https://github.com/zhiburt/tabled/?rev=e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4#e449317a)
+    Checking rust-ini v0.21.2
+    Checking axelar-solana-gateway v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking jsonrpsee-http-client v0.20.4
+    Checking serde-aux v4.7.0
+    Checking axelar-solana-gas-service-events v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking xrpl_binary_codec v0.15.0
+    Checking xrpl_api v0.15.0
+   Compiling ampd v1.9.0 (/Users/andrewjia/Desktop/axelar-amplifier/ampd)
+    Checking json5 v0.4.1
+    Checking enr v0.10.0
+    Checking tracing-futures v0.2.5
+    Checking ron v0.8.1
+   Compiling typed-builder-macro v0.18.2
+   Compiling prometheus-client-derive-encode v0.4.2
+   Compiling mockall_derive v0.11.4
+    Checking instant v0.1.13
+    Checking pathdiff v0.2.3
+    Checking dtoa v1.0.10
+    Checking humantime v2.2.0
+    Checking mockall v0.12.1
+    Checking humantime-serde v1.1.1
+    Checking config v0.15.13
+    Checking ethers-providers v2.0.14
+    Checking stellar-rpc-client v21.4.0
+    Checking typed-builder v0.18.2
+    Checking tendermint-rpc v0.35.0
+    Checking xrpl_http_client v0.15.0
+    Checking multiversx-sdk v0.6.1
+    Checking dirs v5.0.1
+    Checking xrpl-types v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/xrpl-types)
+    Checking gateway v1.1.1 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/gateway)
+    Checking tower-http v0.6.4
+    Checking mockall v0.11.4
+    Checking cosmrs v0.22.0
+   Compiling deref-derive v0.1.0
+    Checking diff v0.1.13
+    Checking yansi v1.0.1
+    Checking multisig-prover v1.1.1 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/multisig-prover)
+    Checking pretty_assertions v1.4.1
+    Checking router v1.2.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/router)
+    Checking events v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/events)
+    Checking upon v0.8.1
+    Checking its-abi-translator v2.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/contracts/its-abi-translator)
+    Checking cw-multi-test v2.4.0
+    Checking tofn v1.1.0
+    Checking goldie v0.5.0
+    Checking migration-remover v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/tools/migration-remover)
+    Checking integration-tests v1.0.0 (/Users/andrewjia/Desktop/axelar-amplifier/integration-tests)
+    Checking starknet-providers v0.12.1
+    Checking sui-rpc-api v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking sui-json v0.0.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking sui-package-resolver v0.1.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking sui-json-rpc-types v0.0.0 (https://github.com/mystenlabs/sui?tag=testnet-v1.39.1#e2a14718)
+    Checking solana-secp256r1-program v2.1.21
+    Checking solana-sdk v2.1.21
+    Checking solana-metrics v2.1.21
+    Checking solana-compute-budget v2.1.21
+    Checking solana-vote v2.1.21
+    Checking solana-timings v2.1.21
+    Checking solana-zk-token-sdk v2.1.21
+    Checking solana-transaction-status-client-types v2.1.21
+    Checking solana-net-utils v2.1.21
+    Checking gateway-event-stack v0.1.0 (https://github.com/eigerco/solana-axelar.git?rev=f167d2b#f167d2b6)
+    Checking solana-program-runtime v2.1.21
+    Checking solana-connection-cache v2.1.21
+    Checking solana-rpc-client-api v2.1.21
+    Checking solana-vote-program v2.1.21
+    Checking solana-config-program v2.1.21
+    Checking spl-pod v0.3.1
+    Checking spl-type-length-value v0.5.0
+    Checking spl-token-group-interface v0.3.0
+    Checking solana-transaction-metrics-tracker v2.1.21
+    Checking spl-tlv-account-resolution v0.7.0
+    Checking spl-token-metadata-interface v0.4.0
+    Checking solana-streamer v2.1.21
+    Checking spl-transfer-hook-interface v0.7.0
+    Checking spl-token-2022 v4.0.0
+    Checking solana-udp-client v2.1.21
+    Checking solana-rpc-client v2.1.21
+    Checking solana-quic-client v2.1.21
+    Checking solana-account-decoder v2.1.21
+    Checking spl-associated-token-account v4.0.0
+    Checking solana-rpc-client-nonce-utils v2.1.21
+    Checking solana-thin-client v2.1.21
+    Checking solana-pubsub-client v2.1.21
+    Checking solana-transaction-status v2.1.21
+    Checking solana-tpu-client v2.1.21
+    Checking solana-client v2.1.21
+    Checking ampd-sdk v0.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/packages/ampd-sdk)
+    Checking ampd-handlers v0.1.0 (/Users/andrewjia/Desktop/axelar-amplifier/ampd-handlers)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 48s
+warning: the following packages contain code that will be rejected by a future version of Rust: size-of v0.1.5
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

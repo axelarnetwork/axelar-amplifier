@@ -40,6 +40,7 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let coordinator = address::validate_cosmwasm_address(deps.api, &msg.coordinator_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -49,7 +50,7 @@ pub fn instantiate(
     let config = Config {
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         block_expiry: msg.block_expiry,
-        coordinator: msg.coordinator_address,
+        coordinator: coordinator.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
 
