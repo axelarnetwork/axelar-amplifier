@@ -78,8 +78,23 @@ pub enum QueryMsg {
     #[returns(PollResponse)]
     Poll { poll_id: PollId },
 
+    #[returns(Vec<EventStatus>)]
+    EventsStatus(Vec<EventToVerify>),
+
     #[returns(MajorityThreshold)]
     CurrentThreshold,
+}
+
+#[cw_serde]
+pub struct EventStatus {
+    pub event: EventToVerify,
+    pub status: VerificationStatus,
+}
+
+impl EventStatus {
+    pub fn new(event: EventToVerify, status: VerificationStatus) -> Self {
+        Self { event, status }
+    }
 }
 
 impl EventToVerify {

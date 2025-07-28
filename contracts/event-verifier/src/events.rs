@@ -72,10 +72,7 @@ pub struct PollMetadata {
 }
 
 pub enum PollStarted {
-    Messages {
-        messages: Vec<TxEventConfirmation>,
-        metadata: PollMetadata,
-    },
+
     Events {
         events: Vec<TxEventConfirmation>,
         metadata: PollMetadata,
@@ -111,15 +108,6 @@ impl From<PollMetadata> for Vec<Attribute> {
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
         match other {
-            PollStarted::Messages {
-                messages: data,
-                metadata,
-            } => Event::new("messages_poll_started")
-                .add_attribute(
-                    "messages",
-                    serde_json::to_string(&data).expect("failed to serialize messages"),
-                )
-                .add_attributes(Vec::<_>::from(metadata)),
             PollStarted::Events {
                 events: data,
                 metadata,
@@ -214,25 +202,7 @@ pub struct TxEventConfirmation {
     pub payload_hash: [u8; 32],
 }
 
-impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
-    type Error = ContractError;
-    fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
-        #[allow(deprecated)]
-        let (tx_id, event_index) = parse_message_id(&msg.cc_id.message_id, msg_id_format)?;
-
-        #[allow(deprecated)]
-        // TODO: remove this attribute when tx_id and event_index are removed from the event
-        Ok(TxEventConfirmation {
-            tx_id,
-            event_index,
-            message_id: msg.cc_id.message_id,
-            destination_address: msg.destination_address,
-            destination_chain: msg.destination_chain,
-            source_address: msg.source_address,
-            payload_hash: msg.payload_hash,
-        })
-    }
-}
+// Message TryFrom implementation removed - message functionality has been removed
 
 impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
@@ -337,143 +307,22 @@ where
 }
 
 #[cfg(test)]
-mod test {
-    use axelar_wasm_std::address::AddressFormat;
+mod tests {
+    use super::*;
     use axelar_wasm_std::msg_id::{
         Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat
     };
-    use axelar_wasm_std::voting::Vote;
-    use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
     use cosmwasm_std::testing::MockApi;
-    use cosmwasm_std::Attribute;
+    use cosmwasm_std::{Api, Event as CosmosEvent};
 
-    use router_api::{CrossChainId, Message};
-    use serde_json::json;
-
-    use super::TxEventConfirmation;
-    use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
-    use crate::state::Config;
-
-    fn random_32_bytes() -> [u8; 32] {
-        let mut bytes = [0; 32];
-        for b in &mut bytes {
-            *b = rand::random();
-        }
-        bytes
-    }
-
-    fn generate_msg(msg_id: nonempty::String) -> Message {
-        Message {
-            cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
-            source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
-            payload_hash: [0; 32],
-        }
-    }
-
-    fn compare_event_to_message(event: TxEventConfirmation, msg: Message) {
-        assert_eq!(event.source_address, msg.source_address);
-        assert_eq!(event.destination_address, msg.destination_address);
-        assert_eq!(event.destination_chain, msg.destination_chain);
-        assert_eq!(event.payload_hash, msg.payload_hash);
-    }
-
+    // All message-related tests removed since message functionality has been removed from event-verifier
+    
     #[test]
-    fn should_make_tx_event_confirmation_with_hex_event_index_msg_id() {
-        let msg_id = HexTxHashAndEventIndex {
-            tx_hash: random_32_bytes(),
-            event_index: 0,
-        };
-        let msg = generate_msg(msg_id.to_string().parse().unwrap());
-
-        let event =
-            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex))
-                .unwrap();
-
-        assert_eq!(event.message_id, msg.cc_id.message_id);
-        compare_event_to_message(event, msg);
-    }
-
-    #[test]
-    fn should_make_tx_event_confirmation_with_hex_msg_id() {
-        let msg_id = HexTxHash {
-            tx_hash: random_32_bytes(),
-        };
-        let msg = generate_msg(msg_id.to_string().parse().unwrap());
-
-        let event =
-            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHash)).unwrap();
-
-        assert_eq!(event.message_id, msg.cc_id.message_id);
-        compare_event_to_message(event, msg);
-    }
-
-    #[test]
-    fn should_make_tx_event_confirmation_with_base58_msg_id() {
-        let msg_id = Base58TxDigestAndEventIndex {
-            tx_digest: random_32_bytes(),
-            event_index: 0,
-        };
-        let msg = generate_msg(msg_id.to_string().parse().unwrap());
-
-        let event = TxEventConfirmation::try_from((
-            msg.clone(),
-            &MessageIdFormat::Base58TxDigestAndEventIndex,
-        ))
-        .unwrap();
-
-        assert_eq!(event.message_id, msg.cc_id.message_id);
-        compare_event_to_message(event, msg);
-    }
-
-    #[test]
-    fn make_tx_event_confirmation_should_fail_with_invalid_message_id() {
-        let msg = generate_msg("foobar".parse().unwrap());
-        let event =
-            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex));
-        assert!(event.is_err());
-    }
-
-    #[test]
-    fn make_tx_event_confirmation_should_fail_with_wrong_format_message_id() {
-        let msg_id = HexTxHashAndEventIndex {
-            tx_hash: random_32_bytes(),
-            event_index: 0,
-        };
-        let msg = generate_msg(msg_id.to_string().parse().unwrap());
-
-        let event = TxEventConfirmation::try_from((
-            msg.clone(),
-            &MessageIdFormat::Base58TxDigestAndEventIndex,
-        ));
-        assert!(event.is_err());
-    }
-
-
-
-    #[test]
-    #[allow(deprecated)]
-    fn events_should_not_change() {
+    fn should_serialize_events_poll_started() {
         let api = MockApi::default();
 
-        let config = Config {
-            service_name: "serviceName".try_into().unwrap(),
-            service_registry_contract: api.addr_make("serviceRegistry_contract"),
-            source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
-            voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
-            block_expiry: 10u64.try_into().unwrap(),
-            confirmation_height: 1,
-            source_chain: "sourceChain".try_into().unwrap(),
-            rewards_contract: api.addr_make("rewardsContract"),
-            msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-            address_format: AddressFormat::Eip55,
-        };
-        let event_instantiated =
-            cosmwasm_std::Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config));
-
-        let event_messages_poll_started: cosmwasm_std::Event = PollStarted::Messages {
-            messages: vec![
+        let event_events_poll_started: cosmwasm_std::Event = PollStarted::Events {
+            events: vec![
                 TxEventConfirmation {
                     tx_id: "txId1".try_into().unwrap(),
                     event_index: 1,
@@ -508,40 +357,6 @@ mod test {
         }
         .into();
 
-
-
-        let event_quorum_reached: cosmwasm_std::Event = QuorumReached {
-            content: "content".to_string(),
-            status: VerificationStatus::NotFoundOnSourceChain,
-            poll_id: 1.into(),
-        }
-        .into();
-
-        let event_voted: cosmwasm_std::Event = Voted {
-            poll_id: 1.into(),
-            voter: api.addr_make("voter"),
-            votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
-        }
-        .into();
-
-        let event_poll_ended: cosmwasm_std::Event = PollEnded {
-            poll_id: 1.into(),
-            source_chain: "sourceChain".try_into().unwrap(),
-            results: vec![
-                Some(Vote::SucceededOnChain),
-                Some(Vote::FailedOnChain),
-                Some(Vote::NotFound),
-                None,
-            ],
-        }
-        .into();
-
-        goldie::assert_json!(json!({
-            "event_instantiated": event_instantiated,
-            "event_messages_poll_started": event_messages_poll_started,
-            "event_quorum_reached": event_quorum_reached,
-            "event_voted": event_voted,
-            "event_poll_ended": event_poll_ended,
-        }));
+        goldie::assert_json!(event_events_poll_started);
     }
 }

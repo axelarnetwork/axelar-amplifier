@@ -4,7 +4,7 @@ use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
 
 use crate::error::ContractError;
-use crate::msg::{PollData, PollResponse, EventToVerify};
+use crate::msg::{EventStatus, PollData, PollResponse, EventToVerify};
 use crate::state::{poll_events, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
@@ -14,7 +14,19 @@ pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> 
         .voting_threshold)
 }
 
-
+pub fn events_status(
+    deps: Deps,
+    events: &[EventToVerify],
+    cur_block_height: u64,
+) -> Result<Vec<EventStatus>, ContractError> {
+    events
+        .iter()
+        .map(|event| {
+            event_status(deps, event, cur_block_height)
+                .map(|status| EventStatus::new(event.to_owned(), status))
+        })
+        .collect()
+}
 
 pub fn event_status(
     deps: Deps,

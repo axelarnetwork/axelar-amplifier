@@ -20,13 +20,10 @@ pub enum ContractError {
     #[error("failed to build verifier snapshot")]
     FailedToBuildSnapshot,
 
-    #[error("empty batch of messages")]
-    EmptyMessages,
-
     #[error("empty batch of events")]
     EmptyEvents,
 
-    #[error("all messages must have the same source chain {0}")]
+    #[error("all events must have the same source chain {0}")]
     SourceChainMismatch(ChainName),
 
     #[error("invalid message id {0}")]

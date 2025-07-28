@@ -11,7 +11,7 @@ use cosmwasm_std::{
 use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
 
-use router_api::{ChainName, Message};
+use router_api::ChainName;
 use service_registry::WeightedVerifier;
 
 use crate::contract::query::event_status;
@@ -20,7 +20,7 @@ use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted,
 };
 use crate::state::{
-    self, poll_messages, Poll, CONFIG, POLLS, POLL_ID, VOTES,
+    self, Poll, CONFIG, POLLS, POLL_ID, VOTES,
 };
 
 pub fn update_voting_threshold(
@@ -116,7 +116,6 @@ pub fn verify_events(
 
 fn poll_results(poll: &Poll) -> PollResults {
     match poll {
-        Poll::Messages(weighted_poll) => weighted_poll.results(),
         Poll::Events(weighted_poll) => weighted_poll.results(),
     }
 }
@@ -135,22 +134,6 @@ fn make_quorum_event(
     });
 
     match poll {
-        Poll::Messages(_) => {
-            let msg = poll_messages()
-                .idx
-                .load_message(deps.storage, *poll_id, index_in_poll)
-                .change_context(ContractError::StorageError)
-                .expect("message not found in poll");
-
-            Ok(status.map(|status| {
-                QuorumReached {
-                    content: msg,
-                    status,
-                    poll_id: *poll_id,
-                }
-                .into()
-            }))
-        }
         Poll::Events(_) => {
             let event = state::poll_events()
                 .idx
@@ -240,9 +223,6 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .change_context(ContractError::StorageError)?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) => {
-            poll.state(HashMap::from_iter(votes))
-        }
         Poll::Events(poll) => {
             poll.state(HashMap::from_iter(votes))
         }
@@ -298,23 +278,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
 
 
-fn create_messages_poll(
-    store: &mut dyn Storage,
-    expires_at: u64,
-    snapshot: snapshot::Snapshot,
-    poll_size: usize,
-) -> Result<PollId, ContractError> {
-    let id = POLL_ID
-        .incr(store)
-        .change_context(ContractError::StorageError)?;
 
-    let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
-    POLLS
-        .save(store, id, &Poll::Messages(poll))
-        .change_context(ContractError::StorageError)?;
-
-    Ok(id)
-}
 
 fn create_events_poll(
     store: &mut dyn Storage,
@@ -342,28 +306,7 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .map_err(Report::from)
 }
 
-fn validate_source_chain(
-    message: Message,
-    source_chain: &ChainName,
-) -> Result<Message, ContractError> {
-    if message.cc_id.source_chain != *source_chain {
-        Err(report!(ContractError::SourceChainMismatch(
-            source_chain.clone()
-        )))
-    } else {
-        Ok(message)
-    }
-}
 
-fn validate_source_address(
-    message: Message,
-    address_format: &AddressFormat,
-) -> Result<Message, ContractError> {
-    validate_address(&message.source_address, address_format)
-        .change_context(ContractError::InvalidSourceAddress)?;
-
-    Ok(message)
-}
 
 fn validate_event_source_chain(
     event: crate::msg::EventToVerify,

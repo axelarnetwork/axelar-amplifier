@@ -86,6 +86,9 @@ pub fn query(
         QueryMsg::Poll { poll_id } => {
             to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
         }
+        QueryMsg::EventsStatus(events) => {
+            to_json_binary(&query::events_status(deps, &events, env.block.height)?)
+        }
         QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }?
     .then(Ok)
@@ -317,10 +320,8 @@ mod test {
                 should_fail: false,
             },
             TestCase {
-                source_gateway_address: "axelar1aythygn6z5thymj6tmzfwekzh05ewg3x7d6y89".to_string(),
-                address_format: AddressFormat::Bech32 {
-                    prefix: "axelar".to_string(),
-                },
+                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
+                address_format: AddressFormat::Eip55,
                 should_fail: false,
             },
             TestCase {
@@ -332,15 +333,15 @@ mod test {
 
         for case in test_cases {
             let msg = InstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry_address: api.addr_make("service_registry").to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string().try_into().unwrap(),
+                service_registry_address: api.addr_make("service_registry").to_string().try_into().unwrap(),
                 service_name: "validators".to_string().try_into().unwrap(),
                 source_gateway_address: case.source_gateway_address.try_into().unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: nonempty::Uint64::try_from(10u64).unwrap(),
                 confirmation_height: 1,
                 source_chain: "test-chain".parse().unwrap(),
-                rewards_address: api.addr_make("rewards").to_string(),
+                rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
                 msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
                 address_format: case.address_format,
             };

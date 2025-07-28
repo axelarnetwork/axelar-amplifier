@@ -4,9 +4,7 @@ use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
 
-use router_api::Message;
-
-use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg};
+use crate::msg::{EventStatus, EventToVerify, ExecuteMsg, PollResponse, QueryMsg};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -15,8 +13,8 @@ pub enum Error {
 
     #[error("failed to query voting verifier for current voting threshold")]
     CurrentThreshold,
-    #[error("failed to query voting verifier for messages status. messages: {0:?}")]
-    MessagesStatus(Vec<Message>),
+    #[error("failed to query voting verifier for events status. events: {0:?}")]
+    EventsStatus(Vec<EventToVerify>),
     #[error("failed to query voting verifier for poll. poll_id: {0}")]
     Poll(PollId),
 }
@@ -24,7 +22,7 @@ pub enum Error {
 impl Error {
     fn for_query(value: QueryMsg) -> Self {
         match value {
-            QueryMsg::MessagesStatus(messages) => Error::MessagesStatus(messages),
+            QueryMsg::EventsStatus(events) => Error::EventsStatus(events),
             QueryMsg::Poll { poll_id } => Error::Poll(poll_id),
             QueryMsg::CurrentThreshold => Error::CurrentThreshold,
         }
@@ -71,11 +69,11 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    pub fn messages_status(&self, messages: Vec<Message>) -> Result<Vec<MessageStatus>> {
-        match messages.as_slice() {
+    pub fn events_status(&self, events: Vec<EventToVerify>) -> Result<Vec<EventStatus>> {
+        match events.as_slice() {
             [] => Ok(vec![]),
             _ => {
-                let msg = QueryMsg::MessagesStatus(messages);
+                let msg = QueryMsg::EventsStatus(events);
                 self.client
                     .query(&msg)
                     .change_context_lazy(|| Error::for_query(msg))
@@ -104,61 +102,10 @@ mod test {
     use router_api::{CrossChainId, Message};
 
     use crate::contract::{instantiate, query};
-    use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
+    use crate::msg::{InstantiateMsg, QueryMsg};
     use crate::Client;
 
-    #[test]
-    fn query_messages_status() {
-        let (querier, _, addr) = setup();
-        let client: Client =
-            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-
-        let msg_1 = Message {
-            cc_id: CrossChainId::new(
-                "eth",
-                HexTxHashAndEventIndex {
-                    tx_hash: [0; 32],
-                    event_index: 0,
-                }
-                .to_string()
-                .as_str(),
-            )
-            .unwrap(),
-            source_address: "0x1234".parse().unwrap(),
-            destination_address: "0x5678".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
-            payload_hash: [0; 32],
-        };
-        let msg_2 = Message {
-            cc_id: CrossChainId::new(
-                "eth",
-                HexTxHashAndEventIndex {
-                    tx_hash: [1; 32],
-                    event_index: 0,
-                }
-                .to_string()
-                .as_str(),
-            )
-            .unwrap(),
-            source_address: "0x4321".parse().unwrap(),
-            destination_address: "0x8765".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
-            payload_hash: [0; 32],
-        };
-
-        assert!(client.messages_status(vec![]).unwrap().is_empty());
-        assert_eq!(
-            client
-                .messages_status(vec![msg_1.clone(), msg_2.clone()])
-                .unwrap(),
-            vec![
-                MessageStatus::new(msg_1, VerificationStatus::Unknown),
-                MessageStatus::new(msg_2, VerificationStatus::Unknown)
-            ]
-        );
-    }
-
-
+    // Message status tests removed - message functionality has been removed from event-verifier
 
     #[test]
     fn query_current_threshold() {
@@ -170,34 +117,6 @@ mod test {
             client.current_threshold().unwrap(),
             instantiate_msg.voting_threshold
         );
-    }
-
-
-
-    #[test]
-    fn query_messages_status_returns_error_when_query_fails() {
-        let (querier, addr) = setup_queries_to_fail();
-        let client: Client =
-            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.messages_status(vec![Message {
-            cc_id: CrossChainId::new(
-                "eth",
-                HexTxHashAndEventIndex {
-                    tx_hash: [0; 32],
-                    event_index: 0,
-                }
-                .to_string()
-                .as_str(),
-            )
-            .unwrap(),
-            source_address: "0x1234".parse().unwrap(),
-            destination_address: "0x5678".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
-            payload_hash: [0; 32],
-        }]);
-
-        assert!(res.is_err());
-        goldie::assert!(res.unwrap_err().to_string());
     }
 
     #[test]
