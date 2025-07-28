@@ -10,7 +10,6 @@ use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 use router_api::{Address, ChainName};
-use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -192,14 +191,10 @@ pub struct TxEventConfirmation {
     #[deprecated(since = "1.1.0", note = "use message_id field instead")]
     pub event_index: u32,
     pub message_id: nonempty::String,
-    pub destination_address: Address,
-    pub destination_chain: ChainName,
-    pub source_address: Address,
-    /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
-    /// but internally, we treat it as raw bytes to enforce its format.
-    #[serde(with = "axelar_wasm_std::hex")]
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
-    pub payload_hash: [u8; 32],
+    pub source_chain: ChainName,
+    pub contract_address: Address,
+    /// The actual event data to verify
+    pub event_data: crate::msg::EventData,
 }
 
 // Message TryFrom implementation removed - message functionality has been removed
@@ -210,25 +205,15 @@ impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmat
         #[allow(deprecated)]
         let (tx_id, event_index) = parse_message_id(&event.event_id.message_id, msg_id_format)?;
 
-        // For events, we need to create a payload hash from the event data
-        let payload_hash = {
-            let event_data_bytes = serde_json::to_vec(&event.event_data)
-                .expect("failed to serialize event data");
-            let mut hasher = Keccak256::new();
-            hasher.update(event_data_bytes);
-            hasher.finalize().into()
-        };
-
         #[allow(deprecated)]
         // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(TxEventConfirmation {
             tx_id,
             event_index,
             message_id: event.event_id.message_id.try_into().unwrap(),
-            destination_address: "".parse().unwrap(), // Events don't have destination address
-            destination_chain: event.event_id.source_chain, // Use source chain as destination for events
-            source_address: event.event_id.contract_address,
-            payload_hash,
+            source_chain: event.event_id.source_chain,
+            contract_address: event.event_id.contract_address,
+            event_data: event.event_data,
         })
     }
 }
@@ -327,19 +312,23 @@ mod tests {
                     tx_id: "txId1".try_into().unwrap(),
                     event_index: 1,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress1".parse().unwrap(),
-                    destination_chain: "destinationChain".try_into().unwrap(),
-                    source_address: "sourceAddress1".parse().unwrap(),
-                    payload_hash: [0; 32],
+                    source_chain: "sourceChain".try_into().unwrap(),
+                    contract_address: "contractAddress1".parse().unwrap(),
+                    event_data: crate::msg::EventData::Evm {
+                        topics: vec![cosmwasm_std::Uint256::from(123u128)],
+                        data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
+                    },
                 },
                 TxEventConfirmation {
                     tx_id: "txId2".try_into().unwrap(),
                     event_index: 2,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress2".parse().unwrap(),
-                    destination_chain: "destinationChain".try_into().unwrap(),
-                    source_address: "sourceAddress2".parse().unwrap(),
-                    payload_hash: [1; 32],
+                    source_chain: "sourceChain".try_into().unwrap(),
+                    contract_address: "contractAddress2".parse().unwrap(),
+                    event_data: crate::msg::EventData::Evm {
+                        topics: vec![cosmwasm_std::Uint256::from(456u128)],
+                        data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
+                    },
                 },
             ],
             metadata: PollMetadata {
