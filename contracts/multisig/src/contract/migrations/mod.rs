@@ -1,9 +1,10 @@
+mod legacy_state;
+
 use axelar_wasm_std::{address, migrate_from_version, nonempty};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, DepsMut, Env, Response};
-use cw_storage_plus::Item;
 
 use crate::state::{Config, CONFIG};
 
@@ -12,8 +13,6 @@ pub struct OldConfig {
     pub rewards_contract: Addr,
     pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
 }
-
-pub const OLD_CONFIG: Item<OldConfig> = Item::new("config");
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -27,15 +26,15 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let old_config = OLD_CONFIG.load(deps.storage)?;
+    let config = legacy_state::load_config(deps.storage)?;
 
     let coordinator = address::validate_cosmwasm_address(deps.api, msg.coordinator.as_str())?;
 
     CONFIG.save(
         deps.storage,
         &Config {
-            rewards_contract: old_config.rewards_contract,
-            block_expiry: old_config.block_expiry,
+            rewards_contract: config.rewards_contract,
+            block_expiry: config.block_expiry,
             coordinator,
         },
     )?;
@@ -52,7 +51,7 @@ mod tests {
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
-    use crate::contract::migrations::{OldConfig, OLD_CONFIG};
+    use super::legacy_state::{Config as OldConfig, CONFIG as OLD_CONFIG};
     use crate::contract::{migrate, MigrateMsg};
     use crate::state::CONFIG;
 
