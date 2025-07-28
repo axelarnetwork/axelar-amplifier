@@ -1,18 +1,12 @@
 mod legacy_state;
 
-use axelar_wasm_std::{address, migrate_from_version, nonempty};
+use axelar_wasm_std::{address, migrate_from_version};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Env, Response};
+use cosmwasm_std::{DepsMut, Env, Response};
 
 use crate::state::{Config, CONFIG};
-
-#[cw_serde]
-pub struct OldConfig {
-    pub rewards_contract: Addr,
-    pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
-}
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -44,19 +38,13 @@ pub fn migrate(
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::error::ContractError;
-    use axelar_wasm_std::nonempty::{self, Uint64};
-    use axelar_wasm_std::{address, permission_control};
-    use cosmwasm_schema::cw_serde;
+    use axelar_wasm_std::address;
+    use axelar_wasm_std::nonempty::Uint64;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
-    use super::legacy_state::{Config as OldConfig, CONFIG as OLD_CONFIG};
+    use super::legacy_state;
     use crate::contract::{migrate, MigrateMsg};
     use crate::state::CONFIG;
-
-    const OLD_CONTRACT_NAME: &str = "multisig";
-    const OLD_CONTRACT_VERSION: &str = "2.1.0";
 
     const REWARDS: &str = "rewards";
 
@@ -65,36 +53,6 @@ mod tests {
     const COORDINATOR: &str = "coordinator";
     const SENDER: &str = "sender";
 
-    #[cw_serde]
-    pub struct OldInstantiateMsg {
-        pub governance_address: String,
-        pub admin_address: String,
-        pub rewards_address: String,
-        pub block_expiry: nonempty::Uint64,
-    }
-    fn old_instantiate(
-        deps: DepsMut,
-        _env: Env,
-        _info: MessageInfo,
-        msg: OldInstantiateMsg,
-    ) -> Result<Response, ContractError> {
-        cw2::set_contract_version(deps.storage, OLD_CONTRACT_NAME, OLD_CONTRACT_VERSION)?;
-
-        let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
-        let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
-
-        permission_control::set_admin(deps.storage, &admin)?;
-        permission_control::set_governance(deps.storage, &governance)?;
-
-        let config = OldConfig {
-            rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
-            block_expiry: msg.block_expiry,
-        };
-        OLD_CONFIG.save(deps.storage, &config)?;
-
-        Ok(Response::default())
-    }
-
     #[test]
     fn migrate_properly_registers_coordinator() {
         let mut deps = mock_dependencies();
@@ -102,11 +60,11 @@ mod tests {
         let env = mock_env();
         let info = message_info(&api.addr_make(SENDER), &[]);
 
-        assert!(old_instantiate(
+        assert!(legacy_state::test::instantiate(
             deps.as_mut(),
             env.clone(),
             info,
-            OldInstantiateMsg {
+            legacy_state::InstantiateMsg {
                 governance_address: api.addr_make(GOVERNANCE).to_string(),
                 admin_address: api.addr_make(ADMIN).to_string(),
                 rewards_address: api.addr_make(REWARDS).to_string(),
