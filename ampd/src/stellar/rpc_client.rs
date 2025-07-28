@@ -14,8 +14,6 @@ pub enum Error {
     Client,
     #[error("invalid tx hash")]
     TxHash,
-    #[error("contract events exceed VecM capacity")]
-    ContractEventsCapacityExceeded,
 }
 
 /// TxResponse parses XDR encoded TransactionMeta to ContractEvent type, and only contains necessary fields for verification
@@ -28,12 +26,8 @@ pub struct TxResponse {
 
 const STATUS_SUCCESS: &str = "SUCCESS";
 
-impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
-    type Error = Error;
-
-    fn try_from(
-        (transaction_hash, response): (Hash, GetTransactionResponse),
-    ) -> Result<Self, Self::Error> {
+impl From<(Hash, GetTransactionResponse)> for TxResponse {
+    fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
         // Protocol 23 (CAP-0067): Extract contract events from the unified events structure
         // contract_events is Vec<Vec<ContractEvent>> (per operation), so we flatten it
         let events: Vec<ContractEvent> = response
@@ -43,19 +37,19 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
             .flatten()
             .collect();
 
-        let contract_events = events.try_into().map_err(|_| {
+        let contract_events = events.try_into().unwrap_or_else(|_| {
             warn!(
                 tx_hash = %transaction_hash,
-                "Contract events exceed VecM capacity"
+                "Contract events exceed VecM capacity, returning empty list"
             );
-            Error::ContractEventsCapacityExceeded
-        })?;
+            VecM::default()
+        });
 
-        Ok(Self {
+        Self {
             transaction_hash: transaction_hash.to_string(),
             successful: response.status == STATUS_SUCCESS,
             contract_events,
-        })
+        }
     }
 }
 
@@ -107,13 +101,10 @@ impl Client {
             .into_iter()
             .zip(tx_hashes)
             .filter_map(|(response, hash)| match response {
-                Ok(resp) => match TxResponse::try_from((hash.clone(), resp)) {
-                    Ok(tx_response) => Some((tx_response.tx_hash(), tx_response)),
-                    Err(err) => {
-                        warn!(error = ?err, tx_hash = ?hash, "failed to create TxResponse");
-                        None
-                    }
-                },
+                Ok(resp) => {
+                    let tx_response = TxResponse::from((hash, resp));
+                    Some((tx_response.tx_hash(), tx_response))
+                }
                 Err(err) => {
                     warn!(error = ?err, tx_hash = ?hash, "failed to get transaction response");
                     None
@@ -129,13 +120,7 @@ impl Client {
         let tx_hash = Hash::from_str(tx_hash.as_str()).change_context(Error::TxHash)?;
 
         match self.0.get_transaction(&tx_hash).await {
-            Ok(response) => match TxResponse::try_from((tx_hash, response)) {
-                Ok(tx_response) => Ok(Some(tx_response)),
-                Err(err) => {
-                    warn!(error = ?err, "failed to create TxResponse");
-                    Err(error_stack::report!(err))
-                }
-            },
+            Ok(response) => Ok(Some(TxResponse::from((tx_hash, response)))),
             Err(err) => {
                 warn!(error = ?err, "failed to get transaction response");
                 Ok(None)
@@ -192,7 +177,7 @@ mod tests {
         ];
         let response = create_mock_transaction_response(contract_events, STATUS_SUCCESS);
 
-        let tx_response = TxResponse::try_from((hash.clone(), response)).unwrap();
+        let tx_response = TxResponse::from((hash.clone(), response));
 
         assert_eq!(tx_response.transaction_hash, hash.to_string());
         assert!(tx_response.successful);
@@ -205,7 +190,7 @@ mod tests {
         let hash = Hash::from([2u8; 32]);
         let response = create_mock_transaction_response(vec![], "FAILED");
 
-        let tx_response = TxResponse::try_from((hash.clone(), response)).unwrap();
+        let tx_response = TxResponse::from((hash.clone(), response));
 
         assert_eq!(tx_response.transaction_hash, hash.to_string());
         assert!(!tx_response.successful);
@@ -218,34 +203,10 @@ mod tests {
         let hash = Hash::from([3u8; 32]);
         let response = create_mock_transaction_response(vec![], STATUS_SUCCESS);
 
-        let tx_response = TxResponse::try_from((hash.clone(), response)).unwrap();
+        let tx_response = TxResponse::from((hash.clone(), response));
 
         assert_eq!(tx_response.transaction_hash, hash.to_string());
         assert!(tx_response.successful);
         assert_eq!(tx_response.contract_events.len(), 0);
-    }
-
-    #[test]
-    fn test_tx_response_capacity_exceeded_error() {
-        let hash = Hash::from([4u8; 32]);
-        let large_event_list = vec![vec![create_mock_contract_event(1); 10000]];
-        let response = create_mock_transaction_response(large_event_list, STATUS_SUCCESS);
-
-        let result = TxResponse::try_from((hash.clone(), response));
-
-        match result {
-            Ok(_) => {
-                // If it succeeds, that's fine - VecM can handle this many events.
-            }
-            Err(Error::ContractEventsCapacityExceeded) => {
-                // This is the expected error when VecM capacity is exceeded
-            }
-            Err(other_error) => {
-                panic!(
-                    "Expected ContractEventsCapacityExceeded error, got: {:?}",
-                    other_error
-                );
-            }
-        }
     }
 }
