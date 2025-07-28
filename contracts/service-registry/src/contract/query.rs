@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::hash::{DefaultHasher, Hash, Hasher};
 
 use axelar_wasm_std::address;
 use cosmwasm_std::{Addr, Deps, Env, Order};
@@ -9,6 +8,7 @@ use report::ResultExt;
 use router_api::ChainName;
 use service_registry_api::error::ContractError;
 use service_registry_api::*;
+use sha3::{Digest, Keccak256};
 
 use crate::msg::{ServiceParamsOverride, VerifierDetails};
 use crate::state::{self, VERIFIERS, VERIFIERS_PER_CHAIN, VERIFIER_WEIGHT};
@@ -87,11 +87,11 @@ fn select_top_verifiers(
     verifiers
 }
 
-fn hash_address_with_seed(address: &Addr, seed: u64) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    address.hash(&mut hasher);
-    seed.hash(&mut hasher);
-    hasher.finish()
+fn hash_address_with_seed(address: &Addr, seed: u64) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(address.as_bytes());
+    hasher.update(seed.to_be_bytes());
+    hasher.finalize().into()
 }
 
 pub fn verifier(
