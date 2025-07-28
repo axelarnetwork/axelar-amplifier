@@ -427,8 +427,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
-            .expect("dummy monitoring server never fails ");
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
@@ -486,8 +485,7 @@ mod tests {
         let broadcaster = broadcaster::Broadcaster::new(mock_client, chain_id, pub_key)
             .await
             .unwrap();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
-            .expect("dummy monitoring server never fails ");
+        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)

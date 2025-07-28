@@ -56,7 +56,7 @@ pub enum Msg {
     /// Duration is only recorded for transactions that were successfully
     /// queried from the blockchain: SucceededOnChain or FailedOnChain
     /// NotFound or QueryError are not recorded because they always reaches the timeout limit
-    TransactionConfirmed {
+    TransactionConfirmationDuration {
         status: TransactionExecutionStatus,
         duration: Duration,
     },
@@ -308,7 +308,7 @@ impl Metrics {
                     .record_transaction_broadcast(success, duration);
             }
 
-            Msg::TransactionConfirmed { status, duration } => {
+            Msg::TransactionConfirmationDuration { status, duration } => {
                 self.transaction_processed
                     .confirmation_duration
                     .record_transaction_confirmation(status, duration);
@@ -397,7 +397,7 @@ impl TransactionConfirmationMetrics {
     fn register(&self, registry: &mut Registry) {
         registry.register(
             "ampd_transaction_confirmation_duration_seconds",
-            "Duration of successful blockchain queries for transaction confirmation in seconds",
+            "Duration of transaction confirmation queries that returned a result (excludes timeouts/not found)",
             self.duration.clone(),
         );
     }
@@ -651,19 +651,19 @@ mod tests {
         let initial_metrics = server.get("/test").await;
         initial_metrics.assert_status_ok();
 
-        client.record_metric(Msg::TransactionConfirmed {
+        client.record_metric(Msg::TransactionConfirmationDuration {
             status: TransactionExecutionStatus::SucceededOnChain,
             duration: Duration::from_secs(1),
         });
-        client.record_metric(Msg::TransactionConfirmed {
+        client.record_metric(Msg::TransactionConfirmationDuration {
             status: TransactionExecutionStatus::SucceededOnChain,
             duration: Duration::from_secs(2),
         });
-        client.record_metric(Msg::TransactionConfirmed {
+        client.record_metric(Msg::TransactionConfirmationDuration {
             status: TransactionExecutionStatus::SucceededOnChain,
             duration: Duration::from_secs(2),
         });
-        client.record_metric(Msg::TransactionConfirmed {
+        client.record_metric(Msg::TransactionConfirmationDuration {
             status: TransactionExecutionStatus::FailedOnChain,
             duration: Duration::from_secs(3),
         });
