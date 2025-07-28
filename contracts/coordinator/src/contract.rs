@@ -70,7 +70,7 @@ pub fn execute(
                 address::validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
 
             execute::register_chain(
-                deps,
+                deps.storage,
                 chain_name.clone(),
                 prover_address,
                 gateway_address,
