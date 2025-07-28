@@ -4,7 +4,7 @@ use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256};
 use msgs_derive::Permissions;
-use router_api::{Address, ChainName, Message, FIELD_DELIMITER};
+use router_api::{Address, ChainName, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
 pub use voting_verifier_api::msg::InstantiateMsg;
 
@@ -14,7 +14,7 @@ pub use crate::contract::MigrateMsg;
 #[derive(Permissions)]
 pub enum ExecuteMsg {
     // Computes the results of a poll
-    // For all verified messages, calls MessagesVerified on the verifier
+    // For all verified events, calls EventsVerified on the verifier
     #[permission(Any)]
     EndPoll { poll_id: PollId },
 
@@ -26,8 +26,6 @@ pub enum ExecuteMsg {
     // starts a poll for any not yet verified events
     #[permission(Any)]
     VerifyEvents(Vec<EventToVerify>),
-
-
 
     // Update the threshold used for new polls. Callable only by governance
     #[permission(Governance)]
@@ -64,9 +62,9 @@ pub enum EventData {
 
 #[cw_serde]
 pub enum PollData {
-    Messages(Vec<Message>),
     Events(Vec<EventToVerify>),
 }
+
 #[cw_serde]
 pub struct PollResponse {
     pub poll: WeightedPoll,
@@ -80,23 +78,8 @@ pub enum QueryMsg {
     #[returns(PollResponse)]
     Poll { poll_id: PollId },
 
-    #[returns(Vec<MessageStatus>)]
-    MessagesStatus(Vec<Message>),
-
     #[returns(MajorityThreshold)]
     CurrentThreshold,
-}
-
-#[cw_serde]
-pub struct MessageStatus {
-    pub message: Message,
-    pub status: VerificationStatus,
-}
-
-impl MessageStatus {
-    pub fn new(message: Message, status: VerificationStatus) -> Self {
-        Self { message, status }
-    }
 }
 
 impl EventToVerify {

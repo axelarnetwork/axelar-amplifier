@@ -9,7 +9,7 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
-use router_api::{Address, ChainName, Message};
+use router_api::{Address, ChainName};
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
