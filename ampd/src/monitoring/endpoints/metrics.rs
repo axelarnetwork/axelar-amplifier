@@ -55,7 +55,7 @@ pub enum Msg {
     /// Record the transaction confirmation duration
     /// Duration is only recorded for transactions that were successfully
     /// queried from the blockchain: SucceededOnChain or FailedOnChain
-    /// NotFound or QueryError are not recorded because they always reaches the timeout limit
+    /// NotFound or QueryError are not recorded because they have similar duration based on the retry policy
     TransactionConfirmationDuration {
         status: TransactionExecutionStatus,
         duration: Duration,
