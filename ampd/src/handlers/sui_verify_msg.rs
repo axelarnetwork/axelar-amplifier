@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
@@ -10,6 +11,7 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use router_api::ChainName;
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
@@ -23,6 +25,8 @@ use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
+
+const SUI_CHAIN_NAME: &str = "sui";
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -125,8 +129,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = "sui";
-
         // Does not assume voting verifier emits unique tx ids.
         // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
         let deduplicated_tx_ids: HashSet<_> = messages
@@ -152,8 +154,9 @@ where
                 self.monitoring_client
                     .metrics()
                     .record_metric(MetricsMsg::VerificationVote {
-                        vote_status: vote.to_owned(),
-                        chain_name: handler_chain_name.to_owned(),
+                        vote_status: vote.clone(),
+                        chain_name: ChainName::from_str(SUI_CHAIN_NAME)
+                            .expect("sui chain name should be valid"),
                     });
             })
             .collect();
@@ -169,7 +172,7 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -180,18 +183,18 @@ mod tests {
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
     use events::Event;
+    use router_api::ChainName;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{PollStartedEvent, SUI_CHAIN_NAME};
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::monitoring;
     use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::monitoring::test_utils;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
 
@@ -217,7 +220,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
@@ -238,7 +241,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
@@ -260,7 +263,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
@@ -292,7 +295,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -322,7 +325,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -351,7 +354,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -368,7 +371,8 @@ mod tests {
             metric,
             MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
-                chain_name: "sui".to_string(),
+                chain_name: ChainName::from_str(SUI_CHAIN_NAME)
+                    .expect("sui chain name should be valid"),
             }
         );
 
@@ -397,7 +401,7 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
