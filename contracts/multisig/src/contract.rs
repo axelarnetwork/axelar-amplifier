@@ -50,7 +50,7 @@ pub fn instantiate(
     let config = Config {
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         block_expiry: msg.block_expiry,
-        coordinator: coordinator,
+        coordinator,
     };
     CONFIG.save(deps.storage, &config)?;
 
