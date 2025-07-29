@@ -190,7 +190,7 @@ mod test {
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use cosmrs::AccountId;
-    use cosmwasm_std::{HexBinary, Uint64};
+    use cosmwasm_std::HexBinary;
     use error_stack::{Report, Result};
     use multisig::events::Event;
     use multisig::key::PublicKey;
@@ -227,11 +227,11 @@ mod test {
             .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = Event::SigningStarted {
-            session_id: Uint64::one(),
+            session_id: 1u64,
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: "xrpl".parse().unwrap(),
+            chain: "xrpl".parse().unwrap(),
             expires_at: 100u64,
         };
 
