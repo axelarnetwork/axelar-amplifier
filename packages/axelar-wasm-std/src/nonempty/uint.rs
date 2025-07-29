@@ -139,7 +139,7 @@ impl Deref for Uint256 {
 }
 
 #[cw_serde]
-#[derive(Copy, PartialOrd, Eq, IntoInner)]
+#[derive(Copy, PartialOrd, Ord, Eq, IntoInner)]
 pub struct Uint128(cosmwasm_std::Uint128);
 
 impl TryFrom<cosmwasm_std::Uint128> for Uint128 {
