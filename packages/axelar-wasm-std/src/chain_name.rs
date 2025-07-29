@@ -2,13 +2,14 @@ use std::fmt;
 use std::fmt::Display;
 use std::str::FromStr;
 
-use crate::{FnExt, FIELD_DELIMITER};
 use const_str::contains;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use error_stack::report;
 use valuable::Valuable;
+
+use crate::{FnExt, FIELD_DELIMITER};
 
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {

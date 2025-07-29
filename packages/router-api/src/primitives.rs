@@ -4,10 +4,12 @@ use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
 
+pub use axelar_wasm_std::chain_name::{ChainName, ChainNameRaw};
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::nonempty;
+pub use axelar_wasm_std::FIELD_DELIMITER;
 use const_str::contains;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
@@ -22,9 +24,6 @@ use sha3::{Digest, Keccak256};
 use valuable::Valuable;
 
 use crate::error::*;
-
-pub use axelar_wasm_std::chain_name::{ChainName, ChainNameRaw};
-pub use axelar_wasm_std::FIELD_DELIMITER;
 
 #[cw_serde]
 #[derive(Eq, Hash)]

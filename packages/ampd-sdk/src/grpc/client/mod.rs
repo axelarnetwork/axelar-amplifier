@@ -20,7 +20,7 @@ use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Request};
 
-use crate::grpc::client::types::{BroadcastClientResponse, ContractsAddresses, Key};
+use crate::grpc::client::types::{BroadcastClientResponse, ChainName, ContractsAddresses, Key};
 
 pub mod types;
 
@@ -53,7 +53,7 @@ pub trait Client {
         query: nonempty::Vec<u8>,
     ) -> Result<T, Error>;
 
-    async fn contracts(&mut self, chain: nonempty::String) -> Result<ContractsAddresses, Error>;
+    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error>;
 
     async fn sign(
         &mut self,
@@ -175,7 +175,7 @@ impl Client for GrpcClient {
             })
     }
 
-    async fn contracts(&mut self, chain: nonempty::String) -> Result<ContractsAddresses, Error> {
+    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error> {
         let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
