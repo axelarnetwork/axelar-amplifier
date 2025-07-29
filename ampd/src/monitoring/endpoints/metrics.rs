@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axelar_wasm_std::voting::Vote;
+use axelar_wasm_std::voting::Vote as AxelarVote;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::header::CONTENT_TYPE;
@@ -9,10 +9,11 @@ use axum::response::IntoResponse;
 use axum::routing::{get, MethodRouter};
 use futures::StreamExt;
 use prometheus_client::encoding::text::encode;
-use prometheus_client::encoding::EncodeLabelSet;
+use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
+use router_api::ChainName;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -31,14 +32,14 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 ///
 /// These messages are sent to the metrics processor to update various counters
 /// and gauges tracked by the monitoring system.
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Msg {
     /// Increment the count of blocks received
     BlockReceived,
     /// Record the verification vote results for cross-chain message
     VerificationVote {
-        vote_status: Vote,
-        chain_name: String,
+        vote_status: AxelarVote,
+        chain_name: ChainName,
     },
 }
 
@@ -88,17 +89,14 @@ impl Client {
     ///
     /// - For `Disabled` clients: Always succeeds without doing anything
     /// - For `WithChannel` clients: Attempts to send the message via channel
-    /// - If sending fails, a warning is logged
-    /// - record_metrics should never disrupt the main flow of the application
+    ///    - If sending fails, a warning is logged
+    ///    - record_metric should never disrupt the main flow of the application
     pub fn record_metric(&self, msg: Msg) {
         match self {
             Client::Disabled => (),
             Client::WithChannel { sender } => {
                 if let Err(err) = sender.try_send(msg.clone()) {
-                    warn!(
-                        "failed to record metrics message: {:?}, with error: {:?}",
-                        msg, err
-                    );
+                    warn!(error = %err, msg = ?msg, "failed to record metrics");
                 }
             }
         }
@@ -258,20 +256,33 @@ impl BlockReceivedMetrics {
     }
 }
 
-struct VerificationVoteMetrics {
-    total: Family<VerificationVoteLabel, Counter>,
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+enum Vote {
+    SucceededOnChain,
+    FailedOnChain,
+    NotFound,
+}
+
+impl From<AxelarVote> for Vote {
+    fn from(vote: AxelarVote) -> Self {
+        match vote {
+            AxelarVote::SucceededOnChain => Vote::SucceededOnChain,
+            AxelarVote::FailedOnChain => Vote::FailedOnChain,
+            AxelarVote::NotFound => Vote::NotFound,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct VerificationVoteLabel {
-    /// source chain name of the handler
+    /// Source chain name of the handler
     chain_name: String,
-    /// the verification vote outcome
-    ///
-    /// - succeeded_on_chain: the message was verified successfully on source chain
-    /// - failed_on_chain: the message was found but verification failed on source chain
-    /// - not_found: the message was not found on source chain
-    status: String,
+    /// The verification vote outcome
+    status: Vote,
+}
+
+struct VerificationVoteMetrics {
+    total: Family<VerificationVoteLabel, Counter>,
 }
 
 impl VerificationVoteMetrics {
@@ -288,12 +299,9 @@ impl VerificationVoteMetrics {
         );
     }
 
-    fn record_verification_vote(&self, status: Vote, chain_name: String) {
-        let status = match status {
-            Vote::SucceededOnChain => "succeeded_on_chain".to_string(),
-            Vote::FailedOnChain => "failed_on_chain".to_string(),
-            Vote::NotFound => "not_found".to_string(),
-        };
+    fn record_verification_vote(&self, status: AxelarVote, chain_name: ChainName) {
+        let chain_name = chain_name.to_string();
+        let status: Vote = status.into();
 
         let label = VerificationVoteLabel { chain_name, status };
         self.total.get_or_create(&label).inc();
@@ -302,10 +310,12 @@ impl VerificationVoteMetrics {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use std::time::Duration;
 
     use axum::Router;
     use axum_test::TestServer;
+    use itertools::Itertools;
     use tokio::time;
 
     use super::*;
@@ -348,20 +358,26 @@ mod tests {
         let initial_metrics = server.get("/test").await;
         initial_metrics.assert_status_ok();
 
-        let chain_names = vec!["ethereum", "solana", "polygon", "avalanche", "stellar"];
+        let chain_names = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("solana").unwrap(),
+            ChainName::from_str("polygon").unwrap(),
+            ChainName::from_str("avalanche").unwrap(),
+            ChainName::from_str("stellar").unwrap(),
+        ];
 
         for chain_name in chain_names {
             client.record_metric(Msg::VerificationVote {
-                vote_status: Vote::SucceededOnChain,
-                chain_name: chain_name.to_string(),
+                vote_status: AxelarVote::SucceededOnChain,
+                chain_name: chain_name.clone(),
             });
             client.record_metric(Msg::VerificationVote {
-                vote_status: Vote::FailedOnChain,
-                chain_name: chain_name.to_string(),
+                vote_status: AxelarVote::FailedOnChain,
+                chain_name: chain_name.clone(),
             });
             client.record_metric(Msg::VerificationVote {
-                vote_status: Vote::NotFound,
-                chain_name: chain_name.to_string(),
+                vote_status: AxelarVote::NotFound,
+                chain_name: chain_name.clone(),
             });
         }
 
@@ -369,11 +385,11 @@ mod tests {
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
 
-        println!("{}", final_metrics.text());
-
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
     }
 
+    /// Test the sort_metrics_output function produces consistent output.
+    /// This validates the test infrastructure itself, not the metrics implementation.
     #[test]
     fn should_provide_consistent_sorted_output() {
         let unsorted_output1 =
@@ -391,31 +407,27 @@ mod tests {
     /// Sort metrics text alphabetically by line for consistent output
     ///
     /// The prometheus_client crate returns metrics in non-deterministic order
-    /// when there are metrics with more than one label.  This function sorts
+    /// when there are metrics with more than one label. This function sorts
     /// the metrics output to ensure consistent output in golden file tests.
-    pub fn sort_metrics_output(buffer: &str) -> String {
+    fn sort_metrics_output(buffer: &str) -> String {
+        let mut lines = buffer.lines().peekable();
         let mut result = Vec::new();
-        let mut current_headers = Vec::new();
-        let mut current_metrics = Vec::new();
 
-        for line in buffer.lines() {
-            if line.starts_with("# TYPE") {
-                current_headers.push(line.to_string());
-            } else if line.starts_with("#") {
-                if !current_headers.is_empty() {
-                    result.append(&mut current_headers);
+        while lines.peek().is_some() {
+            let header_lines: Vec<String> = lines
+                .take_while_ref(|l| l.starts_with("#"))
+                .map(|line| line.to_string())
+                .collect();
 
-                    current_metrics.sort();
-                    result.append(&mut current_metrics);
-                }
-                if line.starts_with("# HELP") {
-                    current_headers.push(line.to_string());
-                } else if line.starts_with("# EOF") {
-                    result.push(line.to_string());
-                }
-            } else {
-                current_metrics.push(line.to_string());
-            }
+            result.extend(header_lines);
+
+            let mut metric_lines: Vec<String> = lines
+                .take_while_ref(|l| !l.starts_with("#"))
+                .map(|line| line.to_string())
+                .collect();
+
+            metric_lines.sort();
+            result.extend(metric_lines);
         }
 
         result.join("\n") + "\n"

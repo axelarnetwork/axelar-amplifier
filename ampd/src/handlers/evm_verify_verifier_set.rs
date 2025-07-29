@@ -170,8 +170,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name: &str = self.chain.as_ref();
-
         let tx_receipt = self
             .finalized_tx_receipt(verifier_set.message_id.tx_hash.into(), confirmation_height)
             .await?;
@@ -192,8 +190,8 @@ where
             self.monitoring_client
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
-                    vote_status: vote.to_owned(),
-                    chain_name: handler_chain_name.to_owned(),
+                    vote_status: vote.clone(),
+                    chain_name: self.chain.clone(),
                 });
 
             info!(
@@ -214,7 +212,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -236,9 +233,9 @@ mod tests {
     use crate::handlers::evm_verify_verifier_set::PollStartedEvent;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::monitoring::test_utils;
     use crate::types::{Hash, TMAddress};
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn evm_verify_verifier_set_should_deserialize_correct_event() {
@@ -271,7 +268,7 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -314,7 +311,7 @@ mod tests {
             poll_started_event(participants(5, Some(verifier.clone())), 100),
             &voting_verifier_contract,
         );
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -334,7 +331,7 @@ mod tests {
             metrics,
             MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
-                chain_name: "ethereum".to_string(),
+                chain_name: ChainName::from_str("ethereum").unwrap(),
             }
         );
 

@@ -3,6 +3,7 @@
 //! and manages the voting process for confirming these changes.
 
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -14,6 +15,7 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
 use multisig::verifier_set::VerifierSet;
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -27,6 +29,8 @@ use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
 use crate::types::TMAddress;
+
+const STARKNET_CHAIN_NAME: &str = "starknet";
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -133,8 +137,6 @@ where
             .event_by_message_id_signers_rotated(verifier_set.message_id.clone())
             .await;
 
-        let handler_chain_name = "starknet";
-
         let vote = info_span!(
             "verify a new verifier set",
             poll_id = poll_id.to_string(),
@@ -153,8 +155,9 @@ where
             self.monitoring_client
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
-                    vote_status: vote.to_owned(),
-                    chain_name: handler_chain_name.to_owned(),
+                    vote_status: vote.clone(),
+                    chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
+                        .expect("starknet chain name should be valid"),
                 });
 
             info!(
@@ -175,7 +178,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -188,19 +190,21 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
+    use router_api::ChainName;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
+    use super::STARKNET_CHAIN_NAME;
     use crate::event_processor::EventHandler;
     use crate::handlers::starknet_verify_verifier_set::PollStartedEvent;
     use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::monitoring::test_utils;
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn should_deserialize_correct_event() {
@@ -231,7 +235,7 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
@@ -257,7 +261,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             worker,
@@ -272,7 +276,8 @@ mod tests {
             receiver.try_recv().unwrap(),
             MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
-                chain_name: "starknet".to_string(),
+                chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
+                    .expect("starknet chain name should be valid"),
             }
         );
 

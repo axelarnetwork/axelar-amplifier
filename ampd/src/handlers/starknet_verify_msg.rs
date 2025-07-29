@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -26,6 +27,8 @@ use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_msg;
 use crate::types::{Hash, TMAddress};
+
+const STARKNET_CHAIN_NAME: &str = "starknet";
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -130,8 +133,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = "starknet";
-
         let votes = join_all(
             messages
                 .iter()
@@ -149,8 +150,9 @@ where
                     self.monitoring_client
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
-                            vote_status: vote.to_owned(),
-                            chain_name: handler_chain_name.to_owned(),
+                            vote_status: vote.clone(),
+                            chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
+                                .expect("starknet chain name should be valid"),
                         });
 
                     vote
@@ -167,7 +169,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
@@ -184,7 +185,7 @@ mod tests {
 
     use super::*;
     use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::monitoring::test_utils;
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::starknet::events::contract_call::ContractCallEvent;
     use crate::PREFIX;
@@ -234,7 +235,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
@@ -274,7 +275,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
@@ -299,7 +300,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -316,7 +317,8 @@ mod tests {
                 msg,
                 MetricsMsg::VerificationVote {
                     vote_status: Vote::NotFound,
-                    chain_name: "starknet".to_string(),
+                    chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
+                        .expect("starknet chain name should be valid"),
                 }
             );
         }
@@ -365,7 +367,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
@@ -397,7 +399,7 @@ mod tests {
             &TMAddress::random(PREFIX), // some other random address
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
@@ -426,7 +428,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
@@ -457,7 +459,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler =
             super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);

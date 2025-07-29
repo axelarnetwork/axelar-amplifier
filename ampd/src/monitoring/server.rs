@@ -572,7 +572,7 @@ mod tests {
             .record_metric(metrics::Msg::BlockReceived);
 
         assert!(
-            logs_contain("failed to record metrics message"),
+            logs_contain("failed to record metrics"),
             "client should not be able to send messages after server shutdown"
         );
     }
@@ -646,7 +646,7 @@ pub mod test_utils {
     use super::Client;
     use crate::monitoring::metrics::{Client as MetricsClient, Msg};
 
-    pub fn create_test_monitoring_client() -> (Client, mpsc::Receiver<Msg>) {
+    pub fn monitoring_client() -> (Client, mpsc::Receiver<Msg>) {
         let (tx, rx) = mpsc::channel(10);
         let metrics_client = MetricsClient::WithChannel { sender: tx };
         let monitoring_client = Client { metrics_client };

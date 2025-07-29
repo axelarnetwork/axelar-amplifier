@@ -30,6 +30,8 @@ use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
 
+const XRPL_CHAIN_NAME: &str = "xrpl";
+
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
@@ -158,8 +160,6 @@ where
             .map(|message| message.tx_id().tx_hash_as_hex())
             .collect::<Vec<_>>();
 
-        let handler_chain_name = "xrpl";
-
         let votes = info_span!(
             "verify messages from XRPL chain",
             poll_id = poll_id_str,
@@ -182,8 +182,9 @@ where
                     self.monitoring_client
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
-                            vote_status: vote.to_owned(),
-                            chain_name: handler_chain_name.to_owned(),
+                            vote_status: vote.clone(),
+                            chain_name: ChainName::from_str(XRPL_CHAIN_NAME)
+                                .expect("xrpl chain name should be valid"),
                         });
                 })
                 .collect();
