@@ -528,17 +528,20 @@ mod tests {
             assert_eq!(event.ty, "signing_started".to_string());
             assert_eq!(
                 event_attribute(event, "session_id").unwrap(),
-                session.id.to_string()
+                session.id.u64().to_string()
             );
             assert_eq!(
                 event_attribute(event, "verifier_set_id").unwrap(),
-                session.verifier_set_id
+                serde_json::to_string(&session.verifier_set_id).unwrap()
             );
             assert_eq!(
                 verifier_set.pub_keys(),
                 from_str(event_attribute(event, "pub_keys").unwrap()).unwrap()
             );
-            assert_eq!(event_attribute(event, "msg").unwrap(), message.to_hex());
+            assert_eq!(
+                event_attribute(event, "msg").unwrap(),
+                serde_json::to_string(&message).unwrap()
+            );
         }
     }
 
@@ -632,15 +635,17 @@ mod tests {
             assert_eq!(event.ty, "signature_submitted".to_string());
             assert_eq!(
                 event_attribute(event, "session_id").unwrap(),
-                session_id.to_string()
+                session_id.u64().to_string()
             );
             assert_eq!(
                 event_attribute(event, "participant").unwrap(),
-                signer.address.into_string()
+                serde_json::to_string(&signer.address).unwrap()
             );
+            // The event contains the full signature object, so we need to compare with the actual signature
+            let expected_signature = Signature::try_from((key_type, signer.signature.clone())).unwrap();
             assert_eq!(
                 event_attribute(event, "signature").unwrap(),
-                signer.signature.to_hex()
+                serde_json::to_string(&Signature::try_from((key_type, signer.signature.clone())).unwrap()).unwrap()
             );
         }
     }
