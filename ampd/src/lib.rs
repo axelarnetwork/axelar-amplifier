@@ -25,6 +25,7 @@ mod stellar;
 mod sui;
 mod tm_client;
 mod tofnd;
+mod ton;
 mod types;
 #[cfg(feature = "url")]
 pub mod url;
@@ -53,6 +54,7 @@ use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
+use ton::rpc::TonRpcClient;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
 
@@ -574,6 +576,42 @@ impl App {
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
             )),
+            handlers::config::Config::TonMsgVerifier {
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout: _,
+            } => {
+                let ton_client = TonRpcClient::new(rpc_url.as_str().trim_end_matches('/'));
+                Ok(self.create_handler_task(
+                    "ton-msg-verifier",
+                    handlers::ton_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        ton_client,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                    self.monitoring_client.clone(),
+                ))
+            }
+            handlers::config::Config::TonVerifierSetVerifier {
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout: _,
+            } => {
+                let ton_client = TonRpcClient::new(rpc_url.as_str().trim_end_matches('/'));
+                Ok(self.create_handler_task(
+                    "ton-verifier-set-verifier",
+                    handlers::ton_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        ton_client,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                    self.monitoring_client.clone(),
+                ))
+            }
         }
     }
 

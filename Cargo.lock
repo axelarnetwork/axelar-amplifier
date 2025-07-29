@@ -284,6 +284,7 @@ dependencies = [
  "move-core-types",
  "multisig",
  "multiversx-sdk",
+ "num-bigint 0.4.6",
  "num-traits",
  "openssl",
  "pin-project-lite",
@@ -324,8 +325,10 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "toml 0.5.11",
+ "ton-utils",
  "tonic 0.13.1",
  "tonic-build",
+ "tonlib-core",
  "tower 0.5.2",
  "tower-http 0.6.4",
  "tracing",
@@ -1531,6 +1534,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitstream-io"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6099cdc01846bc367c4e7dd630dc5966dccf36b652fae7a74e17b640411a91b2"
+
+[[package]]
 name = "bitvec"
 version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2512,6 +2521,21 @@ dependencies = [
  "serde_derive",
  "serde_json",
 ]
+
+[[package]]
+name = "crc"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9710d3b3739c2e349eb44fe848ad0b7c8cb1e42bd87ee49371df2f7acaf3e675"
+dependencies = [
+ "crc-catalog",
+]
+
+[[package]]
+name = "crc-catalog"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
 
 [[package]]
 name = "crc32fast"
@@ -3689,6 +3713,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastbloom"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27cea6e7f512d43b098939ff4d5a5d6fe3db07971e1d05176fe26c642d33f5b8"
+dependencies = [
+ "getrandom 0.3.2",
+ "rand 0.9.1",
+ "siphasher 1.0.1",
+ "wide",
+]
+
+[[package]]
 name = "fastcrypto"
 version = "0.1.8"
 source = "git+https://github.com/MystenLabs/fastcrypto?rev=69d496c71fb37e3d22fe85e5bbfd4256d61422b9#69d496c71fb37e3d22fe85e5bbfd4256d61422b9"
@@ -3948,9 +3984,9 @@ checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
 name = "fixedbitset"
-version = "0.5.7"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flagset"
@@ -4751,7 +4787,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.2",
  "tower-service",
- "webpki-roots 0.26.10",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -5863,6 +5899,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lru-slab"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
+
+[[package]]
 name = "lsp-types"
 version = "0.95.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6450,9 +6492,9 @@ dependencies = [
 
 [[package]]
 name = "multimap"
-version = "0.10.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
+checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
@@ -6626,6 +6668,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nacl"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30aefc44d813c51b5e7952950e87c17f2e0e1a3274d63c8281a701e05323d548"
+
+[[package]]
 name = "native-tls"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6777,6 +6825,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rand 0.8.5",
+ "serde",
 ]
 
 [[package]]
@@ -7320,6 +7369,8 @@ checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest 0.10.7",
  "hmac 0.12.1",
+ "password-hash",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -7458,11 +7509,11 @@ dependencies = [
 
 [[package]]
 name = "petgraph"
-version = "0.7.1"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
+checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
 dependencies = [
- "fixedbitset 0.5.7",
+ "fixedbitset 0.4.2",
  "indexmap 2.9.0",
 ]
 
@@ -7907,7 +7958,7 @@ dependencies = [
  "log",
  "multimap",
  "once_cell",
- "petgraph 0.7.1",
+ "petgraph 0.6.5",
  "prettyplease",
  "prost 0.13.5",
  "prost-types 0.13.5",
@@ -8030,9 +8081,9 @@ checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
 name = "quinn"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3bd15a6f2967aef83887dcb9fec0014580467e33720d073560cf015a5683012"
+checksum = "626214629cda6781b6dc1d316ba307189c85ba657213ce642d9c77670f8202c8"
 dependencies = [
  "bytes",
  "cfg_aliases",
@@ -8051,12 +8102,14 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.11"
+version = "0.11.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcbafbbdbb0f638fe3f35f3c56739f77a8a1d070cb25603226c83339b391472b"
+checksum = "49df843a9161c85bb8aae55f101bc0bac8bcafd637a620d9122fd7e0b2f7422e"
 dependencies = [
  "bytes",
+ "fastbloom",
  "getrandom 0.3.2",
+ "lru-slab",
  "rand 0.9.1",
  "ring 0.17.14",
  "rustc-hash 2.1.1",
@@ -8502,7 +8555,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.26.10",
+ "webpki-roots 0.26.11",
  "windows-registry",
 ]
 
@@ -9020,7 +9073,7 @@ dependencies = [
  "rustls-webpki 0.103.2",
  "security-framework 3.2.0",
  "security-framework-sys",
- "webpki-root-certs",
+ "webpki-root-certs 0.26.11",
  "windows-sys 0.59.0",
 ]
 
@@ -9085,6 +9138,15 @@ name = "ryu"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
+
+[[package]]
+name = "safe_arch"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96b02de82ddbe1b636e6170c21be622223aea188ef2e139be0a5b219ec215323"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "salsa20"
@@ -12702,6 +12764,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfb942dfe1d8e29a7ee7fcbde5bd2b9a25fb89aa70caea2eba3bee836ff41076"
 
 [[package]]
+name = "ton-utils"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-std",
+ "error-stack",
+ "itertools 0.14.0",
+ "multisig",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "router-api",
+ "sha3",
+ "tonlib-core",
+]
+
+[[package]]
 name = "tonic"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12731,7 +12809,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
- "webpki-roots 0.26.10",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -12788,6 +12866,28 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic 0.12.3",
+]
+
+[[package]]
+name = "tonlib-core"
+version = "0.24.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3031ff701b3beabbc1e120252da3928a9a08c994fe7957dc6cbc07c5ad904a5b"
+dependencies = [
+ "base64 0.22.1",
+ "bitstream-io",
+ "crc",
+ "hex",
+ "hmac 0.12.1",
+ "lazy_static",
+ "nacl",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "pbkdf2 0.12.2",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -13582,9 +13682,18 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "0.26.10"
+version = "0.26.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c99403924bc5f23afefc319b8ac67ed0e50669f6e52a413314cccb1fdbc93ba0"
+checksum = "75c7f0ef91146ebfb530314f5f1d24528d7f0767efbfd31dce919275413e393e"
+dependencies = [
+ "webpki-root-certs 1.0.0",
+]
+
+[[package]]
+name = "webpki-root-certs"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01a83f7e1a9f8712695c03eabe9ed3fbca0feff0152f33f12593e5a6303cb1a4"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -13615,11 +13724,30 @@ checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
 
 [[package]]
 name = "webpki-roots"
-version = "0.26.10"
+version = "0.26.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37493cadf42a2a939ed404698ded7fb378bf301b5011f973361779a3a74f8c93"
+checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
+dependencies = [
+ "webpki-roots 1.0.0",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2853738d1cc4f2da3a225c18ec6c3721abb31961096e9dbf5ab35fa88b19cfdb"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "wide"
+version = "0.7.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b5576b9a81633f3e8df296ce0063042a73507636cbe956c61133dd7034ab22"
+dependencies = [
+ "bytemuck",
+ "safe_arch",
 ]
 
 [[package]]

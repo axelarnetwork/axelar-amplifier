@@ -109,6 +109,7 @@ tofn = { version = "1.1" }
 tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
+ton-utils = { version = "0.1.0", path = "packages/ton-utils" }
 tracing = { version = "0.1.37", features = ["valuable", "log"] }
 tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-error = { version = "0.2.1", features = ["traced-error"] }
