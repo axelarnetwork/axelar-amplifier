@@ -3,6 +3,7 @@
 //! and manages the voting process for confirming these changes.
 
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -139,8 +140,6 @@ where
             .event_by_message_id_signers_rotated(verifier_set.message_id.clone())
             .await;
 
-        let handler_chain_name = "starknet";
-
         let vote = info_span!(
             "verify a new verifier set",
             poll_id = poll_id.to_string(),
@@ -181,7 +180,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -194,6 +192,7 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
+    use router_api::ChainName;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
@@ -207,7 +206,7 @@ mod tests {
     use crate::monitoring::test_utils;
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn should_deserialize_correct_event() {

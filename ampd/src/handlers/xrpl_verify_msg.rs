@@ -163,8 +163,6 @@ where
             .map(|message| message.tx_id().tx_hash_as_hex())
             .collect::<Vec<_>>();
 
-        let handler_chain_name = "xrpl";
-
         let votes = info_span!(
             "verify messages from XRPL chain",
             poll_id = poll_id_str,

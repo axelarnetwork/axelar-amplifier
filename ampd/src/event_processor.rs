@@ -202,7 +202,6 @@ mod tests {
     use monitoring::metrics::Msg as MetricsMsg;
     use monitoring::test_utils;
     use report::ErrorExt;
-    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -735,7 +734,9 @@ mod tests {
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let cancel_token = CancellationToken::new();
-       
+    
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let result = timeout(
             Duration::from_secs(3),
@@ -761,5 +762,12 @@ mod tests {
         assert!(receiver.try_recv().is_err());
 
         cancel_token.cancel();
+
+        for _ in 0..num_block_ends {
+            let metrics = receiver.recv().await.unwrap();
+            assert_eq!(metrics, MetricsMsg::BlockReceived);
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 }

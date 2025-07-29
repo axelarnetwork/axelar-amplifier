@@ -140,8 +140,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             return Ok(vec![]);
         }
 
-        let handler_chain_name = &self.chain_name.to_string();
-
         let tx_receipt = self.fetch_message(&verifier_set).await;
         let vote = info_span!(
             "verify a new verifier set for Solana",
@@ -185,7 +183,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;

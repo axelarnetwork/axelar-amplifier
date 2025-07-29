@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
@@ -129,8 +130,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = "sui";
-
         let transaction_block = self
             .rpc_client
             .finalized_transaction_block(verifier_set.message_id.tx_digest.into())
@@ -172,7 +171,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -181,6 +180,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::ChainName;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -193,7 +193,7 @@ mod tests {
     use crate::monitoring::test_utils;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn sui_verify_verifier_set_should_deserialize_correct_event() {

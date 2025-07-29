@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -134,8 +135,6 @@ where
             .transaction_info_with_results(&verifier_set.message_id.tx_hash.into())
             .await;
 
-        let handler_chain_name = "multiversx";
-
         let vote = info_span!(
             "verify a new verifier set for MultiversX",
             poll_id = poll_id.to_string(),
@@ -173,7 +172,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::voting::Vote;
@@ -185,6 +184,7 @@ mod tests {
     use hex::ToHex;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
+    use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -196,7 +196,7 @@ mod tests {
     use crate::monitoring::test_utils;
     use crate::mvx::proxy::MockMvxProxy;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn mvx_verify_verifier_set_should_deserialize_correct_event() {

@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -119,8 +120,6 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        let handler_chain_name = "stellar";
-
         let transaction_response = self
             .http_client
             .transaction_response(
@@ -169,7 +168,7 @@ impl EventHandler for Handler {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -180,6 +179,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
+    use router_api::ChainName;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -192,7 +192,7 @@ mod tests {
     use crate::monitoring::test_utils;
     use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn should_not_deserialize_incorrect_event() {

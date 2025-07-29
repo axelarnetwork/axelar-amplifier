@@ -178,8 +178,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = &self.chain.to_string();
-
         let tx_hashes: HashSet<Hash> = messages
             .iter()
             .map(|msg| msg.message_id.tx_hash.into())
@@ -240,7 +238,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
