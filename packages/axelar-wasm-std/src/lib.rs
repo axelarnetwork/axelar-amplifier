@@ -4,6 +4,7 @@ pub use crate::threshold::{MajorityThreshold, Threshold};
 pub use crate::verification::VerificationStatus;
 
 pub mod address;
+pub mod chain_name;
 pub mod counter;
 pub mod error;
 pub mod event;
@@ -26,3 +27,7 @@ pub mod voting;
 
 #[cfg(feature = "derive")]
 pub use axelar_wasm_std_derive::*;
+
+/// Delimiter used when concatenating fields to prevent ambiguous encodings.
+/// The delimiter must be prevented from being contained in values that are used as fields.
+pub const FIELD_DELIMITER: char = '_';
