@@ -387,7 +387,7 @@ mod tests {
         // Should succeed without doing anything
         client.metrics().record_metric(metrics::Msg::BlockReceived);
         assert!(
-            !logs_contain("failed to record metrics message"),
+            !logs_contain("failed to record metrics"),
             "disabled client should discard messages successfully"
         );
 
@@ -395,7 +395,7 @@ mod tests {
         for _ in 0..100 {
             client.metrics().record_metric(metrics::Msg::BlockReceived);
             assert!(
-                !logs_contain("failed to record metrics message"),
+                !logs_contain("failed to record metrics"),
                 "disabled client should handle multiple messages"
             );
         }
