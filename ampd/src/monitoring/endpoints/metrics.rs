@@ -388,7 +388,7 @@ mod tests {
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
     }
 
-    /// Test the sort_metrics_output function produces consistent output.
+    /// Test if the sort_metrics_output function produces consistent output.
     /// This validates the test infrastructure itself, not the metrics implementation.
     #[test]
     fn should_provide_consistent_sorted_output() {
