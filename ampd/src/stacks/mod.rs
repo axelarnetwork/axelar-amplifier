@@ -1,10 +1,10 @@
 use axelar_wasm_std::hash::Hash;
-use clarity_serialization::types::{
-    BufferLength, ListTypeData, SequenceSubtype, TupleData, TupleTypeSignature, TypeSignature,
-};
-use clarity_serialization::types::Value;
 use clarity_serialization::representations::ClarityName;
 use clarity_serialization::stacks_types::StacksEpochId;
+use clarity_serialization::types::{
+    BufferLength, ListTypeData, SequenceSubtype, TupleData, TupleTypeSignature, TypeSignature,
+    Value,
+};
 use cosmwasm_std::Uint256;
 use error_stack::{Report, ResultExt};
 use multisig::key::PublicKey;

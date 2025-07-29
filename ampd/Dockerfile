@@ -1,4 +1,4 @@
-FROM rust:1.81-bookworm AS chef
+FROM rust:1.86-bookworm AS chef
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 RUN cargo install cargo-chef --locked
 WORKDIR /ampd

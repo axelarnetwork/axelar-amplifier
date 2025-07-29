@@ -1,5 +1,5 @@
-use clarity_serialization::representations::ClarityName;
 use axelar_wasm_std::voting::Vote;
+use clarity_serialization::representations::ClarityName;
 use clarity_serialization::types::{
     BufferLength, PrincipalData, SequenceSubtype, StringSubtype, TupleTypeSignature, TypeSignature,
     Value,
@@ -273,8 +273,8 @@ pub fn get_type_signature_signers_rotated() -> Result<TypeSignature, Error> {
 mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use clarity_serialization::types::{PrincipalData, TupleData, Value};
     use clarity_serialization::representations::ClarityName;
+    use clarity_serialization::types::{PrincipalData, TupleData, Value};
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
