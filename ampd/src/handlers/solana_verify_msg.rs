@@ -143,8 +143,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .flatten()
             .collect::<HashMap<_, _>>();
 
-        let handler_chain_name = &self.chain_name.to_string();
-
         let votes = info_span!(
             "verify messages from Solana",
             poll_id = poll_id.to_string(),
@@ -191,7 +189,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 
 #[cfg(test)]
 mod test {
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;

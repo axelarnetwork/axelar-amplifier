@@ -170,8 +170,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = &self.chain.to_string();
-
         let tx_receipt = self
             .finalized_tx_receipt(verifier_set.message_id.tx_hash.into(), confirmation_height)
             .await?;
@@ -214,7 +212,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;

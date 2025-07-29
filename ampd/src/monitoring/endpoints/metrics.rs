@@ -392,47 +392,6 @@ mod tests {
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn should_increment_vote_processing_failure_metrics_correctly() {
-        let (router, process, client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let initial_metrics = server.get("/test").await;
-        initial_metrics.assert_status_ok();
-
-        let chain_names = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("solana").unwrap(),
-            ChainName::from_str("polygon").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
-            ChainName::from_str("stellar").unwrap(),
-        ];
-
-        for chain_name in chain_names {
-            client.record_metric(Msg::VerificationVote {
-                vote_decision: AxelarVote::SucceededOnChain,
-                chain_name: chain_name.clone(),
-            });
-            client.record_metric(Msg::VerificationVote {
-                vote_decision: AxelarVote::FailedOnChain,
-                chain_name: chain_name.clone(),
-            });
-            client.record_metric(Msg::VerificationVote {
-                vote_decision: AxelarVote::NotFound,
-                chain_name: chain_name.clone(),
-            });
-        }
-
-        time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
-        final_metrics.assert_status_ok();
-
-        goldie::assert!(sort_metrics_output(&final_metrics.text()))
-    }
-
     /// Test if the sort_metrics_output function produces consistent output.
     /// This validates the test infrastructure itself, not the metrics implementation.
     #[test]

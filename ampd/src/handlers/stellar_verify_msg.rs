@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -131,8 +132,6 @@ impl EventHandler for Handler {
             .map(|message| message.message_id.tx_hash_as_hex_no_prefix().to_string())
             .collect();
 
-        let handler_chain_name = "stellar";
-
         let transaction_responses = self
             .http_client
             .transaction_responses(tx_hashes)
@@ -190,7 +189,7 @@ impl EventHandler for Handler {
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -200,6 +199,7 @@ mod tests {
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use router_api::ChainName;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -212,7 +212,7 @@ mod tests {
     use crate::monitoring::test_utils;
     use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn should_not_deserialize_incorrect_event() {

@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -135,8 +136,6 @@ where
             return Ok(vec![]);
         }
 
-        let handler_chain_name = "starknet";
-
         let votes = join_all(
             messages
                 .iter()
@@ -172,7 +171,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
