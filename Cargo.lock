@@ -9558,6 +9558,7 @@ dependencies = [
  "serde",
  "serde_json",
  "service-registry-api",
+ "sha3",
  "thiserror 1.0.69",
 ]
 
