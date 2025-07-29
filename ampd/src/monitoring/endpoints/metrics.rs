@@ -204,26 +204,6 @@ struct Metrics {
     verification_vote: VerificationVoteMetrics,
 }
 
-struct BlockReceivedMetrics {
-    total: Counter,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct VerificationVoteLabel {
-    /// source chain name of the handler
-    chain_name: String,
-    /// the verification vote outcome
-    ///
-    /// - succeeded_on_chain: the message was verified successfully on source chain
-    /// - failed_on_chain: the message was found but verification failed on source chain
-    /// - not_found: the message was not found on source chain
-    status: String,
-}
-
-struct VerificationVoteMetrics {
-    total: Family<VerificationVoteLabel, Counter>,
-}
-
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
@@ -255,6 +235,10 @@ impl Metrics {
     }
 }
 
+struct BlockReceivedMetrics {
+    total: Counter,
+}
+
 impl BlockReceivedMetrics {
     fn new() -> Self {
         let total = Counter::default();
@@ -272,6 +256,22 @@ impl BlockReceivedMetrics {
     fn increment(&self) {
         self.total.inc();
     }
+}
+
+struct VerificationVoteMetrics {
+    total: Family<VerificationVoteLabel, Counter>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct VerificationVoteLabel {
+    /// source chain name of the handler
+    chain_name: String,
+    /// the verification vote outcome
+    ///
+    /// - succeeded_on_chain: the message was verified successfully on source chain
+    /// - failed_on_chain: the message was found but verification failed on source chain
+    /// - not_found: the message was not found on source chain
+    status: String,
 }
 
 impl VerificationVoteMetrics {
