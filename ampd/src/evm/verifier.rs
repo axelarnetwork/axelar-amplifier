@@ -137,6 +137,9 @@ pub fn verify_event(
     tx_receipt: &TransactionReceipt,
     event: &Event,
 ) -> Vote {
+    println!("verifying event");
+    println!("tx_receipt: {:?}", tx_receipt);
+
     if has_failed(tx_receipt) {
         return Vote::FailedOnChain;
     }
@@ -146,6 +149,7 @@ pub fn verify_event(
 
     // Check transaction hash matches
     if tx_receipt.transaction_hash != expected_transaction_hash {
+        println!("transaction hash mismatch");
         return Vote::NotFound;
     }
 
@@ -157,7 +161,10 @@ pub fn verify_event(
 
     let log = match tx_receipt.logs.get(log_index) {
         Some(log) => log,
-        None => return Vote::NotFound,
+        None => {
+            println!("log not found");
+            return Vote::NotFound;
+        }
     };
 
     // Parse the contract address from the event
@@ -171,48 +178,45 @@ pub fn verify_event(
 
     // Check contract address matches
     if log.address != expected_contract_address {
+        println!("contract address mismatch");
         return Vote::NotFound;
     }
 
     // Check event data matches
     match &event.event_data {
-        crate::handlers::evm_verify_event::EventData::Evm { topics, data } => {
+        event_verifier::msg::EventData::Evm { topics, data } => {
             // Parse expected topics from hex strings to H256
-            let expected_topics: Result<Vec<H256>, _> = topics
+            // TODO: validate length of topics
+            let expected_topics: Vec<H256> = topics
                 .iter()
-                .map(|topic| topic.parse::<H256>())
-                .collect();
+                .filter(|topic| topic.len() == 32)
+                .map(|topic| H256::from_slice(topic.as_slice()))
+                .collect::<Vec<H256>>();
 
-            let expected_topics = match expected_topics {
-                Ok(topics) => topics,
-                Err(e) => {
-                    debug!(error = ?e, "failed to parse topics");
-                    return Vote::NotFound;
-                }
-            };
+            if expected_topics.len() != log.topics.len() {
+                println!("topic length mismatch");
+                return Vote::NotFound;
+            }
 
             // Parse expected data from hex string
-            let expected_data = match hex::decode(data.strip_prefix("0x").unwrap_or(data)) {
-                Ok(data) => data,
-                Err(e) => {
-                    debug!(error = ?e, "failed to parse event data");
-                    return Vote::NotFound;
-                }
-            };
+            let expected_data = data.as_slice();
 
             // Compare topics - they should match exactly in order
             if log.topics.len() != expected_topics.len() {
+                println!("topic length mismatch");
                 return Vote::NotFound;
             }
 
             for (actual, expected) in log.topics.iter().zip(expected_topics.iter()) {
                 if actual != expected {
+                    println!("topic mismatch");
                     return Vote::NotFound;
                 }
             }
 
             // Compare data
             if log.data.to_vec() != expected_data {
+                println!("data mismatch");
                 return Vote::NotFound;
             }
 

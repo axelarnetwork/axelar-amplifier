@@ -332,6 +332,36 @@ impl App {
                     self.monitoring_client.clone(),
                 ))
             }
+            handlers::config::Config::EvmEventVerifier {
+                chain,
+                cosmwasm_contract,
+                rpc_timeout,
+            } => {
+                let rpc_client = json_rpc::Client::new_http(
+                    chain.rpc_url.clone(),
+                    reqwest::ClientBuilder::new()
+                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .build()
+                        .change_context(Error::Connection)?,
+                );
+
+                check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+
+                Ok(self.create_handler_task(
+                    format!("{}-event-verifier", chain.name),
+                    handlers::evm_verify_event::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        chain.name.clone(),
+                        chain.finalization.clone(),
+                        rpc_client,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    event_processor_config.clone(),
+                    self.monitoring_client.clone(),
+                ))
+            }
             handlers::config::Config::MultisigSigner {
                 cosmwasm_contract,
                 chain_name,

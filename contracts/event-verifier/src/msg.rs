@@ -54,7 +54,7 @@ pub struct EventId {
 #[cw_serde]
 pub enum EventData {
     Evm {
-        topics: Vec<Uint256>, // 1-4 topics
+        topics: Vec<HexBinary>, // 1-4 topics
         data: HexBinary,      // arbitrary length hex data
     },
     // Additional event variants for other blockchain types can be added here

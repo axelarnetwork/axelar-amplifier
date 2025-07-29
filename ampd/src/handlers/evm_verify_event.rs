@@ -35,17 +35,9 @@ pub struct Event {
     pub message_id: HexTxHashAndEventIndex,
     pub source_chain: ChainName,
     pub contract_address: Address,
-    pub event_data: EventData,
+    pub event_data: event_verifier::msg::EventData,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-pub enum EventData {
-    #[serde(rename = "evm")]
-    Evm {
-        topics: Vec<String>, // topics as hex strings
-        data: String,        // hex data
-    },
-}
 
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-events_poll_started")]
@@ -117,6 +109,7 @@ where
         .into_iter()
         .filter_map(std::result::Result::unwrap_or_default)
         .filter_map(|tx_receipt| {
+            println!("tx_receipt: {:?}", tx_receipt);
             if tx_receipt
                 .block_number
                 .unwrap_or(U64::MAX)
@@ -153,6 +146,7 @@ where
             return Ok(vec![]);
         }
 
+        println!("event: {:?}", event);
         let PollStartedEvent {
             poll_id,
             source_chain,
@@ -167,14 +161,18 @@ where
             }
             event => event.change_context(DeserializeEvent)?,
         };
+        println!("event: {:?}", event);
 
         if self.chain != source_chain {
+            println!("not the same chain");
             return Ok(vec![]);
         }
 
         if !participants.contains(&self.verifier) {
+            println!("not a participant");
             return Ok(vec![]);
         }
+        println!("processing event");
 
         let latest_block_height = *self.latest_block_height.borrow();
         if latest_block_height >= expires_at {
@@ -186,9 +184,11 @@ where
             .iter()
             .map(|evt| evt.message_id.tx_hash.into())
             .collect();
+        println!("tx_hashes: {:?}", tx_hashes);
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
             .await?;
+        println!("finalized_tx_receipts: {:?}", finalized_tx_receipts);
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -283,7 +283,7 @@ mod tests {
                     source_chain: "ethereum".parse().unwrap(),
                     contract_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     event_data: event_verifier::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::Uint256::from(123u128)],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
                         data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
                     },
                 },
@@ -294,7 +294,7 @@ mod tests {
                     source_chain: "ethereum".parse().unwrap(),
                     contract_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                     event_data: event_verifier::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::Uint256::from(456u128)],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
                         data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
                     },
                 },
@@ -305,7 +305,7 @@ mod tests {
                     source_chain: "ethereum".parse().unwrap(),
                     contract_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
                     event_data: event_verifier::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::Uint256::from(789u128)],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
                         data: cosmwasm_std::HexBinary::from(vec![9, 10, 11, 12]),
                     },
                 },

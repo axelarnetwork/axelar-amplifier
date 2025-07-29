@@ -315,7 +315,7 @@ mod tests {
                     source_chain: "sourceChain".try_into().unwrap(),
                     contract_address: "contractAddress1".parse().unwrap(),
                     event_data: crate::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::Uint256::from(123u128)],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1,2,3])],
                         data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
                     },
                 },
@@ -326,7 +326,7 @@ mod tests {
                     source_chain: "sourceChain".try_into().unwrap(),
                     contract_address: "contractAddress2".parse().unwrap(),
                     event_data: crate::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::Uint256::from(456u128)],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1,2,3])],
                         data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
                     },
                 },
