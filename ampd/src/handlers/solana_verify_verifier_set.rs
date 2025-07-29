@@ -140,8 +140,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             return Ok(vec![]);
         }
 
-        let handler_chain_name: &str = self.chain_name.as_ref();
-
         let tx_receipt = self.fetch_message(&verifier_set).await;
         let vote = info_span!(
             "verify a new verifier set for Solana",
@@ -163,8 +161,8 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             self.monitoring_client
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
-                    vote_status: vote.to_owned(),
-                    chain_name: handler_chain_name.to_owned(),
+                    vote_status: vote.clone(),
+                    chain_name: self.chain_name.clone(),
                 });
 
             info!(
@@ -185,7 +183,6 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
@@ -206,7 +203,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::into_structured_event;
     use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::monitoring::test_utils;
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -267,7 +264,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
@@ -289,7 +286,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
@@ -312,7 +309,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
@@ -342,7 +339,7 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
@@ -374,7 +371,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
@@ -401,7 +398,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
@@ -420,7 +417,7 @@ mod tests {
             metrics,
             MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
-                chain_name: "solana".to_string(),
+                chain_name: ChainName::from_str("solana").unwrap(),
             }
         );
 
