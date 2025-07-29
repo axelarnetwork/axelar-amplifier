@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -10,6 +11,7 @@ use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
 use multisig::verifier_set::VerifierSet;
+use router_api::ChainName;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::ScAddress;
@@ -26,6 +28,8 @@ use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
+
+const STELLAR_CHAIN_NAME: &str = "stellar";
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -113,8 +117,6 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        let handler_chain_name = "stellar";
-
         let transaction_response = self
             .http_client
             .transaction_response(
@@ -141,8 +143,9 @@ impl EventHandler for Handler {
             self.monitoring_client
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
-                    vote_status: vote.to_owned(),
-                    chain_name: handler_chain_name.to_owned(),
+                    vote_status: vote.clone(),
+                    chain_name: ChainName::from_str(STELLAR_CHAIN_NAME)
+                        .expect("stellar chain name should be valid"),
                 });
 
             info!(
@@ -163,7 +166,7 @@ impl EventHandler for Handler {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -174,19 +177,20 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
+    use router_api::ChainName;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{PollStartedEvent, STELLAR_CHAIN_NAME};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils::create_test_monitoring_client;
+    use crate::monitoring::test_utils;
     use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
+    use crate::PREFIX;
 
     #[test]
     fn should_not_deserialize_incorrect_event() {
@@ -250,7 +254,7 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
@@ -271,7 +275,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
@@ -296,7 +300,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -323,7 +327,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let (monitoring_client, mut receiver) = create_test_monitoring_client();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
             verifier,
@@ -340,7 +344,8 @@ mod tests {
             metric,
             MetricsMsg::VerificationVote {
                 vote_status: Vote::NotFound,
-                chain_name: "stellar".to_string(),
+                chain_name: ChainName::from_str(STELLAR_CHAIN_NAME)
+                    .expect("stellar chain name should be valid"),
             }
         );
 

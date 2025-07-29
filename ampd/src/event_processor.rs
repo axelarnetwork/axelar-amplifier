@@ -182,7 +182,6 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::time::Duration;
 
     use async_trait::async_trait;
@@ -200,8 +199,9 @@ mod tests {
     use events::Event;
     use futures::{stream, StreamExt};
     use mockall::mock;
+    use monitoring::metrics::Msg as MetricsMsg;
+    use monitoring::test_utils;
     use report::ErrorExt;
-    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -317,7 +317,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -371,7 +371,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -425,7 +425,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -492,7 +492,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -557,7 +557,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -621,7 +621,7 @@ mod tests {
         );
 
         token.cancel();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -669,7 +669,7 @@ mod tests {
         );
 
         token.cancel();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let result = consume_events(
             "handler".to_string(),
             MockEventHandler::new(),
@@ -733,6 +733,8 @@ mod tests {
             Ok(Event::BlockEnd(6_u32.into())),
         ];
 
+        let num_block_ends = 5;
+
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
@@ -767,8 +769,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (monitoring_client, mut rx) = create_test_monitoring_client();
-
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let cancel_token = CancellationToken::new();
 
         let result_with_timeout = timeout(
@@ -785,10 +786,13 @@ mod tests {
         )
         .await;
 
-       
-
+        assert!(result_with_timeout.is_ok());
         cancel_token.cancel();
-    }
+        for _ in 0..num_block_ends {
+            let metrics = receiver.recv().await.unwrap();
+            assert_eq!(metrics, MetricsMsg::BlockReceived);
+        }
 
-    
+        assert!(receiver.try_recv().is_err());
+    }
 }
