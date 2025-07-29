@@ -2,8 +2,7 @@ use cosmwasm_std::HexBinary;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[allow(unknown_lints)]
-#[allow(ref_opt_type)]
+#[cfg_attr(dylint_lib = "amplifier_lints", allow(ref_opt_type))]
 pub fn serialize<S, const N: usize>(
     value: &Option<[u8; N]>,
     serializer: S,

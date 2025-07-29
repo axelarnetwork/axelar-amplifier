@@ -1,14 +1,3 @@
-#![cfg_attr(dylint_lib = "amplifier_lints", allow(cosmwasm_addr_in_msg_struct))]
-#![cfg_attr(
-    dylint_lib = "amplifier_lints",
-    allow(execute_without_explicit_permissions)
-)]
-#![cfg_attr(dylint_lib = "amplifier_lints", allow(get_fn))]
-#![cfg_attr(
-    dylint_lib = "amplifier_lints",
-    allow(msg_without_explicit_permissions)
-)]
-#![cfg_attr(dylint_lib = "amplifier_lints", allow(ref_opt_type))]
 #![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outside_tests))]
 
 pub mod contract;
