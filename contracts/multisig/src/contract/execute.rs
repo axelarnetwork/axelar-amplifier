@@ -60,11 +60,11 @@ pub fn start_signing_session(
         .map_err(ContractError::from)?;
 
     let event = Event::SigningStarted {
-        session_id,
+        session_id: session_id.u64(),
         verifier_set_id,
         pub_keys: verifier_set.pub_keys(),
         msg,
-        chain_name,
+        chain: chain_name,
         expires_at,
     };
 
@@ -255,7 +255,7 @@ fn signing_response(
     };
 
     let event = Event::SignatureSubmitted {
-        session_id: session.id,
+        session_id: session.id.u64(),
         participant: signer,
         signature,
     };
@@ -266,7 +266,7 @@ fn signing_response(
         if state_changed {
             // only send event if state changed
             response = response.add_event(Event::SigningCompleted {
-                session_id: session.id,
+                session_id: session.id.u64(),
                 completed_at,
                 chain_name: session.chain_name,
             })
