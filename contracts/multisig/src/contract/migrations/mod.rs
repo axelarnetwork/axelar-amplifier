@@ -60,7 +60,7 @@ mod tests {
         let env = mock_env();
         let info = message_info(&api.addr_make(SENDER), &[]);
 
-        assert!(legacy_state::test::instantiate(
+        assert!(legacy_state::instantiate(
             deps.as_mut(),
             env.clone(),
             info,
