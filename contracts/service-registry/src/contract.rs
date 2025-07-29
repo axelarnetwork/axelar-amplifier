@@ -178,15 +178,20 @@ fn match_verifier(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
-    _env: Env,
+    env: Env,
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ActiveVerifiers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::active_verifiers(deps, service_name, chain_name)?)
-            .map_err(|err| err.into()),
+        } => to_json_binary(&query::active_verifiers(
+            deps,
+            env,
+            service_name,
+            chain_name,
+        )?)
+        .map_err(|err| err.into()),
         QueryMsg::Verifier {
             service_name,
             verifier,
@@ -220,7 +225,7 @@ mod test {
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
+        coins, from_json, Api, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
     use router_api::ChainName;
     use service_registry_api::{Verifier, WeightedVerifier};
@@ -3171,5 +3176,135 @@ mod test {
         );
         assert!(res.is_ok());
         assert_auth_verifier_count_is_valid(&deps, &service_name, 5);
+    }
+
+    #[test]
+    fn active_verifiers_respects_chain_max_override() {
+        let (mut deps, api, service_name, original_verifiers) = setup_service_with_5_verifiers();
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+
+        // Bond and register all verifiers
+        for verifier in &original_verifiers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(
+                    &api.addr_validate(verifier).unwrap(),
+                    &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
+                ),
+                ExecuteMsg::BondVerifier {
+                    service_name: service_name.clone(),
+                },
+            );
+            assert!(res.is_ok());
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&api.addr_validate(verifier).unwrap(), &[]),
+                ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.clone(),
+                    chains: vec![chain_name.clone()],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        // Create chain override with max verifiers = 3 (smaller than global max of 10)
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+                service_params_override: crate::msg::ServiceParamsOverride {
+                    min_num_verifiers: None,
+                    max_num_verifiers: Some(Some(3)), // Chain limit of 3
+                },
+            },
+        );
+        assert!(res.is_ok());
+
+        // Query active verifiers for the chain
+        let active_verifiers = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+            },
+        )
+        .unwrap();
+
+        let active_verifiers: Vec<WeightedVerifier> = from_json(&active_verifiers).unwrap();
+
+        // Should only return 3 verifiers (respecting chain max override)
+        assert_eq!(active_verifiers.len(), 3);
+
+        // Increase the max verifiers, make sure the full set is returned
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+                service_params_override: crate::msg::ServiceParamsOverride {
+                    min_num_verifiers: None,
+                    max_num_verifiers: Some(Some(5)), // Chain limit of 3
+                },
+            },
+        );
+        assert!(res.is_ok());
+
+        // Query active verifiers for the chain
+        let active_verifiers = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+            },
+        )
+        .unwrap();
+
+        let active_verifiers: Vec<WeightedVerifier> = from_json(&active_verifiers).unwrap();
+
+        assert_eq!(active_verifiers.len(), original_verifiers.len());
+
+        // Test that without chain override, all 5 verifiers would be returned
+        let chain_name_no_override = ChainName::from_str("polygon").unwrap();
+
+        // Register all verifiers for the chain without override
+        for verifier in &original_verifiers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&api.addr_validate(verifier).unwrap(), &[]),
+                ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.clone(),
+                    chains: vec![chain_name_no_override.clone()],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let active_verifiers_no_override = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name_no_override,
+            },
+        )
+        .unwrap();
+
+        let active_verifiers_no_override: Vec<WeightedVerifier> =
+            from_json(&active_verifiers_no_override).unwrap();
+
+        // Should return all 5 verifiers (respecting global max of 10)
+        assert_eq!(active_verifiers_no_override.len(), 5);
     }
 }
