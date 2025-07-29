@@ -643,10 +643,14 @@ mod tests {
                 serde_json::to_string(&signer.address).unwrap()
             );
             // The event contains the full signature object, so we need to compare with the actual signature
-            let expected_signature = Signature::try_from((key_type, signer.signature.clone())).unwrap();
+            let expected_signature =
+                Signature::try_from((key_type, signer.signature.clone())).unwrap();
             assert_eq!(
                 event_attribute(event, "signature").unwrap(),
-                serde_json::to_string(&Signature::try_from((key_type, signer.signature.clone())).unwrap()).unwrap()
+                serde_json::to_string(
+                    &Signature::try_from((key_type, signer.signature.clone())).unwrap()
+                )
+                .unwrap()
             );
         }
     }
