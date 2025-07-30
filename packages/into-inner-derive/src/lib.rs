@@ -4,7 +4,7 @@ use syn::{DeriveInput, Fields};
 
 #[proc_macro_derive(IntoInner)]
 pub fn into_inner_derive(input: TokenStream) -> TokenStream {
-    let ast: DeriveInput = syn::parse(input).unwrap();
+    let ast: DeriveInput = syn::parse(input).expect("input for into_inner_derive should be valid");
 
     let name = &ast.ident;
     let ty = match ast.data {
