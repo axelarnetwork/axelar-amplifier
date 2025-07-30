@@ -18,4 +18,6 @@ verification_votes_total{chain_name="solana",vote_decision="SucceededOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="FailedOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="NotFound"} 1
 verification_votes_total{chain_name="stellar",vote_decision="SucceededOnChain"} 1
+# HELP rpc_errors number of errors returned from RPC calls per chain.
+# TYPE rpc_errors counter
 # EOF

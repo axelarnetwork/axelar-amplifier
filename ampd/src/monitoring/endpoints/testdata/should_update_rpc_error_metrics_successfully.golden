@@ -1,0 +1,10 @@
+# HELP blocks_received number of blocks received.
+# TYPE blocks_received counter
+blocks_received_total 0
+# HELP verification_votes number of verification votes on cross-chain messages.
+# TYPE verification_votes counter
+# HELP rpc_errors number of errors returned from RPC calls per chain.
+# TYPE rpc_errors counter
+rpc_errors_total{chain_name="ethereum"} 1
+rpc_errors_total{chain_name="polygon"} 1
+# EOF
