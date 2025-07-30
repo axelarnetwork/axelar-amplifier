@@ -84,7 +84,6 @@ mod test {
 
     use ethers_core::types::BlockNumber;
     use ethers_core::utils::serialize;
-    use router_api::ChainName;
 
     use super::*;
     use crate::monitoring::test_utils;
