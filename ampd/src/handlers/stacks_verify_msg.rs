@@ -20,6 +20,8 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg as MetricsMsg;
 use crate::stacks::error::Error as StacksError;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
@@ -58,6 +60,7 @@ pub struct Handler {
     http_client: Client,
     latest_block_height: Receiver<u64>,
     type_signature_contract_call: TypeSignature,
+    monitoring_client: monitoring::Client,
 }
 
 impl Handler {
@@ -67,6 +70,7 @@ impl Handler {
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> error_stack::Result<Self, StacksError> {
         let type_signature_contract_call = get_type_signature_contract_call()?;
 
@@ -77,6 +81,7 @@ impl Handler {
             http_client,
             latest_block_height,
             type_signature_contract_call,
+            monitoring_client,
         })
     }
 
@@ -174,6 +179,14 @@ impl EventHandler for Handler {
                         },
                     )
                 })
+                .inspect(|vote| {
+                    self.monitoring_client
+                        .metrics()
+                        .record_metric(MetricsMsg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: self.chain_name.clone(),
+                        });
+                })
                 .collect();
 
             info!(
@@ -200,6 +213,7 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
+    use axelar_wasm_std::voting::Vote;
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::H160;
@@ -211,6 +225,8 @@ mod tests {
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
+    use crate::monitoring::metrics::Msg as MetricsMsg;
+    use crate::monitoring::test_utils;
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
@@ -280,12 +296,15 @@ mod tests {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("other").unwrap(),
             worker,
             voting_verifier,
             client,
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
@@ -301,12 +320,15 @@ mod tests {
         let event =
             into_structured_event(poll_started_event(participants(5, None)), &voting_verifier);
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             client,
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
@@ -314,7 +336,7 @@ mod tests {
     }
 
     #[async_test]
-    async fn should_vote_correctly() {
+    async fn should_record_verification_vote_metric() {
         let mut client = Client::faux();
         faux::when!(client.latest_block).then(|_| {
             Ok(Block {
@@ -330,18 +352,30 @@ mod tests {
             &voting_verifier,
         );
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             worker,
             voting_verifier,
             client,
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
-        let actual = handler.handle(&event).await.unwrap();
-        assert_eq!(actual.len(), 1);
-        assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+        let _ = handler.handle(&event).await.unwrap();
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(
+            metric,
+            MetricsMsg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: ChainName::from_str("stacks").unwrap(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[async_test]
@@ -362,6 +396,8 @@ mod tests {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
@@ -370,6 +406,7 @@ mod tests {
             voting_verifier,
             client,
             rx,
+            monitoring_client,
         )
         .unwrap();
 
@@ -386,12 +423,15 @@ mod tests {
     async fn test_handler() -> Handler {
         let client = Client::faux();
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap()
     }
