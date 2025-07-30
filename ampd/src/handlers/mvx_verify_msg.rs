@@ -199,7 +199,6 @@ mod tests {
     use cosmwasm_std;
     use ethers_core::types::H160;
     use hex::ToHex;
-    use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};

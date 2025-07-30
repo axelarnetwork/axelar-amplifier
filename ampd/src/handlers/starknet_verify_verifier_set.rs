@@ -253,7 +253,7 @@ mod tests {
 
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_signers_rotated()
+            .expect_event_by_message_id_signers_rotated()
             .returning(|_| None);
 
         let event: Event = to_event(
