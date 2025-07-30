@@ -143,7 +143,7 @@ impl EventHandler for Handler {
             self.monitoring_client
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
-                    vote_status: vote.clone(),
+                    vote_decision: vote.clone(),
                     chain_name: ChainName::from_str(STELLAR_CHAIN_NAME)
                         .expect("stellar chain name should be valid"),
                 });
@@ -343,7 +343,7 @@ mod tests {
         assert_eq!(
             metric,
             MetricsMsg::VerificationVote {
-                vote_status: Vote::NotFound,
+                vote_decision: Vote::NotFound,
                 chain_name: ChainName::from_str(STELLAR_CHAIN_NAME)
                     .expect("stellar chain name should be valid"),
             }
