@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
@@ -11,7 +10,8 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
-use router_api::ChainName;
+use lazy_static::lazy_static;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
@@ -26,7 +26,9 @@ use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
 
-const SUI_CHAIN_NAME: &str = "sui";
+lazy_static! {
+    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
+}
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -155,8 +157,7 @@ where
                     .metrics()
                     .record_metric(MetricsMsg::VerificationVote {
                         vote_decision: vote.clone(),
-                        chain_name: ChainName::from_str(SUI_CHAIN_NAME)
-                            .expect("sui chain name should be valid"),
+                        chain_name: SUI_CHAIN_NAME.clone(),
                     });
             })
             .collect();
@@ -172,7 +173,6 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -183,7 +183,6 @@ mod tests {
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
     use events::Event;
-    use router_api::ChainName;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -371,8 +370,7 @@ mod tests {
             metric,
             MetricsMsg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str(SUI_CHAIN_NAME)
-                    .expect("sui chain name should be valid"),
+                chain_name: SUI_CHAIN_NAME.clone(),
             }
         );
 

@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -10,9 +9,10 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
 use multiversx_sdk::data::address::Address;
-use router_api::ChainName;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -27,7 +27,9 @@ use crate::mvx::proxy::MvxProxy;
 use crate::mvx::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
-const MULTIVERSX_CHAIN_NAME: &str = "multiversx";
+lazy_static! {
+    static ref MULTIVERSX_CHAIN_NAME: ChainName = chain_name!("multiversx");
+}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -148,8 +150,7 @@ where
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
                     vote_decision: vote.clone(),
-                    chain_name: ChainName::from_str(MULTIVERSX_CHAIN_NAME)
-                        .expect("multiversx chain name should be valid"),
+                    chain_name: MULTIVERSX_CHAIN_NAME.clone(),
                 });
 
             info!(
@@ -170,7 +171,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::voting::Vote;
@@ -380,8 +380,7 @@ mod tests {
             metrics,
             MetricsMsg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str(MULTIVERSX_CHAIN_NAME)
-                    .expect("multiversx chain name should be valid"),
+                chain_name: MULTIVERSX_CHAIN_NAME.clone(),
             }
         );
 

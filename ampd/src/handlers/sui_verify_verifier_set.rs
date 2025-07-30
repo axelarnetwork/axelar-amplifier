@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
@@ -10,8 +9,9 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
-use router_api::ChainName;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
@@ -27,7 +27,9 @@ use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
-const SUI_CHAIN_NAME: &str = "sui";
+lazy_static! {
+    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
+}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -147,8 +149,7 @@ where
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
                     vote_decision: vote.clone(),
-                    chain_name: ChainName::from_str(SUI_CHAIN_NAME)
-                        .expect("sui chain name should be valid"),
+                    chain_name: SUI_CHAIN_NAME.clone(),
                 });
 
             info!(
@@ -169,7 +170,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -178,7 +178,6 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::ChainName;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -274,8 +273,7 @@ mod tests {
             msg,
             MetricsMsg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str(SUI_CHAIN_NAME)
-                    .expect("sui chain name should be valid"),
+                chain_name: SUI_CHAIN_NAME.clone(),
             }
         );
 
