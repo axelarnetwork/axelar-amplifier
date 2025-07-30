@@ -3,7 +3,6 @@
 //! and manages the voting process for confirming these changes.
 
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -14,8 +13,9 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
-use router_api::ChainName;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -30,7 +30,9 @@ use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
-const STARKNET_CHAIN_NAME: &str = "starknet";
+lazy_static! {
+    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
+}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -156,8 +158,7 @@ where
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
                     vote_decision: vote.clone(),
-                    chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
-                        .expect("starknet chain name should be valid"),
+                    chain_name: STARKNET_CHAIN_NAME.clone(),
                 });
 
             info!(
@@ -190,7 +191,6 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
-    use router_api::ChainName;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
@@ -276,8 +276,7 @@ mod tests {
             receiver.try_recv().unwrap(),
             MetricsMsg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
-                    .expect("starknet chain name should be valid"),
+                chain_name: STARKNET_CHAIN_NAME.clone(),
             }
         );
 

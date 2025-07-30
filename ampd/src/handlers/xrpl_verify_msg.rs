@@ -12,7 +12,8 @@ use error_stack::ResultExt;
 use events::try_from;
 use events::Error::EventTypeMismatch;
 use futures::future::join_all;
-use router_api::ChainName;
+use lazy_static::lazy_static;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -30,7 +31,9 @@ use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
 
-const XRPL_CHAIN_NAME: &str = "xrpl";
+lazy_static! {
+    static ref XRPL_CHAIN_NAME: ChainName = chain_name!("xrpl");
+}
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -183,8 +186,7 @@ where
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
                             vote_decision: vote.clone(),
-                            chain_name: ChainName::from_str(XRPL_CHAIN_NAME)
-                                .expect("xrpl chain name should be valid"),
+                            chain_name: XRPL_CHAIN_NAME.clone(),
                         });
                 })
                 .collect();
