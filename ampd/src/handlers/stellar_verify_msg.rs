@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -11,7 +10,8 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
-use router_api::ChainName;
+use lazy_static::lazy_static;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{ScAddress, ScBytes, ScString};
@@ -29,7 +29,9 @@ use crate::stellar::rpc_client::Client;
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
 
-const STELLAR_CHAIN_NAME: &str = "stellar";
+lazy_static! {
+    static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
+}
 
 #[serde_as]
 #[derive(Deserialize, Debug, Clone)]
@@ -163,8 +165,7 @@ impl EventHandler for Handler {
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
                             vote_decision: vote.clone(),
-                            chain_name: ChainName::from_str(STELLAR_CHAIN_NAME)
-                                .expect("stellar chain name should be valid"),
+                            chain_name: STELLAR_CHAIN_NAME.clone(),
                         });
                 })
                 .collect();
@@ -187,7 +188,6 @@ impl EventHandler for Handler {
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -197,7 +197,6 @@ mod tests {
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use router_api::ChainName;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -365,8 +364,7 @@ mod tests {
                 msg,
                 MetricsMsg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: ChainName::from_str(STELLAR_CHAIN_NAME)
-                        .expect("stellar chain name should be valid"),
+                    chain_name: STELLAR_CHAIN_NAME.clone(),
                 }
             );
         }
