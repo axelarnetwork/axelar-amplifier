@@ -2,18 +2,18 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use ethers_core::types::{Transaction, TransactionReceipt, U64};
+use ethers_core::types::{Transaction, TransactionReceipt, U64, H256};
 use event_verifier::msg::ExecuteMsg;
 use events::try_from;
 use events::Error::EventTypeMismatch;
 use futures::future::join_all;
-use router_api::{Address, ChainName};
+use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -32,9 +32,8 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Event {
-    pub message_id: HexTxHashAndEventIndex,
+    pub transaction_hash: HexTxHash,
     pub source_chain: ChainName,
-    pub contract_address: Address,
     pub event_data: event_verifier::msg::EventData,
 }
 
@@ -85,6 +84,7 @@ where
         }
     }
 
+    // Fetch both transactions and receipts (for when transaction details need verification)
     async fn finalized_tx_receipts<T>(
         &self,
         tx_hashes: T,
@@ -121,6 +121,45 @@ where
                 .le(&latest_finalized_block_height)
             {
                 Some((tx_hash, (tx, tx_receipt)))
+            } else {
+                None
+            }
+        })
+        .collect())
+    }
+
+    // Fetch only receipts (optimized for when no transaction details need verification)
+    async fn finalized_receipts_only<T>(
+        &self,
+        tx_hashes: T,
+        confirmation_height: u64,
+    ) -> Result<HashMap<Hash, TransactionReceipt>>
+    where
+        T: IntoIterator<Item = Hash>,
+    {
+        let latest_finalized_block_height =
+            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
+                .latest_finalized_block_height()
+                .await
+                .change_context(Error::Finalizer)?;
+
+        Ok(join_all(tx_hashes.into_iter().map(|tx_hash| async move {
+            match self.rpc_client.transaction_receipt(tx_hash).await {
+                Ok(Some(receipt)) => Some((tx_hash, receipt)),
+                _ => None,
+            }
+        }))
+        .await
+        .into_iter()
+        .filter_map(|result| result)
+        .filter_map(|(tx_hash, tx_receipt)| {
+            println!("tx_receipt: {:?}", tx_receipt);
+            if tx_receipt
+                .block_number
+                .unwrap_or(U64::MAX)
+                .le(&latest_finalized_block_height)
+            {
+                Some((tx_hash, tx_receipt))
             } else {
                 None
             }
@@ -187,43 +226,72 @@ where
 
         let tx_hashes: HashSet<Hash> = events
             .iter()
-            .map(|evt| evt.message_id.tx_hash.into())
+            .map(|evt| evt.transaction_hash.tx_hash_as_hex().parse::<H256>().unwrap().into())
             .collect();
         println!("tx_hashes: {:?}", tx_hashes);
-        let finalized_tx_receipts = self
-            .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await?;
-        println!("finalized_tx_receipts: {:?}", finalized_tx_receipts);
+
+        // Check if any events have transaction details that need verification
+        let needs_transaction_details = events.iter().any(|evt| {
+            match &evt.event_data {
+                event_verifier::msg::EventData::Evm { transaction_details, .. } => {
+                    transaction_details.is_some()
+                }
+            }
+        });
+
+        let votes: Vec<Vote> = if needs_transaction_details {
+            println!("Fetching both transactions and receipts (transaction details verification needed)");
+            let finalized_tx_receipts = self
+                .finalized_tx_receipts(tx_hashes, confirmation_height)
+                .await?;
+            println!("finalized_tx_receipts: {:?}", finalized_tx_receipts);
+
+            events
+                .iter()
+                .map(|evt| {
+                    finalized_tx_receipts
+                        .get(&evt.transaction_hash.tx_hash_as_hex().parse::<H256>().unwrap().into())
+                        .map_or(Vote::NotFound, |(tx, tx_receipt)| {
+                            println!("tx: {:?}", tx);
+                            verify_event(&source_gateway_address, tx_receipt, Some(tx), evt)
+                        })
+                })
+                .collect()
+        } else {
+            // Optimization: only fetch receipts since no transaction details need verification
+            println!("Fetching only receipts (no transaction details verification needed)");
+            let finalized_receipts = self
+                .finalized_receipts_only(tx_hashes, confirmation_height)
+                .await?;
+            println!("finalized_receipts: {:?}", finalized_receipts);
+
+            events
+                .iter()
+                .map(|evt| {
+                    finalized_receipts
+                        .get(&evt.transaction_hash.tx_hash_as_hex().parse::<H256>().unwrap().into())
+                        .map_or(Vote::NotFound, |tx_receipt| {
+                            verify_event(&source_gateway_address, tx_receipt, None, evt)
+                        })
+                })
+                .collect()
+        };
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
-        let votes = info_span!(
+        info_span!(
             "verify events from an EVM chain",
             poll_id = poll_id_str,
             source_chain = source_chain_str,
             event_ids = events
                 .iter()
-                .map(|evt| evt.message_id.to_string())
+                .map(|evt| evt.transaction_hash.to_string())
                 .collect::<Vec<String>>()
                 .as_value(),
         )
         .in_scope(|| {
             info!("ready to verify events in poll",);
-
-            let votes: Vec<_> = events
-                .iter()
-                .map(|evt| {
-                    finalized_tx_receipts
-                        .get(&evt.message_id.tx_hash.into())
-                        .map_or(Vote::NotFound, |(tx, tx_receipt)| {
-                            println!("tx: {:?}", tx);
-                            verify_event(&source_gateway_address, tx_receipt, tx, evt)
-                        })
-                })
-                .collect();
             info!(votes = votes.as_value(), "ready to vote for events in poll");
-
-            votes
         });
 
         Ok(vec![self
@@ -238,7 +306,7 @@ mod tests {
     use std::convert::TryInto;
     use std::str::FromStr;
 
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::HexTxHash;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_core::types::{H160, H256};
@@ -260,9 +328,9 @@ mod tests {
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let msg_ids = [
-            HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
-            HexTxHashAndEventIndex::new(H256::repeat_byte(2), 1u64),
-            HexTxHashAndEventIndex::new(H256::repeat_byte(3), 10u64),
+            HexTxHash::new(H256::repeat_byte(1)),
+            HexTxHash::new(H256::repeat_byte(2)),
+            HexTxHash::new(H256::repeat_byte(3)),
         ];
         PollStarted::Events {
             metadata: PollMetadata {
@@ -280,36 +348,42 @@ mod tests {
             },
             events: vec![
                 TxEventConfirmation {
-                    tx_id: msg_ids[0].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
-                    message_id: msg_ids[0].to_string().parse().unwrap(),
+                    transaction_hash: msg_ids[0].tx_hash_as_hex().to_string(),
                     source_chain: "ethereum".parse().unwrap(),
-                    contract_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     event_data: event_verifier::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                        data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
+                        transaction_details: None,
+                        events: vec![event_verifier::msg::Event {
+                            contract_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
+                            event_index: 0,
+                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
+                            data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
+                        }],
                     },
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[1].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[1].event_index).unwrap(),
-                    message_id: msg_ids[1].to_string().parse().unwrap(),
+                    transaction_hash: msg_ids[1].tx_hash_as_hex().to_string(),
                     source_chain: "ethereum".parse().unwrap(),
-                    contract_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                     event_data: event_verifier::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                        data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
+                        transaction_details: None,
+                        events: vec![event_verifier::msg::Event {
+                            contract_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
+                            event_index: 1,
+                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
+                            data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
+                        }],
                     },
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[2].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[2].event_index).unwrap(),
-                    message_id: msg_ids[2].to_string().parse().unwrap(),
+                    transaction_hash: msg_ids[2].tx_hash_as_hex().to_string(),
                     source_chain: "ethereum".parse().unwrap(),
-                    contract_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
                     event_data: event_verifier::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                        data: cosmwasm_std::HexBinary::from(vec![9, 10, 11, 12]),
+                        transaction_details: None,
+                        events: vec![event_verifier::msg::Event {
+                            contract_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
+                            event_index: 10,
+                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
+                            data: cosmwasm_std::HexBinary::from(vec![9, 10, 11, 12]),
+                        }],
                     },
                 },
             ],

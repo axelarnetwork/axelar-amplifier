@@ -311,8 +311,21 @@ fn validate_event_source_address(
     event: crate::msg::EventToVerify,
     address_format: &AddressFormat,
 ) -> Result<crate::msg::EventToVerify, ContractError> {
-    validate_address(&event.event_id.contract_address, address_format)
-        .change_context(ContractError::InvalidSourceAddress)?;
+    match &event.event_data {
+        crate::msg::EventData::Evm { transaction_details, events } => {
+            // Validate transaction_details 'to' address if present
+            if let Some(tx_details) = transaction_details {
+                validate_address(&tx_details.to, address_format)
+                    .change_context(ContractError::InvalidSourceAddress)?;
+            }
+            
+            // Validate all event contract addresses
+            for event in events {
+                validate_address(&event.contract_address, address_format)
+                    .change_context(ContractError::InvalidSourceAddress)?;
+            }
+        }
+    }
 
     Ok(event)
 }

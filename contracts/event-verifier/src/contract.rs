@@ -118,6 +118,7 @@ mod test {
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
+    use alloy_primitives::hex;
 
     use super::*;
     use crate::error::ContractError;
@@ -272,20 +273,30 @@ mod test {
         }
     }
 
-    fn events(len: u64, msg_id_format: &MessageIdFormat) -> Vec<EventToVerify> {
+    fn transaction_hash(id: &str, index: u64) -> String {
+        let data = format!("{id}-{index}");
+        let hash = Keccak256::digest(data.as_bytes());
+        format!("0x{}", hex::encode(hash))
+    }
+
+    fn events(len: u64, _msg_id_format: &MessageIdFormat) -> Vec<EventToVerify> {
         (0..len)
             .map(|i| EventToVerify {
                 event_id: EventId {
                     source_chain: source_chain(),
-                    message_id: message_id("id", i, msg_id_format).to_string(),
-                    contract_address: alloy_primitives::Address::random()
-                        .to_string()
-                        .try_into()
-                        .unwrap(),
+                    transaction_hash: transaction_hash("id", i),
                 },
                 event_data: EventData::Evm {
-                    topics: vec![],
-                    data: [0; 32].into(),
+                    transaction_details: None,
+                    events: vec![crate::msg::Event {
+                        contract_address: alloy_primitives::Address::random()
+                            .to_string()
+                            .try_into()
+                            .unwrap(),
+                        event_index: i,
+                        topics: vec![],
+                        data: [0; 32].into(),
+                    }],
                 },
             })
             .collect()

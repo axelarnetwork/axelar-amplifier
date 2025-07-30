@@ -1,15 +1,11 @@
-use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::msg_id::{
-    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat,
-    FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
-};
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
-use router_api::{Address, ChainName};
+use router_api::ChainName;
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -119,76 +115,12 @@ impl From<PollStarted> for Event {
     }
 }
 
-/// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
-#[deprecated(since = "1.1.0", note = "don't parse message id, just emit as is")]
-fn parse_message_id(
-    message_id: &str,
-    msg_id_format: &MessageIdFormat,
-) -> Result<(nonempty::String, u32), ContractError> {
-    match msg_id_format {
-        MessageIdFormat::Base58TxDigestAndEventIndex => {
-            let id = Base58TxDigestAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-            Ok((
-                id.tx_digest_as_base58(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::FieldElementAndEventIndex => {
-            let id = FieldElementAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
 
-            Ok((
-                id.tx_hash_as_hex(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::HexTxHashAndEventIndex => {
-            let id = HexTxHashAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-
-            Ok((
-                id.tx_hash_as_hex(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
-            let id = Base58SolanaTxSignatureAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-
-            Ok((
-                id.signature_as_base58(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::HexTxHash => {
-            let id = HexTxHash::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
-
-            Ok((id.tx_hash_as_hex(), 0))
-        }
-        MessageIdFormat::Bech32m { prefix, length } => {
-            let bech32m_message_id = Bech32mFormat::from_str(prefix, *length as usize, message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
-            Ok((bech32m_message_id.to_string().try_into()?, 0))
-        }
-    }
-}
 
 #[cw_serde]
 pub struct TxEventConfirmation {
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub tx_id: nonempty::String,
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub event_index: u32,
-    pub message_id: nonempty::String,
+    pub transaction_hash: String,
     pub source_chain: ChainName,
-    pub contract_address: Address,
-    /// The actual event data to verify
     pub event_data: crate::msg::EventData,
 }
 
@@ -197,19 +129,11 @@ pub struct TxEventConfirmation {
 impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from(
-        (event, msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat),
+        (event, _msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat),
     ) -> Result<Self, Self::Error> {
-        #[allow(deprecated)]
-        let (tx_id, event_index) = parse_message_id(&event.event_id.message_id, msg_id_format)?;
-
-        #[allow(deprecated)]
-        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(TxEventConfirmation {
-            tx_id,
-            event_index,
-            message_id: event.event_id.message_id.try_into().unwrap(),
+            transaction_hash: event.event_id.transaction_hash,
             source_chain: event.event_id.source_chain,
-            contract_address: event.event_id.contract_address,
             event_data: event.event_data,
         })
     }
@@ -307,25 +231,29 @@ mod tests {
         let event_events_poll_started: cosmwasm_std::Event = PollStarted::Events {
             events: vec![
                 TxEventConfirmation {
-                    tx_id: "txId1".try_into().unwrap(),
-                    event_index: 1,
-                    message_id: "messageId".try_into().unwrap(),
+                    transaction_hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
                     source_chain: "sourceChain".try_into().unwrap(),
-                    contract_address: "contractAddress1".parse().unwrap(),
                     event_data: crate::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                        data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
+                        transaction_details: None,
+                        events: vec![crate::msg::Event {
+                            contract_address: "contractAddress1".parse().unwrap(),
+                            event_index: 1,
+                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
+                            data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
+                        }],
                     },
                 },
                 TxEventConfirmation {
-                    tx_id: "txId2".try_into().unwrap(),
-                    event_index: 2,
-                    message_id: "messageId".try_into().unwrap(),
+                    transaction_hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string(),
                     source_chain: "sourceChain".try_into().unwrap(),
-                    contract_address: "contractAddress2".parse().unwrap(),
                     event_data: crate::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                        data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
+                        transaction_details: None,
+                        events: vec![crate::msg::Event {
+                            contract_address: "contractAddress2".parse().unwrap(),
+                            event_index: 2,
+                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
+                            data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
+                        }],
                     },
                 },
             ],

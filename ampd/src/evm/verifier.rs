@@ -135,7 +135,7 @@ pub fn verify_verifier_set(
 pub fn verify_event(
     _gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
-    tx: &Transaction,
+    tx: Option<&Transaction>,
     event: &Event,
 ) -> Vote {
     println!("verifying event");
@@ -145,8 +145,7 @@ pub fn verify_event(
         return Vote::FailedOnChain;
     }
 
-    let expected_transaction_hash = event.message_id.tx_hash.into();
-    let expected_event_index = event.message_id.event_index;
+    let expected_transaction_hash: H256 = event.transaction_hash.tx_hash_as_hex().parse().unwrap();
 
     // Check transaction hash matches
     if tx_receipt.transaction_hash != expected_transaction_hash {
@@ -156,129 +155,141 @@ pub fn verify_event(
 
     // Check event data matches
     match &event.event_data {
-        event_verifier::msg::EventData::EvmTransaction {
-            calldata,
-            from,
-            to,
-            value,
-        } => {
-            // Parse expected addresses from strings to H160
-            let expected_to = match to.as_str().parse::<ethers_core::types::Address>() {
-                Ok(addr) => addr,
-                Err(e) => {
-                    debug!(error = ?e, "failed to parse 'to' address");
+        event_verifier::msg::EventData::Evm { transaction_details, events } => {
+            // If transaction details are present, verify the transaction first
+            if let Some(tx_details) = transaction_details {
+                let tx = match tx {
+                    Some(transaction) => transaction,
+                    None => {
+                        println!("transaction details verification required but transaction not provided");
+                        return Vote::NotFound;
+                    }
+                };
+
+                // Parse expected addresses from strings to H160
+                let expected_to = match tx_details.to.as_str().parse::<ethers_core::types::Address>() {
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        debug!(error = ?e, "failed to parse 'to' address");
+                        return Vote::NotFound;
+                    }
+                };
+
+                let expected_from = match tx_details.from.as_str().parse::<ethers_core::types::Address>() {
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        debug!(error = ?e, "failed to parse 'from' address");
+                        return Vote::NotFound;
+                    }
+                };
+
+                if tx.to != Some(expected_to) {
+                    println!("to address mismatch");
                     return Vote::NotFound;
                 }
-            };
-
-            let expected_from = match from.as_str().parse::<ethers_core::types::Address>() {
-                Ok(addr) => addr,
-                Err(e) => {
-                    debug!(error = ?e, "failed to parse 'from' address");
+                if tx.from != expected_from {
+                    println!("from address mismatch");
                     return Vote::NotFound;
                 }
-            };
 
-            if tx.to != Some(expected_to) {
-                println!("to address mismatch");
-                return Vote::NotFound;
-            }
-            if tx.from != expected_from {
-                println!("from address mismatch");
-                return Vote::NotFound;
-            }
+                // Convert cosmwasm Uint256 to ethers U256
+                let expected_value = match ethers_core::types::U256::from_dec_str(&tx_details.value.to_string()) {
+                    Ok(val) => val,
+                    Err(e) => {
+                        debug!(error = ?e, "failed to parse value");
+                        return Vote::NotFound;
+                    }
+                };
 
-            // Convert cosmwasm Uint256 to ethers U256
-            let expected_value = match ethers_core::types::U256::from_dec_str(&value.to_string()) {
-                Ok(val) => val,
-                Err(e) => {
-                    debug!(error = ?e, "failed to parse value");
+                if tx.value != expected_value {
+                    println!("value mismatch");
                     return Vote::NotFound;
                 }
-            };
 
-            if tx.value != expected_value {
-                println!("value mismatch");
-                return Vote::NotFound;
-            }
-
-            // Convert HexBinary to Bytes
-            let expected_calldata = ethers_core::types::Bytes::from(calldata.to_vec());
-            if tx.input != expected_calldata {
-                println!("calldata mismatch");
-                return Vote::NotFound;
-            }
-
-            Vote::SucceededOnChain
-        }
-        event_verifier::msg::EventData::Evm { topics, data } => {
-            // Get the log at the specified event index
-            let log_index: usize = match usize::try_from(expected_event_index) {
-                Ok(index) => index,
-                Err(_) => return Vote::NotFound,
-            };
-
-            let log = match tx_receipt.logs.get(log_index) {
-                Some(log) => log,
-                None => {
-                    println!("log not found");
-                    return Vote::NotFound;
-                }
-            };
-
-            // Parse the contract address from the event
-            let expected_contract_address = match event
-                .contract_address
-                .as_str()
-                .parse::<ethers_core::types::Address>()
-            {
-                Ok(addr) => addr,
-                Err(e) => {
-                    debug!(error = ?e, "failed to parse contract address");
-                    return Vote::NotFound;
-                }
-            };
-
-            // Check contract address matches
-            if log.address != expected_contract_address {
-                println!("contract address mismatch");
-                return Vote::NotFound;
-            }
-            // Parse expected topics from hex strings to H256
-            // TODO: validate length of topics
-            let expected_topics: Vec<H256> = topics
-                .iter()
-                .filter(|topic| topic.len() == 32)
-                .map(|topic| H256::from_slice(topic.as_slice()))
-                .collect::<Vec<H256>>();
-
-            if expected_topics.len() != log.topics.len() {
-                println!("topic length mismatch");
-                return Vote::NotFound;
-            }
-
-            // Parse expected data from hex string
-            let expected_data = data.as_slice();
-
-            // Compare topics - they should match exactly in order
-            if log.topics.len() != expected_topics.len() {
-                println!("topic length mismatch");
-                return Vote::NotFound;
-            }
-
-            for (actual, expected) in log.topics.iter().zip(expected_topics.iter()) {
-                if actual != expected {
-                    println!("topic mismatch");
+                // Convert HexBinary to Bytes
+                let expected_calldata = ethers_core::types::Bytes::from(tx_details.calldata.to_vec());
+                if tx.input != expected_calldata {
+                    println!("calldata mismatch");
                     return Vote::NotFound;
                 }
             }
 
-            // Compare data
-            if log.data.to_vec() != expected_data {
-                println!("data mismatch");
+            // Verify all events specified in the event data
+            if events.is_empty() {
+                println!("no events found to verify");
                 return Vote::NotFound;
             }
 
+            // Verify each event against the corresponding log in the transaction receipt
+            for event_to_verify in events {
+                let log_index: usize = match usize::try_from(event_to_verify.event_index) {
+                    Ok(index) => index,
+                    Err(_) => {
+                        println!("invalid event index: {}", event_to_verify.event_index);
+                        return Vote::NotFound;
+                    }
+                };
+
+                let log = match tx_receipt.logs.get(log_index) {
+                    Some(log) => log,
+                    None => {
+                        println!("log not found at index {}", log_index);
+                        return Vote::NotFound;
+                    }
+                };
+
+                // Parse the contract address from the event
+                let expected_contract_address = match event_to_verify
+                    .contract_address
+                    .as_str()
+                    .parse::<ethers_core::types::Address>()
+                {
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        debug!(error = ?e, "failed to parse contract address");
+                        return Vote::NotFound;
+                    }
+                };
+
+                // Check contract address matches
+                if log.address != expected_contract_address {
+                    println!("contract address mismatch for event at index {}", log_index);
+                    return Vote::NotFound;
+                }
+
+                // Parse expected topics from hex strings to H256
+                let expected_topics: Vec<H256> = event_to_verify.topics
+                    .iter()
+                    .filter(|topic| topic.len() == 32)
+                    .map(|topic| H256::from_slice(topic.as_slice()))
+                    .collect::<Vec<H256>>();
+
+                if expected_topics.len() != log.topics.len() {
+                    println!("topic length mismatch for event at index {}", log_index);
+                    return Vote::NotFound;
+                }
+
+                // Compare topics - they should match exactly in order
+                for (actual, expected) in log.topics.iter().zip(expected_topics.iter()) {
+                    if actual != expected {
+                        println!("topic mismatch for event at index {}", log_index);
+                        return Vote::NotFound;
+                    }
+                }
+
+                // Parse expected data from hex string
+                let expected_data = event_to_verify.data.as_slice();
+
+                // Compare data
+                if log.data.to_vec() != expected_data {
+                    println!("data mismatch for event at index {}", log_index);
+                    return Vote::NotFound;
+                }
+
+                println!("Event at index {} verified successfully", log_index);
+            }
+
+            // All events verified successfully
             Vote::SucceededOnChain
         }
     }

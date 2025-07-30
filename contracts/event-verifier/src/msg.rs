@@ -44,23 +44,31 @@ pub struct EventToVerify {
 pub struct EventId {
     // chain that emitted the event in question
     pub source_chain: ChainName,
-    // same message id type as used for GMP
-    pub message_id: String,
-    // address of contract emitting the event
-    pub contract_address: Address,
+    // transaction hash where the event was emitted
+    pub transaction_hash: String,
+}
+
+#[cw_serde]
+pub struct TransactionDetails {
+    pub calldata: HexBinary,
+    pub from: Address,
+    pub to: Address,
+    pub value: Uint256,
+}
+
+#[cw_serde]
+pub struct Event {
+    pub contract_address: Address, // address of contract emitting the event
+    pub event_index: u64,          // index of the event in the transaction
+    pub topics: Vec<HexBinary>,    // 1-4 topics
+    pub data: HexBinary,           // arbitrary length hex data
 }
 
 #[cw_serde]
 pub enum EventData {
-    EvmTransaction {
-        calldata: HexBinary,
-        from: Address,
-        to: Address,
-        value: Uint256,
-    },
     Evm {
-        topics: Vec<HexBinary>, // 1-4 topics
-        data: HexBinary,        // arbitrary length hex data
+        transaction_details: Option<TransactionDetails>,
+        events: Vec<Event>,
     },
     // Additional event variants for other blockchain types can be added here
 }
@@ -102,6 +110,86 @@ impl EventStatus {
     }
 }
 
+impl TransactionDetails {
+    pub fn hash(&self) -> Hash {
+        let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
+        hasher.update(self.calldata.as_slice());
+        hasher.update(delimiter_bytes);
+        hasher.update(self.from.as_str());
+        hasher.update(delimiter_bytes);
+        hasher.update(self.to.as_str());
+        hasher.update(delimiter_bytes);
+        hasher.update(self.value.to_string().as_bytes());
+        hasher.update(delimiter_bytes);
+
+        hasher.finalize().into()
+    }
+}
+
+impl Event {
+    pub fn hash(&self) -> Hash {
+        let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
+        hasher.update(self.contract_address.as_str());
+        hasher.update(delimiter_bytes);
+        hasher.update(&self.event_index.to_le_bytes());
+        hasher.update(delimiter_bytes);
+        
+        // Hash each topic
+        for topic in &self.topics {
+            hasher.update(topic.as_slice());
+            hasher.update(delimiter_bytes);
+        }
+        
+        hasher.update(self.data.as_slice());
+        hasher.update(delimiter_bytes);
+
+        hasher.finalize().into()
+    }
+}
+
+impl EventData {
+    pub fn hash(&self) -> Hash {
+        let mut hasher = Keccak256::new();
+        let delimiter_bytes = &[FIELD_DELIMITER as u8];
+
+        match self {
+            EventData::Evm { transaction_details, events } => {
+                // Hash variant identifier
+                hasher.update(b"Evm");
+                hasher.update(delimiter_bytes);
+                
+                // Hash transaction details if present
+                match transaction_details {
+                    Some(tx_details) => {
+                        hasher.update(b"some");
+                        hasher.update(delimiter_bytes);
+                        let tx_hash = tx_details.hash();
+                        hasher.update(tx_hash.as_ref());
+                        hasher.update(delimiter_bytes);
+                    }
+                    None => {
+                        hasher.update(b"none");
+                        hasher.update(delimiter_bytes);
+                    }
+                }
+                
+                // Hash each event
+                for event in events {
+                    let event_hash = event.hash();
+                    hasher.update(event_hash.as_ref());
+                    hasher.update(delimiter_bytes);
+                }
+            }
+        }
+
+        hasher.finalize().into()
+    }
+}
+
 impl EventToVerify {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
@@ -109,15 +197,12 @@ impl EventToVerify {
 
         hasher.update(self.event_id.source_chain.as_ref());
         hasher.update(delimiter_bytes);
-        hasher.update(&self.event_id.message_id);
-        hasher.update(delimiter_bytes);
-        hasher.update(self.event_id.contract_address.as_str());
+        hasher.update(&self.event_id.transaction_hash);
         hasher.update(delimiter_bytes);
 
-        // Hash the event data
-        let event_data_bytes =
-            serde_json::to_vec(&self.event_data).expect("failed to serialize event data");
-        hasher.update(event_data_bytes);
+        // Hash the event data using its hash function
+        let event_data_hash = self.event_data.hash();
+        hasher.update(event_data_hash.as_ref());
 
         hasher.finalize().into()
     }
