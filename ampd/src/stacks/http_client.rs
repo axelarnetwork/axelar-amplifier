@@ -18,7 +18,7 @@ const LATEST_BLOCK: &str = "extended/v2/blocks/latest";
 
 const STATUS_SUCCESS: &str = "success";
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("invalid tx hash {endpoint}")]
     TxHash { endpoint: String },
@@ -28,25 +28,25 @@ pub enum Error {
     Json,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct ContractLogValue {
     pub hex: String,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct ContractLog {
     pub contract_id: String,
     pub topic: String,
     pub value: ContractLogValue,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct TransactionEvents {
     pub event_index: u64,
     pub contract_log: Option<ContractLog>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct Transaction {
     pub tx_id: Hash,
     pub tx_status: String, // 'success'
@@ -54,7 +54,7 @@ pub struct Transaction {
     pub burn_block_height: u64,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct Block {
     pub burn_block_height: u64, // Height of Bitcoin block
 }
@@ -151,7 +151,10 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::{Block, Client, Transaction};
+    use crate::url::Url;
 
     #[test]
     fn parse_transaction() {
@@ -336,5 +339,37 @@ mod tests {
         };
 
         assert!(Client::is_valid_transaction(&tx, 2));
+    }
+
+    #[test]
+    fn test_new_http() {
+        let url = Url::new_non_sensitive("http://localhost:3999").unwrap();
+        let timeout = Duration::from_secs(30);
+
+        let client = Client::new_http(url, timeout).unwrap();
+
+        let endpoint = client.endpoint("test");
+        assert!(endpoint.contains("localhost:3999"));
+    }
+
+    #[test]
+    fn test_new_http_trims_trailing_slash() {
+        let url = Url::new_non_sensitive("http://localhost:3999/").unwrap();
+        let timeout = Duration::from_secs(30);
+
+        let client = Client::new_http(url, timeout).unwrap();
+
+        let endpoint = client.endpoint("test");
+        assert!(!endpoint.ends_with("//test"));
+    }
+
+    #[test]
+    fn test_endpoint() {
+        let url = Url::new_non_sensitive("http://localhost:3999").unwrap();
+        let timeout = Duration::from_secs(30);
+        let client = Client::new_http(url, timeout).unwrap();
+
+        let endpoint = client.endpoint("test/path");
+        assert_eq!(endpoint, "http://localhost:3999/test/path");
     }
 }
