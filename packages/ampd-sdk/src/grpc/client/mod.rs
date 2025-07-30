@@ -241,6 +241,7 @@ mod tests {
         AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
         KeyResponse, SignResponse, SubscribeResponse,
     };
+    use axelar_wasm_std::chain_name;
     use cosmrs::{AccountId, Any};
     use futures::StreamExt;
     use mockall::mock;
@@ -589,7 +590,7 @@ mod tests {
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
-        let result = client.contracts("chain".parse().unwrap()).await;
+        let result = client.contracts(chain_name!("chain")).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
         assert_eq!(result.unwrap(), expected_contracts);
@@ -611,7 +612,7 @@ mod tests {
             });
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
-        let result = client.contracts("chain".parse().unwrap()).await;
+        let result = client.contracts(chain_name!("chain")).await;
 
         assert!(
             result.is_err(),
