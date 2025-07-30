@@ -603,6 +603,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 )
                 .change_context(Error::Connection)?,
                 event_processor_config.clone(),
@@ -621,6 +622,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 )
                 .change_context(Error::Connection)?,
                 event_processor_config.clone(),
