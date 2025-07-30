@@ -3,19 +3,19 @@
 blocks_received_total 0
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
-verification_votes_total{chain_name="avalanche",status="FailedOnChain"} 1
-verification_votes_total{chain_name="avalanche",status="NotFound"} 1
-verification_votes_total{chain_name="avalanche",status="SucceededOnChain"} 1
-verification_votes_total{chain_name="ethereum",status="FailedOnChain"} 1
-verification_votes_total{chain_name="ethereum",status="NotFound"} 1
-verification_votes_total{chain_name="ethereum",status="SucceededOnChain"} 1
-verification_votes_total{chain_name="polygon",status="FailedOnChain"} 1
-verification_votes_total{chain_name="polygon",status="NotFound"} 1
-verification_votes_total{chain_name="polygon",status="SucceededOnChain"} 1
-verification_votes_total{chain_name="solana",status="FailedOnChain"} 1
-verification_votes_total{chain_name="solana",status="NotFound"} 1
-verification_votes_total{chain_name="solana",status="SucceededOnChain"} 1
-verification_votes_total{chain_name="stellar",status="FailedOnChain"} 1
-verification_votes_total{chain_name="stellar",status="NotFound"} 1
-verification_votes_total{chain_name="stellar",status="SucceededOnChain"} 1
+verification_votes_total{chain_name="avalanche",vote_decision="FailedOnChain"} 1
+verification_votes_total{chain_name="avalanche",vote_decision="NotFound"} 1
+verification_votes_total{chain_name="avalanche",vote_decision="SucceededOnChain"} 1
+verification_votes_total{chain_name="ethereum",vote_decision="FailedOnChain"} 1
+verification_votes_total{chain_name="ethereum",vote_decision="NotFound"} 1
+verification_votes_total{chain_name="ethereum",vote_decision="SucceededOnChain"} 1
+verification_votes_total{chain_name="polygon",vote_decision="FailedOnChain"} 1
+verification_votes_total{chain_name="polygon",vote_decision="NotFound"} 1
+verification_votes_total{chain_name="polygon",vote_decision="SucceededOnChain"} 1
+verification_votes_total{chain_name="solana",vote_decision="FailedOnChain"} 1
+verification_votes_total{chain_name="solana",vote_decision="NotFound"} 1
+verification_votes_total{chain_name="solana",vote_decision="SucceededOnChain"} 1
+verification_votes_total{chain_name="stellar",vote_decision="FailedOnChain"} 1
+verification_votes_total{chain_name="stellar",vote_decision="NotFound"} 1
+verification_votes_total{chain_name="stellar",vote_decision="SucceededOnChain"} 1
 # EOF

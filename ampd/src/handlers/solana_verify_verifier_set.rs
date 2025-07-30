@@ -161,7 +161,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             self.monitoring_client
                 .metrics()
                 .record_metric(MetricsMsg::VerificationVote {
-                    vote_status: vote.clone(),
+                    vote_decision: vote.clone(),
                     chain_name: self.chain_name.clone(),
                 });
 
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(
             metrics,
             MetricsMsg::VerificationVote {
-                vote_status: Vote::NotFound,
+                vote_decision: Vote::NotFound,
                 chain_name: ChainName::from_str("solana").unwrap(),
             }
         );
