@@ -5,7 +5,16 @@
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.1.0..HEAD)
 
-- Multisig gives Coordinator permission to execute messages [#977](https://github.com/axelarnetwork/axelar-amplifier/pull/977)
+- minor multisig update to version 2.2.0 [#977](https://github.com/axelarnetwork/axelar-amplifier/pull/977)
+- remove `cosmwasm::Addr` type from `multisig` [#971](https://github.com/axelarnetwork/axelar-amplifier/pull/971)
+- add migration endpoint for multisig contract [#966](https://github.com/axelarnetwork/axelar-amplifier/pull/966)
+- coordinator can authorize callers with multisig [#953](https://github.com/axelarnetwork/axelar-amplifier/pull/953)
+- add unit tests for multisig client [#955](https://github.com/axelarnetwork/axelar-amplifier/pull/955)
+- use client package for all clients [#962](https://github.com/axelarnetwork/axelar-amplifier/pull/962)
+- ensure permissions can accept empty direct attribute [#940](https://github.com/axelarnetwork/axelar-amplifier/pull/940)
+- rename ensure permissions macro [#925](https://github.com/axelarnetwork/axelar-amplifier/pull/925)
+- replace `cargo-run-script` for `just` [#935](https://github.com/axelarnetwork/axelar-amplifier/pull/935)
+- implement blockchain broadcast [#871](https://github.com/axelarnetwork/axelar-amplifier/pull/871)
 
 ## [v2.1.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.1.0)
 
