@@ -683,46 +683,14 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[derive(Error, Debug)]
-    pub enum EventHandlerError {
-        #[error("failed")]
-        Failed,
-    }
-
-    mock! {
-            EventHandler{}
-
-            #[async_trait]
-            impl EventHandler for EventHandler {
-                type Err = EventHandlerError;
-
-                async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
-            }
-    }
-
-    fn dummy_msg() -> Any {
-        MsgSend {
-            from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
-            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
-            amount: vec![],
-        }
-        .to_any()
-        .unwrap()
-    }
-
     #[tokio::test(start_paused = true)]
     async fn block_end_events_increment_blocks_received_metric() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
-        let account_number = 42u64;
-        let sequence = 10u64;
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
-            account_number,
-            sequence,
-        };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Ok(Event::BlockEnd(1_u32.into())),
@@ -732,20 +700,14 @@ mod tests {
             Ok(Event::BlockBegin(5_u32.into())),
             Ok(Event::BlockEnd(6_u32.into())),
         ];
-
         let num_block_ends = 5;
-
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
-            .return_once(|_| Ok(vec![dummy_msg()]));
+            .times(events.len())
+            .returning(|_| Ok(vec![]));
 
-        let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client.expect_account().return_once(move |_| {
-            Ok(QueryAccountResponse {
-                account: Some(Any::from_msg(&base_account).unwrap()),
-            })
-        });
+        let mock_client = setup_client(&address);
 
         let event_config = setup_event_config(
             Duration::from_secs(1),
@@ -787,12 +749,14 @@ mod tests {
         .await;
 
         assert!(result_with_timeout.is_ok());
-        cancel_token.cancel();
+
         for _ in 0..num_block_ends {
             let metrics = receiver.recv().await.unwrap();
             assert_eq!(metrics, MetricsMsg::BlockReceived);
         }
 
         assert!(receiver.try_recv().is_err());
+
+        cancel_token.cancel();
     }
 }
