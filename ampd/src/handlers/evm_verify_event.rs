@@ -8,7 +8,8 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use ethers_core::types::{TransactionReceipt, U64};
+use ethers_core::types::{Transaction, TransactionReceipt, U64};
+use event_verifier::msg::ExecuteMsg;
 use events::try_from;
 use events::Error::EventTypeMismatch;
 use futures::future::join_all;
@@ -17,7 +18,6 @@ use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
-use event_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::evm::finalizer;
@@ -37,7 +37,6 @@ pub struct Event {
     pub contract_address: Address,
     pub event_data: event_verifier::msg::EventData,
 }
-
 
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-events_poll_started")]
@@ -90,7 +89,7 @@ where
         &self,
         tx_hashes: T,
         confirmation_height: u64,
-    ) -> Result<HashMap<Hash, TransactionReceipt>>
+    ) -> Result<HashMap<Hash, (Transaction, TransactionReceipt)>>
     where
         T: IntoIterator<Item = Hash>,
     {
@@ -100,22 +99,28 @@ where
                 .await
                 .change_context(Error::Finalizer)?;
 
-        Ok(join_all(
-            tx_hashes
-                .into_iter()
-                .map(|tx_hash| self.rpc_client.transaction_receipt(tx_hash)),
-        )
+        Ok(join_all(tx_hashes.into_iter().map(|tx_hash| async move {
+            let tx_future = self.rpc_client.transaction_by_hash(tx_hash);
+            let receipt_future = self.rpc_client.transaction_receipt(tx_hash);
+
+            let (tx_result, receipt_result) = tokio::join!(tx_future, receipt_future);
+
+            match (tx_result, receipt_result) {
+                (Ok(Some(tx)), Ok(Some(receipt))) => Some((tx_hash, tx, receipt)),
+                _ => None,
+            }
+        }))
         .await
         .into_iter()
-        .filter_map(std::result::Result::unwrap_or_default)
-        .filter_map(|tx_receipt| {
+        .filter_map(|result| result)
+        .filter_map(|(tx_hash, tx, tx_receipt)| {
             println!("tx_receipt: {:?}", tx_receipt);
             if tx_receipt
                 .block_number
                 .unwrap_or(U64::MAX)
                 .le(&latest_finalized_block_height)
             {
-                Some((tx_receipt.transaction_hash, tx_receipt))
+                Some((tx_hash, (tx, tx_receipt)))
             } else {
                 None
             }
@@ -210,15 +215,13 @@ where
                 .map(|evt| {
                     finalized_tx_receipts
                         .get(&evt.message_id.tx_hash.into())
-                        .map_or(Vote::NotFound, |tx_receipt| {
-                            verify_event(&source_gateway_address, tx_receipt, evt)
+                        .map_or(Vote::NotFound, |(tx, tx_receipt)| {
+                            println!("tx: {:?}", tx);
+                            verify_event(&source_gateway_address, tx_receipt, tx, evt)
                         })
                 })
                 .collect();
-            info!(
-                votes = votes.as_value(),
-                "ready to vote for events in poll"
-            );
+            info!(votes = votes.as_value(), "ready to vote for events in poll");
 
             votes
         });
@@ -240,12 +243,12 @@ mod tests {
     use error_stack::{Report, Result};
     use ethers_core::types::{H160, H256};
     use ethers_providers::ProviderError;
+    use event_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use event_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
@@ -405,4 +408,4 @@ mod tests {
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
-} 
+}

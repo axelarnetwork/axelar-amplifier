@@ -122,9 +122,7 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::events::TxEventConfirmation;
-    use crate::msg::{EventToVerify, EventId, EventData};
-    
-
+    use crate::msg::{EventData, EventId, EventToVerify};
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
@@ -274,8 +272,6 @@ mod test {
         }
     }
 
-
-
     fn events(len: u64, msg_id_format: &MessageIdFormat) -> Vec<EventToVerify> {
         (0..len)
             .map(|i| EventToVerify {
@@ -334,7 +330,11 @@ mod test {
         for case in test_cases {
             let msg = InstantiateMsg {
                 governance_address: api.addr_make(GOVERNANCE).to_string().try_into().unwrap(),
-                service_registry_address: api.addr_make("service_registry").to_string().try_into().unwrap(),
+                service_registry_address: api
+                    .addr_make("service_registry")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
                 service_name: "validators".to_string().try_into().unwrap(),
                 source_gateway_address: case.source_gateway_address.try_into().unwrap(),
                 voting_threshold: initial_voting_threshold(),

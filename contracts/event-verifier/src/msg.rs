@@ -1,6 +1,6 @@
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
-use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256};
 use msgs_derive::Permissions;
@@ -47,15 +47,20 @@ pub struct EventId {
     // same message id type as used for GMP
     pub message_id: String,
     // address of contract emitting the event
-    pub contract_address: Address
-
+    pub contract_address: Address,
 }
 
 #[cw_serde]
 pub enum EventData {
+    EvmTransaction {
+        calldata: HexBinary,
+        from: Address,
+        to: Address,
+        value: Uint256,
+    },
     Evm {
         topics: Vec<HexBinary>, // 1-4 topics
-        data: HexBinary,      // arbitrary length hex data
+        data: HexBinary,        // arbitrary length hex data
     },
     // Additional event variants for other blockchain types can be added here
 }
@@ -108,10 +113,10 @@ impl EventToVerify {
         hasher.update(delimiter_bytes);
         hasher.update(self.event_id.contract_address.as_str());
         hasher.update(delimiter_bytes);
-        
+
         // Hash the event data
-        let event_data_bytes = serde_json::to_vec(&self.event_data)
-            .expect("failed to serialize event data");
+        let event_data_bytes =
+            serde_json::to_vec(&self.event_data).expect("failed to serialize event data");
         hasher.update(event_data_bytes);
 
         hasher.finalize().into()

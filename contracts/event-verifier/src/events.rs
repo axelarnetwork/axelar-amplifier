@@ -71,7 +71,6 @@ pub struct PollMetadata {
 }
 
 pub enum PollStarted {
-
     Events {
         events: Vec<TxEventConfirmation>,
         metadata: PollMetadata,
@@ -119,8 +118,6 @@ impl From<PollStarted> for Event {
         }
     }
 }
-
-
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
 #[deprecated(since = "1.1.0", note = "don't parse message id, just emit as is")]
@@ -182,8 +179,6 @@ fn parse_message_id(
     }
 }
 
-
-
 #[cw_serde]
 pub struct TxEventConfirmation {
     #[deprecated(since = "1.1.0", note = "use message_id field instead")]
@@ -201,7 +196,9 @@ pub struct TxEventConfirmation {
 
 impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
-    fn try_from((event, msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat)) -> Result<Self, Self::Error> {
+    fn try_from(
+        (event, msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat),
+    ) -> Result<Self, Self::Error> {
         #[allow(deprecated)]
         let (tx_id, event_index) = parse_message_id(&event.event_id.message_id, msg_id_format)?;
 
@@ -293,15 +290,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axelar_wasm_std::msg_id::{
-        Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat
+        Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
     };
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Api, Event as CosmosEvent};
 
+    use super::*;
+
     // All message-related tests removed since message functionality has been removed from event-verifier
-    
+
     #[test]
     fn should_serialize_events_poll_started() {
         let api = MockApi::default();
@@ -315,7 +313,7 @@ mod tests {
                     source_chain: "sourceChain".try_into().unwrap(),
                     contract_address: "contractAddress1".parse().unwrap(),
                     event_data: crate::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1,2,3])],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
                         data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
                     },
                 },
@@ -326,7 +324,7 @@ mod tests {
                     source_chain: "sourceChain".try_into().unwrap(),
                     contract_address: "contractAddress2".parse().unwrap(),
                     event_data: crate::msg::EventData::Evm {
-                        topics: vec![cosmwasm_std::HexBinary::from(vec![1,2,3])],
+                        topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
                         data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
                     },
                 },

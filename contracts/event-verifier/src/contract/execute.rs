@@ -10,7 +10,6 @@ use cosmwasm_std::{
 };
 use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
-
 use router_api::ChainName;
 use service_registry::WeightedVerifier;
 
@@ -19,9 +18,7 @@ use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted,
 };
-use crate::state::{
-    self, Poll, CONFIG, POLLS, POLL_ID, VOTES,
-};
+use crate::state::{self, Poll, CONFIG, POLLS, POLL_ID, VOTES};
 
 pub fn update_voting_threshold(
     deps: DepsMut,
@@ -39,8 +36,6 @@ pub fn update_voting_threshold(
     Ok(Response::new())
 }
 
-
-
 pub fn verify_events(
     deps: DepsMut,
     env: Env,
@@ -56,8 +51,7 @@ pub fn verify_events(
         validate_event_source_chain(event, &config.source_chain)
             .and_then(|event| validate_event_source_address(event, &config.address_format))
             .and_then(|event| {
-                event_status(deps.as_ref(), &event, env.block.height)
-                    .map(|status| (status, event))
+                event_status(deps.as_ref(), &event, env.block.height).map(|status| (status, event))
             })
     })?;
 
@@ -223,9 +217,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .change_context(ContractError::StorageError)?;
 
     let poll_result = match &poll {
-        Poll::Events(poll) => {
-            poll.state(HashMap::from_iter(votes))
-        }
+        Poll::Events(poll) => poll.state(HashMap::from_iter(votes)),
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
@@ -276,10 +268,6 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     ))
 }
 
-
-
-
-
 fn create_events_poll(
     store: &mut dyn Storage,
     expires_at: u64,
@@ -305,8 +293,6 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .map_err(ContractError::from)
         .map_err(Report::from)
 }
-
-
 
 fn validate_event_source_chain(
     event: crate::msg::EventToVerify,

@@ -7,9 +7,9 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use router_api::ChainName;
-use crate::msg::EventToVerify;
 
 use crate::error::ContractError;
+use crate::msg::EventToVerify;
 
 #[cw_serde]
 pub struct Config {
@@ -55,8 +55,6 @@ pub struct PollContent<T> {
     pub index_in_poll: u32,
 }
 
-
-
 impl PollContent<EventToVerify> {
     pub fn new(event: EventToVerify, poll_id: PollId, index_in_poll: usize) -> Self {
         Self {
@@ -67,8 +65,6 @@ impl PollContent<EventToVerify> {
     }
 }
 
-
-
 pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollId, Poll> = Map::new("polls");
@@ -77,8 +73,6 @@ type VerifierAddr = String;
 pub const VOTES: Map<(PollId, VerifierAddr), Vec<Vote>> = Map::new("votes");
 
 pub const CONFIG: Item<Config> = Item::new("config");
-
-
 
 /// A multi-index that indexes an event by (PollID, index in poll) pair. The primary key of the underlying
 /// map is the hash of the event (typed as Hash). This allows looking up an EventToVerify by its hash,
@@ -113,7 +107,11 @@ impl<'a> PollEventsIndex<'a> {
         }
     }
 
-    pub fn load_events(&self, storage: &dyn Storage, poll_id: PollId) -> StdResult<Vec<EventToVerify>> {
+    pub fn load_events(
+        &self,
+        storage: &dyn Storage,
+        poll_id: PollId,
+    ) -> StdResult<Vec<EventToVerify>> {
         poll_events()
             .idx
             .0
@@ -139,10 +137,10 @@ pub fn poll_events<'a>() -> IndexedMap<&'a Hash, PollContent<EventToVerify>, Pol
 }
 
 impl IndexList<PollContent<EventToVerify>> for PollEventsIndex<'_> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<EventToVerify>>> + '_> {
+    fn get_indexes(
+        &'_ self,
+    ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<EventToVerify>>> + '_> {
         let v: Vec<&dyn Index<PollContent<EventToVerify>>> = vec![&self.0];
         Box::new(v.into_iter())
     }
 }
-
-

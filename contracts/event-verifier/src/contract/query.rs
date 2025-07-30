@@ -4,7 +4,7 @@ use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
 
 use crate::error::ContractError;
-use crate::msg::{EventStatus, PollData, PollResponse, EventToVerify};
+use crate::msg::{EventStatus, EventToVerify, PollData, PollResponse};
 use crate::state::{poll_events, Poll, PollContent, CONFIG, POLLS};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
@@ -77,8 +77,6 @@ pub fn poll_response(
     })
 }
 
-
-
 fn verification_status<T: PartialEq + std::fmt::Debug>(
     deps: Deps,
     stored_poll_content: Option<PollContent<T>>,
@@ -97,7 +95,6 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 .expect("invalid invariant: content's poll not found");
 
             let consensus = match &poll {
-
                 Poll::Events(poll) => poll
                     .consensus(stored.index_in_poll)
                     .expect("invalid invariant: event not found in poll"),

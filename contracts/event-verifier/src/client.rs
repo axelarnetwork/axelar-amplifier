@@ -10,7 +10,6 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-
     #[error("failed to query voting verifier for current voting threshold")]
     CurrentThreshold,
     #[error("failed to query voting verifier for events status. events: {0:?}")]
@@ -54,8 +53,6 @@ impl Client<'_> {
         self.client.execute(&ExecuteMsg::EndPoll { poll_id })
     }
 
-
-
     pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
@@ -81,8 +78,6 @@ impl Client<'_> {
         }
     }
 
-
-
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         let msg = QueryMsg::CurrentThreshold;
         self.client
@@ -96,9 +91,7 @@ mod test {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
-    use cosmwasm_std::{
-        from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint64, WasmQuery,
-    };
+    use cosmwasm_std::{from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint64, WasmQuery};
     use router_api::{CrossChainId, Message};
 
     use crate::contract::{instantiate, query};
