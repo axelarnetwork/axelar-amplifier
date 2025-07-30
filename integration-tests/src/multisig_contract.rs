@@ -33,7 +33,7 @@ impl MultisigContract {
                     governance_address: governance.to_string(),
                     admin_address: admin.to_string(),
                     block_expiry,
-                    coordinator_address,
+                    coordinator_address: coordinator_address.to_string(),
                 },
                 &[],
                 "multisig",

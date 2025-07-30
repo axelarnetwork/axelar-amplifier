@@ -21,7 +21,7 @@ pub struct InstantiateMsg {
     /// Number of blocks after which a signing session expires
     pub block_expiry: nonempty::Uint64,
     /// The coordinator can send messages to multisig
-    pub coordinator_address: Addr,
+    pub coordinator_address: String,
 }
 
 #[cw_serde]

@@ -56,7 +56,7 @@ fn successful_verify() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check verification is idempotent
-        let response = std::iter::repeat_n(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -88,7 +88,7 @@ fn successful_route_incoming() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check routing of incoming messages is idempotent
-        let response = std::iter::repeat_n(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -135,7 +135,7 @@ fn successful_route_outgoing() {
         }
 
         // check routing of outgoing messages is idempotent
-        let response = std::iter::repeat_n(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -153,7 +153,7 @@ fn successful_route_outgoing() {
         responses.push(response[0].clone());
 
         // check all outgoing messages are stored because the router (sender) is implicitly trusted
-        std::iter::repeat_n(
+        iter::repeat_n(
             query(deps.as_ref(), mock_env().clone(), query_msg).unwrap(),
             2,
         )

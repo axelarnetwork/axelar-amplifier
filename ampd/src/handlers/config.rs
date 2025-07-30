@@ -107,6 +107,20 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    StacksMsgVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    StacksVerifierSetVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
 }
 
 fn validate_starknet_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -229,6 +243,16 @@ where
         &configs,
         Config::SolanaVerifierSetVerifier,
         "Solana verifier set verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksMsgVerifier,
+        "Stacks message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksVerifierSetVerifier,
+        "Stacks verifier set verifier"
     )?;
 
     Ok(configs)
@@ -394,6 +418,36 @@ mod tests {
         assert!(
             matches!(deserialize_handler_configs(to_value(configs).unwrap()),
                 Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::StacksMsgVerifier {
+            chain_name: ChainName::from_str("stacks").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stacks message verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::StacksVerifierSetVerifier {
+            chain_name: ChainName::from_str("stacks").unwrap(),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stacks verifier set verifier config is allowed")
             )
         );
     }

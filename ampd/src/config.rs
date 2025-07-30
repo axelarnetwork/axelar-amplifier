@@ -32,8 +32,10 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            tm_jsonrpc: Url::new_non_sensitive("http://localhost:26657").unwrap(),
-            tm_grpc: Url::new_non_sensitive("tcp://localhost:9090").unwrap(),
+            tm_jsonrpc: Url::new_non_sensitive("http://localhost:26657")
+                .expect("Url should be created validly"),
+            tm_grpc: Url::new_non_sensitive("tcp://localhost:9090")
+                .expect("Url should be created validly"),
             tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcaster_v2::Config::default(),
             handlers: vec![],
@@ -311,7 +313,29 @@ mod tests {
             [handlers.rpc_timeout]
             secs = 3
             nanos = 0
+
+            [[handlers]]
+            type = 'StacksMsgVerifier'
+            chain_name = 'stacks'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:8000'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
+            [[handlers]]
+            type = 'StacksVerifierSetVerifier'
+            chain_name = 'stacks'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:8000'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
             ",
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -329,7 +353,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 14);
+        assert_eq!(cfg.handlers.len(), 16);
     }
 
     #[test]
@@ -558,6 +582,22 @@ mod tests {
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
                     chain_name: ChainName::from_str("solana").unwrap(),
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::StacksMsgVerifier {
+                    chain_name: ChainName::from_str("stacks").unwrap(),
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::StacksVerifierSetVerifier {
+                    chain_name: ChainName::from_str("stacks").unwrap(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
