@@ -23,6 +23,7 @@ use crate::types::debug::REDACTED_VALUE;
 use crate::{broadcast, cosmos, event_sub, tofnd};
 
 mod blockchain_service;
+mod config;
 mod crypto_service;
 mod reqs;
 mod status;
