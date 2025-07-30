@@ -116,10 +116,15 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let broadcaster =
-        broadcaster_v2::Broadcaster::new(cosmos_client.clone(), broadcast.chain_id, pub_key)
-            .await
-            .change_context(Error::Broadcaster)?;
+    let broadcaster = broadcaster_v2::Broadcaster::builder()
+        .client(cosmos_client.clone())
+        .chain_id(broadcast.chain_id)
+        .pub_key(pub_key)
+        .gas_adjustment(broadcast.gas_adjustment)
+        .gas_price(broadcast.gas_price)
+        .build()
+        .await
+        .change_context(Error::Broadcaster)?;
     let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcast.queue_cap,
@@ -145,12 +150,8 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .msg_queue(msg_queue)
         .signer(multisig_client.clone())
         .key_id(tofnd_config.key_uid.clone())
-        .gas_adjustment(broadcast.gas_adjustment)
-        .gas_price(broadcast.gas_price)
         .tx_confirmer_client(tx_confirmer_client)
-        .build()
-        .await
-        .change_context(Error::Broadcaster)?;
+        .build();
 
     let verifier: TMAddress = pub_key
         .account_id(PREFIX)
