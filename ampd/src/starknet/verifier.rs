@@ -262,7 +262,6 @@ mod tests {
     }
 
     /// Verifier set - signers rotated
-
     fn mock_valid_confirmation_signers_rotated() -> VerifierSetConfirmation {
         VerifierSetConfirmation {
             verifier_set: mock_valid_verifier_set_signers_rotated(),

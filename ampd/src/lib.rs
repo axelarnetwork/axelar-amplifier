@@ -20,6 +20,7 @@ mod json_rpc;
 mod monitoring;
 mod mvx;
 mod solana;
+mod stacks;
 mod starknet;
 mod stellar;
 mod sui;
@@ -57,6 +58,7 @@ use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
 
 use crate::config::Config;
+use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -571,6 +573,42 @@ impl App {
                     self.block_height_monitor.latest_block_height(),
                 )
                 .await,
+                event_processor_config.clone(),
+                self.monitoring_client.clone(),
+            )),
+            handlers::config::Config::StacksMsgVerifier {
+                chain_name,
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "stacks-msg-verifier",
+                handlers::stacks_verify_msg::Handler::new(
+                    chain_name.clone(),
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    self.block_height_monitor.latest_block_height(),
+                )
+                .change_context(Error::Connection)?,
+                event_processor_config.clone(),
+                self.monitoring_client.clone(),
+            )),
+            handlers::config::Config::StacksVerifierSetVerifier {
+                chain_name,
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "stacks-verifier-set-verifier",
+                handlers::stacks_verify_verifier_set::Handler::new(
+                    chain_name.clone(),
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    self.block_height_monitor.latest_block_height(),
+                )
+                .change_context(Error::Connection)?,
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
             )),
