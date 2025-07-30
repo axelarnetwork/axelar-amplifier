@@ -1,9 +1,15 @@
 
 # Changelog
 
-## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
+## [v2.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.0.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.1.0..HEAD)
+
+- Multisig gives Coordinator permission to execute messages [#977](https://github.com/axelarnetwork/axelar-amplifier/pull/977)
+
+## [v2.1.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.1.0)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.0.0..multisig-v2.1.0)
 
 ## [v2.0.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.0.0) (2025-05-09)
 
