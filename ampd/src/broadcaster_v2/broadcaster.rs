@@ -313,8 +313,7 @@ mod tests {
     use sha3::Digest;
 
     use super::*;
-    use crate::broadcaster_v2::test_utils::decode_gas_fee;
-    use crate::broadcaster_v2::Error;
+    use crate::broadcaster_v2::{test_utils, Error};
     use crate::types::{random_cosmos_public_key, PublicKey};
     use crate::PREFIX;
 
@@ -689,7 +688,7 @@ mod tests {
             .once()
             .in_sequence(&mut seq)
             .withf(move |req| {
-                let actual_fee = decode_gas_fee(&req.tx_bytes);
+                let actual_fee = test_utils::decode_gas_fee(&req.tx_bytes);
                 assert_eq!(actual_fee.amount.len(), 1);
 
                 actual_fee.gas_limit == expected_gas_limit

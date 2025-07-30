@@ -411,14 +411,13 @@ mod tests {
 
     use super::*;
     use crate::broadcaster_v2::dec_coin::DecCoin;
-    use crate::broadcaster_v2::test_utils::create_base_account;
-    use crate::broadcaster_v2::Error;
+    use crate::broadcaster_v2::{test_utils, Error};
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::PREFIX;
 
     fn setup_client(address: &TMAddress) -> cosmos::MockCosmosClient {
         let mut cosmos_client = cosmos::MockCosmosClient::new();
-        let base_account = create_base_account(address);
+        let base_account = test_utils::create_base_account(address);
 
         cosmos_client.expect_account().return_once(move |_| {
             Ok(QueryAccountResponse {

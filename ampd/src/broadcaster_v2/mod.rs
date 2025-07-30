@@ -287,8 +287,7 @@ mod tests {
 
     use crate::broadcaster_v2::dec_coin::DecCoin;
     use crate::broadcaster_v2::msg_queue::QueueMsg;
-    use crate::broadcaster_v2::test_utils::{create_base_account, decode_gas_fee};
-    use crate::broadcaster_v2::{broadcaster, BroadcasterTask, Error};
+    use crate::broadcaster_v2::{broadcaster, test_utils, BroadcasterTask, Error};
     use crate::tofnd::{self, MockMultisig};
     use crate::types::random_cosmos_public_key;
     use crate::{cosmos, PREFIX};
@@ -306,7 +305,7 @@ mod tests {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
@@ -425,7 +424,7 @@ mod tests {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
@@ -538,8 +537,8 @@ mod tests {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let initial_account = create_base_account(&address);
-        let reset_account = create_base_account(&address);
+        let initial_account = test_utils::create_base_account(&address);
+        let reset_account = test_utils::create_base_account(&address);
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
@@ -645,7 +644,7 @@ mod tests {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
@@ -737,7 +736,7 @@ mod tests {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
@@ -881,8 +880,8 @@ mod tests {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
-        let initial_account = create_base_account(&address);
-        let reset_account = create_base_account(&address);
+        let initial_account = test_utils::create_base_account(&address);
+        let reset_account = test_utils::create_base_account(&address);
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
@@ -1032,7 +1031,7 @@ mod tests {
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let simulated_gas_used = 100000u64;
         let expected_gas_limit = 150000u64; // 100000 * 1.5 = 150000
         let expected_fee_amount = 3750u64; // 150000 * 0.025 = 3750
@@ -1088,7 +1087,7 @@ mod tests {
             .once()
             .in_sequence(&mut seq)
             .withf(move |req| {
-                let actual_fee = decode_gas_fee(&req.tx_bytes);
+                let actual_fee = test_utils::decode_gas_fee(&req.tx_bytes);
                 assert_eq!(actual_fee.amount.len(), 1);
 
                 actual_fee.gas_limit == expected_gas_limit
@@ -1139,7 +1138,7 @@ mod tests {
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let simulated_gas_used = 100000u64;
 
         let mut mock_signer = MockMultisig::new();
@@ -1238,7 +1237,7 @@ mod tests {
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
@@ -1308,7 +1307,7 @@ mod tests {
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let simulated_gas_used = 100000u64;
 
         let mut mock_signer = MockMultisig::new();
@@ -1389,7 +1388,7 @@ mod tests {
         let gas_adjustment = 1.5;
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
-        let base_account = create_base_account(&address);
+        let base_account = test_utils::create_base_account(&address);
         let simulated_gas_used = 100000u64;
 
         let mut mock_signer = MockMultisig::new();
