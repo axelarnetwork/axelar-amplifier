@@ -212,6 +212,8 @@ mod tests {
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
+    use cosmrs::cosmwasm::MsgExecuteContract;
+    use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::H160;
@@ -331,6 +333,40 @@ mod tests {
         .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
+    }
+
+    #[async_test]
+    async fn should_vote_correctly() {
+        let mut client = Client::faux();
+        faux::when!(client.latest_block).then(|_| {
+            Ok(Block {
+                burn_block_height: 1,
+            })
+        });
+        faux::when!(client.finalized_transactions).then(|_| HashMap::new());
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(worker.clone()))),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = Handler::new(
+            ChainName::from_str("stacks").unwrap(),
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            monitoring_client,
+        )
+        .unwrap();
+
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
+        assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
     }
 
     #[async_test]
