@@ -41,6 +41,8 @@ pub enum Msg {
         vote_decision: AxelarVote,
         chain_name: ChainName,
     },
+    /// Record the number of errors returned from RPC client calls
+    RpcError { chain_name: ChainName },
 }
 
 /// Errors that can occur in metrics processing
@@ -200,19 +202,23 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
+    rpc_error: RpcErrorMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
+        let rpc_error = RpcErrorMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
+        rpc_error.register(registry);
 
         Self {
             block_received,
             verification_vote,
+            rpc_error,
         }
     }
 
@@ -228,6 +234,10 @@ impl Metrics {
             } => {
                 self.verification_vote
                     .record_verification_vote(vote_decision, chain_name);
+            }
+
+            Msg::RpcError { chain_name } => {
+                self.rpc_error.record_rpc_error(chain_name);
             }
         }
     }
@@ -312,6 +322,30 @@ impl VerificationVoteMetrics {
     }
 }
 
+struct RpcErrorMetrics {
+    total: Family<Vec<(String, String)>, Counter>,
+}
+
+impl RpcErrorMetrics {
+    fn new() -> Self {
+        let total = Family::<Vec<(String, String)>, Counter>::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "rpc_errors",
+            "number of errors returned from RPC calls per chain",
+            self.total.clone(),
+        );
+    }
+
+    fn record_rpc_error(&self, chain_name: ChainName) {
+        let label = vec![("chain_name".to_string(), chain_name.to_string())];
+        self.total.get_or_create(&label).inc();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -390,6 +424,33 @@ mod tests {
         final_metrics.assert_status_ok();
 
         goldie::assert!(sort_metrics_output(&final_metrics.text()))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_update_rpc_error_metrics_successfully() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        client.record_metric(Msg::RpcError {
+            chain_name: ChainName::from_str("ethereum").unwrap(),
+        });
+
+        client.record_metric(Msg::RpcError {
+            chain_name: ChainName::from_str("polygon").unwrap(),
+        });
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+
+        let metrics_text = final_metrics.text();
+        goldie::assert!(sort_metrics_output(&metrics_text))
     }
 
     /// Test if the sort_metrics_output function produces consistent output.
