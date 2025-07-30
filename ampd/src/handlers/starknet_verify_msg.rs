@@ -293,7 +293,7 @@ mod tests {
 
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .returning(|_| None);
 
         let event: Event = get_event(
