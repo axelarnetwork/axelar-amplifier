@@ -212,8 +212,6 @@ mod tests {
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmrs::cosmwasm::MsgExecuteContract;
-    use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::H160;
