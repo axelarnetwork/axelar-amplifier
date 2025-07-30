@@ -15,6 +15,11 @@ rust-version = "1.81.0" # be sure there is an optimizer release supporting this 
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
+[workspace.metadata.dylint]
+
+[[workspace.metadata.dylint.libraries]]
+path = "../axelar-lints/amplifier-lints"
+
 [workspace.dependencies]
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
@@ -126,6 +131,10 @@ xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
 cast_possible_truncation = "deny"
+
+[workspace.lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]
 
 [profile.release]
 opt-level = 3
