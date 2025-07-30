@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outside_tests))]
+
 pub mod contract;
 pub mod coordinator_contract;
 pub mod gateway_contract;
