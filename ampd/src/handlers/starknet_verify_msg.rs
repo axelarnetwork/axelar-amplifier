@@ -150,7 +150,7 @@ where
                     self.monitoring_client
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
-                            vote_status: vote.clone(),
+                            vote_decision: vote.clone(),
                             chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
                                 .expect("starknet chain name should be valid"),
                         });
@@ -316,7 +316,7 @@ mod tests {
             assert_eq!(
                 msg,
                 MetricsMsg::VerificationVote {
-                    vote_status: Vote::NotFound,
+                    vote_decision: Vote::NotFound,
                     chain_name: ChainName::from_str(STARKNET_CHAIN_NAME)
                         .expect("starknet chain name should be valid"),
                 }

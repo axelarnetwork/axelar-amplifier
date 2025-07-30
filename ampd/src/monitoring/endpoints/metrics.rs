@@ -38,7 +38,7 @@ pub enum Msg {
     BlockReceived,
     /// Record the verification vote results for cross-chain message
     VerificationVote {
-        vote_status: AxelarVote,
+        vote_decision: AxelarVote,
         chain_name: ChainName,
     },
 }
@@ -90,7 +90,7 @@ impl Client {
     /// - For `Disabled` clients: Always succeeds without doing anything
     /// - For `WithChannel` clients: Attempts to send the message via channel
     ///    - If sending fails, a warning is logged
-    ///    - record_metric should never disrupt the main flow of the application
+    ///    - [`record_metric`] should never disrupt the main flow of the application
     pub fn record_metric(&self, msg: Msg) {
         match self {
             Client::Disabled => (),
@@ -223,11 +223,11 @@ impl Metrics {
             }
 
             Msg::VerificationVote {
-                vote_status,
+                vote_decision,
                 chain_name,
             } => {
                 self.verification_vote
-                    .record_verification_vote(vote_status, chain_name);
+                    .record_verification_vote(vote_decision, chain_name);
             }
         }
     }
@@ -277,8 +277,8 @@ impl From<AxelarVote> for Vote {
 struct VerificationVoteLabel {
     /// Source chain name of the handler
     chain_name: String,
-    /// The verification vote outcome
-    status: Vote,
+    /// The verification vote decision
+    vote_decision: Vote,
 }
 
 struct VerificationVoteMetrics {
@@ -299,11 +299,14 @@ impl VerificationVoteMetrics {
         );
     }
 
-    fn record_verification_vote(&self, status: AxelarVote, chain_name: ChainName) {
+    fn record_verification_vote(&self, vote_decision: AxelarVote, chain_name: ChainName) {
         let chain_name = chain_name.to_string();
-        let status: Vote = status.into();
+        let vote_decision: Vote = vote_decision.into();
 
-        let label = VerificationVoteLabel { chain_name, status };
+        let label = VerificationVoteLabel {
+            chain_name,
+            vote_decision,
+        };
         self.total.get_or_create(&label).inc();
     }
 }
@@ -368,15 +371,15 @@ mod tests {
 
         for chain_name in chain_names {
             client.record_metric(Msg::VerificationVote {
-                vote_status: AxelarVote::SucceededOnChain,
+                vote_decision: AxelarVote::SucceededOnChain,
                 chain_name: chain_name.clone(),
             });
             client.record_metric(Msg::VerificationVote {
-                vote_status: AxelarVote::FailedOnChain,
+                vote_decision: AxelarVote::FailedOnChain,
                 chain_name: chain_name.clone(),
             });
             client.record_metric(Msg::VerificationVote {
-                vote_status: AxelarVote::NotFound,
+                vote_decision: AxelarVote::NotFound,
                 chain_name: chain_name.clone(),
             });
         }

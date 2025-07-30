@@ -182,7 +182,7 @@ where
                     self.monitoring_client
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
-                            vote_status: vote.clone(),
+                            vote_decision: vote.clone(),
                             chain_name: ChainName::from_str(XRPL_CHAIN_NAME)
                                 .expect("xrpl chain name should be valid"),
                         });
