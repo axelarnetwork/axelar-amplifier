@@ -51,6 +51,14 @@ impl Url {
         let url_str = String::deserialize(deserializer)?;
         Url::new_non_sensitive(&url_str).map_err(|err| D::Error::custom(err.to_string()))
     }
+
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    /// This is an explicit shadowing of the `to_string` method to avoid confusion with the `Display` implementation.
+    /// If the `Url` is sensitive, it returns a redacted value; otherwise, it returns the full URL as a string.
+    /// For the unredacted URL string (even when it's marked as sensitive), use the [`url::Url::as_str()`] method instead.
+    pub fn to_string(&self) -> String {
+        ToString::to_string(&self)
+    }
 }
 
 impl Serialize for Url {
@@ -147,5 +155,11 @@ mod tests {
         let config: TestConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(format!("{}", config.url), "https://non-sensitive.test/");
         assert_eq!(config.url.as_str(), "https://non-sensitive.test/");
+    }
+
+    #[test]
+    fn stringify(){
+        println!("{}", Url::new_sensitive("https://example.com").unwrap().to_string());
+        println!("{}", Url::new_sensitive("https://example.com").unwrap().as_str());
     }
 }
