@@ -3,8 +3,8 @@
 blocks_received_total 0
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
-# HELP event_stage_results_total number of results for each AMPD event stage.
-# TYPE event_stage_results_total counter
+# HELP event_stage_performance_result number of performance results for each AMPD event stage.
+# TYPE event_stage_performance_result counter
 # HELP event_stage_durations duration of each AMPD event stage in seconds.
 # TYPE event_stage_durations histogram
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage

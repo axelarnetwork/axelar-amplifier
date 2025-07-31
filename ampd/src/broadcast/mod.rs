@@ -142,7 +142,7 @@ where
 
             self.monitoring_client
                 .metrics()
-                .record_metric(Msg::EventStageResult {
+                .record_metric(Msg::EventStagePerformance {
                     stage: EventStage::TransactionBroadcast,
                     success: tx_hash.is_ok(),
                     duration: start_time.elapsed(),
@@ -305,7 +305,7 @@ mod tests {
     use crate::monitoring::test_utils as monitoring_test_utils;
     use crate::tofnd::{self, MockMultisig};
     use crate::types::random_cosmos_public_key;
-    use crate::{cosmos, monitoring, PREFIX};
+    use crate::{cosmos, PREFIX};
 
     fn dummy_msg() -> Any {
         Any {
@@ -1638,7 +1638,7 @@ mod tests {
         let msg1 = receiver.recv().await.unwrap();
 
         match msg1 {
-            Msg::EventStageResult {
+            Msg::EventStagePerformance {
                 stage,
                 success,
                 duration: _,
@@ -1652,7 +1652,7 @@ mod tests {
         let msg2 = receiver.recv().await.unwrap();
 
         match msg2 {
-            Msg::EventStageResult {
+            Msg::EventStagePerformance {
                 stage,
                 success,
                 duration: _,

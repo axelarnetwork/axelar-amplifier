@@ -172,7 +172,7 @@ async fn instantiate_broadcaster(
     );
 
     let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
-        .expect("should never fail to create dummy monitoring server");
+        .expect("should never fail to create dummy monitoring client");
 
     let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)

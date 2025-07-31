@@ -144,7 +144,7 @@ where
 
     monitoring_client
         .metrics()
-        .record_metric(Msg::EventStageResult {
+        .record_metric(Msg::EventStagePerformance {
             stage: EventStage::EventHandling,
             success: result.is_ok(),
             duration: start_time.elapsed(),
@@ -159,7 +159,7 @@ where
 
                     monitoring_client
                         .metrics()
-                        .record_metric(Msg::EventStageResult {
+                        .record_metric(Msg::EventStagePerformance {
                             stage: EventStage::MessageEnqueue,
                             success: res.is_ok(),
                             duration: start_time.elapsed(),
@@ -845,7 +845,7 @@ mod tests {
             mock_client
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -855,7 +855,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (_msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -879,7 +879,7 @@ mod tests {
 
         match receiver.recv().await.unwrap() {
             // successfully handled event
-            MetricsMsg::EventStageResult {
+            MetricsMsg::EventStagePerformance {
                 stage,
                 success,
                 duration: _,
@@ -892,7 +892,7 @@ mod tests {
 
         match receiver.recv().await.unwrap() {
             // successfully enqueued message
-            MetricsMsg::EventStageResult {
+            MetricsMsg::EventStagePerformance {
                 stage,
                 success,
                 duration: _,
@@ -904,7 +904,7 @@ mod tests {
         }
         match receiver.recv().await.unwrap() {
             // failed to enqueue message
-            MetricsMsg::EventStageResult {
+            MetricsMsg::EventStagePerformance {
                 stage,
                 success,
                 duration: _,
@@ -918,7 +918,7 @@ mod tests {
 
         match receiver.recv().await.unwrap() {
             // handle failed
-            MetricsMsg::EventStageResult {
+            MetricsMsg::EventStagePerformance {
                 stage,
                 success,
                 duration: _,

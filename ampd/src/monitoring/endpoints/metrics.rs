@@ -55,8 +55,8 @@ pub enum Msg {
         vote_decision: AxelarVote,
         chain_name: ChainName,
     },
-    // Record the result and duration of event processing in each stage
-    EventStageResult {
+    /// Track performance(result and duration) for AMPD event processing stages
+    EventStagePerformance {
         stage: EventStage,
         success: bool,
         duration: Duration,
@@ -221,23 +221,23 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
-    event_stage_result: EventStageMetrics,
+    event_stage_performance: EventStageMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
-        let event_stage_result = EventStageMetrics::new();
+        let event_stage_performance = EventStageMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
-        event_stage_result.register(registry);
+        event_stage_performance.register(registry);
 
         Self {
             block_received,
             verification_vote,
-            event_stage_result,
+            event_stage_performance,
         }
     }
 
@@ -254,13 +254,13 @@ impl Metrics {
                 self.verification_vote
                     .record_verification_vote(vote_decision, chain_name);
             }
-            Msg::EventStageResult {
+            Msg::EventStagePerformance {
                 stage,
                 success: result,
                 duration,
             } => {
-                self.event_stage_result
-                    .record_event_stage_result(stage, result, duration);
+                self.event_stage_performance
+                    .record_event_stage_performance(stage, result, duration);
             }
         }
     }
@@ -361,20 +361,20 @@ impl From<bool> for StageResult {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct EventStageResultLabel {
+struct EventStageLabel {
     stage: EventStage,
     result: StageResult,
 }
 
 struct EventStageMetrics {
-    total: Family<EventStageResultLabel, Counter>,
-    duration: Family<EventStageResultLabel, Histogram>,
+    total: Family<EventStageLabel, Counter>,
+    duration: Family<EventStageLabel, Histogram>,
 }
 
 impl EventStageMetrics {
     fn new() -> Self {
-        let total = Family::<EventStageResultLabel, Counter>::default();
-        let duration = Family::<EventStageResultLabel, Histogram>::new_with_constructor(|| {
+        let total = Family::<EventStageLabel, Counter>::default();
+        let duration = Family::<EventStageLabel, Histogram>::new_with_constructor(|| {
             Histogram::new(vec![0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 40.0])
         });
         Self { total, duration }
@@ -382,8 +382,8 @@ impl EventStageMetrics {
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "event_stage_results_total",
-            "number of results for each AMPD event stage",
+            "event_stage_performance_result",
+            "number of performance results for each AMPD event stage",
             self.total.clone(),
         );
 
@@ -394,9 +394,9 @@ impl EventStageMetrics {
         );
     }
 
-    fn record_event_stage_result(&self, stage: EventStage, result: bool, duration: Duration) {
+    fn record_event_stage_performance(&self, stage: EventStage, result: bool, duration: Duration) {
         let result: StageResult = result.into();
-        let label = EventStageResultLabel { stage, result };
+        let label = EventStageLabel { stage, result };
         self.total.get_or_create(&label).inc();
         self.duration
             .get_or_create(&label)
@@ -618,12 +618,12 @@ mod tests {
         ];
 
         for stage in event_stages {
-            client.record_metric(Msg::EventStageResult {
+            client.record_metric(Msg::EventStagePerformance {
                 stage: stage.clone(),
                 success: true,
                 duration: Duration::from_secs(1),
             });
-            client.record_metric(Msg::EventStageResult {
+            client.record_metric(Msg::EventStagePerformance {
                 stage: stage.clone(),
                 success: false,
                 duration: Duration::from_secs(2),

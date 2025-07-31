@@ -3,14 +3,14 @@
 blocks_received_total 0
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
-# HELP event_stage_results_total number of results for each AMPD event stage.
-# TYPE event_stage_results_total counter
-event_stage_results_total_total{stage="EventHandling",result="Failure"} 1
-event_stage_results_total_total{stage="EventHandling",result="Success"} 1
-event_stage_results_total_total{stage="MessageEnqueue",result="Failure"} 1
-event_stage_results_total_total{stage="MessageEnqueue",result="Success"} 1
-event_stage_results_total_total{stage="TransactionBroadcast",result="Failure"} 1
-event_stage_results_total_total{stage="TransactionBroadcast",result="Success"} 1
+# HELP event_stage_performance_result number of performance results for each AMPD event stage.
+# TYPE event_stage_performance_result counter
+event_stage_performance_result_total{stage="EventHandling",result="Failure"} 1
+event_stage_performance_result_total{stage="EventHandling",result="Success"} 1
+event_stage_performance_result_total{stage="MessageEnqueue",result="Failure"} 1
+event_stage_performance_result_total{stage="MessageEnqueue",result="Success"} 1
+event_stage_performance_result_total{stage="TransactionBroadcast",result="Failure"} 1
+event_stage_performance_result_total{stage="TransactionBroadcast",result="Success"} 1
 # HELP event_stage_durations duration of each AMPD event stage in seconds.
 # TYPE event_stage_durations histogram
 event_stage_durations_bucket{le="+Inf",stage="EventHandling",result="Failure"} 1
