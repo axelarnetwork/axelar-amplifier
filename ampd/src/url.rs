@@ -156,10 +156,4 @@ mod tests {
         assert_eq!(format!("{}", config.url), "https://non-sensitive.test/");
         assert_eq!(config.url.as_str(), "https://non-sensitive.test/");
     }
-
-    #[test]
-    fn stringify(){
-        println!("{}", Url::new_sensitive("https://example.com").unwrap().to_string());
-        println!("{}", Url::new_sensitive("https://example.com").unwrap().as_str());
-    }
 }
