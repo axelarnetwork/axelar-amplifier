@@ -404,10 +404,7 @@ mod tests {
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
     }
 
-    fn verifier_set_poll_started_event(
-        participants: Vec<TMAddress>,
-        expires_at: u64,
-    ) -> Event {
+    fn verifier_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> Event {
         let msg_id = HexTxHashAndEventIndex::new(Hash::from([3; 32]), 1u64);
 
         Event::VerifierSetPollStarted {
