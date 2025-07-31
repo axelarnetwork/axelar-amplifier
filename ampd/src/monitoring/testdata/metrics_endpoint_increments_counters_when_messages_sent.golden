@@ -6,7 +6,7 @@ blocks_received_total 0
 # TYPE verification_votes counter
 # HELP event_stage_results_total number of results for each AMPD event stage.
 # TYPE event_stage_results_total counter
-# HELP event_stage_durations duration of each AMPD event stage (in seconds).
+# HELP event_stage_durations duration of each AMPD event stage in seconds.
 # TYPE event_stage_durations histogram
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
@@ -27,7 +27,7 @@ blocks_received_total 3
 # TYPE verification_votes counter
 # HELP event_stage_results_total number of results for each AMPD event stage.
 # TYPE event_stage_results_total counter
-# HELP event_stage_durations duration of each AMPD event stage (in seconds).
+# HELP event_stage_durations duration of each AMPD event stage in seconds.
 # TYPE event_stage_durations histogram
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge

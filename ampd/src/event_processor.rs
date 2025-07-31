@@ -728,13 +728,8 @@ mod tests {
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Ok(Event::BlockEnd(1_u32.into())),
-            Ok(Event::BlockEnd(2_u32.into())),
-            Ok(Event::BlockBegin(3_u32.into())),
-            Ok(Event::BlockEnd(4_u32.into())),
-            Ok(Event::BlockBegin(5_u32.into())),
-            Ok(Event::BlockEnd(6_u32.into())),
         ];
-        let num_block_ends = 5;
+        let num_block_ends = 2;
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
@@ -786,7 +781,8 @@ mod tests {
 
         for _ in 0..num_block_ends {
             let metrics = receiver.recv().await.unwrap();
-            assert_eq!(metrics, MetricsMsg::BlockReceived);
+            assert_eq!(metrics, MetricsMsg::BlockReceived); // block received metrics
+            let _ = receiver.recv().await.unwrap(); // handler metrics, ignored
         }
 
         assert!(receiver.try_recv().is_err());

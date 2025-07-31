@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::pin::Pin;
 
 use clap::Subcommand;
@@ -13,9 +14,7 @@ use crate::asyncutil::future::RetryPolicy;
 use crate::config::Config;
 use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcast, cosmos, tofnd, Error, PREFIX};
-use crate::monitoring;
-use std::net::SocketAddr;
+use crate::{broadcast, cosmos, monitoring, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -27,7 +26,6 @@ pub mod send_tokens;
 pub mod set_rewards_proxy;
 pub mod unbond_verifier;
 pub mod verifier_address;
-
 
 #[derive(clap::Args, Debug, Valuable)]
 pub struct BroadcastArgs {
@@ -173,7 +171,8 @@ async fn instantiate_broadcaster(
         broadcaster_config.broadcast_interval,
     );
 
-    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).expect("should never fail to create dummy monitoring server");
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
+        .expect("should never fail to create dummy monitoring server");
 
     let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)

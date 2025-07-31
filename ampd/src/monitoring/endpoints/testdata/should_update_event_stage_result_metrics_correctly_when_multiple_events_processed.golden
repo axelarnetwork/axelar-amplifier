@@ -11,7 +11,7 @@ event_stage_results_total_total{stage="MessageEnqueue",result="Failure"} 1
 event_stage_results_total_total{stage="MessageEnqueue",result="Success"} 1
 event_stage_results_total_total{stage="TransactionBroadcast",result="Failure"} 1
 event_stage_results_total_total{stage="TransactionBroadcast",result="Success"} 1
-# HELP event_stage_durations duration of each AMPD event stage (in seconds).
+# HELP event_stage_durations duration of each AMPD event stage in seconds.
 # TYPE event_stage_durations histogram
 event_stage_durations_bucket{le="+Inf",stage="EventHandling",result="Failure"} 1
 event_stage_durations_bucket{le="+Inf",stage="EventHandling",result="Success"} 1

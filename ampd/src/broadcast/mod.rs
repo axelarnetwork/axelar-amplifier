@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Instant;
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -11,12 +12,10 @@ use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
-use crate::monitoring;
-use std::time::Instant;
 
-use crate::types::TMAddress;
-use crate::{cosmos, tofnd};
 use crate::monitoring::metrics::{EventStage, Msg};
+use crate::types::TMAddress;
+use crate::{cosmos, monitoring, tofnd};
 
 mod broadcaster;
 mod config;
@@ -141,11 +140,13 @@ where
                 .await
                 .map(|res| res.txhash);
 
-            self.monitoring_client.metrics().record_metric(Msg::EventStageResult {
-                stage: EventStage::TransactionBroadcast,
-                success: tx_hash.is_ok(),
-                duration: start_time.elapsed(),
-            });
+            self.monitoring_client
+                .metrics()
+                .record_metric(Msg::EventStageResult {
+                    stage: EventStage::TransactionBroadcast,
+                    success: tx_hash.is_ok(),
+                    duration: start_time.elapsed(),
+                });
 
             self.handle_tx_res(tx_hash, msgs).await?;
         }
@@ -300,12 +301,11 @@ mod tests {
     use crate::broadcast::dec_coin::DecCoin;
     use crate::broadcast::msg_queue::QueueMsg;
     use crate::broadcast::{broadcaster, test_utils, BroadcasterTask, Error};
-    use crate::tofnd::{self, MockMultisig};
-    use crate::types::random_cosmos_public_key;
-    use crate::{cosmos, PREFIX};
-    use crate::monitoring;
     use crate::monitoring::metrics::{EventStage, Msg};
     use crate::monitoring::test_utils as monitoring_test_utils;
+    use crate::tofnd::{self, MockMultisig};
+    use crate::types::random_cosmos_public_key;
+    use crate::{cosmos, monitoring, PREFIX};
 
     fn dummy_msg() -> Any {
         Any {
@@ -1497,7 +1497,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn record_event_stage_metrics_successfully_for_mixed_transaction_broadcast_failures_and_successes() {
+    async fn record_event_stage_metrics_successfully_for_mixed_transaction_broadcast_failures_and_successes(
+    ) {
         let pub_key = random_cosmos_public_key();
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
@@ -1637,7 +1638,11 @@ mod tests {
         let msg1 = receiver.recv().await.unwrap();
 
         match msg1 {
-            Msg::EventStageResult { stage, success, duration:_ } => {
+            Msg::EventStageResult {
+                stage,
+                success,
+                duration: _,
+            } => {
                 assert!(!success);
                 assert_eq!(stage, EventStage::TransactionBroadcast);
             }
@@ -1647,7 +1652,11 @@ mod tests {
         let msg2 = receiver.recv().await.unwrap();
 
         match msg2 {
-            Msg::EventStageResult { stage, success, duration:_ } => {
+            Msg::EventStageResult {
+                stage,
+                success,
+                duration: _,
+            } => {
                 assert!(success);
                 assert_eq!(stage, EventStage::TransactionBroadcast);
             }
@@ -1656,7 +1665,4 @@ mod tests {
 
         assert!(receiver.try_recv().is_err());
     }
-
-
-    
 }
