@@ -212,16 +212,12 @@ where
                         })
                 })
                 .inspect(|vote| {
-<<<<<<< HEAD
                     self.monitoring_client
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {
                             vote_decision: vote.clone(),
                             chain_name: self.chain.clone(),
                         });
-=======
-                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
->>>>>>> 94c244b4 (first draft)
                 })
                 .collect();
             info!(
@@ -262,15 +258,10 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::tests::{into_structured_event, participants};
-<<<<<<< HEAD
     use crate::monitoring::metrics::Msg as MetricsMsg;
     use crate::monitoring::test_utils;
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
-=======
-    use crate::types::TMAddress;
-    use crate::{monitoring, PREFIX};
->>>>>>> 94c244b4 (first draft)
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let msg_ids = [
@@ -420,7 +411,6 @@ mod tests {
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
-<<<<<<< HEAD
 
     #[async_test]
     async fn should_record_verification_vote_metric() {
@@ -471,6 +461,4 @@ mod tests {
 
         assert!(receiver.try_recv().is_err());
     }
-=======
->>>>>>> 94c244b4 (first draft)
 }

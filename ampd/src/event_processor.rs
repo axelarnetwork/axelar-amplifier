@@ -75,7 +75,7 @@ pub async fn consume_events<H, S, C>(
     event_processor_config: Config,
     token: CancellationToken,
     msg_queue_client: broadcast::MsgQueueClient<C>,
-    metric_client: monitoring::Client,
+    monitoring_client: monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -98,11 +98,7 @@ where
             Ok(Err(err)) => StreamStatus::Error(err),
             Err(_) => StreamStatus::TimedOut,
         })
-<<<<<<< HEAD
         .inspect(|event| log_block_end_event(event, &monitoring_client))
-=======
-        .inspect(|event| log_block_end_event(event, &handler_label, &metric_client))
->>>>>>> 94c244b4 (first draft)
         .take_while(should_task_continue(token));
     pin_mut!(event_stream);
 
@@ -171,19 +167,9 @@ fn log_block_end_event(event: &StreamStatus, monitoring_client: &monitoring::Cli
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
         info!(height = height.value(), "handler finished processing block");
 
-<<<<<<< HEAD
         monitoring_client
             .metrics()
             .record_metric(Msg::BlockReceived);
-=======
-        if let Err(err) = metric_client.metrics().record_metric(Msg::BlockReceived) {
-            warn!( handler = handler_label,
-                height = height.value(),
-                err = %err,
-                "failed to record block received metric"
-            );
-        }
->>>>>>> 94c244b4 (first draft)
     }
 }
 
@@ -216,7 +202,6 @@ mod tests {
     use monitoring::metrics::Msg as MetricsMsg;
     use monitoring::test_utils;
     use report::ErrorExt;
-    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -698,36 +683,6 @@ mod tests {
         assert!(result.is_ok());
     }
 
-<<<<<<< HEAD
-=======
-    #[derive(Error, Debug)]
-    pub enum EventHandlerError {
-        #[error("failed")]
-        Failed,
-    }
-
-    mock! {
-            EventHandler{}
-
-            #[async_trait]
-            impl EventHandler for EventHandler {
-                type Err = EventHandlerError;
-
-                async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
-            }
-    }
-
-    fn dummy_msg() -> Any {
-        MsgSend {
-            from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
-            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
-            amount: vec![],
-        }
-        .to_any()
-        .unwrap()
-    }
-
->>>>>>> 94c244b4 (first draft)
     #[tokio::test(start_paused = true)]
     async fn block_end_events_increment_blocks_received_metric() {
         let pub_key = random_cosmos_public_key();
