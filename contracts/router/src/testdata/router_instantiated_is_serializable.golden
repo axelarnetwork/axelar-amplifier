@@ -1,0 +1,21 @@
+{
+  "type": "router_instantiated",
+  "attributes": [
+    {
+      "key": "admin",
+      "value": "\"cosmwasm1335hded4gyzpt00fpz75mms4m7ck02wgw07yhw9grahj4dzg4yvqysvwql\""
+    },
+    {
+      "key": "governance",
+      "value": "\"cosmwasm1h72z9g4qf2kjrq866zgn78xl32wn0q8aqayp05jkjpgdp2qft5aquanhrh\""
+    },
+    {
+      "key": "axelarnet_gateway",
+      "value": "\"cosmwasm1j2r8j9vre7w7f8emgc7g536a7d3j978ny08tmh8c7jrkdnk4py4qpflnu7\""
+    },
+    {
+      "key": "coordinator",
+      "value": "\"cosmwasm1hujrs5ycgyper2qaj2eduukn522x6f859m3c0egsqj5xs2q6ysyq4mzuf3\""
+    }
+  ]
+}
