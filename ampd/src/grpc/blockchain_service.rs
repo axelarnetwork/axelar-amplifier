@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -8,6 +9,7 @@ use ampd_proto::{
     SubscribeResponse,
 };
 use async_trait::async_trait;
+use axelar_wasm_std::FnExt;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
@@ -74,12 +76,13 @@ where
         self.msg_queue_client
             .clone()
             .enqueue(msg)
+            .map_err(Arc::new)
             .and_then(|rx| rx)
             .await
             .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
             .map(Response::new)
-            .inspect_err(status::log("message broadcast error"))
-            .map_err(status::StatusExt::into_status)
+            .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
+            .map_err(|err| status::StatusExt::into_status(err.as_ref()))
     }
 
     #[instrument]
@@ -125,6 +128,8 @@ mod tests {
     use std::time::Duration;
 
     use axelar_wasm_std::nonempty;
+    use cosmos_sdk_proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
+    use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
@@ -136,12 +141,13 @@ mod tests {
     use events::{self, Event};
     use futures::future::join_all;
     use futures::{stream, StreamExt};
-    use mockall::predicate;
+    use mockall::{predicate, Sequence};
     use report::ErrorExt;
     use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     use tonic::{Code, Request};
 
     use super::*;
+    use crate::broadcaster_v2::DecCoin;
     use crate::cosmos::MockCosmosClient;
     use crate::event_sub::{self, MockEventSub};
     use crate::types::{random_cosmos_public_key, TMAddress};
@@ -157,29 +163,56 @@ mod tests {
         Service<MockEventSub, MockCosmosClient>,
         impl Stream<Item = nonempty::Vec<broadcaster_v2::QueueMsg>>,
     ) {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 42,
+            sequence: 10,
+        };
+
+        let mut seq = Sequence::new();
         broadcaster_mock_cosmos_client
             .expect_account()
-            .return_once(|_| {
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
                 Ok(QueryAccountResponse {
-                    account: Some(
-                        Any::from_msg(&BaseAccount {
-                            address: TMAddress::random(PREFIX).to_string(),
-                            pub_key: None,
-                            account_number: 42,
-                            sequence: 10,
-                        })
-                        .unwrap(),
-                    ),
+                    account: Some(Any::from_msg(&base_account).unwrap()),
                 })
             });
 
-        let broadcaster = broadcaster_v2::Broadcaster::new(
-            broadcaster_mock_cosmos_client,
-            "chain_id".try_into().unwrap(),
-            random_cosmos_public_key(),
-        )
-        .await
-        .unwrap();
+        broadcaster_mock_cosmos_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: gas_price_denom.to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: gas_price_denom.to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(broadcaster_mock_cosmos_client)
+            .chain_id("chain_id".try_into().unwrap())
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
         let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             100,
@@ -831,6 +864,9 @@ mod tests {
             account_number: 42,
             sequence: 10,
         };
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
 
         let mut mock_cosmos_client = MockCosmosClient::new();
         mock_cosmos_client.expect_account().return_once(move |_| {
@@ -838,13 +874,23 @@ mod tests {
                 account: Some(Any::from_msg(&base_account).unwrap()),
             })
         });
-        let broadcaster = broadcaster_v2::Broadcaster::new(
-            mock_cosmos_client,
-            "chain-id".parse().unwrap(),
-            pub_key,
-        )
-        .await
-        .unwrap();
+        mock_cosmos_client.expect_balance().return_once(move |_| {
+            Ok(QueryBalanceResponse {
+                balance: Some(Coin {
+                    denom: "uaxl".to_string(),
+                    amount: "1000000".to_string(),
+                }),
+            })
+        });
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_cosmos_client)
+            .chain_id("chain-id".parse().unwrap())
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
 
         let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
             broadcaster,

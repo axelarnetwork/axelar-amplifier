@@ -1,6 +1,5 @@
 mod asyncutil;
 mod block_height_monitor;
-mod broadcaster;
 #[allow(dead_code)]
 mod broadcaster_v2;
 #[cfg(feature = "commands")]
@@ -20,8 +19,8 @@ mod handlers;
 mod json_rpc;
 mod monitoring;
 mod mvx;
-mod queue;
 mod solana;
+mod stacks;
 mod starknet;
 mod stellar;
 mod sui;
@@ -37,9 +36,9 @@ mod xrpl;
 use std::pin::Pin;
 use std::time::Duration;
 
+use asyncutil::future::RetryPolicy;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
-use broadcaster::Broadcaster;
 use broadcaster_v2::MsgQueue;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
@@ -47,7 +46,6 @@ use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use multiversx_sdk::gateway::GatewayProxy;
-use queue::queued_broadcaster::QueuedBroadcaster;
 use router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -55,15 +53,12 @@ use starknet_providers::jsonrpc::HttpTransport;
 use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::mpsc;
-use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
 
-use crate::asyncutil::future::RetryPolicy;
-use crate::broadcaster::confirm_tx::TxConfirmer;
 use crate::config::Config;
+use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -74,7 +69,7 @@ pub async fn run(cfg: Config) -> Result<(), Error> {
 }
 
 #[cfg(feature = "config")]
-async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
+async fn prepare_app(cfg: Config) -> Result<App, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -121,13 +116,15 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let broadcaster = broadcaster_v2::Broadcaster::new(
-        cosmos_client.clone(),
-        broadcast.chain_id.clone(),
-        pub_key,
-    )
-    .await
-    .change_context(Error::Broadcaster)?;
+    let broadcaster = broadcaster_v2::Broadcaster::builder()
+        .client(cosmos_client.clone())
+        .chain_id(broadcast.chain_id)
+        .pub_key(pub_key)
+        .gas_adjustment(broadcast.gas_adjustment)
+        .gas_price(broadcast.gas_price)
+        .build()
+        .await
+        .change_context(Error::Broadcaster)?;
     let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcast.queue_cap,
@@ -137,43 +134,24 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     let grpc_server = grpc::Server::builder()
         .config(grpc_config)
         .event_sub(event_subscriber.clone())
-        .msg_queue_client(msg_queue_client)
+        .msg_queue_client(msg_queue_client.clone())
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .build();
+    let (tx_confirmer, tx_confirmer_client) = broadcaster_v2::TxConfirmer::new_confirmer_and_client(
+        cosmos_client,
+        RetryPolicy::repeat_constant(
+            broadcast.tx_fetch_interval,
+            broadcast.tx_fetch_max_retries.saturating_add(1).into(),
+        ),
+    );
     let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
         .signer(multisig_client.clone())
         .key_id(tofnd_config.key_uid.clone())
-        .gas_adjustment(broadcast.gas_adjustment)
-        .gas_price(broadcast.gas_price.clone())
+        .tx_confirmer_client(tx_confirmer_client)
         .build();
-    let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .address_prefix(PREFIX.to_string())
-        .client(cosmos_client.clone())
-        .signer(multisig_client.clone())
-        .pub_key((tofnd_config.key_uid, pub_key))
-        .config(broadcast.clone())
-        .build()
-        .validate_fee_denomination()
-        .await
-        .change_context(Error::Broadcaster)?;
-
-    let broadcaster = QueuedBroadcaster::new(
-        broadcaster,
-        broadcast.batch_gas_limit,
-        broadcast.queue_cap,
-        interval(broadcast.broadcast_interval),
-    );
-
-    let tx_confirmer = TxConfirmer::new(
-        cosmos_client,
-        RetryPolicy::RepeatConstant {
-            sleep: broadcast.tx_fetch_interval,
-            max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
-        },
-    );
 
     let verifier: TMAddress = pub_key
         .account_id(PREFIX)
@@ -183,13 +161,13 @@ async fn prepare_app(cfg: Config) -> Result<App<impl Broadcaster>, Error> {
     App::new(
         event_publisher,
         event_subscriber,
-        broadcaster,
-        tx_confirmer,
         multisig_client,
         block_height_monitor,
         monitoring_server,
         grpc_server,
         broadcaster_task,
+        msg_queue_client,
+        tx_confirmer,
         monitoring_client,
     )
     .configure_handlers(verifier, handlers, event_processor)
@@ -212,15 +190,10 @@ where
     Ok(())
 }
 
-struct App<T>
-where
-    T: Broadcaster,
-{
+struct App {
     event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
-    broadcaster: QueuedBroadcaster<T>,
-    tx_confirmer: TxConfirmer<cosmos::CosmosGrpcClient>,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     monitoring_server: monitoring::Server,
@@ -230,19 +203,16 @@ where
         Pin<Box<MsgQueue>>,
         MultisigClient,
     >,
+    msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    tx_confirmer: broadcaster_v2::TxConfirmer<cosmos::CosmosGrpcClient>,
     monitoring_client: monitoring::Client,
 }
 
-impl<T> App<T>
-where
-    T: Broadcaster + Send + Sync + 'static,
-{
+impl App {
     #[allow(clippy::too_many_arguments)]
     fn new(
         event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
         event_subscriber: event_sub::EventSubscriber,
-        broadcaster: QueuedBroadcaster<T>,
-        tx_confirmer: TxConfirmer<cosmos::CosmosGrpcClient>,
         multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         monitoring_server: monitoring::Server,
@@ -252,6 +222,8 @@ where
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
+        msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+        tx_confirmer: broadcaster_v2::TxConfirmer<cosmos::CosmosGrpcClient>,
         monitoring_client: monitoring::Client,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
@@ -260,13 +232,13 @@ where
             event_publisher,
             event_subscriber,
             event_processor,
-            broadcaster,
-            tx_confirmer,
             multisig_client,
             block_height_monitor,
             monitoring_server,
             grpc_server,
             broadcaster_task,
+            msg_queue_client,
+            tx_confirmer,
             monitoring_client,
         }
     }
@@ -276,7 +248,7 @@ where
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         event_processor_config: event_processor::Config,
-    ) -> Result<App<T>, Error> {
+    ) -> Result<App, Error> {
         for config in handler_configs {
             match self
                 .try_create_handler_task(&config, &verifier, &event_processor_config)
@@ -605,6 +577,42 @@ where
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
             )),
+            handlers::config::Config::StacksMsgVerifier {
+                chain_name,
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "stacks-msg-verifier",
+                handlers::stacks_verify_msg::Handler::new(
+                    chain_name.clone(),
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    self.block_height_monitor.latest_block_height(),
+                )
+                .change_context(Error::Connection)?,
+                event_processor_config.clone(),
+                self.monitoring_client.clone(),
+            )),
+            handlers::config::Config::StacksVerifierSetVerifier {
+                chain_name,
+                cosmwasm_contract,
+                rpc_url,
+                rpc_timeout,
+            } => Ok(self.create_handler_task(
+                "stacks-verifier-set-verifier",
+                handlers::stacks_verify_verifier_set::Handler::new(
+                    chain_name.clone(),
+                    verifier.clone(),
+                    cosmwasm_contract.clone(),
+                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    self.block_height_monitor.latest_block_height(),
+                )
+                .change_context(Error::Connection)?,
+                event_processor_config.clone(),
+                self.monitoring_client.clone(),
+            )),
         }
     }
 
@@ -620,52 +628,31 @@ where
         H: EventHandler + Send + Sync + 'static,
     {
         let label = label.as_ref().to_string();
-        let broadcaster = self.broadcaster.client();
-        let sub = self.event_subscriber.subscribe();
+        let event_sub = self.event_subscriber.subscribe();
+        let msg_queue_client = self.msg_queue_client.clone();
 
-        CancellableTask::create(move |token| {
+        CancellableTask::create(|token| {
             event_processor::consume_events(
                 label,
                 handler,
-                broadcaster,
-                sub,
+                event_sub,
                 event_processor_config,
                 token,
+                msg_queue_client,
                 monitoring_client,
             )
         })
-    }
-
-    fn create_broadcaster_task(
-        broadcaster: QueuedBroadcaster<T>,
-        confirmer: TxConfirmer<cosmos::CosmosGrpcClient>,
-    ) -> TaskGroup<Error> {
-        let (tx_hash_sender, tx_hash_receiver) = mpsc::channel(1000);
-        let (tx_response_sender, tx_response_receiver) = mpsc::channel(1000);
-
-        TaskGroup::new("broadcaster")
-            .add_task(CancellableTask::create(|_| {
-                confirmer
-                    .run(tx_hash_receiver, tx_response_sender)
-                    .change_context(Error::TxConfirmation)
-            }))
-            .add_task(CancellableTask::create(|_| {
-                broadcaster
-                    .run(tx_hash_sender, tx_response_receiver)
-                    .change_context(Error::Broadcaster)
-            }))
     }
 
     async fn run(self) -> Result<(), Error> {
         let Self {
             event_publisher,
             event_processor,
-            broadcaster,
-            tx_confirmer,
             block_height_monitor,
             monitoring_server,
             grpc_server,
             broadcaster_task,
+            tx_confirmer,
             ..
         } = self;
 
@@ -705,10 +692,10 @@ where
                     .change_context(Error::EventProcessor)
             }))
             .add_task(CancellableTask::create(|token| {
-                App::create_broadcaster_task(broadcaster, tx_confirmer).run(token)
-            }))
-            .add_task(CancellableTask::create(|token| {
                 grpc_server.run(token).change_context(Error::GrpcServer)
+            }))
+            .add_task(CancellableTask::create(|_| {
+                tx_confirmer.run().change_context(Error::TxConfirmation)
             }))
             .add_task(CancellableTask::create(|_| {
                 broadcaster_task.run().change_context(Error::Broadcaster)

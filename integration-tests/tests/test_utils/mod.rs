@@ -451,6 +451,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         admin_address.clone(),
         rewards.contract_addr.clone(),
         SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
+        coordinator.contract_address(),
     );
 
     let service_registry =
@@ -733,16 +734,6 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         voting_verifier.contract_addr.clone(),
         chain_name.to_string(),
     );
-
-    let response = protocol.coordinator.execute(
-        &mut protocol.app,
-        protocol.governance_address.clone(),
-        &CoordinatorExecuteMsg::RegisterProverContract {
-            chain_name: chain_name.clone(),
-            new_prover_addr: multisig_prover.contract_addr.to_string(),
-        },
-    );
-    assert!(response.is_ok());
 
     let response = protocol.coordinator.execute(
         &mut protocol.app,

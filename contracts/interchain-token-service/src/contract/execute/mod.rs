@@ -1,5 +1,5 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
+use cosmwasm_std::{Addr, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
 use interchain_token_service_std::{
@@ -8,7 +8,7 @@ use interchain_token_service_std::{
 };
 use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
 
-use crate::events::Event;
+use crate::events::{make_message_event, Event};
 use crate::msg::SupplyModifier;
 use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
 use crate::{msg, state};
@@ -91,8 +91,8 @@ pub enum Error {
         existing_decimals: u8,
         new_decimals: u8,
     },
-    #[error("failed to query axelarnet gateway for chain name")]
-    FailedToQueryAxelarnetGateway,
+    #[error("failed to query axelarnet gateway at address {0} for chain name")]
+    FailedToQueryAxelarnetGateway(Addr),
     #[error("supply modification overflowed. existing supply {0:?}")]
     ModifySupplyOverflow(TokenSupply),
     #[error("translation failed")]
@@ -141,7 +141,9 @@ fn axelar_chain_name(storage: &dyn Storage, querier: QuerierWrapper) -> Result<C
         client::ContractClient::new(querier, &config.axelarnet_gateway).into();
     gateway
         .chain_name()
-        .change_context(Error::FailedToQueryAxelarnetGateway)
+        .change_context(Error::FailedToQueryAxelarnetGateway(
+            config.axelarnet_gateway,
+        ))
 }
 
 fn execute_message_on_hub(
@@ -177,10 +179,11 @@ fn execute_message_on_hub(
         destination_payload,
     )?
     .add_event(Event::MessageReceived {
-        cc_id,
-        destination_chain,
-        message,
-    }))
+        cc_id: cc_id.clone(),
+        destination_chain: destination_chain.clone(),
+        message: message.clone(),
+    })
+    .add_event(make_message_event(destination_chain, message)))
 }
 
 fn execute_register_token_metadata(
@@ -2122,7 +2125,7 @@ mod tests {
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ChainName {} => {
+                    QueryMsg::ChainName => {
                         Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
                     }
                     _ => panic!("unsupported query"),

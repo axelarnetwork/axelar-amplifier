@@ -33,14 +33,6 @@ pub enum ExecuteMsg {
         router_address: String,
         multisig_address: String,
     },
-    #[deprecated(
-        note = "Use RegisterChain instead which supports registering all contract addresses at once"
-    )]
-    #[permission(Governance)]
-    RegisterProverContract {
-        chain_name: ChainName,
-        new_prover_addr: String,
-    },
     #[permission(Governance)]
     RegisterChain {
         chain_name: ChainName,
@@ -61,9 +53,9 @@ pub enum ExecuteMsg {
     },
 
     /// `RegisterDeployment` calls the router using `ExecuteMsgFromProxy`.
-    /// Consequently, the router will enforce that the original sender has
+    /// The router will enforce that the original sender has
     /// permission to register the deployment.
-    #[permission(Any)]
+    #[permission(Governance)]
     RegisterDeployment { deployment_name: nonempty::String },
 }
 

@@ -15,10 +15,10 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// has the required permissions to execute the variant. The permissions are defined using the
 /// `#[permission]` attribute. The attribute can be used in two ways:
 /// - `#[permission(Permission1, Permission2, ...)]` requires the sender to have at least one of
-///     the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
+///   the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
 /// - `#[permission(Specific(Addr1, Addr2, ...))]` requires the sender to be one of the specified
-///     addresses. The macro will generate a function signature that takes closures as arguments to determine
-///     the whitelisted addresses.
+///   addresses. The macro will generate a function signature that takes closures as arguments to determine
+///   the whitelisted addresses.
 ///
 /// Both attributes can be used together, in which case the sender must have at least one of the
 /// specified permissions or be one of the specified addresses.
@@ -114,7 +114,7 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
         #[cw_serde]
         #visibility enum #external_execute_msg_ident {
             Relay {
-                sender: cosmwasm_std::Addr,
+                original_sender: cosmwasm_std::Addr,
                 msg: #enum_type,
             },
 
@@ -129,6 +129,20 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
         impl From<#enum_type> for #external_execute_msg_ident {
             fn from(msg: #enum_type) -> #external_execute_msg_ident {
                 #external_execute_msg_ident::Direct(msg)
+            }
+        }
+
+        impl client::MsgFromProxy for #enum_type{
+            type MsgWithOriginalSender = #external_execute_msg_ident;
+
+            fn via_proxy(
+                self,
+                original_sender: cosmwasm_std::Addr,
+            ) -> Self::MsgWithOriginalSender {
+                #external_execute_msg_ident::Relay {
+                    original_sender,
+                    msg: self,
+                }
             }
         }
 
@@ -567,24 +581,12 @@ impl Parse for AllPermissions {
     }
 }
 
-fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
-    let fs: Vec<_> = (0..contracts.len())
-        .map(|i| format_ident!("F{}", i))
-        .collect();
-
-    let cs: Vec<_> = (0..contracts.len())
-        .map(|i| format_ident!("C{}", i))
-        .collect();
-
-    let contract_names: Vec<_> = contracts
-        .iter()
-        .map(|c| {
-            let mut new_arg = c.to_string().clone();
-            new_arg.push_str("_str");
-            Ident::new(new_arg.as_str(), Span::call_site())
-        })
-        .collect();
-
+fn validate_external_contract_with_args(
+    contracts: Vec<Ident>,
+    contract_names: Vec<Ident>,
+    fs: Vec<Ident>,
+    cs: Vec<Ident>,
+) -> TokenStream {
     TokenStream::from(quote! {
         // this function can be called with a lot of arguments, so we suppress the warning
         #[allow(clippy::too_many_arguments)]
@@ -614,13 +616,52 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
     })
 }
 
+fn validate_external_contract_no_args() -> TokenStream {
+    TokenStream::from(quote! {
+        fn validate_external_contract(
+                storage: &dyn cosmwasm_std::Storage,
+                contract_addr: Addr,
+            ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
+                {
+            // This is only called when a relay message is executed. Since no proxy contract has
+            // permission to execute a message, this will always be an error.
+            Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
+        }
+    })
+}
+
+fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
+    if !contracts.is_empty() {
+        let fs: Vec<_> = (0..contracts.len())
+            .map(|i| format_ident!("F{}", i))
+            .collect();
+
+        let cs: Vec<_> = (0..contracts.len())
+            .map(|i| format_ident!("C{}", i))
+            .collect();
+
+        let contract_names: Vec<_> = contracts
+            .iter()
+            .map(|c| {
+                let mut new_arg = c.to_string().clone();
+                new_arg.push_str("_str");
+                Ident::new(new_arg.as_str(), Span::call_site())
+            })
+            .collect();
+
+        validate_external_contract_with_args(contracts, contract_names, fs, cs)
+    } else {
+        validate_external_contract_no_args()
+    }
+}
+
 /// This macro enforces two requirements:
 ///
 /// 1. If a proxy contract wants to execute a message on this contract, that proxy contract
-///     must have permission to do so.
+///    must have permission to do so.
 /// 2. The original sender of a message has permission to execute that message. If the message
-///     is sent by a proxy contract, the original sender is the address that initiated the transaction
-///     on the proxy.
+///    is sent by a proxy contract, the original sender is the address that initiated the transaction
+///    on the proxy.
 ///
 /// This macro takes arguments of the form:
 ///
@@ -686,22 +727,33 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let validate_fn = validate_external_contract_function(contract_names.clone());
     let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
 
+    let validate_external_contract_call = if contract_permissions.is_empty() {
+        quote!(validate_external_contract(
+            deps.storage,
+            info.sender.clone()
+        )?)
+    } else {
+        quote!(
+            validate_external_contract(
+                deps.storage,
+                info.sender.clone(),
+                #(#contract_permissions),*,
+                #(#contract_names_literals.to_string()),*
+            )?
+        )
+    };
+
     let statements = execute_fn.block.stmts;
     execute_fn.block = parse_quote!(
         {
             let (msg, info) = match msg.into() {
-                #new_msg_ident::Relay{sender, msg} => {
+                #new_msg_ident::Relay{original_sender, msg} => {
                     // Validate that the sending contract is allowed to execute messages.
                     (#new_msg_ident::verify_external_executor(
                         msg,
-                        validate_external_contract(
-                            deps.storage,
-                            info.sender.clone(),
-                            #(#contract_permissions),*,
-                            #(#contract_names_literals.to_string()),*
-                        )?,
+                        #validate_external_contract_call,
                     )?, cosmwasm_std::MessageInfo {
-                        sender: sender,
+                        sender: original_sender,
                         funds: info.funds,
                     })
                 },

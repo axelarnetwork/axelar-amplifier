@@ -10,7 +10,7 @@ use sha3::{Digest, Keccak256};
 use tracing::info;
 use valuable::Valuable;
 
-use crate::commands::{broadcast_tx, verifier_pub_key};
+use crate::commands::{broadcast_tx, verifier_pub_key, BroadcastArgs};
 use crate::config::Config;
 use crate::tofnd::{self, Multisig, MultisigClient};
 use crate::types::TMAddress;
@@ -43,9 +43,16 @@ impl From<KeyType> for multisig::key::KeyType {
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {
     key_type: KeyType,
+    #[clap(flatten)]
+    broadcast: BroadcastArgs,
 }
 
 pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
+    let Args {
+        key_type,
+        broadcast,
+    } = args;
+
     let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let multisig_address = multisig_address(&config)?;
@@ -61,7 +68,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
     let multisig_key = multisig_client
-        .keygen(&multisig_address.to_string(), args.key_type.into())
+        .keygen(&multisig_address.to_string(), key_type.into())
         .await
         .change_context(Error::Tofnd)?;
 
@@ -75,14 +82,14 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
             &multisig_address.to_string(),
             address_hash,
             multisig_key,
-            args.key_type.into(),
+            key_type.into(),
         )
         .await
         .change_context(Error::Tofnd)?
         .into();
 
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterPublicKey {
-        public_key: PublicKey::try_from((args.key_type.into(), multisig_key.to_bytes().into()))
+        public_key: PublicKey::try_from((key_type.into(), multisig_key.to_bytes().into()))
             .change_context(Error::Tofnd)?,
         signed_sender_address,
     })
@@ -97,7 +104,7 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     .into_any()
     .expect("failed to serialize proto message");
 
-    let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
+    let tx_hash = broadcast_tx(config, tx, pub_key, broadcast.skip_confirmation).await?;
 
     Ok(Some(format!(
         "successfully broadcast register public key transaction, tx hash: {}",

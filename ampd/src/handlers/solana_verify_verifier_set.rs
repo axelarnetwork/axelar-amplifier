@@ -60,7 +60,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         latest_block_height: Receiver<u64>,
     ) -> Self {
         let domain_separator = rpc_client
-            .get_domain_separator()
+            .domain_separator()
             .await
             .expect("cannot start handler without fetching domain separator for Solana");
 
@@ -93,7 +93,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
     ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
         let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
         self.rpc_client
-            .get_tx(&signature)
+            .tx(&signature)
             .await
             .map(|tx| (signature, tx))
     }
@@ -194,11 +194,11 @@ mod tests {
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
-        async fn get_tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+        async fn tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
             None
         }
 
-        async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self) -> Option<[u8; 32]> {
             Some([42; 32])
         }
     }
@@ -206,7 +206,7 @@ mod tests {
     struct ValidResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
-        async fn get_tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+        async fn tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
             Some(UiTransactionStatusMeta {
                 err: None,
                 status: Ok(()),
@@ -224,7 +224,7 @@ mod tests {
             })
         }
 
-        async fn get_domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self) -> Option<[u8; 32]> {
             Some([42; 32])
         }
     }

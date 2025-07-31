@@ -1,4 +1,4 @@
-FROM rust:1.81-bookworm AS builder
+FROM rust:1.86-bookworm AS builder
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /app

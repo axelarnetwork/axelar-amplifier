@@ -228,53 +228,16 @@ pub fn deployed_contracts(
         .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
 }
 
-// Legacy prover storage - maintained for backward compatibility
-#[index_list(ProverAddress)]
-struct ChainProverIndexes<'a> {
-    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
-}
-
-const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
-    IndexedMap::new(
-        "chain_prover_map",
-        ChainProverIndexes {
-            by_prover: UniqueIndex::new(|prover| prover.clone(), "chain_prover_map_by_prover"),
-        },
-    );
-
 pub fn is_prover_registered(
     storage: &dyn Storage,
     prover_address: ProverAddress,
 ) -> Result<bool, Error> {
-    Ok(CHAIN_PROVER_INDEXED_MAP
+    Ok(CHAIN_CONTRACTS_MAP
         .idx
         .by_prover
         .item(storage, prover_address)
         .change_context(Error::StateParseFailed)?
         .is_some())
-}
-
-#[allow(dead_code)] // Used in tests, might be useful in future query
-pub fn load_prover_by_chain(
-    storage: &dyn Storage,
-    chain_name: ChainName,
-) -> Result<ProverAddress, Error> {
-    Ok(CHAIN_PROVER_INDEXED_MAP
-        .may_load(storage, chain_name.clone())
-        .change_context(Error::StateParseFailed)?
-        .ok_or(Error::ChainNotRegistered(chain_name))?)
-}
-
-pub fn save_prover_for_chain(
-    storage: &mut dyn Storage,
-    chain: ChainName,
-    prover: ProverAddress,
-) -> Result<(), Error> {
-    CHAIN_PROVER_INDEXED_MAP
-        .save(storage, chain.clone(), &prover)
-        .change_context(Error::PersistingState)?;
-
-    Ok(())
 }
 
 #[index_list(VerifierProverRecord)]

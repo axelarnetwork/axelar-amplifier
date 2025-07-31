@@ -22,8 +22,8 @@ pub enum Error {
     Poll(PollId),
 }
 
-impl From<QueryMsg> for Error {
-    fn from(value: QueryMsg) -> Self {
+impl Error {
+    fn for_query(value: QueryMsg) -> Self {
         match value {
             QueryMsg::MessagesStatus(messages) => Error::MessagesStatus(messages),
             QueryMsg::VerifierSetStatus(verifier_set) => Error::VerifierSetStatus(verifier_set),
@@ -77,7 +77,9 @@ impl Client<'_> {
 
     pub fn poll(&self, poll_id: PollId) -> Result<PollResponse> {
         let msg = QueryMsg::Poll { poll_id };
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn messages_status(&self, messages: Vec<Message>) -> Result<Vec<MessageStatus>> {
@@ -85,19 +87,25 @@ impl Client<'_> {
             [] => Ok(vec![]),
             _ => {
                 let msg = QueryMsg::MessagesStatus(messages);
-                self.client.query(&msg).change_context_lazy(|| msg.into())
+                self.client
+                    .query(&msg)
+                    .change_context_lazy(|| Error::for_query(msg))
             }
         }
     }
 
     pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
         let msg = QueryMsg::VerifierSetStatus(new_verifier_set);
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         let msg = QueryMsg::CurrentThreshold;
-        self.client.query(&msg).change_context_lazy(|| msg.into())
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
     }
 }
 

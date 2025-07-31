@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use axum::routing::MethodRouter;
 use axum::Router;
@@ -7,6 +7,7 @@ use error_stack::{Result, ResultExt};
 use futures::future::join_all;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
+use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -21,6 +22,8 @@ pub enum Error {
     Start,
     #[error("monitoring server failed while running")]
     WhileRunning,
+    #[error("failed to check server bind address")]
+    SocketAddr,
 }
 
 /// Configuration for the monitoring server
@@ -135,9 +138,9 @@ impl Server {
     ///
     /// Returns an error if the server cannot be created or if metrics endpoints
     /// cannot be initialized.
-    pub fn new(bind_address: Option<SocketAddrV4>) -> Result<(Server, Client), super::Error> {
-        match bind_address {
-            Some(addr) => Self::create_server_with_client(addr),
+    pub fn new(connector: Option<impl Into<TcpConnector>>) -> Result<(Server, Client), Error> {
+        match connector {
+            Some(connector) => Self::create_server_with_client(connector.into()),
             None => {
                 info!("monitoring server is disabled");
                 Ok((
@@ -150,13 +153,13 @@ impl Server {
         }
     }
 
-    fn create_server_with_client(bind_address: SocketAddrV4) -> Result<(Server, Client), Error> {
+    fn create_server_with_client(tcp_connector: TcpConnector) -> Result<(Server, Client), Error> {
         let status_router = status::create_endpoint();
         let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
 
         let server = Server::Enabled {
             server: HttpServer {
-                bind_address,
+                tcp_connector,
                 routes: HashMap::from([("/status", status_router), ("/metrics", metrics_router)]),
                 endpoint_handles: vec![Box::new(|cancel| metrics_process.run(cancel))],
             },
@@ -188,8 +191,80 @@ impl Server {
                 cancel.cancelled().await;
                 Ok(())
             }
-            Server::Enabled { server } => server.run_server(cancel).await,
+            Server::Enabled { server } => server.serve(cancel).await,
         }
+    }
+}
+
+/// TCP connection abstraction for the monitoring server
+///
+/// This enum allows the server to be configured with either a socket address
+/// to bind to, or an existing TCP listener. This flexibility enables different
+/// deployment scenarios, such as using OS-assigned ports or providing
+/// pre-configured listeners.
+///
+/// # Variants
+///
+/// - `Address`: Contains a socket address that the server will bind to
+/// - `Listener`: Contains an already-bound TCP listener ready for use
+pub enum TcpConnector {
+    Address(SocketAddr),
+    Listener(TcpListener),
+}
+
+impl TcpConnector {
+    /// Establishes a TCP connection, returning a bound listener
+    ///
+    /// For `Address` variants, this will bind to the specified socket address.
+    /// For `Listener` variants, this returns the existing listener as-is.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `io::Error` if binding to the address fails (only applicable
+    /// for `Address` variants).
+    pub async fn connect(self) -> Result<TcpListener, Error> {
+        match self {
+            TcpConnector::Address(addr) => {
+                TcpListener::bind(addr).await.change_context(Error::Start)
+            }
+            TcpConnector::Listener(listener) => Ok(listener),
+        }
+    }
+
+    /// Returns the socket address this connector is bound to
+    ///
+    /// For `Address` variants, returns the configured address.
+    /// For `Listener` variants, queries the listener for its local address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if unable to determine the socket address from
+    /// an existing listener.
+    pub fn bind_address(&self) -> Result<SocketAddr, Error> {
+        match self {
+            TcpConnector::Address(addr) => Ok(*addr),
+            TcpConnector::Listener(listener) => {
+                listener.local_addr().change_context(Error::SocketAddr)
+            }
+        }
+    }
+}
+
+impl From<SocketAddr> for TcpConnector {
+    fn from(addr: SocketAddr) -> Self {
+        TcpConnector::Address(addr)
+    }
+}
+
+impl From<SocketAddrV4> for TcpConnector {
+    fn from(addr: SocketAddrV4) -> Self {
+        TcpConnector::Address(addr.into())
+    }
+}
+
+impl From<TcpListener> for TcpConnector {
+    fn from(listener: TcpListener) -> Self {
+        TcpConnector::Listener(listener)
     }
 }
 
@@ -198,15 +273,15 @@ impl Server {
 /// This struct contains the actual HTTP server implementation that serves
 /// monitoring endpoints like `/metrics` and `/status`.
 pub struct HttpServer {
-    bind_address: SocketAddrV4,
     routes: HashMap<&'static str, MethodRouter>,
     endpoint_handles: Vec<Box<dyn FnOnce(CancellationToken) -> JoinHandle<()> + Send>>,
+    tcp_connector: TcpConnector,
 }
 
 impl HttpServer {
-    async fn run_server(self, cancel: CancellationToken) -> Result<(), Error> {
+    async fn serve(self, cancel: CancellationToken) -> Result<(), Error> {
         info!(
-            address = self.bind_address.to_string(),
+            address = self.tcp_connector.bind_address()?.to_string(),
             "starting monitoring server"
         );
 
@@ -224,9 +299,7 @@ impl HttpServer {
                 .map(|handle| handle(cancel.clone())),
         );
 
-        let listener = tokio::net::TcpListener::bind(self.bind_address)
-            .await
-            .change_context(Error::Start)?;
+        let listener = self.tcp_connector.connect().await?;
 
         axum::serve(listener, router)
             .with_graceful_shutdown(async move {
@@ -249,7 +322,6 @@ mod tests {
     use std::env;
     use std::time::Duration;
 
-    use rand::random;
     use tokio::test as async_test;
 
     use super::*;
@@ -308,7 +380,7 @@ mod tests {
 
     #[test]
     fn disabled_client_discards_messages_without_error() {
-        let (_, client) = Server::new(None).unwrap(); // Creates disabled server and client
+        let (_, client) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server and client
 
         // Should succeed without doing anything
         let result = client
@@ -333,7 +405,7 @@ mod tests {
 
     #[async_test]
     async fn disabled_server_shuts_down_when_cancelled() {
-        let (server, _) = Server::new(None).unwrap(); // Creates disabled server
+        let (server, _) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server
         let cancel = CancellationToken::new();
 
         let handle = tokio::spawn(server.run(cancel.clone()));
@@ -353,11 +425,11 @@ mod tests {
     #[async_test]
     async fn server_startup_fails_when_address_unavailable() {
         // First, bind to a specific port to make it unavailable
-        let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3001);
-        let _listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        let listener = listener().await.connect().await.unwrap();
+        let blocked_addr = listener.local_addr().unwrap();
 
         // Create a server on the same address - creation should succeed
-        let (server, _) = Server::new(Some(addr)).unwrap();
+        let (server, _) = Server::new(Some(blocked_addr)).unwrap();
 
         // But running the server should fail
         let cancel = CancellationToken::new();
@@ -375,13 +447,13 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_responds_to_status_endpoint_and_shuts_down_gracefully() {
-        let bind_address = localhost_with_random_port();
-        let (server, _) = Server::new(bind_address).unwrap();
+        let connector = listener().await;
+        let status_url = create_endpoint_url(connector.bind_address().ok(), "status");
+
+        let (server, _) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
-
-        let status_url = create_endpoint_url(bind_address, "status");
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -402,8 +474,10 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_continues_serving_after_all_metrics_clients_dropped() {
-        let bind_address = localhost_with_random_port();
-        let (server, monitoring_client) = Server::new(bind_address).unwrap();
+        let connector = listener().await;
+        let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
+
+        let (server, monitoring_client) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -415,7 +489,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let metrics_url = create_endpoint_url(bind_address, "metrics");
         let response = reqwest::get(metrics_url.clone()).await;
         assert!(
             response.is_ok(),
@@ -433,12 +506,13 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_increments_counters_when_messages_sent() {
-        let bind_address = localhost_with_random_port();
-        let (server, monitoring_client) = Server::new(bind_address).unwrap();
+        let connector = listener().await;
+        let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
+
+        let (server, monitoring_client) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
-        let metrics_url = create_endpoint_url(bind_address, "metrics");
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -465,7 +539,7 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_shuts_down_gracefully_when_cancellation_token_triggered() {
-        let (server, monitoring_client) = Server::new(localhost_with_random_port()).unwrap();
+        let (server, monitoring_client) = Server::new(Some(listener().await)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -505,8 +579,10 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_handles_concurrent_metrics_requests_correctly() {
-        let bind_address = localhost_with_random_port();
-        let (server, original_client) = Server::new(bind_address).unwrap();
+        let connector = listener().await;
+        let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
+
+        let (server, original_client) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -531,8 +607,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let metrics_url = create_endpoint_url(bind_address, "metrics");
-
         let response = reqwest::get(metrics_url).await.unwrap();
         let metrics_text = response.text().await.unwrap();
         assert!(metrics_text.contains("blocks_received_total 15"));
@@ -541,12 +615,16 @@ mod tests {
         _ = server_handle.await;
     }
 
-    /// Helper function to create test configuration with OS-selected port
-    fn localhost_with_random_port() -> Option<SocketAddrV4> {
-        Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), random()))
+    /// Helper function to create test configuration with OS-selected port.
+    /// This helps to prevent port conflicts during tests.
+    async fn listener() -> TcpConnector {
+        TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0))
+            .await
+            .unwrap()
+            .into()
     }
 
-    fn create_endpoint_url(bind_address: Option<SocketAddrV4>, endpoint: &str) -> String {
+    fn create_endpoint_url(bind_address: Option<SocketAddr>, endpoint: &str) -> String {
         format!("http://{}/{endpoint}", bind_address.unwrap())
     }
 
