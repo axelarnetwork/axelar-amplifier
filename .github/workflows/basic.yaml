@@ -155,7 +155,6 @@ jobs:
           toolchain: nightly-2025-04-03
           components: rustfmt
           override: true
-          default: true
 
       - name: Uninstall stable toolchain
         run: |
