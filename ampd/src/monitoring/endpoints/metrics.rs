@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axelar_wasm_std::voting::Vote as AxelarVote;
 use axum::body::Body;
@@ -16,6 +17,7 @@ use prometheus_client::encoding::{
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::ConstGauge;
+use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::{Registry, Unit};
 use router_api::ChainName;
 use sysinfo::{get_current_pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
@@ -33,6 +35,13 @@ const CHANNEL_SIZE: usize = 1000;
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
+#[derive(Clone, PartialEq, Eq, Debug, Hash, EncodeLabelValue)]
+pub enum EventStage {
+    EventHandling,
+    MessageEnqueue,
+    TransactionBroadcast,
+}
+
 /// Messages for metrics collection
 ///
 /// These messages are sent to the metrics processor to update various counters
@@ -45,6 +54,12 @@ pub enum Msg {
     VerificationVote {
         vote_decision: AxelarVote,
         chain_name: ChainName,
+    },
+    // Record the result and duration of event processing in each stage
+    EventStageResult {
+        stage: EventStage,
+        success: bool,
+        duration: Duration,
     },
 }
 
@@ -206,19 +221,23 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
+    event_stage_result: EventStageMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
+        let event_stage_result = EventStageMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
+        event_stage_result.register(registry);
 
         Self {
             block_received,
             verification_vote,
+            event_stage_result,
         }
     }
 
@@ -234,6 +253,14 @@ impl Metrics {
             } => {
                 self.verification_vote
                     .record_verification_vote(vote_decision, chain_name);
+            }
+            Msg::EventStageResult {
+                stage,
+                success: result,
+                duration,
+            } => {
+                self.event_stage_result
+                    .record_event_stage_result(stage, result, duration);
             }
         }
     }
@@ -314,6 +341,66 @@ impl VerificationVoteMetrics {
             vote_decision,
         };
         self.total.get_or_create(&label).inc();
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+enum StageResult {
+    Success,
+    Failure,
+}
+
+impl From<bool> for StageResult {
+    fn from(result: bool) -> Self {
+        if result {
+            StageResult::Success
+        } else {
+            StageResult::Failure
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct EventStageResultLabel {
+    stage: EventStage,
+    result: StageResult,
+}
+
+struct EventStageMetrics {
+    total: Family<EventStageResultLabel, Counter>,
+    duration: Family<EventStageResultLabel, Histogram>,
+}
+
+impl EventStageMetrics {
+    fn new() -> Self {
+        let total = Family::<EventStageResultLabel, Counter>::default();
+        let duration = Family::<EventStageResultLabel, Histogram>::new_with_constructor(|| {
+            Histogram::new(vec![0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 40.0])
+        });
+        Self { total, duration }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "event_stage_results_total",
+            "number of results for each AMPD event stage",
+            self.total.clone(),
+        );
+
+        registry.register(
+            "event_stage_durations",
+            "duration of each AMPD event stage in seconds",
+            self.duration.clone(),
+        );
+    }
+
+    fn record_event_stage_result(&self, stage: EventStage, result: bool, duration: Duration) {
+        let result: StageResult = result.into();
+        let label = EventStageResultLabel { stage, result };
+        self.total.get_or_create(&label).inc();
+        self.duration
+            .get_or_create(&label)
+            .observe(duration.as_secs_f64());
     }
 }
 
@@ -511,6 +598,45 @@ mod tests {
             );
         }
         goldie::assert!(zeroize_system_metrics(&metrics_text));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_update_event_stage_result_metrics_correctly_when_multiple_events_processed() {
+        let (router, process, client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let initial_metrics = server.get("/test").await;
+        initial_metrics.assert_status_ok();
+
+        let event_stages = vec![
+            EventStage::EventHandling,
+            EventStage::MessageEnqueue,
+            EventStage::TransactionBroadcast,
+        ];
+
+        for stage in event_stages {
+            client.record_metric(Msg::EventStageResult {
+                stage: stage.clone(),
+                success: true,
+                duration: Duration::from_secs(1),
+            });
+            client.record_metric(Msg::EventStageResult {
+                stage: stage.clone(),
+                success: false,
+                duration: Duration::from_secs(2),
+            });
+        }
+
+        time::sleep(Duration::from_secs(1)).await;
+        let final_metrics = server.get("/test").await;
+        final_metrics.assert_status_ok();
+
+        goldie::assert!(zeroize_system_metrics(&sort_metrics_output(
+            &final_metrics.text()
+        )))
     }
 
     /// Test if the sort_metrics_output function produces consistent output.

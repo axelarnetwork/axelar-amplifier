@@ -11,9 +11,12 @@ use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
+use crate::monitoring;
+use std::time::Instant;
 
 use crate::types::TMAddress;
 use crate::{cosmos, tofnd};
+use crate::monitoring::metrics::{EventStage, Msg};
 
 mod broadcaster;
 mod config;
@@ -95,6 +98,7 @@ where
     key_id: String,
     #[builder(default = None, setter(strip_option))]
     tx_confirmer_client: Option<confirmer::TxConfirmerClient>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<T, Q, S> BroadcasterTask<T, Q, S>
@@ -123,6 +127,8 @@ where
     #[instrument(skip_all)]
     pub async fn run(mut self) -> Result<()> {
         while let Some(msgs) = self.msg_queue.next().await {
+            let start_time = Instant::now();
+
             let tx_hash = self
                 .broadcast(
                     msgs.as_ref()
@@ -134,6 +140,12 @@ where
                 )
                 .await
                 .map(|res| res.txhash);
+
+            self.monitoring_client.metrics().record_metric(Msg::EventStageResult {
+                stage: EventStage::TransactionBroadcast,
+                success: tx_hash.is_ok(),
+                duration: start_time.elapsed(),
+            });
 
             self.handle_tx_res(tx_hash, msgs).await?;
         }
@@ -291,6 +303,9 @@ mod tests {
     use crate::tofnd::{self, MockMultisig};
     use crate::types::random_cosmos_public_key;
     use crate::{cosmos, PREFIX};
+    use crate::monitoring;
+    use crate::monitoring::metrics::{EventStage, Msg};
+    use crate::monitoring::test_utils as monitoring_test_utils;
 
     fn dummy_msg() -> Any {
         Any {
@@ -394,12 +409,14 @@ mod tests {
             .await
             .unwrap();
         let (tx, rx) = mpsc::channel(1);
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
             .tx_confirmer_client(tx)
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
@@ -512,11 +529,13 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
@@ -623,11 +642,13 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
@@ -715,11 +736,13 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
@@ -854,11 +877,13 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
@@ -1000,11 +1025,13 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let result = tokio::spawn(async move { broadcaster_task.run().await })
@@ -1114,11 +1141,13 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
@@ -1211,11 +1240,13 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let messages = vec![dummy_msg(), dummy_msg(), dummy_msg()]
@@ -1286,11 +1317,13 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(MockMultisig::new())
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
@@ -1367,11 +1400,13 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
@@ -1446,11 +1481,13 @@ mod tests {
             .await
             .unwrap();
         let msg_queue = empty();
+        let (monitoring_client, _) = monitoring_test_utils::monitoring_client();
         let mut broadcaster_task = BroadcasterTask::builder()
             .broadcaster(broadcaster)
             .msg_queue(msg_queue)
             .signer(mock_signer)
             .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
             .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
@@ -1458,4 +1495,168 @@ mod tests {
         assert!(result.is_err());
         assert_err_contains!(result, Error, Error::BroadcastTx);
     }
+
+    #[tokio::test]
+    async fn record_event_stage_metrics_successfully_for_mixed_transaction_broadcast_failures_and_successes() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let initial_account = test_utils::create_base_account(&address);
+        let reset_account = test_utils::create_base_account(&address);
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+
+        let (tx_1, _) = oneshot::channel();
+        let (tx_2, _) = oneshot::channel();
+        let batch_1 = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx_1,
+        }]
+        .try_into()
+        .unwrap();
+        let batch_2 = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx_2,
+        }]
+        .try_into()
+        .unwrap();
+        let msg_queue = iter(vec![batch_1, batch_2]);
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .times(2)
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&initial_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(&mut seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| Err(report!(cosmos::Error::TxResponseMissing)));
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&reset_account).unwrap()),
+                })
+            });
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "tx_hash_second_batch".to_string(),
+                        code: 0,
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+        let (monitoring_client, mut receiver) = monitoring_test_utils::monitoring_client();
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let _ = tokio::spawn(async move { broadcaster_task.run().await })
+            .await
+            .unwrap();
+
+        let msg1 = receiver.recv().await.unwrap();
+
+        match msg1 {
+            Msg::EventStageResult { stage, success, duration:_ } => {
+                assert!(!success);
+                assert_eq!(stage, EventStage::TransactionBroadcast);
+            }
+            _ => panic!("expect EventStageResult message"),
+        }
+
+        let msg2 = receiver.recv().await.unwrap();
+
+        match msg2 {
+            Msg::EventStageResult { stage, success, duration:_ } => {
+                assert!(success);
+                assert_eq!(stage, EventStage::TransactionBroadcast);
+            }
+            _ => panic!("expect EventStageResult message"),
+        }
+
+        assert!(receiver.try_recv().is_err());
+    }
+
+
+    
 }

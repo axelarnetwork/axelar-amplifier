@@ -151,6 +151,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .signer(multisig_client.clone())
         .key_id(tofnd_config.key_uid.clone())
         .tx_confirmer_client(tx_confirmer_client)
+        .monitoring_client(monitoring_client.clone())
         .build();
 
     let verifier: TMAddress = pub_key

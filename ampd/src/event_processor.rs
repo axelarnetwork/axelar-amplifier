@@ -1,10 +1,11 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use cosmrs::Any;
 use error_stack::{Context, Report, Result};
 use events::Event;
 use futures::{future, pin_mut, Stream, StreamExt, TryStreamExt};
+use monitoring::metrics::EventStage;
 use report::LoggableError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -105,7 +106,14 @@ where
     while let Some(event) = event_stream.next().await {
         match event {
             StreamStatus::Ok(event) => {
-                handle_event(&handler, &msg_queue_client, &event, handler_retry).await?;
+                handle_event(
+                    &handler,
+                    &msg_queue_client,
+                    &event,
+                    handler_retry,
+                    &monitoring_client,
+                )
+                .await?;
             }
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
@@ -117,21 +125,47 @@ where
     Ok(())
 }
 
+// pass the monitoring client to here -> record handler processing time?
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
     handler: &H,
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
+    monitoring_client: &monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
     C: cosmos::CosmosClient + Clone,
 {
-    match with_retry(|| handler.handle(event), retry_policy).await {
+    let start_time = Instant::now();
+
+    let result = with_retry(|| handler.handle(event), retry_policy).await;
+
+    monitoring_client
+        .metrics()
+        .record_metric(Msg::EventStageResult {
+            stage: EventStage::EventHandling,
+            success: result.is_ok(),
+            duration: start_time.elapsed(),
+        });
+
+    match result {
         Ok(msgs) => {
             tokio_stream::iter(msgs)
-                .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
+                .map(|msg| async {
+                    let start_time = Instant::now();
+                    let res = msg_queue_client.clone().enqueue_and_forget(msg).await;
+
+                    monitoring_client
+                        .metrics()
+                        .record_metric(Msg::EventStageResult {
+                            stage: EventStage::MessageEnqueue,
+                            success: res.is_ok(),
+                            duration: start_time.elapsed(),
+                        });
+                    res
+                })
                 .buffered(TX_BROADCAST_BUFFER_SIZE)
                 .inspect_err(|err| {
                     warn!(
@@ -199,7 +233,7 @@ mod tests {
     use events::Event;
     use futures::{stream, StreamExt};
     use mockall::mock;
-    use monitoring::metrics::Msg as MetricsMsg;
+    use monitoring::metrics::{EventStage, Msg as MetricsMsg};
     use monitoring::test_utils;
     use report::ErrorExt;
     use tokio::time::timeout;
@@ -758,5 +792,147 @@ mod tests {
         assert!(receiver.try_recv().is_err());
 
         cancel_token.cancel();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn record_stage_metrics_for_handler_and_enqueue_mixed_success_failure() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+        let events: Vec<Result<Event, event_sub::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+        ];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(4)
+            .returning(|event| match event {
+                Event::BlockEnd(height) => match height.value() {
+                    0 => Ok(vec![dummy_msg(), dummy_msg()]),
+                    1 => Err(report!(EventHandlerError::Failed)),
+                    _ => Ok(vec![]),
+                },
+                _ => Ok(vec![]),
+            });
+
+        let mut mock_client = setup_client(&address);
+
+        mock_client.expect_clone().times(1).returning(|| {
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_simulate().return_once(|_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 50,
+                        gas_used: 50,
+                    }),
+                    ..Default::default()
+                })
+            });
+            mock_client
+        });
+
+        mock_client.expect_clone().times(1).returning(|| {
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client
+                .expect_simulate()
+                .return_once(|_| Err(Status::internal("simulation failed").into_report()));
+            mock_client
+        });
+
+        let broadcaster = broadcaster_v2::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+
+        let (_msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let _ = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+            monitoring_client,
+        )
+        .await;
+
+        let _ = receiver.recv().await.unwrap(); // block received
+
+        match receiver.recv().await.unwrap() {
+            // successfully handled event
+            MetricsMsg::EventStageResult {
+                stage,
+                success,
+                duration: _,
+            } => {
+                assert_eq!(stage, EventStage::EventHandling);
+                assert!(success);
+            }
+            _ => panic!("unexpected metric"),
+        }
+
+        match receiver.recv().await.unwrap() {
+            // successfully enqueued message
+            MetricsMsg::EventStageResult {
+                stage,
+                success,
+                duration: _,
+            } => {
+                assert_eq!(stage, EventStage::MessageEnqueue);
+                assert!(success);
+            }
+            _ => panic!("unexpected metric"),
+        }
+        match receiver.recv().await.unwrap() {
+            // failed to enqueue message
+            MetricsMsg::EventStageResult {
+                stage,
+                success,
+                duration: _,
+            } => {
+                assert_eq!(stage, EventStage::MessageEnqueue);
+                assert!(!success);
+            }
+            _ => panic!("unexpected metric"),
+        }
+        let _ = receiver.recv().await.unwrap(); // block received
+
+        match receiver.recv().await.unwrap() {
+            // handle failed
+            MetricsMsg::EventStageResult {
+                stage,
+                success,
+                duration: _,
+            } => {
+                assert_eq!(stage, EventStage::EventHandling);
+                assert!(!success);
+            }
+            _ => panic!("unexpected metric"),
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 }

@@ -18,6 +18,10 @@ verification_votes_total{chain_name="solana",vote_decision="SucceededOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="FailedOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="NotFound"} 1
 verification_votes_total{chain_name="stellar",vote_decision="SucceededOnChain"} 1
+# HELP event_stage_results_total number of results for each AMPD event stage.
+# TYPE event_stage_results_total counter
+# HELP event_stage_durations duration of each AMPD event stage (in seconds).
+# TYPE event_stage_durations histogram
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
