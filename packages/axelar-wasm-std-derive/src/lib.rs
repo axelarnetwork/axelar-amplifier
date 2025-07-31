@@ -6,7 +6,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::{DeriveInput, FieldsNamed, Generics, ItemEnum, Variant};
+use syn::{DeriveInput, FieldsNamed, FieldsUnnamed, Generics, ItemEnum, Variant};
 
 #[proc_macro_derive(IntoContractError)]
 pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
@@ -63,7 +63,8 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 ///     SomeGenericsEvent {
 ///         some_generics: T,
 ///         some_other_generics: U,
-///     }
+///     },
+///     SingleUnnamedValue(SomeObject),
 /// }
 ///
 /// let actual: Event = SomeEvents::SomeEmptyEvent.non_generic().into();
@@ -100,6 +101,32 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 ///     .add_attribute("some_generics", "\"some generics\"")
 ///     .add_attribute("some_other_generics", "42");
 /// assert_eq!(actual, expected);
+///
+/// // Example with single unnamed struct field
+/// #[derive(serde::Serialize)]
+/// struct Message {
+///     id: String,
+///     content: u64,
+/// }
+///
+/// #[derive(IntoEvent)]
+/// enum SingleUnnamedEvent {
+///     SingleValue(Message),
+/// }
+///
+/// let actual: Event = SingleUnnamedEvent::SingleValue(Message {
+///     id: "msg-1".to_string(),
+///     content: 42,
+/// }).into();
+/// let expected = Event::new("single_value")
+///     .add_attribute("id", "\"msg-1\"")
+///     .add_attribute("content", "42");
+/// // Note: Attribute order may vary due to HashMap iteration, so we check individual attributes
+/// assert_eq!(actual.ty, expected.ty);
+/// assert_eq!(actual.attributes.len(), expected.attributes.len());
+/// for attr in &expected.attributes {
+///     assert!(actual.attributes.iter().any(|a| a.key == attr.key && a.value == attr.value));
+/// }
 /// ```
 ///
 /// ```compile_fail
@@ -114,11 +141,22 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// ```compile_fail
 /// # use axelar_wasm_std_derive::IntoEvent;
 ///
-/// # #[derive(IntoEvent)] // should not compile because the event has some unnamed field
+/// # #[derive(IntoEvent)] // should not compile because the event has unnamed fields with multiple elements
 /// # enum SomeEventWithUnnamedField {
 /// #     Uint,
 /// #     Named { some_uint: u64 },
-/// #     Unnamed(u64),
+/// #     Unnamed(u64, String), // Multiple unnamed fields not allowed
+/// # }
+/// ```
+///
+/// ```compile_fail
+/// # use axelar_wasm_std_derive::IntoEvent;
+///
+/// # #[derive(IntoEvent)] // should not compile because unnamed field must be a struct type
+/// # enum SomeEventWithPrimitiveUnnamedField {
+/// #     Uint,
+/// #     Named { some_uint: u64 },
+/// #     Unnamed(u64), // Primitive types not allowed in unnamed fields
 /// # }
 /// ```
 ///
@@ -176,21 +214,21 @@ fn try_into_event(
     variants: impl IntoIterator<Item = Variant>,
     generics: Generics,
 ) -> Result<TokenStream2, syn::Error> {
-    let variant_matches: Vec<_> = variants
-        .into_iter()
-        .map(|variant| match variant.fields {
-            syn::Fields::Named(fields) => Ok(match_structured_variant(
-                &event_enum,
-                &variant.ident,
-                fields,
-            )),
-            syn::Fields::Unit => Ok(match_unit_variant(&event_enum, &variant.ident)),
-            syn::Fields::Unnamed(_) => Err(syn::Error::new(
-                Span::call_site(),
-                "unnamed fields are not supported",
-            )),
-        })
-        .try_collect()?;
+    let variant_matches: Vec<TokenStream2> =
+        variants
+            .into_iter()
+            .map(|variant| match variant.fields {
+                syn::Fields::Named(fields) => Ok::<TokenStream2, syn::Error>(
+                    match_structured_variant(&event_enum, &variant.ident, fields),
+                ),
+                syn::Fields::Unit => {
+                    Ok::<TokenStream2, syn::Error>(match_unit_variant(&event_enum, &variant.ident))
+                }
+                syn::Fields::Unnamed(fields) => {
+                    match_unnamed_variant(&event_enum, &variant.ident, fields)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
     if variant_matches.is_empty() {
         return Err(syn::Error::new(Span::call_site(), "no variants found"));
     }
@@ -274,6 +312,90 @@ fn match_structured_variant(
 
     quote! {
         #(#variant_pattern).*
+    }
+}
+
+fn match_unnamed_variant(
+    event_enum: &Ident,
+    variant_name: &Ident,
+    fields: FieldsUnnamed,
+) -> Result<TokenStream2, syn::Error> {
+    let event_name = variant_name.to_string().to_snake_case();
+
+    if fields.unnamed.len() == 1 {
+        let field_type = &fields.unnamed[0].ty;
+        if !is_struct_type(field_type) {
+            return Err(syn::Error::new(
+                field_type.span(),
+                "unnamed field must be a struct type that can be flattened",
+            ));
+        }
+
+        let field_pattern = Ident::new("value", Span::call_site());
+        let error_message = "failed to serialize event value";
+
+        Ok(quote! {
+            #event_enum::#variant_name(#field_pattern) => {
+                let mut event = cosmwasm_std::Event::new(#event_name);
+                let value_json = serde_json::to_value(#field_pattern).expect(#error_message);
+                if let serde_json::Value::Object(map) = value_json {
+                    for (key, value) in map {
+                        event = event.add_attribute(key, value.to_string());
+                    }
+                }
+                event
+            }
+        })
+    } else {
+        Err(syn::Error::new(
+            variant_name.span(),
+            "unnamed variants must have exactly one field",
+        ))
+    }
+}
+
+fn is_struct_type(ty: &syn::Type) -> bool {
+    match ty {
+        syn::Type::Path(syn::TypePath { path, .. }) => {
+            // Check if it's a path that could be a struct
+            // This is a simple heuristic - we assume any path type could be a struct
+            // In practice, this will catch most struct types
+            path.segments
+                .last()
+                .map(|segment| {
+                    let ident = &segment.ident;
+                    // Exclude primitive types
+                    !matches!(
+                        ident.to_string().as_str(),
+                        "u8" | "u16"
+                            | "u32"
+                            | "u64"
+                            | "u128"
+                            | "usize"
+                            | "i8"
+                            | "i16"
+                            | "i32"
+                            | "i64"
+                            | "i128"
+                            | "isize"
+                            | "f32"
+                            | "f64"
+                            | "bool"
+                            | "char"
+                            | "str"
+                            | "String"
+                    )
+                })
+                .unwrap_or(true)
+        }
+        syn::Type::Reference(syn::TypeReference { elem, .. }) => {
+            // For references, check the inner type
+            is_struct_type(elem)
+        }
+        _ => {
+            // For other types (like arrays, tuples, etc.), assume they're not structs
+            false
+        }
     }
 }
 

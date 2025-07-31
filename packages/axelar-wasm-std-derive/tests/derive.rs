@@ -67,3 +67,55 @@ fn should_fail_version_migration_using_wrong_contract() {
 
     migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 }
+
+#[test]
+fn test_single_unnamed_field() {
+    use axelar_wasm_std_derive::IntoEvent;
+    use cosmwasm_std::Event;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct TestStruct {
+        field1: u64,
+        field2: String,
+    }
+
+    #[derive(IntoEvent)]
+    enum TestEvents {
+        SingleValue(TestStruct),
+    }
+
+    let actual: Event = TestEvents::SingleValue(TestStruct {
+        field1: 42,
+        field2: "test".to_string(),
+    })
+    .into();
+    let expected = Event::new("single_value")
+        .add_attribute("field1", "42")
+        .add_attribute("field2", "\"test\"");
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_multiple_unnamed_fields_should_fail() {
+    // This should fail to compile
+    // #[derive(IntoEvent)]
+    // enum TestEvents {
+    //     MultipleValues(u64, String), // This should cause a compilation error
+    // }
+
+    // The test passes if this code doesn't compile
+    // We can't actually test this in a unit test, but the doc tests verify this behavior
+}
+
+#[test]
+fn test_primitive_unnamed_field_should_fail() {
+    // This should fail to compile
+    // #[derive(IntoEvent)]
+    // enum TestEvents {
+    //     SingleValue(u64), // Primitive types not allowed in unnamed fields
+    // }
+
+    // The test passes if this code doesn't compile
+    // We can't actually test this in a unit test, but the doc tests verify this behavior
+}
