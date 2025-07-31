@@ -7,7 +7,7 @@ use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster_v2, event_processor, grpc, monitoring};
+use crate::{broadcaster, event_processor, grpc, monitoring};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -18,7 +18,7 @@ pub struct Config {
     pub tm_grpc: Url,
     pub tm_grpc_timeout: Duration,
     pub event_processor: event_processor::Config,
-    pub broadcast: broadcaster_v2::Config,
+    pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
@@ -37,7 +37,7 @@ impl Default for Config {
             tm_grpc: Url::new_non_sensitive("tcp://localhost:9090")
                 .expect("Url should be created validly"),
             tm_grpc_timeout: Duration::from_secs(5),
-            broadcast: broadcaster_v2::Config::default(),
+            broadcast: broadcaster::Config::default(),
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
             event_processor: event_processor::Config::default(),

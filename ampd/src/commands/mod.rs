@@ -13,7 +13,7 @@ use crate::asyncutil::future::RetryPolicy;
 use crate::config::Config;
 use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcaster_v2, cosmos, tofnd, Error, PREFIX};
+use crate::{broadcaster, cosmos, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -133,14 +133,14 @@ async fn broadcast_tx(
 }
 
 async fn instantiate_broadcaster(
-    broadcaster_config: broadcaster_v2::Config,
+    broadcaster_config: broadcaster::Config,
     tofnd_config: tofnd::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     pub_key: CosmosPublicKey,
 ) -> Result<
-    broadcaster_v2::BroadcasterTask<
+    broadcaster::BroadcasterTask<
         cosmos::CosmosGrpcClient,
-        Pin<Box<broadcaster_v2::MsgQueue>>,
+        Pin<Box<broadcaster::MsgQueue>>,
         MultisigClient,
     >,
     Error,
@@ -154,7 +154,7 @@ async fn instantiate_broadcaster(
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
 
-    let broadcaster = broadcaster_v2::Broadcaster::builder()
+    let broadcaster = broadcaster::Broadcaster::builder()
         .client(cosmos_client.clone())
         .chain_id(broadcaster_config.chain_id)
         .pub_key(pub_key)
@@ -163,13 +163,13 @@ async fn instantiate_broadcaster(
         .build()
         .await
         .change_context(Error::Broadcaster)?;
-    let (msg_queue, _) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+    let (msg_queue, _) = broadcaster::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcaster_config.queue_cap,
         broadcaster_config.batch_gas_limit,
         broadcaster_config.broadcast_interval,
     );
-    let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
+    let broadcaster_task = broadcaster::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
         .signer(multisig_client.clone())
@@ -180,7 +180,7 @@ async fn instantiate_broadcaster(
 }
 
 async fn handle_tx_result(
-    broadcaster_config: broadcaster_v2::Config,
+    broadcaster_config: broadcaster::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     res: TxResponse,
     skip_confirmation: bool,
@@ -193,7 +193,7 @@ async fn handle_tx_result(
 }
 
 async fn confirm_tx(
-    broadcaster_config: broadcaster_v2::Config,
+    broadcaster_config: broadcaster::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     tx_hash: String,
 ) -> Result<String, Error> {
@@ -205,7 +205,7 @@ async fn confirm_tx(
             .into(),
     );
 
-    broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy)
+    broadcaster::confirm_tx(&cosmos_client, tx_hash, retry_policy)
         .await
         .map(|res| res.txhash)
         .change_context(Error::TxConfirmation)

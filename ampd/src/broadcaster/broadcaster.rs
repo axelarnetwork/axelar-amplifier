@@ -12,8 +12,8 @@ use tokio::sync::{RwLock, RwLockWriteGuard};
 use typed_builder::TypedBuilder;
 
 use super::{Error, Result};
-use crate::broadcaster_v2::dec_coin::DecCoin;
-use crate::broadcaster_v2::Tx;
+use crate::broadcaster::dec_coin::DecCoin;
+use crate::broadcaster::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
 
@@ -313,7 +313,7 @@ mod tests {
     use sha3::Digest;
 
     use super::*;
-    use crate::broadcaster_v2::{test_utils, Error};
+    use crate::broadcaster::{test_utils, Error};
     use crate::types::{random_cosmos_public_key, PublicKey};
     use crate::PREFIX;
 

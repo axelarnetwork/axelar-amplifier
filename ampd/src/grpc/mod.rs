@@ -20,7 +20,7 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::types::debug::REDACTED_VALUE;
-use crate::{broadcaster_v2, cosmos, event_sub, tofnd};
+use crate::{broadcaster, cosmos, event_sub, tofnd};
 
 mod blockchain_service;
 mod crypto_service;
@@ -104,7 +104,7 @@ where
 pub struct Server {
     config: Config,
     event_sub: event_sub::EventSubscriber,
-    msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    msg_queue_client: broadcaster::MsgQueueClient<cosmos::CosmosGrpcClient>,
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
     multisig_client: tofnd::MultisigClient,
 }
