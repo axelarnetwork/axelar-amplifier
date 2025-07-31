@@ -213,7 +213,7 @@ mod test {
     use router_api::{CrossChainId, Message};
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
-    use crate::events::Event;
+    use crate::Event;
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
