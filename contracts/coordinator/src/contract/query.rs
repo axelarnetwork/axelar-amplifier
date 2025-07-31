@@ -33,7 +33,7 @@ pub fn verifier_details_with_provers(
             verifier_address: verifier_address.to_string(),
         })?;
 
-    let mut active_prover_set = get_provers_for_verifier(deps, verifier_address.clone())
+    let mut active_prover_set = provers_for_verifier(deps, verifier_address.clone())
         .change_context(Error::VerifierDetailsWithProvers {
             service_name: service_name.clone(),
             verifier_address: verifier_address.to_string(),
@@ -58,7 +58,7 @@ fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &Addr) -> bool 
         .any(|_| true)
 }
 
-fn get_provers_for_verifier(
+fn provers_for_verifier(
     deps: Deps,
     verifier_address: Addr,
 ) -> core::result::Result<Vec<Addr>, StdError> {
@@ -72,7 +72,7 @@ fn get_provers_for_verifier(
         .try_collect()
 }
 
-pub fn get_chain_contracts_info(
+pub fn chain_contracts_info(
     deps: Deps,
     chain_contracts_key: ChainContractsKey,
 ) -> Result<ChainContractsResponse, Error> {
