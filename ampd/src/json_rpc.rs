@@ -106,9 +106,9 @@ mod test {
         );
 
         let result = client
-            .request::<[serde_json::Value; 2], serde_json::Value>(
-                "eth_getBlockByNumber",
-                [serialize(&BlockNumber::Finalized), serialize(&false)],
+            .request::<[serde_json::Value; 0], serde_json::Value>(
+                "non_existing_method", 
+                [],
             )
             .await;
         assert!(result.is_err());
