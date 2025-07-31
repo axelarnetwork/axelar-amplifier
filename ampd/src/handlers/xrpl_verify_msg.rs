@@ -182,9 +182,6 @@ where
                         })
                 })
                 .inspect(|vote| {
-                    record_vote_outcome(&self.monitoring_client, vote, handler_chain_name);
-                })
-                .inspect(|vote| {
                     self.monitoring_client
                         .metrics()
                         .record_metric(MetricsMsg::VerificationVote {

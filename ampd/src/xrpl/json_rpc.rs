@@ -61,14 +61,18 @@ impl XRPLClient for Client {
 mod test {
     use std::str::FromStr;
 
-    use super::*;
+    use router_api::ChainName;
+    use xrpl_http_client::Client as XrplHttpClient;
+
+    use super::{Client, XRPLClient};
+    use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
 
     #[tokio::test]
     async fn should_record_rpc_error_metrics_when_rpc_fails() {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
-        let xrpl_client = xrpl_http_client::Client::builder()
+        let xrpl_client = XrplHttpClient::builder()
             .base_url("http://invalid-url-that-will-fail")
             .http_client(
                 reqwest::ClientBuilder::new()

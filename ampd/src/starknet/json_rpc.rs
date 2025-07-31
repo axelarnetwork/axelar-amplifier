@@ -519,7 +519,7 @@ mod test {
         };
 
         let result = client
-            .get_event_by_message_id_contract_call(message_id.clone())
+            .event_by_message_id_contract_call(message_id.clone())
             .await;
         assert!(result.is_none());
 
@@ -531,9 +531,7 @@ mod test {
             }
         );
 
-        let result = client
-            .get_event_by_message_id_signers_rotated(message_id)
-            .await;
+        let result = client.event_by_message_id_signers_rotated(message_id).await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();

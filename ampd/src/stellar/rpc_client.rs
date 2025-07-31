@@ -148,7 +148,13 @@ impl Client {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use std::collections::HashSet;
+    use std::str::FromStr;
+
+    use router_api::ChainName;
+
+    use super::Client;
+    use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
 
     #[tokio::test]

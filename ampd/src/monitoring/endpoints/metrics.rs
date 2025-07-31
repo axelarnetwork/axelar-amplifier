@@ -35,7 +35,7 @@ const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Msg {
     /// Increment the count of blocks received
-    IncBlockReceived,
+    BlockReceived,
     /// Record the verification vote results for cross-chain message
     VerificationVote {
         vote_decision: AxelarVote,
@@ -246,7 +246,6 @@ impl Metrics {
 struct BlockReceivedMetrics {
     total: Counter,
 }
-
 
 impl BlockReceivedMetrics {
     fn new() -> Self {
