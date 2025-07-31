@@ -66,7 +66,9 @@ pub struct Client(stellar_rpc_client::Client);
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new(url: String) -> error_stack::Result<Self, Error> {
+    pub fn new(url1: String) -> error_stack::Result<Self, Error> {
+        let url = "https://soroban-testnet.stellar.org".to_string();
+        info!("Stellar TEST TEST TEST");
         info!(url = %url, "Attempting to create Stellar RPC client");
 
         // Validate URL format
