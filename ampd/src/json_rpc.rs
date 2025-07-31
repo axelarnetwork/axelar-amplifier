@@ -82,8 +82,6 @@ impl Debug for Client<Http> {
 mod test {
     use std::str::FromStr;
 
-    use ethers_core::types::BlockNumber;
-    use ethers_core::utils::serialize;
     use router_api::ChainName;
 
     use super::Client;
@@ -106,10 +104,7 @@ mod test {
         );
 
         let result = client
-            .request::<[serde_json::Value; 0], serde_json::Value>(
-                "non_existing_method", 
-                [],
-            )
+            .request::<[serde_json::Value; 0], serde_json::Value>("non_existing_method", [])
             .await;
         assert!(result.is_err());
 

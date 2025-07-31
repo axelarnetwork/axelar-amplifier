@@ -446,7 +446,7 @@ mod tests {
 
         let client = Client::new_http(
             Url::new_non_sensitive("http://invalid-url-that-will-fail").unwrap(),
-            Duration::from_millis(1), 
+            Duration::from_millis(1),
             monitoring_client,
             ChainName::from_str("stacks").unwrap(),
         )
