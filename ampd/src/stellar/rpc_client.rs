@@ -66,10 +66,13 @@ pub struct Client(stellar_rpc_client::Client);
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new(url1: String) -> error_stack::Result<Self, Error> {
+    pub fn new(url_input: String) -> error_stack::Result<Self, Error> {
         let url = "https://soroban-testnet.stellar.org".to_string();
-        info!("Stellar TEST TEST TEST");
+        info!("Stellar TEST");
         info!(url = %url, "Attempting to create Stellar RPC client");
+
+        info!(url_input = %url_input, "url input");
+        info!(url_input_as_str = %url_input.as_str(), "url input as str");
 
         // Validate URL format
         if url.is_empty() {
