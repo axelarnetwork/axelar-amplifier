@@ -1,114 +1,210 @@
-use cosmwasm_std::{Addr, Attribute, Event};
+use axelar_wasm_std::IntoEvent;
+use cosmwasm_std::Addr;
 use router_api::{ChainName, GatewayDirection, Message};
 
-pub struct RouterInstantiated {
-    pub admin: Addr,
-    pub governance: Addr,
-    pub axelarnet_gateway: Addr,
-    pub coordinator: Addr,
+#[derive(IntoEvent)]
+pub enum Event {
+    RouterInstantiated {
+        admin: Addr,
+        governance: Addr,
+        axelarnet_gateway: Addr,
+        coordinator: Addr,
+    },
+    ChainRegistered {
+        name: ChainName,
+        gateway: Addr,
+    },
+    GatewayInfo {
+        chain: ChainName,
+        gateway_address: Addr,
+    },
+    GatewayUpgraded {
+        gateway: GatewayInfo,
+    },
+    ChainFrozen {
+        name: ChainName,
+        direction: GatewayDirection,
+    },
+    ChainUnfrozen {
+        name: ChainName,
+        direction: GatewayDirection,
+    },
+    MessageRouted(Message),
+    RoutingDisabled {},
+    RoutingEnabled {},
 }
 
-pub struct ChainRegistered {
-    pub name: ChainName,
-    pub gateway: Addr,
-}
-
+#[derive(serde::Serialize)]
 pub struct GatewayInfo {
     pub chain: ChainName,
     pub gateway_address: Addr,
 }
 
-pub struct GatewayUpgraded {
-    pub gateway: GatewayInfo,
-}
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::testing::MockApi;
 
-pub struct ChainFrozen {
-    pub name: ChainName,
-    pub direction: GatewayDirection,
-}
+    use super::*;
+    use crate::events::{Event, GatewayInfo};
 
-pub struct ChainUnfrozen {
-    pub name: ChainName,
-    pub direction: GatewayDirection,
-}
+    #[test]
+    fn router_instantiated_is_serializable() {
+        let api = MockApi::default();
+        let event = Event::RouterInstantiated {
+            admin: api.addr_make("admin"),
+            governance: api.addr_make("governance"),
+            axelarnet_gateway: api.addr_make("axelarnet_gateway"),
+            coordinator: api.addr_make("coordinator"),
+        };
+        let event = cosmwasm_std::Event::from(event);
 
-pub struct MessageRouted {
-    pub msg: Message,
-}
-
-pub struct RoutingDisabled;
-pub struct RoutingEnabled;
-
-impl From<RouterInstantiated> for Event {
-    fn from(other: RouterInstantiated) -> Self {
-        Event::new("router_instantiated")
-            .add_attribute("admin_address", other.admin)
-            .add_attribute("governance_address", other.governance)
+        goldie::assert_json!(event);
     }
-}
 
-impl From<ChainRegistered> for Event {
-    fn from(other: ChainRegistered) -> Self {
-        Event::new("chain_registered")
-            .add_attribute("name", other.name)
-            .add_attribute("gateway", other.gateway)
+    #[test]
+    fn chain_registered_is_serializable() {
+        let api = MockApi::default();
+        let event = Event::ChainRegistered {
+            name: "ethereum".parse().unwrap(),
+            gateway: api.addr_make("gateway"),
+        };
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<GatewayInfo> for Vec<Attribute> {
-    fn from(other: GatewayInfo) -> Self {
-        vec![
-            ("chain", other.chain.clone()).into(),
-            ("gateway_address", other.gateway_address).into(),
-        ]
+    #[test]
+    fn gateway_info_is_serializable() {
+        let api = MockApi::default();
+        let event = Event::GatewayInfo {
+            chain: "ethereum".parse().unwrap(),
+            gateway_address: api.addr_make("gateway"),
+        };
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<GatewayUpgraded> for Event {
-    fn from(other: GatewayUpgraded) -> Self {
-        let attrs: Vec<Attribute> = other.gateway.into();
-        Event::new("gateway_upgraded").add_attributes(attrs)
+    #[test]
+    fn gateway_upgraded_is_serializable() {
+        let api = MockApi::default();
+        let event = Event::GatewayUpgraded {
+            gateway: GatewayInfo {
+                chain: "ethereum".parse().unwrap(),
+                gateway_address: api.addr_make("gateway"),
+            },
+        };
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<RoutingDisabled> for Event {
-    fn from(_: RoutingDisabled) -> Self {
-        Event::new("routing_disabled")
+    #[test]
+    fn chain_frozen_is_serializable() {
+        let event = Event::ChainFrozen {
+            name: "ethereum".parse().unwrap(),
+            direction: GatewayDirection::Bidirectional,
+        };
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<RoutingEnabled> for Event {
-    fn from(_: RoutingEnabled) -> Self {
-        Event::new("routing_enabled")
+    #[test]
+    fn chain_unfrozen_is_serializable() {
+        let event = Event::ChainUnfrozen {
+            name: "ethereum".parse().unwrap(),
+            direction: GatewayDirection::Bidirectional,
+        };
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<ChainFrozen> for Event {
-    fn from(other: ChainFrozen) -> Self {
-        Event::new("chain_frozen")
-            .add_attribute("name", other.name)
-            .add_attribute(
-                "direction",
-                serde_json::to_string(&other.direction).expect("failed to serialize direction"),
-            )
+    #[test]
+    fn message_routed_is_serializable() {
+        let event = Event::MessageRouted(Message {
+            cc_id: router_api::CrossChainId::new("ethereum", "some-id").unwrap(),
+            source_address: "0x1234".parse().unwrap(),
+            destination_chain: "avalanche".parse().unwrap(),
+            destination_address: "0x5678".parse().unwrap(),
+            payload_hash: [0; 32],
+        });
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<ChainUnfrozen> for Event {
-    fn from(other: ChainUnfrozen) -> Self {
-        Event::new("chain_unfrozen")
-            .add_attribute("name", other.name)
-            .add_attribute(
-                "direction",
-                serde_json::to_string(&other.direction).expect("failed to serialize direction"),
-            )
+    #[test]
+    fn routing_disabled_is_serializable() {
+        let event = Event::RoutingDisabled {};
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
-}
 
-impl From<MessageRouted> for Event {
-    fn from(other: MessageRouted) -> Self {
-        let attrs: Vec<Attribute> = other.msg.into();
+    #[test]
+    fn routing_enabled_is_serializable() {
+        let event = Event::RoutingEnabled {};
+        let event = cosmwasm_std::Event::from(event);
 
-        Event::new("message_routed").add_attributes(attrs)
+        goldie::assert_json!(event);
+    }
+
+    #[test]
+    fn message_routed_serializes_like_message() {
+        // Create a Message directly
+        let message = Message {
+            cc_id: router_api::CrossChainId::new("ethereum", "some-id").unwrap(),
+            source_address: "0x1234".parse().unwrap(),
+            destination_chain: "avalanche".parse().unwrap(),
+            destination_address: "0x5678".parse().unwrap(),
+            payload_hash: [0; 32],
+        };
+
+        // Create MessageRouted event
+        let message_routed_event = Event::MessageRouted(message.clone());
+        let event = cosmwasm_std::Event::from(message_routed_event);
+
+        // Verify that the event has the correct type
+        assert_eq!(event.ty, "message_routed");
+
+        // Verify that all Message fields are present as direct attributes
+        let attributes: std::collections::HashMap<_, _> = event
+            .attributes
+            .iter()
+            .map(|attr| (attr.key.as_str(), attr.value.as_str()))
+            .collect();
+
+        // Check that cc_id is present and correctly formatted
+        assert!(attributes.contains_key("cc_id"));
+        let cc_id_value: serde_json::Value = serde_json::from_str(attributes["cc_id"]).unwrap();
+        assert_eq!(cc_id_value["message_id"], "some-id");
+        assert_eq!(cc_id_value["source_chain"], "ethereum");
+
+        // Check that source_address is present
+        assert!(attributes.contains_key("source_address"));
+        assert_eq!(attributes["source_address"], "\"0x1234\"");
+
+        // Check that destination_chain is present
+        assert!(attributes.contains_key("destination_chain"));
+        assert_eq!(attributes["destination_chain"], "\"avalanche\"");
+
+        // Check that destination_address is present
+        assert!(attributes.contains_key("destination_address"));
+        assert_eq!(attributes["destination_address"], "\"0x5678\"");
+
+        // Check that payload_hash is present
+        assert!(attributes.contains_key("payload_hash"));
+        assert_eq!(
+            attributes["payload_hash"],
+            "\"0000000000000000000000000000000000000000000000000000000000000000\""
+        );
+
+        // Verify there's no nested "message" attribute
+        assert!(!attributes.contains_key("message"));
+
+        // Verify we have exactly 5 attributes (all Message fields)
+        assert_eq!(attributes.len(), 5);
     }
 }

@@ -1,0 +1,9 @@
+{
+  "type": "gateway_upgraded",
+  "attributes": [
+    {
+      "key": "gateway",
+      "value": "{\"chain\":\"ethereum\",\"gateway_address\":\"cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl\"}"
+    }
+  ]
+}
