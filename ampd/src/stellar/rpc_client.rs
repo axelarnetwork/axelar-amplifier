@@ -4,7 +4,7 @@ use std::str::FromStr;
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
 use stellar_rpc_client::GetTransactionResponse;
-use stellar_xdr::curr::{ContractEvent, Hash, VecM};
+use stellar_xdr::curr::{ContractEvent, Hash};
 use thiserror::Error;
 use tracing::warn;
 
@@ -21,7 +21,7 @@ pub enum Error {
 pub struct TxResponse {
     pub transaction_hash: String,
     pub successful: bool,
-    pub contract_events: VecM<ContractEvent>,
+    pub contract_events: Vec<ContractEvent>,
 }
 
 const STATUS_SUCCESS: &str = "SUCCESS";
@@ -30,20 +30,12 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
     fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
         // Protocol 23 (CAP-0067): Extract contract events from the unified events structure
         // contract_events is Vec<Vec<ContractEvent>> (per operation), so we flatten it
-        let events: Vec<ContractEvent> = response
+        let contract_events: Vec<ContractEvent> = response
             .events
             .contract_events
             .into_iter()
             .flatten()
             .collect();
-
-        let contract_events = events.try_into().unwrap_or_else(|_| {
-            warn!(
-                tx_hash = %transaction_hash,
-                "Contract events exceed VecM capacity, returning empty list"
-            );
-            VecM::default()
-        });
 
         Self {
             transaction_hash: transaction_hash.to_string(),
@@ -133,8 +125,7 @@ impl Client {
 mod tests {
     use stellar_rpc_client::{GetTransactionEvents, GetTransactionResponse};
     use stellar_xdr::curr::{
-        ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
-        ScVal, VecM,
+        ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint, ScVal,
     };
 
     use super::*;
@@ -145,7 +136,7 @@ mod tests {
             contract_id: None,
             type_: ContractEventType::Contract,
             body: ContractEventBody::V0(ContractEventV0 {
-                topics: VecM::default(),
+                topics: Default::default(),
                 data: ScVal::U32(data),
             }),
         }
