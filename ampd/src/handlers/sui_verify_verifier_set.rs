@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
@@ -171,7 +170,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -180,7 +178,6 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::ChainName;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;

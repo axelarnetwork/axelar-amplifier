@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -193,7 +192,6 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
@@ -201,7 +199,6 @@ mod tests {
     use cosmwasm_std;
     use ethers_core::types::H160;
     use hex::ToHex;
-    use router_api::ChainName;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};

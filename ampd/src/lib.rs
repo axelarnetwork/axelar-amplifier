@@ -34,7 +34,6 @@ mod url;
 mod xrpl;
 
 use std::pin::Pin;
-use std::str::FromStr;
 use std::time::Duration;
 
 use asyncutil::future::RetryPolicy;
@@ -46,8 +45,9 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use lazy_static::lazy_static;
 use multiversx_sdk::gateway::GatewayProxy;
-use router_api::ChainName;
+use router_api::{chain_name, ChainName};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
@@ -64,10 +64,12 @@ use crate::stacks::http_client::Client;
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
-const SUI_CHAIN_NAME: &str = "sui";
-const MULTIVERSX_CHAIN_NAME: &str = "multiversx";
-const STELLAR_CHAIN_NAME: &str = "stellar";
-const STARKNET_CHAIN_NAME: &str = "starknet";
+lazy_static! {
+    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
+    static ref MULTIVERSX_CHAIN_NAME: ChainName = chain_name!("multiversx");
+    static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
+    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
+}
 
 #[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {
@@ -376,7 +378,7 @@ impl App {
                             .build()
                             .change_context(Error::Connection)?,
                         self.monitoring_client.clone(),
-                        ChainName::from_str(SUI_CHAIN_NAME).unwrap(),
+                        SUI_CHAIN_NAME.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -452,7 +454,7 @@ impl App {
                             .build()
                             .change_context(Error::Connection)?,
                         self.monitoring_client.clone(),
-                        ChainName::from_str(SUI_CHAIN_NAME).unwrap(),
+                        SUI_CHAIN_NAME.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -471,7 +473,7 @@ impl App {
                     mvx::proxy::Client::new(
                         GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.monitoring_client.clone(),
-                        ChainName::from_str(MULTIVERSX_CHAIN_NAME).unwrap(),
+                        MULTIVERSX_CHAIN_NAME.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -490,7 +492,7 @@ impl App {
                     mvx::proxy::Client::new(
                         GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                         self.monitoring_client.clone(),
-                        ChainName::from_str(MULTIVERSX_CHAIN_NAME).unwrap(),
+                        MULTIVERSX_CHAIN_NAME.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -509,7 +511,7 @@ impl App {
                     stellar::rpc_client::Client::new(
                         rpc_url.to_string().trim_end_matches('/').into(),
                         self.monitoring_client.clone(),
-                        ChainName::from_str(STELLAR_CHAIN_NAME).unwrap(),
+                        STELLAR_CHAIN_NAME.clone(),
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -529,7 +531,7 @@ impl App {
                     stellar::rpc_client::Client::new(
                         rpc_url.to_string().trim_end_matches('/').into(),
                         self.monitoring_client.clone(),
-                        ChainName::from_str(STELLAR_CHAIN_NAME).unwrap(),
+                        STELLAR_CHAIN_NAME.clone(),
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -549,7 +551,7 @@ impl App {
                     starknet::json_rpc::Client::new_with_transport(
                         HttpTransport::new(rpc_url.clone()),
                         self.monitoring_client.clone(),
-                        ChainName::from_str(STARKNET_CHAIN_NAME).unwrap(),
+                        STARKNET_CHAIN_NAME.clone(),
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -569,7 +571,7 @@ impl App {
                     starknet::json_rpc::Client::new_with_transport(
                         HttpTransport::new(rpc_url.clone()),
                         self.monitoring_client.clone(),
-                        ChainName::from_str(STARKNET_CHAIN_NAME).unwrap(),
+                        STARKNET_CHAIN_NAME.clone(),
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -642,7 +644,12 @@ impl App {
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    Client::new_http(
+                        rpc_url.clone(),
+                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                        self.monitoring_client.clone(),
+                        chain_name.clone(),
+                    )?,
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
                 )
@@ -661,7 +668,12 @@ impl App {
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    Client::new_http(
+                        rpc_url.clone(),
+                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                        self.monitoring_client.clone(),
+                        chain_name.clone(),
+                    )?,
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
                 )

@@ -227,7 +227,14 @@ fn event_comes_from_gateway(
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use std::str::FromStr;
+
+    use router_api::ChainName;
+    use solana_client::nonblocking::rpc_client::RpcClient;
+    use solana_sdk::signature::Signature;
+
+    use super::{Client, SolanaRpcClientProxy};
+    use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
 
     #[tokio::test]
@@ -240,7 +247,7 @@ mod test {
             ChainName::from_str("solana").unwrap(),
         );
 
-        let result = client.get_tx(&Signature::default()).await;
+        let result = client.tx(&Signature::default()).await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();
@@ -251,7 +258,7 @@ mod test {
             }
         );
 
-        let result = client.get_domain_separator().await;
+        let result = client.domain_separator().await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();

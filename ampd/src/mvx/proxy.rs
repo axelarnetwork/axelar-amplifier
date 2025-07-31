@@ -103,10 +103,17 @@ impl MvxProxy for Client {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, TransactionOnNetwork};
+    use multiversx_sdk::gateway::GatewayProxy;
+    use router_api::ChainName;
 
     use super::{Client, MvxProxy};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
+    use crate::types::Hash;
 
     #[test]
     fn should_not_be_valid_transaction_no_hash() {
@@ -184,14 +191,6 @@ mod tests {
 
         assert!(Client::is_valid_transaction(&tx));
     }
-}
-
-#[cfg(test)]
-mod test {
-    use std::str::FromStr;
-
-    use super::*;
-    use crate::monitoring::test_utils;
 
     #[tokio::test]
     async fn should_record_rpc_error_metrics_when_rpc_fails() {

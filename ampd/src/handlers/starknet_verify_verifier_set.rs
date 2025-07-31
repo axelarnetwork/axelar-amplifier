@@ -3,7 +3,6 @@
 //! and manages the voting process for confirming these changes.
 
 use std::convert::TryInto;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
@@ -192,7 +191,6 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
-    use router_api::ChainName;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;

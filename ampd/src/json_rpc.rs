@@ -84,9 +84,12 @@ mod test {
 
     use ethers_core::types::BlockNumber;
     use ethers_core::utils::serialize;
+    use router_api::ChainName;
 
-    use super::*;
+    use super::Client;
+    use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
+    use crate::url::Url;
 
     #[tokio::test]
     async fn should_record_rpc_error_metrics_when_rpc_fails() {
