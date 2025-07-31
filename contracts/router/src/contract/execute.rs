@@ -256,7 +256,7 @@ pub fn route_messages(
 
     Ok(Response::new()
         .add_messages(wasm_msgs)
-        .add_events(msgs.into_iter().map(|msg| RouterEvent::MessageRouted(msg))))
+        .add_events(msgs.into_iter().map(RouterEvent::MessageRouted)))
 }
 
 #[cfg(test)]
