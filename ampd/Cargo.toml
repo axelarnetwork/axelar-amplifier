@@ -58,6 +58,7 @@ pin-project-lite = "0.2.16"
 prometheus-client = "0.23.1"
 prost = "0.13.5"
 prost-types = "0.13.5"
+regex = "1.10.2"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 rewards = { workspace = true }
@@ -82,6 +83,7 @@ stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sysinfo = "0.36.1"
 tendermint = { workspace = true }
 tendermint-rpc = { version = "0.35.0", features = ["http-client"] }
 thiserror = { workspace = true }
