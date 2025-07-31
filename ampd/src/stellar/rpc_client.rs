@@ -75,15 +75,6 @@ impl Client {
             return Err(report!(Error::Client).attach_printable("URL cannot be empty"));
         }
 
-        if !url.starts_with("http://") && !url.starts_with("https://") {
-            error!(url = %url, "Stellar RPC URL does not start with http:// or https://");
-            return Err(
-                report!(Error::Client).attach_printable(format!("Invalid URL format: {}", url))
-            );
-        }
-
-        debug!(url = %url, "URL format validation passed");
-
         match stellar_rpc_client::Client::new(url.as_str()) {
             Ok(client) => {
                 info!(url = %url, "Successfully created Stellar RPC client");
