@@ -8,7 +8,7 @@
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.9.0..ampd-v1.10.0)
 
-- stellar protocol v23 update [#968](https://github.com/axelarnetwork/axelar-amplifier/pull/968)
+- add stacks handlers [#728](https://github.com/axelarnetwork/axelar-amplifier/pull/728)
 - use cargo chef for internal dependencies [#967](https://github.com/axelarnetwork/axelar-amplifier/pull/967)
 - add tx confirmation when executing commands [#961](https://github.com/axelarnetwork/axelar-amplifier/pull/961)
 - add security audit configuration and workflow [#946](https://github.com/axelarnetwork/axelar-amplifier/pull/946)
