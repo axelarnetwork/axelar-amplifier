@@ -6,9 +6,9 @@ use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInf
 use error_stack::ResultExt;
 
 use crate::error::ContractError;
-use crate::Event;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
+use crate::Event;
 
 mod execute;
 mod migrations;
