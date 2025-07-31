@@ -1,7 +1,7 @@
 mod asyncutil;
 mod block_height_monitor;
 #[allow(dead_code)]
-mod broadcaster;
+mod broadcast;
 #[cfg(feature = "commands")]
 pub mod commands;
 #[cfg(not(feature = "commands"))]
@@ -39,7 +39,7 @@ use std::time::Duration;
 use asyncutil::future::RetryPolicy;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
-use broadcaster::MsgQueue;
+use broadcast::MsgQueue;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
 use event_sub::EventSub;
@@ -116,7 +116,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let broadcaster = broadcaster::Broadcaster::builder()
+    let broadcaster = broadcast::Broadcaster::builder()
         .client(cosmos_client.clone())
         .chain_id(broadcast.chain_id)
         .pub_key(pub_key)
@@ -125,7 +125,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .build()
         .await
         .change_context(Error::Broadcaster)?;
-    let (msg_queue, msg_queue_client) = broadcaster::MsgQueue::new_msg_queue_and_client(
+    let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcast.queue_cap,
         broadcast.batch_gas_limit,
@@ -138,14 +138,14 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .build();
-    let (tx_confirmer, tx_confirmer_client) = broadcaster::TxConfirmer::new_confirmer_and_client(
+    let (tx_confirmer, tx_confirmer_client) = broadcast::TxConfirmer::new_confirmer_and_client(
         cosmos_client,
         RetryPolicy::repeat_constant(
             broadcast.tx_fetch_interval,
             broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         ),
     );
-    let broadcaster_task = broadcaster::BroadcasterTask::builder()
+    let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
         .signer(multisig_client.clone())
@@ -198,13 +198,10 @@ struct App {
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
-    broadcaster_task: broadcaster::BroadcasterTask<
-        cosmos::CosmosGrpcClient,
-        Pin<Box<MsgQueue>>,
-        MultisigClient,
-    >,
-    msg_queue_client: broadcaster::MsgQueueClient<cosmos::CosmosGrpcClient>,
-    tx_confirmer: broadcaster::TxConfirmer<cosmos::CosmosGrpcClient>,
+    broadcaster_task:
+        broadcast::BroadcasterTask<cosmos::CosmosGrpcClient, Pin<Box<MsgQueue>>, MultisigClient>,
+    msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
     monitoring_client: monitoring::Client,
 }
 
@@ -217,13 +214,13 @@ impl App {
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         monitoring_server: monitoring::Server,
         grpc_server: grpc::Server,
-        broadcaster_task: broadcaster::BroadcasterTask<
+        broadcaster_task: broadcast::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        msg_queue_client: broadcaster::MsgQueueClient<cosmos::CosmosGrpcClient>,
-        tx_confirmer: broadcaster::TxConfirmer<cosmos::CosmosGrpcClient>,
+        msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
+        tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
         monitoring_client: monitoring::Client,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");

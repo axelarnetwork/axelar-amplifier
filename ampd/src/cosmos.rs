@@ -30,7 +30,7 @@ use thiserror::Error;
 use tonic::transport::Channel;
 use tonic::{Code, Response, Status};
 
-use crate::broadcaster::Tx;
+use crate::broadcast::Tx;
 use crate::types::debug::REDACTED_VALUE;
 use crate::types::{CosmosPublicKey, TMAddress};
 

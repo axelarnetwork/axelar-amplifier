@@ -18,7 +18,7 @@ use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
 use crate::grpc::status;
-use crate::{broadcaster, cosmos, event_sub};
+use crate::{broadcast, cosmos, event_sub};
 
 #[derive(Debug, TypedBuilder)]
 pub struct Service<E, C>
@@ -27,7 +27,7 @@ where
     C: cosmos::CosmosClient,
 {
     event_sub: E,
-    msg_queue_client: broadcaster::MsgQueueClient<C>,
+    msg_queue_client: broadcast::MsgQueueClient<C>,
     cosmos_client: C,
 }
 
@@ -147,7 +147,7 @@ mod tests {
     use tonic::{Code, Request};
 
     use super::*;
-    use crate::broadcaster::DecCoin;
+    use crate::broadcast::DecCoin;
     use crate::cosmos::MockCosmosClient;
     use crate::event_sub::{self, MockEventSub};
     use crate::types::{random_cosmos_public_key, TMAddress};
@@ -161,7 +161,7 @@ mod tests {
         mock_cosmos_client: MockCosmosClient,
     ) -> (
         Service<MockEventSub, MockCosmosClient>,
-        impl Stream<Item = nonempty::Vec<broadcaster::QueueMsg>>,
+        impl Stream<Item = nonempty::Vec<broadcast::QueueMsg>>,
     ) {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
@@ -204,7 +204,7 @@ mod tests {
                 })
             });
 
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(broadcaster_mock_cosmos_client)
             .chain_id("chain_id".try_into().unwrap())
             .pub_key(pub_key)
@@ -213,7 +213,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (msg_queue, msg_queue_client) = broadcaster::MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             100,
             GAS_CAP,
@@ -882,7 +882,7 @@ mod tests {
                 }),
             })
         });
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_cosmos_client)
             .chain_id("chain-id".parse().unwrap())
             .pub_key(pub_key)
@@ -892,7 +892,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (_, msg_queue_client) = broadcaster::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             1000u64,

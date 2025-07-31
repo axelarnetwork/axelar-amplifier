@@ -5,7 +5,7 @@ use tracing::error;
 use valuable::Valuable;
 
 use super::reqs;
-use crate::{broadcaster, cosmos, event_sub, tofnd};
+use crate::{broadcast, cosmos, event_sub, tofnd};
 
 pub fn log<Err>(msg: &str) -> impl Fn(&Report<Err>) + '_ {
     move |err| {
@@ -82,25 +82,25 @@ impl From<&event_sub::Error> for Status {
     }
 }
 
-impl From<&broadcaster::Error> for Status {
-    fn from(err: &broadcaster::Error) -> Self {
+impl From<&broadcast::Error> for Status {
+    fn from(err: &broadcast::Error) -> Self {
         match err {
-            broadcaster::Error::EstimateGas | broadcaster::Error::GasExceedsGasCap { .. } => {
+            broadcast::Error::EstimateGas | broadcast::Error::GasExceedsGasCap { .. } => {
                 tonic::Status::invalid_argument(err.to_string())
             }
-            broadcaster::Error::AccountQuery | broadcaster::Error::BroadcastTx => {
+            broadcast::Error::AccountQuery | broadcast::Error::BroadcastTx => {
                 tonic::Status::unavailable("blockchain service is temporarily unavailable")
             }
-            broadcaster::Error::SignTx => {
+            broadcast::Error::SignTx => {
                 tonic::Status::unavailable("signing service is temporarily unavailable")
             }
-            broadcaster::Error::EnqueueMsg
-            | broadcaster::Error::FeeAdjustment
-            | broadcaster::Error::InvalidPubKey
-            | broadcaster::Error::ReceiveTxResult(_)
-            | broadcaster::Error::ConfirmTx(_)
-            | broadcaster::Error::BalanceQuery
-            | broadcaster::Error::InsufficientBalance { .. } => {
+            broadcast::Error::EnqueueMsg
+            | broadcast::Error::FeeAdjustment
+            | broadcast::Error::InvalidPubKey
+            | broadcast::Error::ReceiveTxResult(_)
+            | broadcast::Error::ConfirmTx(_)
+            | broadcast::Error::BalanceQuery
+            | broadcast::Error::InsufficientBalance { .. } => {
                 tonic::Status::internal("server encountered an error processing request")
             }
         }
@@ -203,20 +203,20 @@ mod tests {
 
     #[tokio::test]
     async fn broadcaster_v2_errors_to_status() {
-        let estimate_gas = broadcaster::Error::EstimateGas;
-        let gas_exceeds_gas_cap = broadcaster::Error::GasExceedsGasCap {
+        let estimate_gas = broadcast::Error::EstimateGas;
+        let gas_exceeds_gas_cap = broadcast::Error::GasExceedsGasCap {
             msg_type: "test_message".to_string(),
             gas: 1000000,
             gas_cap: 500000,
         };
-        let account_query = broadcaster::Error::AccountQuery;
-        let broadcast_tx = broadcaster::Error::BroadcastTx;
-        let sign_tx = broadcaster::Error::SignTx;
-        let enqueue_msg = broadcaster::Error::EnqueueMsg;
-        let fee_adjustment = broadcaster::Error::FeeAdjustment;
-        let invalid_pub_key = broadcaster::Error::InvalidPubKey;
+        let account_query = broadcast::Error::AccountQuery;
+        let broadcast_tx = broadcast::Error::BroadcastTx;
+        let sign_tx = broadcast::Error::SignTx;
+        let enqueue_msg = broadcast::Error::EnqueueMsg;
+        let fee_adjustment = broadcast::Error::FeeAdjustment;
+        let invalid_pub_key = broadcast::Error::InvalidPubKey;
         let (_, rx) = oneshot::channel::<u32>();
-        let receive_tx_result = broadcaster::Error::ReceiveTxResult(rx.await.unwrap_err());
+        let receive_tx_result = broadcast::Error::ReceiveTxResult(rx.await.unwrap_err());
 
         goldie::assert_debug!(vec![
             (estimate_gas.into_status().code(), estimate_gas),
