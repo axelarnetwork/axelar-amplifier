@@ -152,13 +152,9 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2025-04-03
+          toolchain: nightly
           components: rustfmt
           override: true
-
-      - name: Uninstall stable toolchain
-        run: |
-          rustup uninstall stable
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
@@ -194,6 +190,10 @@ jobs:
         uses: baptiste0928/cargo-install@v2
         with:
           crate: dylint-link
+
+      # - name: Uninstall stable toolchain
+      #   run: |
+      #     rustup uninstall stable
 
       - name: Run custom lints
         run: cargo dylint --all
