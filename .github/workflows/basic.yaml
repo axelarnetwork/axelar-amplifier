@@ -191,9 +191,9 @@ jobs:
         with:
           crate: dylint-link
 
-      # - name: Uninstall stable toolchain
-      #   run: |
-      #     rustup uninstall stable
+      - name: Uninstall stable toolchain
+        run: |
+          rustup uninstall stable
 
       - name: Run custom lints
         run: cargo dylint --all
