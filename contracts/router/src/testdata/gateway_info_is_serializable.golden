@@ -1,0 +1,13 @@
+{
+  "type": "gateway_info",
+  "attributes": [
+    {
+      "key": "chain",
+      "value": "\"ethereum\""
+    },
+    {
+      "key": "gateway_address",
+      "value": "\"cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl\""
+    }
+  ]
+}
