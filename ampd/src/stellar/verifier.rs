@@ -359,7 +359,7 @@ mod test {
         TxResponse {
             transaction_hash: msg.message_id.tx_hash_as_hex_no_prefix().to_string(),
             successful: true,
-            contract_events: vec![event].try_into().unwrap(),
+            contract_events: vec![event],
         }
     }
 
@@ -439,7 +439,7 @@ mod test {
                 .tx_hash_as_hex_no_prefix()
                 .to_string(),
             successful: true,
-            contract_events: vec![event].try_into().unwrap(),
+            contract_events: vec![event],
         };
 
         (gateway_address, tx_response, verifier_set_confirmation)
