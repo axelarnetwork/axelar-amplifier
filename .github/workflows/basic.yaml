@@ -157,6 +157,35 @@ jobs:
           override: true
           default: true
 
+      - name: Uninstall stable toolchain
+        run: |
+          rustup uninstall stable
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache build artifacts
+        uses: useblacksmith/rust-cache@v3.0.1
+        id: cache
+        with:
+          shared-key: "cache-lints"
+
+      - name: Log crates.toml
+        if: steps.cache.outputs.cache-hit == 'true'
+        run: cat /home/runner/.cargo/.crates.toml
+
+      - name: Install cargo-sort
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cargo-sort
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt-check # alias
+
       - name: Install cargo-dylint
         uses: baptiste0928/cargo-install@v2
         with:
@@ -166,64 +195,30 @@ jobs:
         uses: baptiste0928/cargo-install@v2
         with:
           crate: dylint-link
-        
-      - name: show & uninstall & show
-        run: |
-          rustup show
-          rustup uninstall stable
-          rustup show
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - name: Run custom lints
         run: cargo dylint --all
         env:
           DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
-      # - name: Install protoc
-      #   uses: arduino/setup-protoc@v2
-      #   with:
-      #     repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.86.0
+          components: clippy
+          override: true
 
-      # - name: Cache build artifacts
-      #   uses: useblacksmith/rust-cache@v3.0.1
-      #   id: cache
-      #   with:
-      #     shared-key: "cache-lints"
+      - name: Run cargo sort
+        uses: actions-rs/cargo@v1
+        with:
+          command: sort-check # alias
 
-      # - name: Log crates.toml
-      #   if: steps.cache.outputs.cache-hit == 'true'
-      #   run: cat /home/runner/.cargo/.crates.toml
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy-check # alias
 
-      # - name: Install cargo-sort
-      #   uses: baptiste0928/cargo-install@v2
-      #   with:
-      #     crate: cargo-sort
-
-      # - name: Run cargo fmt
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: fmt-check # alias
-
-      # - name: Install stable toolchain
-      #   uses: actions-rs/toolchain@v1
-      #   with:
-      #     profile: minimal
-      #     toolchain: 1.86.0
-      #     components: clippy
-      #     override: true
-
-      # - name: Run cargo sort
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: sort-check # alias
-
-      # - name: Run cargo clippy
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: clippy-check # alias
-
-      # - name: Check Diff
-      #   # fails if any changes not committed
-      #   run: git diff --exit-code
+      - name: Check Diff
+        # fails if any changes not committed
+        run: git diff --exit-code
