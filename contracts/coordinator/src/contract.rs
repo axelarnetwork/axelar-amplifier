@@ -138,7 +138,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             )?)?)
         }
         QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
-            &query::get_chain_contracts_info(deps, chain_contracts_key)?,
+            &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
     }
 }
