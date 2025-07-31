@@ -152,7 +152,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: nightly-2025-04-03
           components: rustfmt
           override: true
 
