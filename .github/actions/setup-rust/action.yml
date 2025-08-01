@@ -5,7 +5,7 @@ inputs:
     description: 'Cache namespace (e.g., "tests", "lints")'
     required: false
     default: ''
-  
+
 runs:
   using: 'composite'
   steps:
@@ -17,7 +17,7 @@ runs:
         cache: false
         # Preserve RUSTFLAGS from .cargo/config.toml
         rustflags: ""
-        
+
     - name: Cache Rust dependencies
       uses: useblacksmith/rust-cache@v3.0.1
       id: cache
