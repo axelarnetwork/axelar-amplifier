@@ -129,7 +129,6 @@ valuable = "0.1.1"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
-clap = "4.5.42"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
