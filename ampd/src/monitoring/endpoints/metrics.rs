@@ -35,11 +35,16 @@ const CHANNEL_SIZE: usize = 1000;
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash, EncodeLabelValue)]
-pub enum EventStage {
-    EventHandling,
-    MessageEnqueue,
-    TransactionBroadcast,
+// Histogram bucket definitions
+const DURATION_BUCKETS: &[f64] = &[0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 40.0];
+const MESSAGE_COUNT_BUCKETS: &[f64] = &[1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 80.0];
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum TxConfirmationResult {
+    SucceededOnChain,
+    FailedOnChain,
+    NotFound,
+    QueryError,
 }
 
 /// Messages for metrics collection
@@ -55,10 +60,21 @@ pub enum Msg {
         vote_decision: AxelarVote,
         chain_name: ChainName,
     },
+
     /// Track performance(result and duration) for AMPD event processing stages
-    EventStagePerformance {
-        stage: EventStage,
+    /// Event handling
+    EventHandlingPerformance { success: bool, duration: Duration },
+    /// Message enqueue
+    MessageEnqueuePerformance { success: bool, duration: Duration },
+    /// Transaction broadcast (with number of messages inside the transaction broadcast)
+    TransactionBroadcastPerformance {
         success: bool,
+        duration: Duration,
+        num_messages: usize,
+    },
+    /// Transaction confirmation
+    TransactionConfirmationPerformance {
+        result: TxConfirmationResult,
         duration: Duration,
     },
 }
@@ -222,6 +238,7 @@ struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
     event_stage_performance: EventStageMetrics,
+    transaction_broadcast_message_count: TransactionBroadcastMessageMetrics,
 }
 
 impl Metrics {
@@ -229,15 +246,18 @@ impl Metrics {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
         let event_stage_performance = EventStageMetrics::new();
+        let transaction_broadcast_message_count = TransactionBroadcastMessageMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
         event_stage_performance.register(registry);
+        transaction_broadcast_message_count.register(registry);
 
         Self {
             block_received,
             verification_vote,
             event_stage_performance,
+            transaction_broadcast_message_count,
         }
     }
 
@@ -254,13 +274,40 @@ impl Metrics {
                 self.verification_vote
                     .record_verification_vote(vote_decision, chain_name);
             }
-            Msg::EventStagePerformance {
-                stage,
-                success: result,
+            Msg::EventHandlingPerformance { success, duration } => {
+                self.event_stage_performance.record_event_stage_performance(
+                    EventStage::EventHandling,
+                    success,
+                    duration,
+                );
+            }
+            Msg::MessageEnqueuePerformance { success, duration } => {
+                self.event_stage_performance.record_event_stage_performance(
+                    EventStage::MessageEnqueue,
+                    success,
+                    duration,
+                );
+            }
+            Msg::TransactionBroadcastPerformance {
+                success,
                 duration,
+                num_messages,
             } => {
-                self.event_stage_performance
-                    .record_event_stage_performance(stage, result, duration);
+                self.event_stage_performance.record_event_stage_performance(
+                    EventStage::TransactionBroadcast,
+                    success,
+                    duration,
+                );
+
+                self.transaction_broadcast_message_count
+                    .record_message_count(num_messages, success);
+            }
+            Msg::TransactionConfirmationPerformance { result, duration } => {
+                self.event_stage_performance.record_event_stage_performance(
+                    EventStage::TransactionConfirmation,
+                    result,
+                    duration,
+                );
             }
         }
     }
@@ -344,10 +391,31 @@ impl VerificationVoteMetrics {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct EventStageLabel {
+    stage: EventStage,
+    result: StageResult,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash, EncodeLabelValue)]
+pub enum EventStage {
+    EventHandling,
+    MessageEnqueue,
+    TransactionBroadcast,
+    TransactionConfirmation,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
 enum StageResult {
+    // Event handling / msg enqueue / transaction broadcast result types
     Success,
     Failure,
+
+    // Transaction confirmation result types
+    SucceededOnChain,
+    FailedOnChain,
+    NotFound,
+    QueryError,
 }
 
 impl From<bool> for StageResult {
@@ -360,10 +428,15 @@ impl From<bool> for StageResult {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct EventStageLabel {
-    stage: EventStage,
-    result: StageResult,
+impl From<TxConfirmationResult> for StageResult {
+    fn from(result: TxConfirmationResult) -> Self {
+        match result {
+            TxConfirmationResult::SucceededOnChain => StageResult::SucceededOnChain,
+            TxConfirmationResult::FailedOnChain => StageResult::FailedOnChain,
+            TxConfirmationResult::NotFound => StageResult::NotFound,
+            TxConfirmationResult::QueryError => StageResult::QueryError,
+        }
+    }
 }
 
 struct EventStageMetrics {
@@ -375,7 +448,7 @@ impl EventStageMetrics {
     fn new() -> Self {
         let total = Family::<EventStageLabel, Counter>::default();
         let duration = Family::<EventStageLabel, Histogram>::new_with_constructor(|| {
-            Histogram::new(vec![0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 40.0])
+            Histogram::new(DURATION_BUCKETS.to_vec())
         });
         Self { total, duration }
     }
@@ -394,13 +467,49 @@ impl EventStageMetrics {
         );
     }
 
-    fn record_event_stage_performance(&self, stage: EventStage, result: bool, duration: Duration) {
+    fn record_event_stage_performance<T>(&self, stage: EventStage, result: T, duration: Duration)
+    where
+        T: Into<StageResult>,
+    {
         let result: StageResult = result.into();
         let label = EventStageLabel { stage, result };
+
         self.total.get_or_create(&label).inc();
         self.duration
             .get_or_create(&label)
             .observe(duration.as_secs_f64());
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct MessageCountLabel {
+    result: StageResult,
+}
+
+struct TransactionBroadcastMessageMetrics {
+    count: Family<MessageCountLabel, Histogram>,
+}
+
+impl TransactionBroadcastMessageMetrics {
+    fn new() -> Self {
+        let count = Family::<MessageCountLabel, Histogram>::new_with_constructor(|| {
+            Histogram::new(MESSAGE_COUNT_BUCKETS.to_vec())
+        });
+        Self { count }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "transaction_broadcast_message_count",
+            "number of messages in a transaction broadcast",
+            self.count.clone(),
+        );
+    }
+
+    fn record_message_count(&self, msg_count: usize, success: bool) {
+        let result: StageResult = success.into();
+        let label = MessageCountLabel { result };
+        self.count.get_or_create(&label).observe(msg_count as f64);
     }
 }
 
@@ -611,24 +720,39 @@ mod tests {
         let initial_metrics = server.get("/test").await;
         initial_metrics.assert_status_ok();
 
-        let event_stages = vec![
-            EventStage::EventHandling,
-            EventStage::MessageEnqueue,
-            EventStage::TransactionBroadcast,
-        ];
+        // EventHandling
+        client.record_metric(Msg::EventHandlingPerformance {
+            success: true,
+            duration: Duration::from_secs(1),
+        });
 
-        for stage in event_stages {
-            client.record_metric(Msg::EventStagePerformance {
-                stage: stage.clone(),
-                success: true,
-                duration: Duration::from_secs(1),
-            });
-            client.record_metric(Msg::EventStagePerformance {
-                stage: stage.clone(),
-                success: false,
-                duration: Duration::from_secs(2),
-            });
-        }
+        // MessageEnqueue
+        client.record_metric(Msg::MessageEnqueuePerformance {
+            success: false,
+            duration: Duration::from_secs(2),
+        });
+
+        // TransactionBroadcast (with message count)
+        client.record_metric(Msg::TransactionBroadcastPerformance {
+            success: true,
+            duration: Duration::from_secs(3),
+            num_messages: 5,
+        });
+        client.record_metric(Msg::TransactionBroadcastPerformance {
+            success: false,
+            duration: Duration::from_secs(2),
+            num_messages: 10,
+        });
+
+        // TransactionConfirmation
+        client.record_metric(Msg::TransactionConfirmationPerformance {
+            result: TxConfirmationResult::SucceededOnChain,
+            duration: Duration::from_secs(1),
+        });
+        client.record_metric(Msg::TransactionConfirmationPerformance {
+            result: TxConfirmationResult::FailedOnChain,
+            duration: Duration::from_secs(2),
+        });
 
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;

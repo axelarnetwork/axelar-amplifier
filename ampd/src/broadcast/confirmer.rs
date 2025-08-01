@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use error_stack::{report, ResultExt};
 use futures::StreamExt;
@@ -10,6 +12,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::cosmos;
+use crate::monitoring::metrics::{Msg, TxConfirmationResult};
+use crate::monitoring::Client as MonitoringClient;
 
 // TODO: move these constants to the config. In the meantime, these were chosen as reasonable heuristics.
 // Maximum number of transaction confirmations to process concurrently.
@@ -54,6 +58,7 @@ where
     rx: mpsc::Receiver<String>,
     client: T,
     retry_policy: RetryPolicy,
+    monitoring_client: MonitoringClient,
 }
 
 impl<T> TxConfirmer<T>
@@ -71,12 +76,14 @@ where
     pub fn new_confirmer_and_client(
         client: T,
         retry_policy: RetryPolicy,
+        monitoring_client: MonitoringClient,
     ) -> (Self, TxConfirmerClient) {
         let (tx, rx) = mpsc::channel(TX_CONFIRMATION_QUEUE_CAP);
         let confirmer = Self {
             rx,
             client,
             retry_policy,
+            monitoring_client,
         };
 
         (confirmer, tx)
@@ -97,14 +104,19 @@ where
             rx,
             client,
             retry_policy,
+            monitoring_client,
         } = self;
         let mut stream = ReceiverStream::new(rx)
             .inspect(|tx_hash| info!(tx_hash, "received tx hash to confirm"))
-            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy))
+            .map(|tx_hash| async {
+                let start_time = Instant::now();
+                let res = confirm_tx(&client, tx_hash, retry_policy).await;
+                (res, start_time.elapsed())
+            })
             .buffer_unordered(TX_CONFIRMATION_BUFFER_SIZE);
 
         while let Some(result) = stream.next().await {
-            log_confirm_tx_result(result);
+            log_confirm_tx_result(result, &monitoring_client);
         }
 
         Ok(())
@@ -139,31 +151,45 @@ where
         .ok_or(report!(Error::NotFound(tx_hash)))
 }
 
-fn log_confirm_tx_result(result: Result<TxResponse>) {
-    match result {
-        Ok(res) => info!(tx_hash = res.txhash, "tx succeeded on chain"),
+fn log_confirm_tx_result(
+    result: (Result<TxResponse>, Duration),
+    monitoring_client: &MonitoringClient,
+) {
+    let (tx_hash, duration) = result;
+    let result = match tx_hash {
+        Ok(res) => {
+            info!(tx_hash = res.txhash, "tx succeeded on chain");
+            TxConfirmationResult::SucceededOnChain
+        }
         Err(err) => match err.current_context() {
             Error::FailureOnChain(res) => {
                 warn!(
                     err = LoggableError::from(&err).as_value(),
                     tx_hash = res.txhash,
                     "tx failed on chain"
-                )
+                );
+                TxConfirmationResult::FailedOnChain
             }
             Error::NotFound(tx_hash) => {
                 warn!(
                     err = LoggableError::from(&err).as_value(),
                     tx_hash, "tx not found on chain"
-                )
+                );
+                TxConfirmationResult::NotFound
             }
             Error::TxQuery(tx_hash) => {
                 warn!(
                     err = LoggableError::from(&err).as_value(),
                     tx_hash, "failed to query for tx"
-                )
+                );
+                TxConfirmationResult::QueryError
             }
         },
-    }
+    };
+
+    monitoring_client
+        .metrics()
+        .record_metric(Msg::TransactionConfirmationPerformance { result, duration });
 }
 
 #[cfg(test)]
@@ -179,6 +205,8 @@ mod tests {
 
     use crate::asyncutil::future::RetryPolicy;
     use crate::cosmos;
+    use crate::monitoring::metrics::{Msg, TxConfirmationResult};
+    use crate::monitoring::test_utils;
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
@@ -208,13 +236,32 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx succeeded on chain"));
+
+        let msg = receiver.recv().await.unwrap();
+        match msg {
+            Msg::TransactionConfirmationPerformance {
+                result,
+                duration: _,
+            } => {
+                assert_eq!(
+                    result,
+                    TxConfirmationResult::SucceededOnChain,
+                    "should record succededOnChain"
+                );
+            }
+            _ => panic!("unexpected message: {:?}", msg),
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -245,13 +292,32 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx failed on chain"));
+
+        let msg = receiver.recv().await.unwrap();
+        match msg {
+            Msg::TransactionConfirmationPerformance {
+                result,
+                duration: _,
+            } => {
+                assert_eq!(
+                    result,
+                    TxConfirmationResult::FailedOnChain,
+                    "should record failedOnChain"
+                );
+            }
+            _ => panic!("unexpected message: {:?}", msg),
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -273,13 +339,30 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx not found on chain"));
+
+        let msg = receiver.recv().await.unwrap();
+        match msg {
+            Msg::TransactionConfirmationPerformance {
+                result,
+                duration: _,
+            } => {
+                assert_eq!(
+                    result,
+                    TxConfirmationResult::NotFound,
+                    "should record notFound"
+                );
+            }
+            _ => panic!("unexpected message: {:?}", msg),
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -301,12 +384,29 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("failed to query for tx"));
+
+        let msg = receiver.recv().await.unwrap();
+        match msg {
+            Msg::TransactionConfirmationPerformance {
+                result,
+                duration: _,
+            } => {
+                assert_eq!(
+                    result,
+                    TxConfirmationResult::QueryError,
+                    "should record queryError"
+                );
+            }
+            _ => panic!("unexpected message: {:?}", msg),
+        }
     }
 }

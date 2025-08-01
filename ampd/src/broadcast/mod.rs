@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use axelar_wasm_std::nonempty;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -13,7 +13,7 @@ use tokio_stream::StreamExt;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 
-use crate::monitoring::metrics::{EventStage, Msg};
+use crate::monitoring::metrics::Msg;
 use crate::types::TMAddress;
 use crate::{cosmos, monitoring, tofnd};
 
@@ -140,15 +140,8 @@ where
                 .await
                 .map(|res| res.txhash);
 
-            self.monitoring_client
-                .metrics()
-                .record_metric(Msg::EventStagePerformance {
-                    stage: EventStage::TransactionBroadcast,
-                    success: tx_hash.is_ok(),
-                    duration: start_time.elapsed(),
-                });
-
-            self.handle_tx_res(tx_hash, msgs).await?;
+            self.handle_tx_res(tx_hash, msgs, start_time.elapsed())
+                .await?;
         }
 
         Ok(())
@@ -224,6 +217,7 @@ where
         &self,
         tx_hash: Result<String>,
         msgs: nonempty::Vec<msg_queue::QueueMsg>,
+        duration: Duration,
     ) -> Result<()> {
         if let (Some(confirmer), Ok(tx_hash)) = (&self.tx_confirmer_client, &tx_hash) {
             confirmer
@@ -234,19 +228,27 @@ where
 
         let tx_hash = tx_hash.map_err(Arc::new);
 
-        Vec::from(msgs)
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, msg)| {
-                match &tx_hash {
-                    Ok(tx_hash) => {
-                        let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
-                    }
-                    Err(err) => {
-                        let _ = msg.tx_res_callback.send(Err(err.clone()));
-                    }
-                };
+        let msg_vec = Vec::from(msgs);
+        let msg_count = msg_vec.len();
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::TransactionBroadcastPerformance {
+                success: tx_hash.is_ok(),
+                duration,
+                num_messages: msg_count,
             });
+
+        msg_vec.into_iter().enumerate().for_each(|(i, msg)| {
+            match &tx_hash {
+                Ok(tx_hash) => {
+                    let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
+                }
+                Err(err) => {
+                    let _ = msg.tx_res_callback.send(Err(err.clone()));
+                }
+            };
+        });
 
         Ok(())
     }
@@ -1638,13 +1640,13 @@ mod tests {
         let msg1 = receiver.recv().await.unwrap();
 
         match msg1 {
-            Msg::EventStagePerformance {
-                stage,
+            Msg::TransactionBroadcastPerformance {
                 success,
                 duration: _,
+                num_messages,
             } => {
                 assert!(!success);
-                assert_eq!(stage, EventStage::TransactionBroadcast);
+                assert_eq!(num_messages, 1);
             }
             _ => panic!("expect EventStageResult message"),
         }
@@ -1652,13 +1654,13 @@ mod tests {
         let msg2 = receiver.recv().await.unwrap();
 
         match msg2 {
-            Msg::EventStagePerformance {
-                stage,
+            Msg::TransactionBroadcastPerformance {
                 success,
                 duration: _,
+                num_messages,
             } => {
                 assert!(success);
-                assert_eq!(stage, EventStage::TransactionBroadcast);
+                assert_eq!(num_messages, 1);
             }
             _ => panic!("expect EventStageResult message"),
         }

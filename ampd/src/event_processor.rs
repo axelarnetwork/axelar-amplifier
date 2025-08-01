@@ -5,7 +5,6 @@ use cosmrs::Any;
 use error_stack::{Context, Report, Result};
 use events::Event;
 use futures::{future, pin_mut, Stream, StreamExt, TryStreamExt};
-use monitoring::metrics::EventStage;
 use report::LoggableError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -144,8 +143,7 @@ where
 
     monitoring_client
         .metrics()
-        .record_metric(Msg::EventStagePerformance {
-            stage: EventStage::EventHandling,
+        .record_metric(Msg::EventHandlingPerformance {
             success: result.is_ok(),
             duration: start_time.elapsed(),
         });
@@ -159,8 +157,7 @@ where
 
                     monitoring_client
                         .metrics()
-                        .record_metric(Msg::EventStagePerformance {
-                            stage: EventStage::MessageEnqueue,
+                        .record_metric(Msg::MessageEnqueuePerformance {
                             success: res.is_ok(),
                             duration: start_time.elapsed(),
                         });
@@ -233,7 +230,7 @@ mod tests {
     use events::Event;
     use futures::{stream, StreamExt};
     use mockall::mock;
-    use monitoring::metrics::{EventStage, Msg as MetricsMsg};
+    use monitoring::metrics::Msg as MetricsMsg;
     use monitoring::test_utils;
     use report::ErrorExt;
     use tokio::time::timeout;
@@ -874,60 +871,51 @@ mod tests {
             monitoring_client,
         )
         .await;
-
-        let _ = receiver.recv().await.unwrap(); // block received
-
+        
+        let _ = receiver.recv().await.unwrap(); 
+     
         match receiver.recv().await.unwrap() {
-            // successfully handled event
-            MetricsMsg::EventStagePerformance {
-                stage,
+            MetricsMsg::EventHandlingPerformance {
                 success,
                 duration: _,
             } => {
-                assert_eq!(stage, EventStage::EventHandling);
                 assert!(success);
             }
             _ => panic!("unexpected metric"),
-        }
+        };
 
         match receiver.recv().await.unwrap() {
-            // successfully enqueued message
-            MetricsMsg::EventStagePerformance {
-                stage,
+            MetricsMsg::MessageEnqueuePerformance {
                 success,
                 duration: _,
             } => {
-                assert_eq!(stage, EventStage::MessageEnqueue);
                 assert!(success);
             }
             _ => panic!("unexpected metric"),
-        }
-        match receiver.recv().await.unwrap() {
-            // failed to enqueue message
-            MetricsMsg::EventStagePerformance {
-                stage,
-                success,
-                duration: _,
-            } => {
-                assert_eq!(stage, EventStage::MessageEnqueue);
-                assert!(!success);
-            }
-            _ => panic!("unexpected metric"),
-        }
-        let _ = receiver.recv().await.unwrap(); // block received
+        };
 
         match receiver.recv().await.unwrap() {
-            // handle failed
-            MetricsMsg::EventStagePerformance {
-                stage,
+            MetricsMsg::MessageEnqueuePerformance {
                 success,
                 duration: _,
             } => {
-                assert_eq!(stage, EventStage::EventHandling);
                 assert!(!success);
             }
             _ => panic!("unexpected metric"),
-        }
+        };
+     
+        let _ = receiver.recv().await.unwrap();
+
+  
+        match receiver.recv().await.unwrap() {
+            MetricsMsg::EventHandlingPerformance {
+                success,
+                duration: _,
+            } => {
+                assert!(!success);
+            }
+            _ => panic!("unexpected metric"),
+        };
 
         assert!(receiver.try_recv().is_err());
     }
