@@ -18,7 +18,9 @@ license = "MIT OR Apache-2.0"
 [workspace.metadata.dylint]
 
 [[workspace.metadata.dylint.libraries]]
-path = "../axelar-lints/amplifier-lints"
+git = "https://github.com/axelarnetwork/axelar-lints"
+pattern = "amplifier-lints"
+rev = "ebfed5dde7990739367c182338a3b6c2dd11ef09"
 
 [workspace.dependencies]
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
