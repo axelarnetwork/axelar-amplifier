@@ -6,12 +6,14 @@ use std::time::Duration;
 use error_stack::{Result, ResultExt};
 use futures::future::join_all;
 use hex::ToHex;
+use router_api::ChainName;
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::monitoring::metrics::Msg;
 use crate::types::Hash;
 use crate::url::Url;
-use crate::Error as BaseError;
+use crate::{monitoring, Error as BaseError};
 
 const TRANSACTION: &str = "extended/v1/tx/0x";
 const LATEST_BLOCK: &str = "extended/v2/blocks/latest";
@@ -63,11 +65,18 @@ pub struct Block {
 pub struct Client {
     api_url: String,
     client: reqwest::Client,
+    monitoring_client: monitoring::Client,
+    chain_name: ChainName,
 }
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new_http(api_url: Url, rpc_timeout: Duration) -> Result<Self, BaseError> {
+    pub fn new_http(
+        api_url: Url,
+        rpc_timeout: Duration,
+        monitoring_client: monitoring::Client,
+        chain_name: ChainName,
+    ) -> Result<Self, BaseError> {
         Ok(Client {
             api_url: api_url.to_string().trim_end_matches('/').into(),
             client: reqwest::ClientBuilder::new()
@@ -75,6 +84,8 @@ impl Client {
                 .timeout(rpc_timeout)
                 .build()
                 .change_context(BaseError::Connection)?,
+            monitoring_client,
+            chain_name,
         })
     }
 
@@ -119,9 +130,23 @@ impl Client {
             .get(endpoint.clone())
             .send()
             .await
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcError {
+                        chain_name: self.chain_name.clone(),
+                    });
+            })
             .map_err(|_| Error::LatestBlock { endpoint })?
             .json::<Block>()
             .await
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcError {
+                        chain_name: self.chain_name.clone(),
+                    });
+            })
             .map_err(|_| Error::Json)
     }
 
@@ -134,9 +159,23 @@ impl Client {
             .get(endpoint.clone())
             .send()
             .await
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcError {
+                        chain_name: self.chain_name.clone(),
+                    });
+            })
             .map_err(|_| Error::TxHash { endpoint })?
             .json::<Transaction>()
             .await
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcError {
+                        chain_name: self.chain_name.clone(),
+                    });
+            })
             .map_err(|_| Error::Json)
     }
 
@@ -151,9 +190,16 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use std::time::Duration;
 
+    use hex::ToHex;
+    use router_api::ChainName;
+
     use super::{Block, Client, Transaction};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
+    use crate::types::Hash;
     use crate::url::Url;
 
     #[test]
@@ -345,8 +391,15 @@ mod tests {
     fn test_new_http() {
         let url = Url::new_non_sensitive("http://localhost:3999").unwrap();
         let timeout = Duration::from_secs(30);
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
-        let client = Client::new_http(url, timeout).unwrap();
+        let client = Client::new_http(
+            url,
+            timeout,
+            monitoring_client,
+            ChainName::from_str("stacks").unwrap(),
+        )
+        .unwrap();
 
         let endpoint = client.endpoint("test");
         assert!(endpoint.contains("localhost:3999"));
@@ -356,8 +409,15 @@ mod tests {
     fn test_new_http_trims_trailing_slash() {
         let url = Url::new_non_sensitive("http://localhost:3999/").unwrap();
         let timeout = Duration::from_secs(30);
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
-        let client = Client::new_http(url, timeout).unwrap();
+        let client = Client::new_http(
+            url,
+            timeout,
+            monitoring_client,
+            ChainName::from_str("stacks").unwrap(),
+        )
+        .unwrap();
 
         let endpoint = client.endpoint("test");
         assert!(!endpoint.ends_with("//test"));
@@ -367,9 +427,54 @@ mod tests {
     fn test_endpoint() {
         let url = Url::new_non_sensitive("http://localhost:3999").unwrap();
         let timeout = Duration::from_secs(30);
-        let client = Client::new_http(url, timeout).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let client = Client::new_http(
+            url,
+            timeout,
+            monitoring_client,
+            ChainName::from_str("stacks").unwrap(),
+        )
+        .unwrap();
 
         let endpoint = client.endpoint("test/path");
         assert_eq!(endpoint, "http://localhost:3999/test/path");
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let client = Client::new_http(
+            Url::new_non_sensitive("http://invalid-url-that-will-fail").unwrap(),
+            Duration::from_millis(1),
+            monitoring_client,
+            ChainName::from_str("stacks").unwrap(),
+        )
+        .unwrap();
+
+        let result = client.latest_block().await;
+        assert!(result.is_err());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcError {
+                chain_name: ChainName::from_str("stacks").unwrap(),
+            }
+        );
+
+        let tx_hash = Hash::from([0u8; 32]);
+        let result = client.transaction(&tx_hash.encode_hex::<String>()).await;
+        assert!(result.is_err());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcError {
+                chain_name: ChainName::from_str("stacks").unwrap(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 }
