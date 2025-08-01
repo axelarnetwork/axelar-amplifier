@@ -18,4 +18,12 @@ verification_votes_total{chain_name="solana",vote_decision="SucceededOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="FailedOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="NotFound"} 1
 verification_votes_total{chain_name="stellar",vote_decision="SucceededOnChain"} 1
+# HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
+# TYPE ampd_cpu_usage_percent gauge
+# UNIT ampd_cpu_usage_percent percent
+ampd_cpu_usage_percent 0
+# HELP ampd_memory_usage_bytes Memory usage of the ampd process in bytes
+# TYPE ampd_memory_usage_bytes gauge
+# UNIT ampd_memory_usage_bytes bytes
+ampd_memory_usage_bytes 0
 # EOF
