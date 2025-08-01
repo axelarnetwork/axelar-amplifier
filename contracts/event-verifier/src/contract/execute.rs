@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::address::{validate_address, AddressFormat};
+
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
@@ -48,11 +48,7 @@ pub fn verify_events(
     let config = CONFIG.load(deps.storage).expect("failed to load config");
 
     let events = events.try_map(|event| {
-        validate_event_source_chain(event, &config.source_chain)
-            .and_then(|event| validate_event_source_address(event, &config.address_format))
-            .and_then(|event| {
-                event_status(deps.as_ref(), &event, env.block.height).map(|status| (status, event))
-            })
+        event_status(deps.as_ref(), &event, env.block.height).map(|status| (status, event))
     })?;
 
     let events_to_verify: Vec<crate::msg::EventToVerify> = events
@@ -71,7 +67,9 @@ pub fn verify_events(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
+    // Get source chain from the first event - all events in a batch should have the same source chain
+    let source_chain = &events_to_verify[0].event_id.source_chain;
+    let snapshot = take_snapshot(deps.as_ref(), source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
 
@@ -88,9 +86,10 @@ pub fn verify_events(
     }
 
     let event_confirmations = events_to_verify
-        .into_iter()
+        .iter()
         .map(|event| {
-            TxEventConfirmation::try_from((event.clone(), &config.msg_id_format))
+            // MessageIdFormat is no longer used in the implementation, so we can pass a dummy value
+            TxEventConfirmation::try_from((event.clone(), &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex))
                 .map_err(|err| report!(err))
         })
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
@@ -99,8 +98,7 @@ pub fn verify_events(
         events: event_confirmations,
         metadata: PollMetadata {
             poll_id: id,
-            source_chain: config.source_chain,
-            source_gateway_address: config.source_gateway_address,
+            source_chain: source_chain.clone(),
             confirmation_height: config.confirmation_height,
             expires_at,
             participants,
@@ -199,6 +197,13 @@ pub fn vote(
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).expect("failed to load config");
+    
+    // Get source chain from the poll events
+    let events = state::poll_events().idx.load_events(deps.storage, poll_id)
+        .change_context(ContractError::StorageError)?;
+    let source_chain = events.first()
+        .ok_or(ContractError::EmptyEvents)?
+        .event_id.source_chain.clone();
 
     let poll = POLLS
         .may_load(deps.storage, poll_id)
@@ -227,7 +232,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .map(|address| WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
             msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                chain_name: config.source_chain.clone(),
+                chain_name: source_chain.clone(),
                 event_id: poll_id
                     .to_string()
                     .try_into()
@@ -243,7 +248,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .add_event(PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
-            source_chain: config.source_chain,
+            source_chain: source_chain,
         }))
 }
 
@@ -294,38 +299,4 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .map_err(Report::from)
 }
 
-fn validate_event_source_chain(
-    event: crate::msg::EventToVerify,
-    source_chain: &ChainName,
-) -> Result<crate::msg::EventToVerify, ContractError> {
-    if event.event_id.source_chain != *source_chain {
-        Err(report!(ContractError::SourceChainMismatch(
-            source_chain.clone()
-        )))
-    } else {
-        Ok(event)
-    }
-}
 
-fn validate_event_source_address(
-    event: crate::msg::EventToVerify,
-    address_format: &AddressFormat,
-) -> Result<crate::msg::EventToVerify, ContractError> {
-    match &event.event_data {
-        crate::msg::EventData::Evm { transaction_details, events } => {
-            // Validate transaction_details 'to' address if present
-            if let Some(tx_details) = transaction_details {
-                validate_address(&tx_details.to, address_format)
-                    .change_context(ContractError::InvalidSourceAddress)?;
-            }
-            
-            // Validate all event contract addresses
-            for event in events {
-                validate_address(&event.contract_address, address_format)
-                    .change_context(ContractError::InvalidSourceAddress)?;
-            }
-        }
-    }
-
-    Ok(event)
-}

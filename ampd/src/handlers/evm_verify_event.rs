@@ -42,7 +42,6 @@ pub struct Event {
 struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: EVMAddress,
     confirmation_height: u64,
     expires_at: u64,
     events: Vec<Event>,
@@ -164,7 +163,6 @@ where
         let PollStartedEvent {
             poll_id,
             source_chain,
-            source_gateway_address,
             events,
             expires_at,
             confirmation_height,
@@ -223,7 +221,7 @@ where
                         if let Some(tx) = tx_opt {
                             println!("tx: {:?}", tx);
                         }
-                        verify_event(&source_gateway_address, tx_receipt, tx_opt.as_ref(), evt)
+                        verify_event(tx_receipt, tx_opt.as_ref(), evt)
                     })
             })
             .collect();
@@ -287,9 +285,6 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants

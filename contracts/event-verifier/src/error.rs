@@ -44,8 +44,7 @@ pub enum ContractError {
     #[error("invalid source address")]
     InvalidSourceAddress,
 
-    #[error("invalid source gateway address")]
-    InvalidSourceGatewayAddress,
+
 
     // Generic error to wrap cw_storage_plus errors
     // This should only be used for things that shouldn't happen, such as encountering

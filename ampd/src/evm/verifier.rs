@@ -133,7 +133,6 @@ pub fn verify_verifier_set(
 }
 
 pub fn verify_event(
-    _gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
     tx: Option<&Transaction>,
     event: &Event,

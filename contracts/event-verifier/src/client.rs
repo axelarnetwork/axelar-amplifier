@@ -186,19 +186,13 @@ mod test {
                 .try_into()
                 .unwrap(),
             service_name: "event-verifier".try_into().unwrap(),
-            source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
-                .try_into()
-                .unwrap(),
             voting_threshold: Threshold::try_from((Uint64::new(2), Uint64::new(3)))
                 .unwrap()
                 .try_into()
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
-            source_chain: "source-chain".parse().unwrap(),
             rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
-            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            address_format: axelar_wasm_std::address::AddressFormat::Eip55,
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

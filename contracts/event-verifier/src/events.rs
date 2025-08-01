@@ -16,14 +16,10 @@ impl From<Config> for Vec<Attribute> {
         let Config {
             service_name,
             service_registry_contract,
-            source_gateway_address,
             voting_threshold,
             block_expiry,
             confirmation_height,
-            source_chain,
             rewards_contract,
-            msg_id_format,
-            address_format,
         } = other;
 
         vec![
@@ -32,7 +28,6 @@ impl From<Config> for Vec<Attribute> {
                 "service_registry_contract",
                 service_registry_contract.to_string(),
             ),
-            ("source_gateway_address", source_gateway_address.to_string()),
             (
                 "voting_threshold",
                 serde_json::to_string(&voting_threshold)
@@ -40,16 +35,7 @@ impl From<Config> for Vec<Attribute> {
             ),
             ("block_expiry", block_expiry.to_string()),
             ("confirmation_height", confirmation_height.to_string()),
-            ("source_chain", source_chain.to_string()),
             ("rewards_contract", rewards_contract.to_string()),
-            (
-                "msg_id_format",
-                serde_json::to_string(&msg_id_format).expect("failed to serialize msg_id_format"),
-            ),
-            (
-                "address_format",
-                serde_json::to_string(&address_format).expect("failed to serialize address_format"),
-            ),
         ]
         .into_iter()
         .map(Attribute::from)
@@ -60,7 +46,6 @@ impl From<Config> for Vec<Attribute> {
 pub struct PollMetadata {
     pub poll_id: PollId,
     pub source_chain: ChainName,
-    pub source_gateway_address: nonempty::String,
     pub confirmation_height: u64,
     pub expires_at: u64,
     pub participants: Vec<Addr>,
@@ -81,7 +66,6 @@ impl From<PollMetadata> for Vec<Attribute> {
                 &serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
             ),
             ("source_chain", &value.source_chain.to_string()),
-            ("source_gateway_address", &value.source_gateway_address),
             (
                 "confirmation_height",
                 &value.confirmation_height.to_string(),
@@ -260,7 +244,6 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: 1.into(),
                 source_chain: "sourceChain".try_into().unwrap(),
-                source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
                 confirmation_height: 1,
                 expires_at: 1,
                 participants: vec![

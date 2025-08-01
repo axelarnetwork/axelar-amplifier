@@ -1,4 +1,3 @@
-use axelar_wasm_std::address::validate_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -32,8 +31,7 @@ pub fn instantiate(
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    validate_address(&msg.source_gateway_address, &msg.address_format)
-        .change_context(ContractError::InvalidSourceGatewayAddress)?;
+
 
     let config = Config {
         service_name: msg.service_name,
@@ -41,14 +39,10 @@ pub fn instantiate(
             deps.api,
             &msg.service_registry_address,
         )?,
-        source_gateway_address: msg.source_gateway_address,
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
         confirmation_height: msg.confirmation_height,
-        source_chain: msg.source_chain,
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
-        msg_id_format: msg.msg_id_format,
-        address_format: msg.address_format,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -179,16 +173,10 @@ mod test {
                 governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
-                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
-                    .parse()
-                    .unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
-                source_chain: source_chain(),
                 rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
-                msg_id_format: msg_id_format.clone(),
-                address_format: AddressFormat::Eip55,
             },
         )
         .unwrap();
@@ -309,68 +297,7 @@ mod test {
         env
     }
 
-    #[test]
-    fn should_fail_if_gateway_address_format_is_invalid() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
 
-        struct TestCase {
-            source_gateway_address: String,
-            address_format: AddressFormat,
-            should_fail: bool,
-        }
-
-        let test_cases = vec![
-            TestCase {
-                source_gateway_address: "0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41".to_string(),
-                address_format: AddressFormat::Eip55,
-                should_fail: false,
-            },
-            TestCase {
-                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5".to_string(),
-                address_format: AddressFormat::Eip55,
-                should_fail: false,
-            },
-            TestCase {
-                source_gateway_address: "0xInvalidAddress".to_string(),
-                address_format: AddressFormat::Eip55,
-                should_fail: true,
-            },
-        ];
-
-        for case in test_cases {
-            let msg = InstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string().try_into().unwrap(),
-                service_registry_address: api
-                    .addr_make("service_registry")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
-                service_name: "validators".to_string().try_into().unwrap(),
-                source_gateway_address: case.source_gateway_address.try_into().unwrap(),
-                voting_threshold: initial_voting_threshold(),
-                block_expiry: nonempty::Uint64::try_from(10u64).unwrap(),
-                confirmation_height: 1,
-                source_chain: "test-chain".parse().unwrap(),
-                rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
-                msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-                address_format: case.address_format,
-            };
-
-            let res = instantiate(
-                deps.as_mut(),
-                mock_env(),
-                message_info(&api.addr_make("admin"), &[]),
-                msg,
-            );
-
-            if case.should_fail {
-                assert!(res.is_err());
-            } else {
-                assert!(res.is_ok());
-            }
-        }
-    }
 
     #[test]
     fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
