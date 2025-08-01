@@ -22,7 +22,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
-use crate::stacks::verifier::{get_type_signature_signers_rotated, verify_verifier_set};
+use crate::stacks::verifier::{type_signature_signers_rotated, verify_verifier_set};
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -63,7 +63,7 @@ impl Handler {
         http_client: Client,
         latest_block_height: Receiver<u64>,
     ) -> error_stack::Result<Self, crate::stacks::error::Error> {
-        let type_signature_signers_rotated = get_type_signature_signers_rotated()?;
+        let type_signature_signers_rotated = type_signature_signers_rotated()?;
 
         Ok(Self {
             chain_name,
