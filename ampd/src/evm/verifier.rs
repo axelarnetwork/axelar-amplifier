@@ -145,7 +145,7 @@ pub fn verify_event(
         return Vote::FailedOnChain;
     }
 
-    let expected_transaction_hash: H256 = event.transaction_hash.tx_hash_as_hex().parse().unwrap();
+    let expected_transaction_hash: H256 = event.transaction_hash.parse::<H256>().unwrap();
 
     // Check transaction hash matches
     if tx_receipt.transaction_hash != expected_transaction_hash {
@@ -217,7 +217,7 @@ pub fn verify_event(
             // Verify all events specified in the event data
             if events.is_empty() {
                 println!("no events found to verify");
-                return Vote::NotFound;
+                return Vote::SucceededOnChain;
             }
 
             // Verify each event against the corresponding log in the transaction receipt

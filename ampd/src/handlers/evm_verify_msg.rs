@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -8,7 +8,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use ethers_core::types::{TransactionReceipt, U64};
+use ethers_core::types::{Transaction, TransactionReceipt, U64};
 use events::try_from;
 use events::Error::EventTypeMismatch;
 use futures::future::join_all;
@@ -90,9 +90,9 @@ where
         &self,
         tx_hashes: T,
         confirmation_height: u64,
-    ) -> Result<HashMap<Hash, TransactionReceipt>>
+    ) -> Result<HashMap<Hash, (Option<Transaction>, TransactionReceipt)>>
     where
-        T: IntoIterator<Item = Hash>,
+        T: IntoIterator<Item = (Hash, bool)>,
     {
         let latest_finalized_block_height =
             finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
@@ -100,21 +100,36 @@ where
                 .await
                 .change_context(Error::Finalizer)?;
 
-        Ok(join_all(
-            tx_hashes
-                .into_iter()
-                .map(|tx_hash| self.rpc_client.transaction_receipt(tx_hash)),
-        )
+        Ok(join_all(tx_hashes.into_iter().map(|(tx_hash, needs_transaction)| async move {
+            let receipt_future = self.rpc_client.transaction_receipt(tx_hash);
+            
+            let receipt_result = receipt_future.await;
+            
+            if let Ok(Some(receipt)) = receipt_result {
+                // Only fetch transaction if this hash needs it
+                if needs_transaction {
+                    let tx_future = self.rpc_client.transaction_by_hash(tx_hash);
+                    match tx_future.await {
+                        Ok(Some(tx)) => Some((tx_hash, Some(tx), receipt)),
+                        _ => Some((tx_hash, None, receipt)),
+                    }
+                } else {
+                    Some((tx_hash, None, receipt))
+                }
+            } else {
+                None
+            }
+        }))
         .await
         .into_iter()
-        .filter_map(std::result::Result::unwrap_or_default)
-        .filter_map(|tx_receipt| {
+        .filter_map(|result| result)
+        .filter_map(|(_tx_hash, tx, tx_receipt)| {
             if tx_receipt
                 .block_number
                 .unwrap_or(U64::MAX)
                 .le(&latest_finalized_block_height)
             {
-                Some((tx_receipt.transaction_hash, tx_receipt))
+                Some((tx_receipt.transaction_hash, (tx, tx_receipt)))
             } else {
                 None
             }
@@ -173,12 +188,12 @@ where
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<Hash> = messages
+        let tx_hashes_with_flags: Vec<(Hash, bool)> = messages
             .iter()
-            .map(|msg| msg.message_id.tx_hash.into())
+            .map(|msg| (msg.message_id.tx_hash.into(), false)) // Messages don't need transaction details
             .collect();
         let finalized_tx_receipts = self
-            .finalized_tx_receipts(tx_hashes, confirmation_height)
+            .finalized_tx_receipts(tx_hashes_with_flags, confirmation_height)
             .await?;
 
         let poll_id_str: String = poll_id.into();
@@ -201,7 +216,7 @@ where
                 .map(|msg| {
                     finalized_tx_receipts
                         .get(&msg.message_id.tx_hash.into())
-                        .map_or(Vote::NotFound, |tx_receipt| {
+                        .map_or(Vote::NotFound, |(_tx_opt, tx_receipt)| {
                             verify_message(&source_gateway_address, tx_receipt, msg)
                         })
                 })
