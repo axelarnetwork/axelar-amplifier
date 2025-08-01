@@ -116,7 +116,7 @@ jobs:
         run: cargo +nightly fmt-check #alias
 
       - name: Run cargo sort
-        run: cargo sort-check
+        run: cargo sort-check #alias
 
       - name: Run cargo clippy
         run: cargo clippy-check
