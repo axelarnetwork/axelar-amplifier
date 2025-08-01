@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use axelar_solana_gateway::processor::GatewayEvent;
 use axelar_solana_gateway::state::GatewayConfig;
-use axelar_solana_gateway::BytemuckedPda;
-use axelar_solana_gateway::{processor::GatewayEvent, seed_prefixes};
+use axelar_solana_gateway::{seed_prefixes, BytemuckedPda};
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
 use futures::FutureExt;
