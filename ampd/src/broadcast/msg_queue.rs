@@ -410,8 +410,8 @@ mod tests {
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
 
     use super::*;
-    use crate::broadcaster_v2::dec_coin::DecCoin;
-    use crate::broadcaster_v2::{test_utils, Error};
+    use crate::broadcast::dec_coin::DecCoin;
+    use crate::broadcast::{test_utils, Error};
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::PREFIX;
 
