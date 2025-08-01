@@ -1,3 +1,5 @@
+dummy changes
+
 # Axelar Amplifier
 
 The Interchain Amplifier enables developers to permissionlessly set up connections to the Axelar network. Developers
@@ -51,7 +53,7 @@ For team members responsible for managing releases, please refer to the [ampd re
 
 #### For Users
 
-1. **Ampd**: 
+1. **Ampd**:
    - Official ampd releases can be downloaded from the [GitHub Releases page](https://github.com/axelarnetwork/axelar-amplifier/releases)
    - These releases include prebuilt binaries for different platforms
 
@@ -61,7 +63,7 @@ For team members responsible for managing releases, please refer to the [ampd re
      - `https://static.axelar.network/releases/cosmwasm/coordinator/2.0.0/*`
      - `https://static.axelar.network/releases/cosmwasm/gateway/[tag]/*`
      - `https://static.axelar.network/releases/cosmwasm/multisig/[tag]/*`
-   
+
    - For information on deploying these contracts, refer to the [Axelar Contract Deployments guide](https://github.com/axelarnetwork/axelar-contract-deployments/blob/main/cosmwasm/README.md)
 
 
@@ -97,5 +99,5 @@ contracts and `ampd` that work well together.
 | router                                                                         | 0.4.0   |
 | service-registry                                                               | 0.4.1   |
 | voting-verifier                                                                | 0.5.0   |
-| [tofnd](https://github.com/axelarnetwork/tofnd)                                | 1.0.1   |      
+| [tofnd](https://github.com/axelarnetwork/tofnd)                                | 1.0.1   |
 | [solidity-contracts](https://github.com/axelarnetwork/axelar-gmp-sdk-solidity) | 5.9.0   |
