@@ -285,9 +285,9 @@ mod tests {
     use tokio_stream::wrappers::ReceiverStream;
     use tokio_stream::{empty, iter};
 
-    use crate::broadcaster_v2::dec_coin::DecCoin;
-    use crate::broadcaster_v2::msg_queue::QueueMsg;
-    use crate::broadcaster_v2::{broadcaster, test_utils, BroadcasterTask, Error};
+    use crate::broadcast::dec_coin::DecCoin;
+    use crate::broadcast::msg_queue::QueueMsg;
+    use crate::broadcast::{broadcaster, test_utils, BroadcasterTask, Error};
     use crate::tofnd::{self, MockMultisig};
     use crate::types::random_cosmos_public_key;
     use crate::{cosmos, PREFIX};
