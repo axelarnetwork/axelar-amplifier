@@ -2,9 +2,15 @@ name: Security Audit
 
 on:
   pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
   push:
     branches:
       - main
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,14 +25,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.86.0
-          override: true
-
       - name: Run cargo audit
-        uses: actions-rs/audit-check@v1.2.0
+        uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

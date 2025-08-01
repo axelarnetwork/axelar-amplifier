@@ -1,5 +1,3 @@
-dummy changes
-
 # Axelar Amplifier
 
 The Interchain Amplifier enables developers to permissionlessly set up connections to the Axelar network. Developers
