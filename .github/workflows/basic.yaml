@@ -119,7 +119,7 @@ jobs:
         run: cargo sort-check #alias
 
       - name: Run cargo clippy
-        run: cargo clippy-check
+        run: cargo clippy-check # alias
 
       - name: Check Diff
         # fails if any changes not committed
