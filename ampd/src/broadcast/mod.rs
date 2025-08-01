@@ -229,14 +229,14 @@ where
         let tx_hash = tx_hash.map_err(Arc::new);
 
         let msg_vec = Vec::from(msgs);
-        let msg_count = msg_vec.len();
+        let num_messages = msg_vec.len();
 
         self.monitoring_client
             .metrics()
             .record_metric(Msg::TransactionBroadcastPerformance {
                 success: tx_hash.is_ok(),
                 duration,
-                num_messages: msg_count,
+                num_messages: num_messages,
             });
 
         msg_vec.into_iter().enumerate().for_each(|(i, msg)| {

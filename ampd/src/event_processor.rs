@@ -124,7 +124,6 @@ where
     Ok(())
 }
 
-// pass the monitoring client to here -> record handler processing time?
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
     handler: &H,
@@ -871,9 +870,9 @@ mod tests {
             monitoring_client,
         )
         .await;
-        
-        let _ = receiver.recv().await.unwrap(); 
-     
+
+        let _ = receiver.recv().await.unwrap();
+
         match receiver.recv().await.unwrap() {
             MetricsMsg::EventHandlingPerformance {
                 success,
@@ -903,10 +902,9 @@ mod tests {
             }
             _ => panic!("unexpected metric"),
         };
-     
+
         let _ = receiver.recv().await.unwrap();
 
-  
         match receiver.recv().await.unwrap() {
             MetricsMsg::EventHandlingPerformance {
                 success,
