@@ -1,17 +1,23 @@
 name: Security Audit
 
+# This workflow runs cargo-audit to check for known security vulnerabilities
+# in project dependencies using the RustSec Advisory Database.
+#
+# The workflow uses cargo-audit v0.21.2 which supports Cargo.lock version 4
+# format introduced in Rust 1.86+.
+#
+# Despite the recommendation in the related audit-check documentation (https://github.com/rustsec/audit-check?tab=readme-ov-file#audit-changes),
+# this does not restrict the check to just when Cargo.toml or Cargo.lock files have changed, so retroactive vulnerabilities
+# on existing dependencies will be notices as soon as possible.
+
 on:
   pull_request:
-    paths:
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
   push:
     branches:
       - main
-    paths:
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
 
+# Prevent multiple instances of this workflow from running simultaneously
+# on the same branch/PR to avoid resource waste
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -21,7 +27,8 @@ jobs:
     name: Cargo Audit
     runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository including submodules
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -32,6 +39,7 @@ jobs:
           toolchain: 1.86.0
           default: true
 
+      # Install cargo-audit explicitly because available github actions don't support Cargo.lock v4 yet
       - name: Install cargo-audit
         uses: baptiste0928/cargo-install@v3
         with:
