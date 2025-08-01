@@ -8,7 +8,7 @@ name: Security Audit
 #
 # Despite the recommendation in the related audit-check documentation (https://github.com/rustsec/audit-check?tab=readme-ov-file#audit-changes),
 # this does not restrict the check to just when Cargo.toml or Cargo.lock files have changed, so retroactive vulnerabilities
-# on existing dependencies will be notices as soon as possible.
+# on existing dependencies will be noticed as soon as possible.
 
 on:
   pull_request:
