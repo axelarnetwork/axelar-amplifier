@@ -13,16 +13,18 @@ concurrency:
 jobs:
   docs:
     name: Build and validate documentation
-    runs-on: ubuntu-22.04
-    
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: 1.86.0
+          # only need ~/.cargo for mdBook tools and no build artifacts, so forego built-in cache and set up caching manually
+          cache: false
+          rustflags: ""
 
       - name: Cache cargo and tools
         id: cache-cargo
@@ -30,7 +32,6 @@ jobs:
         with:
           path: |
             ~/.cargo
-          save-always: true
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
@@ -46,7 +47,7 @@ jobs:
           cd doc
           mdbook build
           cd ..
-          
+
           if [ ! -d "target/book" ]; then
             echo "Error: Documentation build failed - target/book directory not found"
             exit 1

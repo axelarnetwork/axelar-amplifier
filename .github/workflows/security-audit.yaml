@@ -32,12 +32,8 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.86.0
-          default: true
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       # Install cargo-audit explicitly because available github actions don't support Cargo.lock v4 yet
       - name: Install cargo-audit

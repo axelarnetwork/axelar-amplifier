@@ -1,0 +1,22 @@
+[toolchain]
+# Rust version - matches workspace.package.rust-version in Cargo.toml
+# This version must be supported by CosmWasm optimizer before updating
+# See: https://github.com/CosmWasm/optimizer
+# Also used in Docker images (ampd/Dockerfile, ampd-handlers/Dockerfile)
+channel = "1.86.0"
+
+# Components needed by the project:
+# - rustfmt: Required for code formatting checks (cargo fmt-check alias)
+#   Note: justfile and some workflows use +nightly for formatting, but we include
+#   rustfmt in stable toolchain for local development
+# - clippy: Required for linting checks (cargo clippy-check alias)
+components = ["rustfmt", "clippy"]
+
+# Targets needed by the project:
+# - wasm32-unknown-unknown: Required for CosmWasm contract compilation
+#   Used by 'cargo wasm' alias in .cargo/config.toml
+targets = ["wasm32-unknown-unknown"]
+
+# Use minimal profile to reduce installation size
+# Includes: rustc, rust-std, cargo
+profile = "minimal"
