@@ -4,6 +4,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 use ampd_proto::blockchain_service_server::BlockchainServiceServer;
+use ampd_proto::broadcast_service_server::BroadcastServiceServer;
 use ampd_proto::crypto_service_server::CryptoServiceServer;
 use axelar_wasm_std::nonempty;
 use error_stack::Result;
@@ -23,6 +24,7 @@ use crate::types::debug::REDACTED_VALUE;
 use crate::{broadcast, cosmos, event_sub, tofnd};
 
 mod blockchain_service;
+mod broadcast_service;
 mod crypto_service;
 mod reqs;
 mod status;
@@ -139,10 +141,12 @@ impl Server {
                 self.config.global_concurrency_limit.into(),
             ))
             .concurrency_limit_per_connection(self.config.concurrency_limit_per_connection.into())
+            .add_service(BroadcastServiceServer::new(
+                broadcast_service::Service::new(self.msg_queue_client),
+            ))
             .add_service(BlockchainServiceServer::new(
                 blockchain_service::Service::builder()
                     .event_sub(self.event_sub)
-                    .msg_queue_client(self.msg_queue_client)
                     .cosmos_client(self.cosmos_grpc_client)
                     .build(),
             ))
