@@ -236,7 +236,7 @@ where
             .record_metric(Msg::TransactionBroadcastPerformance {
                 success: tx_hash.is_ok(),
                 duration,
-                num_messages: num_messages,
+                num_messages,
             });
 
         msg_vec.into_iter().enumerate().for_each(|(i, msg)| {
@@ -303,7 +303,7 @@ mod tests {
     use crate::broadcast::dec_coin::DecCoin;
     use crate::broadcast::msg_queue::QueueMsg;
     use crate::broadcast::{broadcaster, test_utils, BroadcasterTask, Error};
-    use crate::monitoring::metrics::{EventStage, Msg};
+    use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils as monitoring_test_utils;
     use crate::tofnd::{self, MockMultisig};
     use crate::types::random_cosmos_public_key;
@@ -1648,7 +1648,7 @@ mod tests {
                 assert!(!success);
                 assert_eq!(num_messages, 1);
             }
-            _ => panic!("expect EventStageResult message"),
+            _ => panic!("expect TransactionBroadcastPerformance message"),
         }
 
         let msg2 = receiver.recv().await.unwrap();
@@ -1662,7 +1662,7 @@ mod tests {
                 assert!(success);
                 assert_eq!(num_messages, 1);
             }
-            _ => panic!("expect EventStageResult message"),
+            _ => panic!("expect TransactionBroadcastPerformance message"),
         }
 
         assert!(receiver.try_recv().is_err());
