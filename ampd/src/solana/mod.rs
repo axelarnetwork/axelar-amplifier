@@ -40,7 +40,7 @@ impl SolanaRpcClientProxy for RpcClient {
     }
 
     async fn domain_separator(&self, source_gateway_address: &str) -> Option<[u8; 32]> {
-        let gateway_program_id = Pubkey::from_str(&source_gateway_address).ok()?;
+        let gateway_program_id = Pubkey::from_str(source_gateway_address).ok()?;
         let (gateway_root_pda, ..) =
             Pubkey::find_program_address(&[seed_prefixes::GATEWAY_SEED], &gateway_program_id);
 
