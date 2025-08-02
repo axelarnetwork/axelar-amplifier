@@ -150,11 +150,11 @@ pub fn unfreeze_chains(
 }
 
 pub fn disable_routing(storage: &mut dyn Storage) -> Result<Response, Error> {
-    killswitch::engage(storage, RouterEvent::RoutingDisabled {}).map_err(|err| err.into())
+    killswitch::engage(storage, RouterEvent::RoutingDisabled).map_err(|err| err.into())
 }
 
 pub fn enable_routing(storage: &mut dyn Storage) -> Result<Response, Error> {
-    killswitch::disengage(storage, RouterEvent::RoutingEnabled {}).map_err(|err| err.into())
+    killswitch::disengage(storage, RouterEvent::RoutingEnabled).map_err(|err| err.into())
 }
 
 fn verify_msg_ids(
