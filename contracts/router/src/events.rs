@@ -12,14 +12,8 @@ pub enum Event {
         name: ChainName,
         gateway: Addr,
     },
-    GatewayInfo {
-        chain: ChainName,
-        gateway_address: Addr,
-    },
-    GatewayUpgraded {
-        chain: ChainName,
-        gateway_address: Addr,
-    },
+    GatewayInfo(GatewayInfo),
+    GatewayUpgraded(GatewayInfo),
     ChainFrozen {
         name: ChainName,
         direction: GatewayDirection,
@@ -33,11 +27,18 @@ pub enum Event {
     RoutingEnabled,
 }
 
+#[derive(EventAttributes, serde::Serialize)]
+pub struct GatewayInfo {
+    pub chain: ChainName,
+    pub gateway_address: Addr,
+}
+
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::MockApi;
 
     use super::*;
+    use crate::events::GatewayInfo;
     use crate::Event;
 
     #[test]
@@ -67,10 +68,10 @@ mod tests {
     #[test]
     fn gateway_info_is_serializable() {
         let api = MockApi::default();
-        let event = Event::GatewayInfo {
+        let event = Event::GatewayInfo(GatewayInfo {
             chain: "ethereum".parse().unwrap(),
             gateway_address: api.addr_make("gateway"),
-        };
+        });
         let event = cosmwasm_std::Event::from(event);
 
         goldie::assert_json!(event);
@@ -79,10 +80,10 @@ mod tests {
     #[test]
     fn gateway_upgraded_is_serializable() {
         let api = MockApi::default();
-        let event = Event::GatewayUpgraded {
+        let event = Event::GatewayUpgraded(GatewayInfo {
             chain: "ethereum".parse().unwrap(),
             gateway_address: api.addr_make("gateway"),
-        };
+        });
         let event = cosmwasm_std::Event::from(event);
 
         goldie::assert_json!(event);

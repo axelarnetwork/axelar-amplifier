@@ -13,6 +13,7 @@ use itertools::Itertools;
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
+use crate::events::GatewayInfo;
 use crate::state::{chain_endpoints, Config};
 use crate::{state, Event as RouterEvent};
 
@@ -78,10 +79,12 @@ pub fn upgrade_gateway(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(RouterEvent::GatewayUpgraded {
-        chain,
-        gateway_address: contract_address,
-    }))
+    Ok(
+        Response::new().add_event(RouterEvent::GatewayUpgraded(GatewayInfo {
+            chain,
+            gateway_address: contract_address,
+        })),
+    )
 }
 
 fn freeze_specific_chain(
