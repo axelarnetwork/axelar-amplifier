@@ -13521,6 +13521,7 @@ dependencies = [
  "rewards",
  "router-api",
  "semver 1.0.26",
+ "serde",
  "serde_json",
  "service-registry",
  "service-registry-api",
