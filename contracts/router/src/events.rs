@@ -5,10 +5,8 @@ use router_api::{ChainName, GatewayDirection, Message};
 #[derive(IntoEvent)]
 pub enum Event {
     RouterInstantiated {
-        admin: Addr,
-        governance: Addr,
-        axelarnet_gateway: Addr,
-        coordinator: Addr,
+        admin_address: Addr,
+        governance_address: Addr,
     },
     ChainRegistered {
         name: ChainName,
@@ -19,7 +17,8 @@ pub enum Event {
         gateway_address: Addr,
     },
     GatewayUpgraded {
-        gateway: GatewayInfo,
+        chain: ChainName,
+        gateway_address: Addr,
     },
     ChainFrozen {
         name: ChainName,
@@ -34,27 +33,19 @@ pub enum Event {
     RoutingEnabled {},
 }
 
-#[derive(serde::Serialize)]
-pub struct GatewayInfo {
-    pub chain: ChainName,
-    pub gateway_address: Addr,
-}
-
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::MockApi;
 
     use super::*;
-    use crate::events::{Event, GatewayInfo};
+    use crate::Event;
 
     #[test]
     fn router_instantiated_is_serializable() {
         let api = MockApi::default();
         let event = Event::RouterInstantiated {
-            admin: api.addr_make("admin"),
-            governance: api.addr_make("governance"),
-            axelarnet_gateway: api.addr_make("axelarnet_gateway"),
-            coordinator: api.addr_make("coordinator"),
+            admin_address: api.addr_make("admin"),
+            governance_address: api.addr_make("governance"),
         };
         let event = cosmwasm_std::Event::from(event);
 
@@ -89,10 +80,8 @@ mod tests {
     fn gateway_upgraded_is_serializable() {
         let api = MockApi::default();
         let event = Event::GatewayUpgraded {
-            gateway: GatewayInfo {
-                chain: "ethereum".parse().unwrap(),
-                gateway_address: api.addr_make("gateway"),
-            },
+            chain: "ethereum".parse().unwrap(),
+            gateway_address: api.addr_make("gateway"),
         };
         let event = cosmwasm_std::Event::from(event);
 
