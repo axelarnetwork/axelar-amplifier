@@ -16,7 +16,7 @@ use valuable::Valuable;
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
 use crate::monitoring::metrics::Msg;
-use crate::{broadcaster_v2, cosmos, event_sub, monitoring};
+use crate::{broadcast, cosmos, event_sub, monitoring};
 
 // Maximum number of messages to enqueue for broadcasting concurrently.
 // - Controls parallelism when enqueueing messages to the broadcast queue
@@ -74,7 +74,7 @@ pub async fn consume_events<H, S, C>(
     event_stream: S,
     event_processor_config: Config,
     token: CancellationToken,
-    msg_queue_client: broadcaster_v2::MsgQueueClient<C>,
+    msg_queue_client: broadcast::MsgQueueClient<C>,
     metric_client: monitoring::Client,
 ) -> Result<(), Error>
 where
@@ -120,7 +120,7 @@ where
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
     handler: &H,
-    msg_queue_client: &broadcaster_v2::MsgQueueClient<C>,
+    msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
 ) -> Result<(), Error>
@@ -214,11 +214,11 @@ mod tests {
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
 
-    use crate::broadcaster_v2::test_utils::create_base_account;
-    use crate::broadcaster_v2::DecCoin;
+    use crate::broadcast::test_utils::create_base_account;
+    use crate::broadcast::DecCoin;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
     use crate::types::{random_cosmos_public_key, TMAddress};
-    use crate::{broadcaster_v2, cosmos, event_sub, monitoring, PREFIX};
+    use crate::{broadcast, cosmos, event_sub, monitoring, PREFIX};
 
     #[derive(Error, Debug)]
     pub enum EventHandlerError {
@@ -309,7 +309,7 @@ mod tests {
 
         let mock_client = setup_client(&address);
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -318,7 +318,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -363,7 +363,7 @@ mod tests {
 
         let mock_client = setup_client(&address);
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -372,7 +372,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -417,7 +417,7 @@ mod tests {
 
         let mock_client = setup_client(&address);
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -426,7 +426,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -484,7 +484,7 @@ mod tests {
             mock_client
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -493,7 +493,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -549,7 +549,7 @@ mod tests {
             mock_client
         });
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -558,7 +558,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -612,7 +612,7 @@ mod tests {
 
         let mock_client = setup_client(&address);
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -621,7 +621,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -660,7 +660,7 @@ mod tests {
 
         let mock_client = setup_client(&address);
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -669,7 +669,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
@@ -723,7 +723,7 @@ mod tests {
             Duration::from_secs(1),
         );
 
-        let broadcaster = broadcaster_v2::Broadcaster::builder()
+        let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -732,7 +732,7 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (_, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
