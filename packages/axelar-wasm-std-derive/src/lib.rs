@@ -30,7 +30,8 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(EventAttributes)]
 pub fn event_attributes_derive(input: TokenStream) -> TokenStream {
-    let ast: DeriveInput = syn::parse(input).expect("input for event_attributes_derive should be valid");
+    let ast: DeriveInput =
+        syn::parse(input).expect("input for event_attributes_derive should be valid");
 
     let name = &ast.ident;
 
@@ -75,7 +76,7 @@ pub fn event_attributes_derive(input: TokenStream) -> TokenStream {
             quote! {
                 #(#field_impls)*
             }
-        },
+        }
         syn::Fields::Unnamed(fields) => {
             if fields.unnamed.len() == 1 {
                 let error_message = "failed to serialize event value";
@@ -93,10 +94,10 @@ pub fn event_attributes_derive(input: TokenStream) -> TokenStream {
             } else {
                 panic!("EventAttributes for unnamed structs only supports single field");
             }
-        },
+        }
         syn::Fields::Unit => {
             quote! {}
-        },
+        }
     };
 
     let gen = quote! {

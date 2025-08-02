@@ -70,8 +70,8 @@ fn should_fail_version_migration_using_wrong_contract() {
 
 #[test]
 fn test_single_unnamed_field() {
-    use axelar_wasm_std_derive::IntoEvent;
     use axelar_wasm_std::EventAttributes;
+    use axelar_wasm_std_derive::IntoEvent;
     use cosmwasm_std::Event;
     use serde::Serialize;
 
@@ -99,11 +99,12 @@ fn test_single_unnamed_field() {
 
 #[test]
 fn test_complex_unnamed_field() {
-    use axelar_wasm_std_derive::IntoEvent;
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::EventAttributes;
+    use axelar_wasm_std_derive::IntoEvent;
     use cosmwasm_std::Event;
     use serde::Serialize;
-    use std::collections::BTreeMap;
 
     #[derive(Serialize, EventAttributes)]
     struct ComplexStruct {
@@ -124,7 +125,9 @@ fn test_complex_unnamed_field() {
         count: 42,
         active: true,
         tags: vec!["important".to_string(), "urgent".to_string()],
-        metadata: [("source".to_string(), "api".to_string())].into_iter().collect(),
+        metadata: [("source".to_string(), "api".to_string())]
+            .into_iter()
+            .collect(),
     })
     .into();
 
@@ -183,10 +186,21 @@ fn test_hex_attribute_detection() {
     test_struct.add_event_attributes(&mut event);
 
     // Verify that regular_field uses JSON serialization
-    let regular_attr = event.attributes.iter().find(|attr| attr.key == "regular_field").unwrap();
+    let regular_attr = event
+        .attributes
+        .iter()
+        .find(|attr| attr.key == "regular_field")
+        .unwrap();
     assert_eq!(regular_attr.value, "\"test\"");
 
     // Verify that custom_hex_field uses hex serialization
-    let hex_attr = event.attributes.iter().find(|attr| attr.key == "custom_hex_field").unwrap();
-    assert_eq!(hex_attr.value, "\"0101010101010101010101010101010101010101010101010101010101010101\"");
+    let hex_attr = event
+        .attributes
+        .iter()
+        .find(|attr| attr.key == "custom_hex_field")
+        .unwrap();
+    assert_eq!(
+        hex_attr.value,
+        "\"0101010101010101010101010101010101010101010101010101010101010101\""
+    );
 }
