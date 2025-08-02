@@ -1,0 +1,5 @@
+error: EventAttributes can only be derived for named structs, not unit structs
+ --> tests/ui/event_attributes_unit_struct.rs:4:8
+  |
+4 | struct UnitStruct;
+  |        ^^^^^^^^^^

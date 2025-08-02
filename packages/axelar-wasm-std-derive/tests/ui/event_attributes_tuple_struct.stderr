@@ -1,0 +1,5 @@
+error: EventAttributes can only be derived for named structs, not tuple structs
+ --> tests/ui/event_attributes_tuple_struct.rs:4:8
+  |
+4 | struct TupleStruct(u32, String);
+  |        ^^^^^^^^^^^
