@@ -13,9 +13,8 @@ use itertools::Itertools;
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
-use crate::events::{Event as RouterEvent, GatewayInfo};
-use crate::state;
 use crate::state::{chain_endpoints, Config};
+use crate::{state, Event as RouterEvent};
 
 pub fn register_chain(
     storage: &mut dyn Storage,
@@ -80,10 +79,8 @@ pub fn upgrade_gateway(
         }
     })?;
     Ok(Response::new().add_event(RouterEvent::GatewayUpgraded {
-        gateway: GatewayInfo {
-            chain,
-            gateway_address: contract_address,
-        },
+        chain,
+        gateway_address: contract_address,
     }))
 }
 
