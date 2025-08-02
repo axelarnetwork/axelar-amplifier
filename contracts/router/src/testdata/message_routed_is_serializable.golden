@@ -3,23 +3,23 @@
   "attributes": [
     {
       "key": "cc_id",
-      "value": "{\"message_id\":\"some-id\",\"source_chain\":\"ethereum\"}"
+      "value": "{\"source_chain\":\"ethereum\",\"message_id\":\"some-id\"}"
     },
     {
-      "key": "destination_address",
-      "value": "\"0x5678\""
+      "key": "source_address",
+      "value": "\"0x1234\""
     },
     {
       "key": "destination_chain",
       "value": "\"avalanche\""
     },
     {
-      "key": "payload_hash",
-      "value": "\"0000000000000000000000000000000000000000000000000000000000000000\""
+      "key": "destination_address",
+      "value": "\"0x5678\""
     },
     {
-      "key": "source_address",
-      "value": "\"0x1234\""
+      "key": "payload_hash",
+      "value": "\"0000000000000000000000000000000000000000000000000000000000000000\""
     }
   ]
 }
