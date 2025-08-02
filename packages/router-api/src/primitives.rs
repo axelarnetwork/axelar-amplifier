@@ -9,7 +9,9 @@ use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::nonempty;
+use axelar_wasm_std::EventAttributes;
 pub use axelar_wasm_std::{chain_name, chain_name_raw, FIELD_DELIMITER};
+use axelar_wasm_std::{nonempty, FnExt};
 use const_str::contains;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
@@ -26,7 +28,7 @@ use valuable::Valuable;
 use crate::error::*;
 
 #[cw_serde]
-#[derive(Eq, Hash)]
+#[derive(EventAttributes, Eq, Hash)]
 pub struct Message {
     pub cc_id: CrossChainId,
     pub source_address: Address,
