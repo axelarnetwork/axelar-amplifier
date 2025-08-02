@@ -77,26 +77,21 @@ pub fn event_attributes_derive(input: TokenStream) -> TokenStream {
                 #(#field_impls)*
             }
         }
-        syn::Fields::Unnamed(fields) => {
-            if fields.unnamed.len() == 1 {
-                let error_message = "failed to serialize event value";
-                quote! {
-                    let value_json = serde_json::to_value(&self.0).expect(#error_message);
-                    if let serde_json::Value::Object(map) = value_json {
-                        for (key, value) in map {
-                            event.attributes.push(cosmwasm_std::Attribute {
-                                key: key.to_string(),
-                                value: value.to_string(),
-                            });
-                        }
-                    }
-                }
-            } else {
-                panic!("EventAttributes for unnamed structs only supports single field");
-            }
+        syn::Fields::Unnamed(_) => {
+            return syn::Error::new(
+                name.span(),
+                "EventAttributes can only be derived for named structs, not tuple structs",
+            )
+            .into_compile_error()
+            .into();
         }
         syn::Fields::Unit => {
-            quote! {}
+            return syn::Error::new(
+                name.span(),
+                "EventAttributes can only be derived for named structs, not unit structs",
+            )
+            .into_compile_error()
+            .into();
         }
     };
 
