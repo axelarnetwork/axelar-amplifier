@@ -1743,7 +1743,7 @@ mod test {
         .unwrap();
 
         assert!(res.events.len() == 1);
-        assert!(res.events.contains(&Event::RoutingDisabled {}.into()));
+        assert!(res.events.contains(&Event::RoutingDisabled.into()));
 
         // don't emit event if already disabled
         let res = execute(
@@ -1765,7 +1765,7 @@ mod test {
         .unwrap();
 
         assert!(res.events.len() == 1);
-        assert!(res.events.contains(&Event::RoutingEnabled {}.into()));
+        assert!(res.events.contains(&Event::RoutingEnabled.into()));
 
         // don't emit event if already enabled
         let res = execute(
@@ -1789,9 +1789,9 @@ mod test {
 
         killswitch::init(deps.as_mut().storage, killswitch::State::Engaged).unwrap();
         assert!(!is_enabled(deps.as_ref()));
-        killswitch::engage(deps.as_mut().storage, Event::RoutingDisabled {}).unwrap();
+        killswitch::engage(deps.as_mut().storage, Event::RoutingDisabled).unwrap();
         assert!(!is_enabled(deps.as_ref()));
-        killswitch::disengage(deps.as_mut().storage, Event::RoutingEnabled {}).unwrap();
+        killswitch::disengage(deps.as_mut().storage, Event::RoutingEnabled).unwrap();
         assert!(is_enabled(deps.as_ref()));
     }
 
