@@ -1,4 +1,4 @@
-use axelar_wasm_std::{IntoEvent, EventAttributes};
+use axelar_wasm_std::{EventAttributes, IntoEvent};
 use cosmwasm_std::Addr;
 use router_api::{ChainName, GatewayDirection, Message};
 
