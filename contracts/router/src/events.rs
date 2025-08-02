@@ -1,4 +1,4 @@
-use axelar_wasm_std::IntoEvent;
+use axelar_wasm_std::{IntoEvent, EventAttributes};
 use cosmwasm_std::Addr;
 use router_api::{ChainName, GatewayDirection, Message};
 
@@ -136,22 +136,6 @@ mod tests {
     }
 
     #[test]
-    fn routing_disabled_is_serializable() {
-        let event = Event::RoutingDisabled {};
-        let event = cosmwasm_std::Event::from(event);
-
-        goldie::assert_json!(event);
-    }
-
-    #[test]
-    fn routing_enabled_is_serializable() {
-        let event = Event::RoutingEnabled {};
-        let event = cosmwasm_std::Event::from(event);
-
-        goldie::assert_json!(event);
-    }
-
-    #[test]
     fn message_routed_serializes_like_message() {
         // Create a Message directly
         let message = Message {
@@ -194,7 +178,7 @@ mod tests {
         assert!(attributes.contains_key("destination_address"));
         assert_eq!(attributes["destination_address"], "\"0x5678\"");
 
-        // Check that payload_hash is present
+        // Check that payload_hash is present and hex-encoded
         assert!(attributes.contains_key("payload_hash"));
         assert_eq!(
             attributes["payload_hash"],
@@ -206,5 +190,21 @@ mod tests {
 
         // Verify we have exactly 5 attributes (all Message fields)
         assert_eq!(attributes.len(), 5);
+    }
+
+    #[test]
+    fn routing_disabled_is_serializable() {
+        let event = Event::RoutingDisabled {};
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
+    }
+
+    #[test]
+    fn routing_enabled_is_serializable() {
+        let event = Event::RoutingEnabled {};
+        let event = cosmwasm_std::Event::from(event);
+
+        goldie::assert_json!(event);
     }
 }

@@ -4,7 +4,7 @@ use heck::ToSnakeCase;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::{DeriveInput, FieldsNamed, FieldsUnnamed, Generics, ItemEnum, Variant};
 
@@ -28,6 +28,88 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
+#[proc_macro_derive(EventAttributes)]
+pub fn event_attributes_derive(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(input).expect("input for event_attributes_derive should be valid");
+
+    let name = &ast.ident;
+
+    let fields = match ast.data {
+        syn::Data::Struct(syn::DataStruct { fields, .. }) => fields,
+        _ => panic!("EventAttributes can only be derived for structs"),
+    };
+
+    let field_impls = match fields {
+        syn::Fields::Named(fields) => {
+            let field_impls = fields.named.iter().map(|field| {
+                let field_name = field.ident.as_ref().unwrap();
+                let field_name_str = field_name.to_string();
+                let attribute_name = field_name_str.to_snake_case();
+                let error_message = format!("failed to serialize event field {}", field_name_str);
+
+                let has_hex_attr = field.attrs.iter().any(|attr| {
+                    if !attr.path().is_ident("serde") {
+                        return false;
+                    }
+
+                    attr.meta.to_token_stream().to_string().contains("with = \"axelar_wasm_std::hex\"")
+                });
+
+                if has_hex_attr {
+                    quote! {
+                        event.attributes.push(cosmwasm_std::Attribute {
+                            key: #attribute_name.to_string(),
+                            value: format!("\"{}\"", cosmwasm_std::HexBinary::from(&self.#field_name)),
+                        });
+                    }
+                } else {
+                    quote! {
+                        event.attributes.push(cosmwasm_std::Attribute {
+                            key: #attribute_name.to_string(),
+                            value: serde_json::to_string(&self.#field_name).expect(#error_message),
+                        });
+                    }
+                }
+            }).collect::<Vec<_>>();
+
+            quote! {
+                #(#field_impls)*
+            }
+        },
+        syn::Fields::Unnamed(fields) => {
+            if fields.unnamed.len() == 1 {
+                let error_message = "failed to serialize event value";
+                quote! {
+                    let value_json = serde_json::to_value(&self.0).expect(#error_message);
+                    if let serde_json::Value::Object(map) = value_json {
+                        for (key, value) in map {
+                            event.attributes.push(cosmwasm_std::Attribute {
+                                key: key.to_string(),
+                                value: value.to_string(),
+                            });
+                        }
+                    }
+                }
+            } else {
+                panic!("EventAttributes for unnamed structs only supports single field");
+            }
+        },
+        syn::Fields::Unit => {
+            quote! {}
+        },
+    };
+
+    let gen = quote! {
+        impl axelar_wasm_std::EventAttributes for #name {
+            fn add_event_attributes(&self, event: &mut cosmwasm_std::Event) {
+                #field_impls
+            }
+        }
+    };
+
+    gen.into()
+}
+
 /// Derive macro to implement `From` for an enum to convert it into a `cosmwasm_std::Event`.
 ///
 /// # Examples
@@ -38,8 +120,9 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// use cosmwasm_std::Event;
 ///
 /// use axelar_wasm_std_derive::IntoEvent;
+/// use axelar_wasm_std::EventAttributes;
 ///
-/// #[derive(Serialize)]
+/// #[derive(Serialize, EventAttributes)]
 /// struct SomeObject {
 ///    pub some_option: Option<String>,
 ///    pub some_other_option: Option<String>,
@@ -103,7 +186,7 @@ pub fn into_contract_error_derive(input: TokenStream) -> TokenStream {
 /// assert_eq!(actual, expected);
 ///
 /// // Example with single unnamed struct field
-/// #[derive(serde::Serialize)]
+/// #[derive(serde::Serialize, EventAttributes)]
 /// struct Message {
 ///     id: String,
 ///     content: u64,
@@ -332,17 +415,17 @@ fn match_unnamed_variant(
         }
 
         let field_pattern = Ident::new("value", Span::call_site());
-        let error_message = "failed to serialize event value";
 
+        // Generate code that uses compile-time field access
+        // This approach requires the struct to derive EventAttributes
+        // which provides compile-time field access
         Ok(quote! {
             #event_enum::#variant_name(#field_pattern) => {
                 let mut event = cosmwasm_std::Event::new(#event_name);
-                let value_json = serde_json::to_value(#field_pattern).expect(#error_message);
-                if let serde_json::Value::Object(map) = value_json {
-                    for (key, value) in map {
-                        event = event.add_attribute(key, value.to_string());
-                    }
-                }
+                // Use compile-time field access through EventAttributes trait
+                // The struct must derive EventAttributes to use this
+                // The trait is defined in the EventAttributes derive macro
+                #field_pattern.add_event_attributes(&mut event);
                 event
             }
         })

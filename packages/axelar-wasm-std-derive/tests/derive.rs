@@ -71,10 +71,11 @@ fn should_fail_version_migration_using_wrong_contract() {
 #[test]
 fn test_single_unnamed_field() {
     use axelar_wasm_std_derive::IntoEvent;
+    use axelar_wasm_std::EventAttributes;
     use cosmwasm_std::Event;
     use serde::Serialize;
 
-    #[derive(Serialize)]
+    #[derive(Serialize, EventAttributes)]
     struct TestStruct {
         field1: u64,
         field2: String,
@@ -93,6 +94,47 @@ fn test_single_unnamed_field() {
     let expected = Event::new("single_value")
         .add_attribute("field1", "42")
         .add_attribute("field2", "\"test\"");
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_complex_unnamed_field() {
+    use axelar_wasm_std_derive::IntoEvent;
+    use axelar_wasm_std::EventAttributes;
+    use cosmwasm_std::Event;
+    use serde::Serialize;
+    use std::collections::BTreeMap;
+
+    #[derive(Serialize, EventAttributes)]
+    struct ComplexStruct {
+        id: String,
+        count: u64,
+        active: bool,
+        tags: Vec<String>,
+        metadata: BTreeMap<String, String>,
+    }
+
+    #[derive(IntoEvent)]
+    enum ComplexEvents {
+        ComplexValue(ComplexStruct),
+    }
+
+    let actual: Event = ComplexEvents::ComplexValue(ComplexStruct {
+        id: "msg-123".to_string(),
+        count: 42,
+        active: true,
+        tags: vec!["important".to_string(), "urgent".to_string()],
+        metadata: [("source".to_string(), "api".to_string())].into_iter().collect(),
+    })
+    .into();
+
+    let expected = Event::new("complex_value")
+        .add_attribute("id", "\"msg-123\"")
+        .add_attribute("count", "42")
+        .add_attribute("active", "true")
+        .add_attribute("tags", "[\"important\",\"urgent\"]")
+        .add_attribute("metadata", "{\"source\":\"api\"}");
+
     assert_eq!(actual, expected);
 }
 
@@ -118,4 +160,33 @@ fn test_primitive_unnamed_field_should_fail() {
 
     // The test passes if this code doesn't compile
     // We can't actually test this in a unit test, but the doc tests verify this behavior
+}
+
+#[test]
+fn test_hex_attribute_detection() {
+    use axelar_wasm_std::EventAttributes;
+    use serde::Serialize;
+
+    #[derive(Serialize, EventAttributes)]
+    struct TestHexStruct {
+        regular_field: String,
+        #[serde(with = "axelar_wasm_std::hex")]
+        custom_hex_field: [u8; 32],
+    }
+
+    let test_struct = TestHexStruct {
+        regular_field: "test".to_string(),
+        custom_hex_field: [1; 32],
+    };
+
+    let mut event = cosmwasm_std::Event::new("test_event");
+    test_struct.add_event_attributes(&mut event);
+
+    // Verify that regular_field uses JSON serialization
+    let regular_attr = event.attributes.iter().find(|attr| attr.key == "regular_field").unwrap();
+    assert_eq!(regular_attr.value, "\"test\"");
+
+    // Verify that custom_hex_field uses hex serialization
+    let hex_attr = event.attributes.iter().find(|attr| attr.key == "custom_hex_field").unwrap();
+    assert_eq!(hex_attr.value, "\"0101010101010101010101010101010101010101010101010101010101010101\"");
 }

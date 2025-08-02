@@ -8,6 +8,7 @@ use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, FnExt};
+use axelar_wasm_std::EventAttributes;
 use const_str::contains;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary, StdError, StdResult};
@@ -28,7 +29,7 @@ use crate::error::*;
 pub const FIELD_DELIMITER: char = '_';
 
 #[cw_serde]
-#[derive(Eq, Hash)]
+#[derive(EventAttributes, Eq, Hash)]
 pub struct Message {
     pub cc_id: CrossChainId,
     pub source_address: Address,
