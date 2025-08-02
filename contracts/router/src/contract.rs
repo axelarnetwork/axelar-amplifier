@@ -47,10 +47,8 @@ pub fn instantiate(
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     Ok(Response::new().add_event(Event::RouterInstantiated {
-        admin,
-        governance,
-        axelarnet_gateway,
-        coordinator,
+        admin_address: admin,
+        governance_address: governance,
     }))
 }
 
