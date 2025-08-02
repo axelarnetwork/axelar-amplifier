@@ -29,8 +29,8 @@ pub enum Event {
         direction: GatewayDirection,
     },
     MessageRouted(Message),
-    RoutingDisabled {},
-    RoutingEnabled {},
+    RoutingDisabled,
+    RoutingEnabled,
 }
 
 #[cfg(test)]
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn routing_disabled_is_serializable() {
-        let event = Event::RoutingDisabled {};
+        let event = Event::RoutingDisabled;
         let event = cosmwasm_std::Event::from(event);
 
         goldie::assert_json!(event);
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn routing_enabled_is_serializable() {
-        let event = Event::RoutingEnabled {};
+        let event = Event::RoutingEnabled;
         let event = cosmwasm_std::Event::from(event);
 
         goldie::assert_json!(event);
