@@ -51,18 +51,21 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_event(Event::<Empty>::Instantiated {
-        service_registry_contract: config.service_registry_contract,
-        service_name: config.service_name,
-        source_gateway_address: config.source_gateway_address,
-        voting_threshold: config.voting_threshold,
-        block_expiry: config.block_expiry,
-        confirmation_height: config.confirmation_height,
-        source_chain: config.source_chain,
-        rewards_contract: config.rewards_contract,
-        msg_id_format: config.msg_id_format,
-        address_format: config.address_format,
-    }))
+    Ok(Response::new().add_event(
+        Event::Instantiated {
+            service_registry_contract: config.service_registry_contract,
+            service_name: config.service_name,
+            source_gateway_address: config.source_gateway_address,
+            voting_threshold: config.voting_threshold,
+            block_expiry: config.block_expiry,
+            confirmation_height: config.confirmation_height,
+            source_chain: config.source_chain,
+            rewards_contract: config.rewards_contract,
+            msg_id_format: config.msg_id_format,
+            address_format: config.address_format,
+        }
+        .non_generic(),
+    ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

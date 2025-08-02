@@ -141,8 +141,8 @@ pub fn verify_messages(
         })
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
-    Ok(
-        Response::new().add_event(VotingVerifierEvent::<Empty>::MessagesPollStarted {
+    Ok(Response::new().add_event(
+        VotingVerifierEvent::MessagesPollStarted {
             messages,
             poll_id: id,
             source_chain: config.source_chain,
@@ -150,8 +150,9 @@ pub fn verify_messages(
             confirmation_height: config.confirmation_height,
             expires_at,
             participants,
-        }),
-    )
+        }
+        .non_generic(),
+    ))
 }
 
 fn poll_results(poll: &Poll) -> PollResults {
@@ -252,11 +253,14 @@ pub fn vote(
         .change_context(ContractError::StorageError)?;
 
     Ok(Response::new()
-        .add_event(VotingVerifierEvent::<Empty>::Voted {
-            poll_id,
-            voter: info.sender,
-            votes,
-        })
+        .add_event(
+            VotingVerifierEvent::Voted {
+                poll_id,
+                voter: info.sender,
+                votes,
+            }
+            .non_generic(),
+        )
         .add_events(quorum_events.into_iter().flatten()))
 }
 
@@ -304,11 +308,12 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         });
 
     Ok(Response::new().add_messages(rewards_msgs).add_event(
-        VotingVerifierEvent::<Empty>::PollEnded {
+        VotingVerifierEvent::PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
             source_chain: config.source_chain,
-        },
+        }
+        .non_generic(),
     ))
 }
 
