@@ -281,6 +281,7 @@ dependencies = [
  "humantime-serde",
  "itertools 0.14.0",
  "k256",
+ "lazy_static",
  "mockall 0.11.4",
  "move-core-types",
  "multisig",

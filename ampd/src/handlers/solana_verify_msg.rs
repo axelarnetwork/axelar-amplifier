@@ -22,6 +22,8 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::solana::msg_verifier::verify_message;
 use crate::solana::SolanaRpcClientProxy;
 use crate::types::{Hash, TMAddress};
@@ -54,6 +56,7 @@ pub struct Handler<C: SolanaRpcClientProxy> {
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C: SolanaRpcClientProxy> Handler<C> {
@@ -63,6 +66,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             chain_name,
@@ -70,6 +74,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -158,6 +163,14 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                         .get_key_value(&msg.message_id.raw_signature.into())
                         .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })
+                .inspect(|vote| {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: self.chain_name.clone(),
+                        },
+                    );
+                })
                 .collect();
             info!(
                 votes = votes.as_value(),
@@ -178,6 +191,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::AccountId;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
@@ -186,6 +200,7 @@ mod test {
 
     use super::*;
     use crate::handlers::tests::into_structured_event;
+    use crate::monitoring::{metrics, test_utils};
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -247,12 +262,15 @@ mod test {
             &TMAddress::random(PREFIX),
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -266,12 +284,15 @@ mod test {
             &TMAddress::random(PREFIX),
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -286,12 +307,15 @@ mod test {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -306,17 +330,56 @@ mod test {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
             watch::channel(0).1,
+            monitoring_client,
         );
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn should_record_verification_vote_metric() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(Some(worker.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(
+            ChainName::from_str("solana").unwrap(),
+            worker,
+            voting_verifier,
+            ValidResponseSolanaRpc,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        let _ = handler.handle(&event).await.unwrap();
+
+        for _ in 0..2 {
+            let msg = receiver.recv().await.unwrap();
+            assert_eq!(
+                msg,
+                metrics::Msg::VerificationVote {
+                    vote_decision: Vote::NotFound,
+                    chain_name: ChainName::from_str("solana").unwrap(),
+                }
+            );
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -331,12 +394,15 @@ mod test {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             ChainName::from_str("solana").unwrap(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
             rx,
+            monitoring_client,
         );
 
         // poll is not expired yet, should hit proxy
