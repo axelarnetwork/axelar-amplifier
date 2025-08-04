@@ -14,6 +14,8 @@ url = []
 
 [dependencies]
 ampd-proto = { workspace = true }
+regex = "1.10.2"
+sysinfo = "0.36.1"
 async-trait = { workspace = true }
 axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }

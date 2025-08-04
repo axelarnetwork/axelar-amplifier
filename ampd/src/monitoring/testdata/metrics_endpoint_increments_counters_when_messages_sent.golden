@@ -4,6 +4,14 @@ Initial Metrics:
 blocks_received_total 0
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
+# HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
+# TYPE ampd_cpu_usage_percent gauge
+# UNIT ampd_cpu_usage_percent percent
+ampd_cpu_usage_percent 0
+# HELP ampd_memory_usage_bytes Memory usage of the ampd process in bytes
+# TYPE ampd_memory_usage_bytes gauge
+# UNIT ampd_memory_usage_bytes bytes
+ampd_memory_usage_bytes 0
 # EOF
 
 
@@ -13,4 +21,12 @@ Updated Metrics:
 blocks_received_total 3
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
+# HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
+# TYPE ampd_cpu_usage_percent gauge
+# UNIT ampd_cpu_usage_percent percent
+ampd_cpu_usage_percent 0
+# HELP ampd_memory_usage_bytes Memory usage of the ampd process in bytes
+# TYPE ampd_memory_usage_bytes gauge
+# UNIT ampd_memory_usage_bytes bytes
+ampd_memory_usage_bytes 0
 # EOF
