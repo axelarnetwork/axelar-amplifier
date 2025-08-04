@@ -2,7 +2,32 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.9.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.10.0..HEAD)
+
+## [v1.10.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.10.0) (2025-07-28)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.9.0..ampd-v1.10.0)
+
+- add stacks handlers [#728](https://github.com/axelarnetwork/axelar-amplifier/pull/728)
+- use cargo chef for internal dependencies [#967](https://github.com/axelarnetwork/axelar-amplifier/pull/967)
+- add tx confirmation when executing commands [#961](https://github.com/axelarnetwork/axelar-amplifier/pull/961)
+- add security audit configuration and workflow [#946](https://github.com/axelarnetwork/axelar-amplifier/pull/946)
+- replace broadcaster with v2 [#836](https://github.com/axelarnetwork/axelar-amplifier/pull/836)
+- prevent port collisions in monitoring server tests [#954](https://github.com/axelarnetwork/axelar-amplifier/pull/954)
+- replace prometheus crate with official prometheus_client crate [#950](https://github.com/axelarnetwork/axelar-amplifier/pull/950)
+- streamline monitoring module structure [#938](https://github.com/axelarnetwork/axelar-amplifier/pull/938)
+- implement crypto service method key [#861](https://github.com/axelarnetwork/axelar-amplifier/pull/861)
+- use custom streams to improve readability of the event stream implementation [#921](https://github.com/axelarnetwork/axelar-amplifier/pull/921)
+- modularize monitoring server and add configurability [#927](https://github.com/axelarnetwork/axelar-amplifier/pull/927)
+- add feature flags for url, config, and commands [#936](https://github.com/axelarnetwork/axelar-amplifier/pull/936)
+- add a prometheus client to track metrics in ampd [#897](https://github.com/axelarnetwork/axelar-amplifier/pull/897)
+- do not use redacted string when initializing HttpClient [#922](https://github.com/axelarnetwork/axelar-amplifier/pull/922)
+- add support for sensitivity and redacted logging [#920](https://github.com/axelarnetwork/axelar-amplifier/pull/920)
+- integrate span traces for fns that create LoggableError explicitly (except event_processor.rs) [#914](https://github.com/axelarnetwork/axelar-amplifier/pull/914)
+- handle RPC and other handler errors gracefully at startup [#916](https://github.com/axelarnetwork/axelar-amplifier/pull/916)
+- enable detailed span tracing for LoggableError [#913](https://github.com/axelarnetwork/axelar-amplifier/pull/913)
+- expose derive macros via feature flag [#902](https://github.com/axelarnetwork/axelar-amplifier/pull/902)
+- add eol normalization [#907](https://github.com/axelarnetwork/axelar-amplifier/pull/907)
 
 ## [v1.9.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.9.0)
 
@@ -65,13 +90,16 @@
 - Ampd switch from horizon to RPC client for Stellar verifier [#694](https://github.com/axelarnetwork/axelar-amplifier/pull/694)
 
 #### Migration Notes
+
 Upgrade or deploy contracts/components in the below order:
 
 ##### Contracts that should be deployed fresh
+
 - interchain-token-service
 - axelarnet-gateway (deploy with chain name "axelar")
 
 ##### Contracts that need migration
+
 - coordinator
 - gateway
 - rewards
@@ -82,10 +110,11 @@ Upgrade or deploy contracts/components in the below order:
 - voting-verifier
 
 ##### Components that need upgrading
+
 - ampd
 
 ##### Contracts no longer used (no longer part of the active system)
+
 - nexus-gateway
 
 The voting verifier contracts must be migrated before ampd is upgraded. Existing ampd instances will continue to work even after the contract migration, but we recommend upgrading ampd.
-

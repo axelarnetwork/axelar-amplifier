@@ -13,9 +13,10 @@ use cosmwasm_std::{
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
+use msgs_derive::ensure_permissions;
 
 use crate::contract::errors::Error;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -36,6 +37,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+#[ensure_permissions(direct(prover=find_prover_address(info.sender.clone())))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -43,11 +45,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        find_prover_address(info.sender.clone()),
-    )? {
+    match msg {
         ExecuteMsg::RegisterProtocol {
             service_registry_address: service_registry,
             router_address,
@@ -72,7 +70,7 @@ pub fn execute(
                 address::validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
 
             execute::register_chain(
-                deps,
+                deps.storage,
                 chain_name.clone(),
                 prover_address,
                 gateway_address,
@@ -140,7 +138,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             )?)?)
         }
         QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
-            &query::get_chain_contracts_info(deps, chain_contracts_key)?,
+            &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
     }
 }

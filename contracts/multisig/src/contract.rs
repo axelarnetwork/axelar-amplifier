@@ -40,6 +40,7 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let coordinator = address::validate_cosmwasm_address(deps.api, &msg.coordinator_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -49,6 +50,7 @@ pub fn instantiate(
     let config = Config {
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         block_expiry: msg.block_expiry,
+        coordinator,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -57,7 +59,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(direct(authorized = can_start_signing_session(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -137,6 +139,13 @@ fn can_start_signing_session(
     }
 }
 
+fn find_coordinator(storage: &dyn Storage) -> error_stack::Result<Addr, ContractError> {
+    Ok(CONFIG
+        .load(storage)
+        .map_err(|e| error_stack::report!(ContractError::from(e)))?
+        .coordinator)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
@@ -187,7 +196,9 @@ mod tests {
     use crate::key::{KeyType, PublicKey, Signature};
     use crate::multisig::Multisig;
     use crate::state::load_session_signatures;
-    use crate::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data, TestSigner};
+    use crate::test::common::{
+        build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
+    };
     use crate::types::MultisigState;
     use crate::verifier_set::VerifierSet;
 
@@ -196,6 +207,7 @@ mod tests {
     const REWARDS_CONTRACT: &str = "rewards";
     const GOVERNANCE: &str = "governance";
     const ADMIN: &str = "admin";
+    const COORDINATOR: &str = "coordinator";
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
@@ -205,6 +217,7 @@ mod tests {
         let governance = api.addr_make(GOVERNANCE);
         let admin = api.addr_make(ADMIN);
         let rewards = api.addr_make(REWARDS_CONTRACT);
+        let coordinator = api.addr_make(COORDINATOR);
 
         let info = message_info(&instantiator, &[]);
         let env = mock_env();
@@ -214,6 +227,7 @@ mod tests {
             admin_address: admin.into_string(),
             rewards_address: rewards.into_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
+            coordinator_address: coordinator.to_string(),
         };
 
         instantiate(deps, env, info, msg)
@@ -397,27 +411,6 @@ mod tests {
             .iter()
             .find(|attribute| attribute.key == attribute_name)
             .map(|attribute| attribute.value.as_str())
-    }
-
-    // Returns a list of (key_type, subkey, signers, session_id)
-    fn signature_test_data<'a>(
-        ecdsa_subkey: &'a String,
-        ed25519_subkey: &'a String,
-    ) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
-        vec![
-            (
-                KeyType::Ecdsa,
-                ecdsa_subkey,
-                ecdsa_test_data::signers(),
-                Uint64::from(1u64),
-            ),
-            (
-                KeyType::Ed25519,
-                ed25519_subkey,
-                ed25519_test_data::signers(),
-                Uint64::from(2u64),
-            ),
-        ]
     }
 
     #[test]

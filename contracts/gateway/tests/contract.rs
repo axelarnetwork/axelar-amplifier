@@ -54,7 +54,7 @@ fn successful_verify() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check verification is idempotent
-        let response = iter::repeat(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -62,8 +62,8 @@ fn successful_verify() {
                 ExecuteMsg::VerifyMessages(msgs.clone()),
             )
             .unwrap(),
+            10,
         )
-        .take(10)
         .dedup()
         .collect::<Vec<_>>();
 
@@ -86,7 +86,7 @@ fn successful_route_incoming() {
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check routing of incoming messages is idempotent
-        let response = iter::repeat(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -94,8 +94,8 @@ fn successful_route_incoming() {
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
+            2,
         )
-        .take(2)
         .dedup()
         .collect::<Vec<_>>();
 
@@ -133,7 +133,7 @@ fn successful_route_outgoing() {
         }
 
         // check routing of outgoing messages is idempotent
-        let response = iter::repeat(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -141,8 +141,8 @@ fn successful_route_outgoing() {
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
+            2,
         )
-        .take(2)
         .dedup()
         .collect::<Vec<_>>();
 
@@ -151,9 +151,11 @@ fn successful_route_outgoing() {
         responses.push(response[0].clone());
 
         // check all outgoing messages are stored because the router (sender) is implicitly trusted
-        iter::repeat(query(deps.as_ref(), mock_env().clone(), query_msg).unwrap())
-            .take(2)
-            .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
+        iter::repeat_n(
+            query(deps.as_ref(), mock_env().clone(), query_msg).unwrap(),
+            2,
+        )
+        .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
     goldie::assert_json!(responses);
@@ -280,6 +282,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     )));
 }
 
+#[allow(clippy::type_complexity)]
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
@@ -305,6 +308,7 @@ fn test_cases_for_correct_verifier() -> (
     (test_cases, handler)
 }
 
+#[allow(clippy::type_complexity)]
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,

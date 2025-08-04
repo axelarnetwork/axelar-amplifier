@@ -19,6 +19,7 @@ impl MultisigContract {
         admin: Addr,
         rewards_address: Addr,
         block_expiry: nonempty::Uint64,
+        coordinator_address: Addr,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
@@ -32,6 +33,7 @@ impl MultisigContract {
                     governance_address: governance.to_string(),
                     admin_address: admin.to_string(),
                     block_expiry,
+                    coordinator_address: coordinator_address.to_string(),
                 },
                 &[],
                 "multisig",
