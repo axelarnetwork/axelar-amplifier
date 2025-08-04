@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use axelar_wasm_std::voting;
 use axum::body::Body;
@@ -8,12 +8,17 @@ use axum::http::{Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, MethodRouter};
 use futures::StreamExt;
+use prometheus_client::collector::Collector;
 use prometheus_client::encoding::text::encode;
-use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
+use prometheus_client::encoding::{
+    DescriptorEncoder, EncodeLabelSet, EncodeLabelValue, EncodeMetric,
+};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
-use prometheus_client::registry::Registry;
+use prometheus_client::metrics::gauge::ConstGauge;
+use prometheus_client::registry::{Registry, Unit};
 use router_api::ChainName;
+use sysinfo::{get_current_pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -126,6 +131,7 @@ pub fn create_endpoint() -> (MethodRouter, Process, Client) {
 
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
+    registry.register_collector(Box::new(SystemMetricsCollector::new()));
 
     (
         get(serve_metrics).with_state(Arc::new(registry)),
@@ -311,6 +317,86 @@ impl VerificationVoteMetrics {
     }
 }
 
+/// System metrics collector that provides real-time CPU and memory usage for the AMPD process.
+/// Metrics are collected fresh on each scrape request using the sysinfo crate.
+/// when metrics is not available, no system metrics will be returned.
+/// this may happen because of permission issues, process termination, or platform limitations
+#[derive(Debug)]
+struct SystemMetricsCollector {
+    system: Mutex<System>, // Mutex is required for thread-safe access since the registry may call this collector from multiple threads
+}
+
+#[derive(Debug, Clone)]
+struct ProcessMetrics {
+    cpu_usage: f32,
+    memory_usage: u64,
+}
+
+impl SystemMetricsCollector {
+    fn new() -> Self {
+        let system = System::new_with_specifics(
+            RefreshKind::nothing()
+                .with_processes(ProcessRefreshKind::nothing().with_cpu().with_memory()),
+        );
+        Self {
+            system: Mutex::new(system),
+        }
+    }
+
+    fn collect_process_metrics(&self) -> Option<ProcessMetrics> {
+        let pid = get_current_pid().ok()?;
+
+        let mut system = self
+            .system
+            .lock()
+            .inspect_err(|_| warn!("failed to acquire system metrics lock"))
+            .ok()?;
+
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[pid]),
+            true,
+            ProcessRefreshKind::nothing().with_cpu().with_memory(),
+        );
+
+        system.process(pid).map(|process| ProcessMetrics {
+            cpu_usage: process.cpu_usage(),
+            memory_usage: process.memory(),
+        })
+    }
+}
+
+impl Collector for SystemMetricsCollector {
+    fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
+        let process_metrics = match self.collect_process_metrics() {
+            Some(metrics) => metrics,
+            None => return Ok(()),
+        };
+
+        // Encode CPU Usage
+        let cpu_gauge = ConstGauge::<f32>::new(process_metrics.cpu_usage);
+        let unit = Unit::Other("percent".to_string());
+        let cpu_encoder = encoder.encode_descriptor(
+            "ampd_cpu_usage",
+            "CPU usage of the ampd process in percentage",
+            Some(&unit),
+            cpu_gauge.metric_type(),
+        )?;
+        cpu_gauge.encode(cpu_encoder)?;
+
+        // Encode Memory Usage
+        let memory_gauge = ConstGauge::new(process_metrics.memory_usage);
+        let memory_encoder = encoder.encode_descriptor(
+            "ampd_memory_usage",
+            "Memory usage of the ampd process in bytes",
+            Some(&Unit::Bytes),
+            memory_gauge.metric_type(),
+        )?;
+        memory_gauge.encode(memory_encoder)?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -320,7 +406,9 @@ mod tests {
     use axum_test::TestServer;
     use itertools::Itertools;
     use tokio::time;
+    use tracing_test::traced_test;
 
+    use super::test_utils::zeroize_system_metrics;
     use super::*;
 
     #[tokio::test(start_paused = true)]
@@ -347,7 +435,7 @@ mod tests {
         final_metrics.assert_status_ok();
 
         // Ensure the final metrics are in the expected format
-        goldie::assert!(final_metrics.text())
+        goldie::assert!(zeroize_system_metrics(&final_metrics.text()))
     }
 
     #[tokio::test(start_paused = true)]
@@ -388,7 +476,41 @@ mod tests {
         let final_metrics = server.get("/test").await;
         final_metrics.assert_status_ok();
 
-        goldie::assert!(sort_metrics_output(&final_metrics.text()))
+        goldie::assert!(zeroize_system_metrics(&sort_metrics_output(
+            &final_metrics.text()
+        )))
+    }
+
+    #[tokio::test(start_paused = true)]
+    #[traced_test]
+    async fn should_show_valid_system_metrics_in_prometheus_output() {
+        let (router, process, _client) = create_endpoint();
+        _ = process.run(CancellationToken::new());
+
+        let router = Router::new().route("/test", router);
+        let server = TestServer::new(router).unwrap();
+
+        let metrics = server.get("/test").await;
+        metrics.assert_status_ok();
+
+        let metrics_text = metrics.text();
+
+        if metrics_text.contains("ampd_cpu_usage_percent") {
+            let cpu_usage = extract_metric_value(&metrics_text, "ampd_cpu_usage_percent");
+            assert!(
+                cpu_usage >= 0.0,
+                "CPU usage should be non-negative when metric is present"
+            );
+        }
+
+        if metrics_text.contains("ampd_memory_usage_bytes") {
+            let memory_usage = extract_metric_value(&metrics_text, "ampd_memory_usage_bytes");
+            assert!(
+                memory_usage >= 0.0,
+                "Memory usage should be non-negative when metric is present"
+            );
+        }
+        goldie::assert!(zeroize_system_metrics(&metrics_text));
     }
 
     /// Test if the sort_metrics_output function produces consistent output.
@@ -405,6 +527,15 @@ mod tests {
 
         assert_eq!(sorted_data1, sorted_data2);
         goldie::assert!(sorted_data1);
+    }
+
+    /// Extracts the numeric value of a Prometheus metric from text output
+    fn extract_metric_value(text: &str, name: &str) -> f64 {
+        text.lines()
+            .find(|l| l.starts_with(name))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|num| num.parse::<f64>().ok())
+            .unwrap_or_else(|| panic!("metric `{}` not found or not a number", name))
     }
 
     /// Sort metrics text alphabetically by line for consistent output
@@ -433,6 +564,29 @@ mod tests {
             result.extend(metric_lines);
         }
 
+        result.join("\n") + "\n"
+    }
+}
+
+#[cfg(test)]
+pub mod test_utils {
+    use regex::Regex;
+
+    /// System metrics like CPU and memory usage are inherently dynamic and change between test runs
+    /// This function zeroizes the system metrics for consistent output in golden file tests.
+    pub fn zeroize_system_metrics(text: &str) -> String {
+        let mut result = Vec::new();
+        let trailing_number = Regex::new(r"\d+(\.\d+)?$").unwrap();
+
+        for line in text.lines() {
+            if line.starts_with("ampd_cpu_usage_percent")
+                || line.starts_with("ampd_memory_usage_bytes")
+            {
+                result.push(trailing_number.replace(line, "0").to_string());
+            } else {
+                result.push(line.to_string());
+            }
+        }
         result.join("\n") + "\n"
     }
 }

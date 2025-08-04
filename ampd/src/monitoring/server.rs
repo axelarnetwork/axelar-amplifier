@@ -327,6 +327,7 @@ mod tests {
 
     use super::*;
     use crate::monitoring::endpoints::status::Status;
+    use crate::monitoring::metrics::test_utils;
 
     #[test]
     fn ensure_correct_default_config() {
@@ -530,7 +531,7 @@ mod tests {
             initial_text, updated_text
         );
 
-        goldie::assert!(output);
+        goldie::assert!(test_utils::zeroize_system_metrics(&output));
         cancel.cancel();
         _ = server_handle.await;
     }
