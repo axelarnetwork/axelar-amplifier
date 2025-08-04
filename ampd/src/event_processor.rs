@@ -199,8 +199,7 @@ mod tests {
     use events::Event;
     use futures::{stream, StreamExt};
     use mockall::mock;
-    use monitoring::metrics::Msg as MetricsMsg;
-    use monitoring::test_utils;
+    use monitoring::{metrics, test_utils};
     use report::ErrorExt;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
@@ -752,7 +751,7 @@ mod tests {
 
         for _ in 0..num_block_ends {
             let metrics = receiver.recv().await.unwrap();
-            assert_eq!(metrics, MetricsMsg::BlockReceived);
+            assert_eq!(metrics, metrics::Msg::BlockReceived);
         }
 
         assert!(receiver.try_recv().is_err());

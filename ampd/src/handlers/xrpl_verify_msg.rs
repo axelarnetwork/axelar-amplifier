@@ -26,7 +26,7 @@ use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
+use crate::monitoring::metrics;
 use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
@@ -182,12 +182,12 @@ where
                         })
                 })
                 .inspect(|vote| {
-                    self.monitoring_client
-                        .metrics()
-                        .record_metric(MetricsMsg::VerificationVote {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
                             vote_decision: vote.clone(),
                             chain_name: XRPL_CHAIN_NAME.clone(),
-                        });
+                        },
+                    );
                 })
                 .collect();
             info!(

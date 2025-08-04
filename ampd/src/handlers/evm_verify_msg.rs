@@ -27,7 +27,7 @@ use crate::evm::verifier::verify_message;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
+use crate::monitoring::metrics;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -212,12 +212,12 @@ where
                         })
                 })
                 .inspect(|vote| {
-                    self.monitoring_client
-                        .metrics()
-                        .record_metric(MetricsMsg::VerificationVote {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
                             vote_decision: vote.clone(),
                             chain_name: self.chain.clone(),
-                        });
+                        },
+                    );
                 })
                 .collect();
             info!(
@@ -258,8 +258,7 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils;
+    use crate::monitoring::{metrics, test_utils};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 
@@ -452,7 +451,7 @@ mod tests {
 
             assert_eq!(
                 metrics,
-                MetricsMsg::VerificationVote {
+                metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
                     chain_name: ChainName::from_str("ethereum").unwrap(),
                 }

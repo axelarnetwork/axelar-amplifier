@@ -25,7 +25,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
+use crate::monitoring::metrics;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
 use crate::types::TMAddress;
@@ -156,7 +156,7 @@ where
 
             self.monitoring_client
                 .metrics()
-                .record_metric(MetricsMsg::VerificationVote {
+                .record_metric(metrics::Msg::VerificationVote {
                     vote_decision: vote.clone(),
                     chain_name: STARKNET_CHAIN_NAME.clone(),
                 });
@@ -200,8 +200,7 @@ mod tests {
     use super::STARKNET_CHAIN_NAME;
     use crate::event_processor::EventHandler;
     use crate::handlers::starknet_verify_verifier_set::PollStartedEvent;
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils;
+    use crate::monitoring::{metrics, test_utils};
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -274,7 +273,7 @@ mod tests {
 
         assert_eq!(
             receiver.try_recv().unwrap(),
-            MetricsMsg::VerificationVote {
+            metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
                 chain_name: STARKNET_CHAIN_NAME.clone(),
             }

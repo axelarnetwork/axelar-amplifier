@@ -21,7 +21,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
+use crate::monitoring::metrics;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
 use crate::stacks::verifier::{get_type_signature_signers_rotated, verify_verifier_set};
@@ -165,7 +165,7 @@ impl EventHandler for Handler {
 
             self.monitoring_client
                 .metrics()
-                .record_metric(MetricsMsg::VerificationVote {
+                .record_metric(metrics::Msg::VerificationVote {
                     vote_decision: vote.clone(),
                     chain_name: self.chain_name.clone(),
                 });
@@ -206,8 +206,7 @@ mod tests {
     use super::{Handler, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils;
+    use crate::monitoring::{metrics, test_utils};
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
@@ -471,7 +470,7 @@ mod tests {
         let metric = receiver.recv().await.unwrap();
         assert_eq!(
             metric,
-            MetricsMsg::VerificationVote {
+            metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
                 chain_name: handler.chain_name.clone(),
             }

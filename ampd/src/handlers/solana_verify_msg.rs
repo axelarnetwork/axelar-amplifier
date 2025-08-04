@@ -23,7 +23,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
+use crate::monitoring::metrics;
 use crate::solana::msg_verifier::verify_message;
 use crate::solana::SolanaRpcClientProxy;
 use crate::types::{Hash, TMAddress};
@@ -164,12 +164,12 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                         .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
                 })
                 .inspect(|vote| {
-                    self.monitoring_client
-                        .metrics()
-                        .record_metric(MetricsMsg::VerificationVote {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
                             vote_decision: vote.clone(),
                             chain_name: self.chain_name.clone(),
-                        });
+                        },
+                    );
                 })
                 .collect();
             info!(
@@ -200,8 +200,7 @@ mod test {
 
     use super::*;
     use crate::handlers::tests::into_structured_event;
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils;
+    use crate::monitoring::{metrics, test_utils};
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -373,7 +372,7 @@ mod test {
             let msg = receiver.recv().await.unwrap();
             assert_eq!(
                 msg,
-                MetricsMsg::VerificationVote {
+                metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
                     chain_name: ChainName::from_str("solana").unwrap(),
                 }

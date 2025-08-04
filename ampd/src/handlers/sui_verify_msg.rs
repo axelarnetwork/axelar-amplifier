@@ -21,7 +21,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::monitoring;
-use crate::monitoring::metrics::Msg as MetricsMsg;
+use crate::monitoring::metrics;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
@@ -155,7 +155,7 @@ where
             .inspect(|vote| {
                 self.monitoring_client
                     .metrics()
-                    .record_metric(MetricsMsg::VerificationVote {
+                    .record_metric(metrics::Msg::VerificationVote {
                         vote_decision: vote.clone(),
                         chain_name: SUI_CHAIN_NAME.clone(),
                     });
@@ -192,8 +192,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
     use crate::handlers::tests::{into_structured_event, participants};
-    use crate::monitoring::metrics::Msg as MetricsMsg;
-    use crate::monitoring::test_utils;
+    use crate::monitoring::{metrics, test_utils};
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
 
@@ -368,7 +367,7 @@ mod tests {
         let metric = receiver.recv().await.unwrap();
         assert_eq!(
             metric,
-            MetricsMsg::VerificationVote {
+            metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
                 chain_name: SUI_CHAIN_NAME.clone(),
             }
