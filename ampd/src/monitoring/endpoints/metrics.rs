@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axelar_wasm_std::voting::Vote as AxelarVote;
+use axelar_wasm_std::voting;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::header::CONTENT_TYPE;
@@ -38,7 +38,7 @@ pub enum Msg {
     BlockReceived,
     /// Record the verification vote results for cross-chain message
     VerificationVote {
-        vote_decision: AxelarVote,
+        vote_decision: voting::Vote,
         chain_name: ChainName,
     },
 }
@@ -263,12 +263,12 @@ enum Vote {
     NotFound,
 }
 
-impl From<AxelarVote> for Vote {
-    fn from(vote: AxelarVote) -> Self {
+impl From<voting::Vote> for Vote {
+    fn from(vote: voting::Vote) -> Self {
         match vote {
-            AxelarVote::SucceededOnChain => Vote::SucceededOnChain,
-            AxelarVote::FailedOnChain => Vote::FailedOnChain,
-            AxelarVote::NotFound => Vote::NotFound,
+            voting::Vote::SucceededOnChain => Vote::SucceededOnChain,
+            voting::Vote::FailedOnChain => Vote::FailedOnChain,
+            voting::Vote::NotFound => Vote::NotFound,
         }
     }
 }
@@ -299,7 +299,7 @@ impl VerificationVoteMetrics {
         );
     }
 
-    fn record_verification_vote(&self, vote_decision: AxelarVote, chain_name: ChainName) {
+    fn record_verification_vote(&self, vote_decision: voting::Vote, chain_name: ChainName) {
         let chain_name = chain_name.to_string();
         let vote_decision: Vote = vote_decision.into();
 
@@ -371,15 +371,15 @@ mod tests {
 
         for chain_name in chain_names {
             client.record_metric(Msg::VerificationVote {
-                vote_decision: AxelarVote::SucceededOnChain,
+                vote_decision: voting::Vote::SucceededOnChain,
                 chain_name: chain_name.clone(),
             });
             client.record_metric(Msg::VerificationVote {
-                vote_decision: AxelarVote::FailedOnChain,
+                vote_decision: voting::Vote::FailedOnChain,
                 chain_name: chain_name.clone(),
             });
             client.record_metric(Msg::VerificationVote {
-                vote_decision: AxelarVote::NotFound,
+                vote_decision: voting::Vote::NotFound,
                 chain_name: chain_name.clone(),
             });
         }
