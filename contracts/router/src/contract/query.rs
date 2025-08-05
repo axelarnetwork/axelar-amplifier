@@ -39,7 +39,7 @@ mod test {
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use router_api::error::Error;
-    use router_api::{chain_name, ChainEndpoint, ChainName, Gateway, GatewayDirection};
+    use router_api::{chain_name, cosmos_addr, ChainEndpoint, ChainName, Gateway, GatewayDirection};
 
     use super::chain_info;
     use crate::state::chain_endpoints;
@@ -51,7 +51,7 @@ mod test {
         let endpoint = ChainEndpoint {
             name: chain_name.clone(),
             gateway: Gateway {
-                address: MockApi::default().addr_make("some gateway"),
+                address: cosmos_addr!("some gateway"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,

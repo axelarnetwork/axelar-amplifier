@@ -404,6 +404,7 @@ mod tests {
     use cosmwasm_std::{Addr, Uint64};
     use rand::distributions::Alphanumeric;
     use rand::Rng;
+    use router_api::cosmos_addr;
 
     use super::*;
     use crate::{nonempty, Participant, Threshold};
@@ -422,7 +423,7 @@ mod tests {
 
         assert_eq!(
             poll.participation
-                .get(MockApi::default().addr_make("addr1").as_str())
+                .get(cosmos_addr!("addr1").as_str())
                 .unwrap(),
             &Participation {
                 weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
@@ -431,12 +432,12 @@ mod tests {
         );
 
         let poll = poll
-            .cast_vote(1, &MockApi::default().addr_make("addr1"), votes.clone())
+            .cast_vote(1, &cosmos_addr!("addr1"), votes.clone())
             .unwrap();
 
         assert_eq!(
             poll.participation
-                .get(MockApi::default().addr_make("addr1").as_str())
+                .get(cosmos_addr!("addr1").as_str())
                 .unwrap(),
             &Participation {
                 weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
@@ -476,7 +477,7 @@ mod tests {
         );
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         assert_eq!(
-            poll.cast_vote(2, &MockApi::default().addr_make("addr1"), votes),
+            poll.cast_vote(2, &cosmos_addr!("addr1"), votes),
             Err(Error::PollExpired)
         );
     }
@@ -486,7 +487,7 @@ mod tests {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![Vote::SucceededOnChain];
         assert_eq!(
-            poll.cast_vote(1, &MockApi::default().addr_make("addr1"), votes),
+            poll.cast_vote(1, &cosmos_addr!("addr1"), votes),
             Err(Error::InvalidVoteSize)
         );
     }
@@ -497,10 +498,10 @@ mod tests {
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         let poll = poll
-            .cast_vote(1, &MockApi::default().addr_make("addr1"), votes.clone())
+            .cast_vote(1, &cosmos_addr!("addr1"), votes.clone())
             .unwrap();
         assert_eq!(
-            poll.cast_vote(1, &MockApi::default().addr_make("addr1"), votes),
+            poll.cast_vote(1, &cosmos_addr!("addr1"), votes),
             Err(Error::AlreadyVoted)
         );
     }
@@ -522,10 +523,7 @@ mod tests {
     fn should_conclude_poll() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
-        let voters = [
-            MockApi::default().addr_make("addr1"),
-            MockApi::default().addr_make("addr2"),
-        ];
+        let voters = [cosmos_addr!("addr1"), cosmos_addr!("addr2")];
 
         let poll = poll
             .cast_vote(1, &voters[0], votes.clone())
@@ -551,8 +549,8 @@ mod tests {
                     Some(Vote::SucceededOnChain)
                 ]),
                 consensus_participants: vec![
-                    MockApi::default().addr_make("addr1").to_string(),
-                    MockApi::default().addr_make("addr2").to_string(),
+                    cosmos_addr!("addr1").to_string(),
+                    cosmos_addr!("addr2").to_string(),
                 ],
             }
         );
@@ -564,9 +562,9 @@ mod tests {
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         let wrong_votes = vec![Vote::FailedOnChain, Vote::FailedOnChain];
         let voters = [
-            MockApi::default().addr_make("addr1"),
-            MockApi::default().addr_make("addr2"),
-            MockApi::default().addr_make("addr3"),
+            cosmos_addr!("addr1"),
+            cosmos_addr!("addr2"),
+            cosmos_addr!("addr3"),
         ];
         let voting_history: Vec<(&Addr, Vec<Vote>)> = voters
             .iter()
@@ -604,8 +602,8 @@ mod tests {
                     Some(Vote::SucceededOnChain)
                 ]),
                 consensus_participants: vec![
-                    MockApi::default().addr_make("addr3").to_string(),
-                    MockApi::default().addr_make("addr1").to_string(),
+                    cosmos_addr!("addr3").to_string(),
+                    cosmos_addr!("addr1").to_string(),
                 ],
             }
         );

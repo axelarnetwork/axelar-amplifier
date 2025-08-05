@@ -58,10 +58,10 @@ pub fn participation(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, MockApi};
+    use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{Uint128, Uint64};
     use msg::Participation;
-    use router_api::chain_name;
+    use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::msg::Params;
@@ -70,7 +70,7 @@ mod tests {
     fn setup(storage: &mut dyn Storage, initial_balance: Uint128) -> (ParamsSnapshot, PoolId) {
         let pool_id = PoolId {
             chain_name: chain_name!("mock-chain"),
-            contract: MockApi::default().addr_make("contract"),
+            contract: cosmos_addr!("contract"),
         };
 
         let epoch = Epoch {
@@ -207,7 +207,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let pool_id = PoolId {
             chain_name: chain_name!("mock-chain"),
-            contract: MockApi::default().addr_make("contract"),
+            contract: cosmos_addr!("contract"),
         };
         let block_height = 1000;
 
@@ -232,8 +232,8 @@ mod tests {
             epoch.clone(),
             current_params.params.clone(),
         );
-        tally = tally.record_participation(MockApi::default().addr_make("verifier_1"));
-        tally = tally.record_participation(MockApi::default().addr_make("verifier_2"));
+        tally = tally.record_participation(cosmos_addr!("verifier_1"));
+        tally = tally.record_participation(cosmos_addr!("verifier_2"));
         tally.event_count = tally.event_count.saturating_add(1);
         state::save_epoch_tally(deps.as_mut().storage, &tally).unwrap();
 

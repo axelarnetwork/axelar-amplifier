@@ -351,7 +351,7 @@ mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
-    use router_api::chain_name_raw;
+    use router_api::{chain_name_raw, cosmos_addr};
 
     use super::*;
 
@@ -360,8 +360,8 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let config = Config {
-            axelarnet_gateway: MockApi::default().addr_make("gateway-address"),
-            operator: MockApi::default().addr_make("operator-address"),
+            axelarnet_gateway: cosmos_addr!("gateway-address"),
+            operator: cosmos_addr!("operator-address"),
         };
 
         assert_ok!(save_config(deps.as_mut().storage, &config));
@@ -381,16 +381,8 @@ mod tests {
 
         let chain1 = chain_name_raw!("chain1");
         let chain2 = chain_name_raw!("chain2");
-        let address1: Address = MockApi::default()
-            .addr_make("address1")
-            .to_string()
-            .parse()
-            .unwrap();
-        let address2: Address = MockApi::default()
-            .addr_make("address2")
-            .to_string()
-            .parse()
-            .unwrap();
+        let address1 = cosmos_addr!("address1").to_string().parse().unwrap();
+        let address2 = cosmos_addr!("address2").to_string().parse().unwrap();
 
         assert_err_contains!(
             load_its_contract(deps.as_ref().storage, &chain1),

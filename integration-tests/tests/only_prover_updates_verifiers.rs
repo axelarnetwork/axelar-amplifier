@@ -5,7 +5,7 @@ use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
-use router_api::chain_name;
+use router_api::{chain_name, cosmos_addr};
 
 pub mod test_utils;
 
@@ -43,9 +43,9 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
         protocol.governance_address.clone(),
         &CoordinatorExecuteMsg::RegisterChain {
             chain_name: chain_name.clone(),
-            prover_address: MockApi::default().addr_make("random_address").to_string(),
-            gateway_address: MockApi::default().addr_make("random_address").to_string(),
-            voting_verifier_address: MockApi::default().addr_make("random_address").to_string(),
+            prover_address: cosmos_addr!("random_address").to_string(),
+            gateway_address: cosmos_addr!("random_address").to_string(),
+            voting_verifier_address: cosmos_addr!("random_address").to_string(),
         },
     );
     assert!(response.is_ok());
