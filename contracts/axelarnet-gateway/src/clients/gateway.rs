@@ -62,10 +62,9 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
+    use router_api::chain_name;
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -77,10 +76,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(
-            client.chain_name().unwrap(),
-            ChainName::from_str("source-chain").unwrap()
-        );
+        assert_eq!(client.chain_name().unwrap(), chain_name!("source-chain"));
     }
 
     #[test]

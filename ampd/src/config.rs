@@ -60,7 +60,7 @@ mod tests {
     use std::time::Duration;
 
     use cosmrs::AccountId;
-    use router_api::ChainName;
+    use router_api::chain_name;
 
     use super::Config;
     use crate::evm::finalizer::Finalization;
@@ -496,7 +496,7 @@ mod tests {
             handlers: vec![
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
-                        name: ChainName::from_str("Ethereum").unwrap(),
+                        name: chain_name!("Ethereum"),
                         finalization: Finalization::RPCFinalizedBlock,
                         rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     },
@@ -510,7 +510,7 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     chain: Chain {
-                        name: ChainName::from_str("Fantom").unwrap(),
+                        name: chain_name!("Fantom"),
                         finalization: Finalization::ConfirmationHeight,
                         rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     },
@@ -520,7 +520,7 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    chain_name: ChainName::from_str("Ethereum").unwrap(),
+                    chain_name: chain_name!("Ethereum"),
                 },
                 HandlerConfig::SuiMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
@@ -573,7 +573,7 @@ mod tests {
                     rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
-                    chain_name: ChainName::from_str("solana").unwrap(),
+                    chain_name: chain_name!("solana"),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -581,7 +581,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
-                    chain_name: ChainName::from_str("solana").unwrap(),
+                    chain_name: chain_name!("solana"),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -589,7 +589,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksMsgVerifier {
-                    chain_name: ChainName::from_str("stacks").unwrap(),
+                    chain_name: chain_name!("stacks"),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -597,7 +597,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
-                    chain_name: ChainName::from_str("stacks").unwrap(),
+                    chain_name: chain_name!("stacks"),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

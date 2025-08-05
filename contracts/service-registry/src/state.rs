@@ -437,12 +437,12 @@ fn apply_authorized_count_change(
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use std::vec;
 
     use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Timestamp, Uint128};
+    use router_api::chain_name;
     use service_registry_api::{AuthorizationState, BondingState, Verifier};
 
     use super::*;
@@ -680,7 +680,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let chains = vec![chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -696,10 +696,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
-        let chain_names = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("cosmos").unwrap(),
-        ];
+        let chain_names = vec![chain_name!("ethereum"), chain_name!("cosmos")];
 
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -716,7 +713,7 @@ mod tests {
         let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
 
-        let first_chain_name = ChainName::from_str("ethereum").unwrap();
+        let first_chain_name = chain_name!("ethereum");
         let first_chains_vector = vec![first_chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -726,7 +723,7 @@ mod tests {
         )
         .is_ok());
 
-        let second_chain_name = ChainName::from_str("cosmos").unwrap();
+        let second_chain_name = chain_name!("cosmos");
         let second_chains_vector = vec![second_chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -742,7 +739,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let chains = vec![chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -766,10 +763,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
-        let chain_names = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("cosmos").unwrap(),
-        ];
+        let chain_names = vec![chain_name!("ethereum"), chain_name!("cosmos")];
         assert!(register_chains_support(
             deps.as_mut().storage,
             service_name.into(),
@@ -792,7 +786,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let verifier = MockApi::default().addr_make("verifier");
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let chains = vec![chain_name.clone()];
 
         assert!(deregister_chains_support(

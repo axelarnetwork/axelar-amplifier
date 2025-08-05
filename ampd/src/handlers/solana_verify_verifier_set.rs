@@ -193,6 +193,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::chain_name;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
@@ -266,7 +267,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -288,7 +289,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -311,7 +312,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -341,7 +342,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             verifier,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -373,7 +374,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -400,7 +401,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -416,7 +417,7 @@ mod tests {
             metrics,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str("solana").unwrap(),
+                chain_name: chain_name!("solana"),
             }
         );
 

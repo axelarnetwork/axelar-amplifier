@@ -238,7 +238,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -248,7 +247,7 @@ mod tests {
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use router_api::ChainName;
+    use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -395,7 +394,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier_contract,
-            ChainName::from_str("ethereum").unwrap(),
+            chain_name!("ethereum"),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,
@@ -437,7 +436,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier_contract,
-            ChainName::from_str("ethereum").unwrap(),
+            chain_name!("ethereum"),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -453,7 +452,7 @@ mod tests {
                 metrics,
                 metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: ChainName::from_str("ethereum").unwrap(),
+                    chain_name: chain_name!("ethereum"),
                 }
             );
         }

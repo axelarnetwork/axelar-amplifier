@@ -217,7 +217,6 @@ pub fn query(
 #[cfg(test)]
 mod test {
     use std::collections::HashSet;
-    use std::str::FromStr;
 
     use axelar_wasm_std::error::err_contains;
     use axelar_wasm_std::nonempty;
@@ -227,7 +226,7 @@ mod test {
     use cosmwasm_std::{
         coins, from_json, Api, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
     use service_registry_api::{Verifier, WeightedVerifier};
 
     use super::*;
@@ -1054,7 +1053,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1099,7 +1098,7 @@ mod test {
                 mock_env(),
                 QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
-                    chain_name: ChainName::from_str("random chain").unwrap(),
+                    chain_name: chain_name!("random chain"),
                 },
             )
             .unwrap(),
@@ -1158,7 +1157,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1247,9 +1246,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("binance"),
+            chain_name!("avalanche"),
         ];
 
         let res = execute(
@@ -1342,9 +1341,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("binance"),
+            chain_name!("avalanche"),
         ];
 
         let res = execute(
@@ -1467,7 +1466,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1479,7 +1478,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let second_chain_name = ChainName::from_str("avalanche").unwrap();
+        let second_chain_name = chain_name!("avalanche");
         // Deregister support for another chain
         let res = execute(
             deps.as_mut(),
@@ -1570,7 +1569,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1683,7 +1682,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1747,7 +1746,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1793,7 +1792,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1820,7 +1819,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1865,7 +1864,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1910,7 +1909,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1991,7 +1990,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2109,7 +2108,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2184,7 +2183,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2259,7 +2258,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2347,7 +2346,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2457,7 +2456,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2570,7 +2569,7 @@ mod test {
         )
         .unwrap();
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
 
         for verifier in &verifiers {
             // should return err until all verifiers are registered
@@ -2851,9 +2850,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("binance"),
+            chain_name!("avalanche"),
         ];
         let res = execute(
             deps.as_mut(),
@@ -3182,7 +3181,7 @@ mod test {
     fn active_verifiers_respects_chain_max_override() {
         let (mut deps, api, service_name, original_verifiers) = setup_service_with_5_verifiers();
         let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
 
         // Bond and register all verifiers
         for verifier in &original_verifiers {
@@ -3275,7 +3274,7 @@ mod test {
         assert_eq!(active_verifiers.len(), original_verifiers.len());
 
         // Test that without chain override, all 5 verifiers would be returned
-        let chain_name_no_override = ChainName::from_str("polygon").unwrap();
+        let chain_name_no_override = chain_name!("polygon");
 
         // Register all verifiers for the chain without override
         for verifier in &original_verifiers {
