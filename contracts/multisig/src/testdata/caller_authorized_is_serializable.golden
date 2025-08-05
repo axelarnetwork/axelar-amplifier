@@ -1,0 +1,13 @@
+{
+  "type": "caller_authorized",
+  "attributes": [
+    {
+      "key": "contract_address",
+      "value": "\"contract1\""
+    },
+    {
+      "key": "chain_name",
+      "value": "\"ethereum\""
+    }
+  ]
+}

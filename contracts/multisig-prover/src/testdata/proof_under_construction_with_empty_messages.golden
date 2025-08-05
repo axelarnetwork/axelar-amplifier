@@ -1,0 +1,21 @@
+{
+  "type": "proof_under_construction",
+  "attributes": [
+    {
+      "key": "destination_chain",
+      "value": "\"ethereum\""
+    },
+    {
+      "key": "payload_id",
+      "value": "\"bc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a\""
+    },
+    {
+      "key": "multisig_session_id",
+      "value": "\"1\""
+    },
+    {
+      "key": "msg_ids",
+      "value": "[]"
+    }
+  ]
+}
