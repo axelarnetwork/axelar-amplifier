@@ -1,8 +1,12 @@
 # Changelog
 
-## [v1.3.0](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
+## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/router-v1.2.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/router-v1.3.0..HEAD)
+
+## [v1.3.0](https://github.com/axelarnetwork/axelar-amplifier/tree/router-v1.3.0)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/router-v1.2.0..router-v1.3.0)
 
 - add proxy capabilities to contract client [#960](https://github.com/axelarnetwork/axelar-amplifier/pull/960)
 - rename ensure permissions macro [#925](https://github.com/axelarnetwork/axelar-amplifier/pull/925)
