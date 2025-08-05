@@ -152,6 +152,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
             broadcast.tx_fetch_interval,
             broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         ),
+        monitoring_client.clone(),
     );
     let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)
@@ -159,6 +160,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .signer(multisig_client.clone())
         .key_id(tofnd_config.key_uid.clone())
         .tx_confirmer_client(tx_confirmer_client)
+        .monitoring_client(monitoring_client.clone())
         .build();
 
     let verifier: TMAddress = pub_key
