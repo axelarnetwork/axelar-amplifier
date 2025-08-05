@@ -12,7 +12,8 @@ use error_stack::ResultExt;
 use events::try_from;
 use events::Error::EventTypeMismatch;
 use futures::future::join_all;
-use router_api::ChainName;
+use lazy_static::lazy_static;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -24,9 +25,15 @@ use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::types::TMAddress;
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
+
+lazy_static! {
+    static ref XRPL_CHAIN_NAME: ChainName = chain_name!("xrpl");
+}
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -51,6 +58,7 @@ where
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -62,12 +70,14 @@ where
         voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -170,6 +180,14 @@ where
                         .map_or(Vote::NotFound, |tx| {
                             verify_message(&source_gateway_address, tx, msg)
                         })
+                })
+                .inspect(|vote| {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: XRPL_CHAIN_NAME.clone(),
+                        },
+                    );
                 })
                 .collect();
             info!(
