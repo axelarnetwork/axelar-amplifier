@@ -20,6 +20,8 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
 use crate::stacks::verifier::{get_type_signature_signers_rotated, verify_verifier_set};
@@ -53,6 +55,7 @@ pub struct Handler {
     http_client: Client,
     latest_block_height: Receiver<u64>,
     type_signature_signers_rotated: TypeSignature,
+    monitoring_client: monitoring::Client,
 }
 
 impl Handler {
@@ -62,6 +65,7 @@ impl Handler {
         voting_verifier_contract: TMAddress,
         http_client: Client,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> error_stack::Result<Self, crate::stacks::error::Error> {
         let type_signature_signers_rotated = get_type_signature_signers_rotated()?;
 
@@ -72,6 +76,7 @@ impl Handler {
             http_client,
             latest_block_height,
             type_signature_signers_rotated,
+            monitoring_client,
         })
     }
 
@@ -157,6 +162,13 @@ impl EventHandler for Handler {
                     &self.type_signature_signers_rotated,
                 )
             });
+
+            self.monitoring_client
+                .metrics()
+                .record_metric(metrics::Msg::VerificationVote {
+                    vote_decision: vote.clone(),
+                    chain_name: self.chain_name.clone(),
+                });
             info!(
                 vote = vote.as_value(),
                 "ready to vote for a new worker set in poll"
@@ -179,6 +191,7 @@ mod tests {
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
@@ -193,6 +206,7 @@ mod tests {
     use super::{Handler, PollStartedEvent};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
+    use crate::monitoring::{metrics, test_utils};
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
@@ -252,12 +266,15 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
@@ -271,12 +288,15 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
@@ -290,6 +310,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let event = into_structured_event(
             verifier_set_poll_started_event(
                 vec![verifier.clone()].into_iter().collect(),
@@ -304,6 +325,7 @@ mod tests {
             voting_verifier,
             client,
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
@@ -318,12 +340,15 @@ mod tests {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
@@ -351,6 +376,8 @@ mod tests {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
@@ -359,6 +386,7 @@ mod tests {
             voting_verifier,
             client,
             rx,
+            monitoring_client,
         )
         .unwrap();
 
@@ -390,18 +418,65 @@ mod tests {
             &voting_verifier,
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = Handler::new(
             ChainName::from_str("stacks").unwrap(),
             worker,
             voting_verifier,
             client,
             watch::channel(0).1,
+            monitoring_client,
         )
         .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let mut client = Client::faux();
+        faux::when!(client.latest_block).then(|_| {
+            Ok(Block {
+                burn_block_height: 1,
+            })
+        });
+        faux::when!(client.valid_transaction).then(|_| None);
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+
+        let event = into_structured_event(
+            verifier_set_poll_started_event(participants(5, Some(worker.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = Handler::new(
+            ChainName::from_str("stacks").unwrap(),
+            worker,
+            voting_verifier,
+            client,
+            watch::channel(0).1,
+            monitoring_client,
+        )
+        .unwrap();
+
+        let _ = handler.handle(&event).await.unwrap();
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(
+            metric,
+            metrics::Msg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: handler.chain_name.clone(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     fn verifier_set_poll_started_event(

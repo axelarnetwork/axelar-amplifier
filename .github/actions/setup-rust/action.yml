@@ -1,0 +1,35 @@
+name: 'Setup Rust'
+description: 'Install Rust toolchain from rust-toolchain.toml with Blacksmith-optimized caching'
+inputs:
+  cache-key:
+    description: 'Cache namespace (e.g., "tests", "lints")'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rust toolchain
+      id: rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        # Use Blacksmith cache instead of default Swatinem
+        cache: false
+        # Preserve RUSTFLAGS from .cargo/config.toml
+        rustflags: ""
+
+    - name: Cache Rust dependencies
+      uses: useblacksmith/rust-cache@v3.0.1
+      id: cache
+      with:
+        # Automatic toolchain-based separation
+        prefix-key: "${{ steps.rust.outputs.cachekey }}-rust"
+        shared-key: "${{ inputs.cache-key }}"
+        cache-on-failure: true
+
+    - name: Log crates.toml on cache hit
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        echo "Cache hit for key: ${{ steps.cache.outputs.cache-matched-key }}"
+        cat /home/runner/.cargo/.crates.toml || true
