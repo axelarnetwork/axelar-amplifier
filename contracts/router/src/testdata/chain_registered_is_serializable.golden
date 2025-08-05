@@ -1,0 +1,13 @@
+{
+  "type": "chain_registered",
+  "attributes": [
+    {
+      "key": "name",
+      "value": "\"ethereum\""
+    },
+    {
+      "key": "gateway",
+      "value": "\"cosmwasm1f6j7u6875p2cvyrgjr0d2uecyzah0kgeek38h39czwdhe5em3zys78pcnl\""
+    }
+  ]
+}

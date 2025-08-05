@@ -8,10 +8,9 @@ use error_stack::ResultExt;
 use msgs_derive::ensure_permissions;
 use router_api::error::Error;
 
-use crate::events::RouterInstantiated;
 use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
-use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
+use crate::{state, Event};
 
 mod execute;
 mod migrations;
@@ -47,11 +46,9 @@ pub fn instantiate(
     state::save_config(deps.storage, &config)?;
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
-    Ok(Response::new().add_event(RouterInstantiated {
-        admin,
-        governance,
-        axelarnet_gateway,
-        coordinator,
+    Ok(Response::new().add_event(Event::RouterInstantiated {
+        admin_address: admin,
+        governance_address: governance,
     }))
 }
 
@@ -157,7 +154,7 @@ mod test {
     };
 
     use super::*;
-    use crate::events;
+    use crate::Event;
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -1788,7 +1785,7 @@ mod test {
         .unwrap();
 
         assert!(res.events.len() == 1);
-        assert!(res.events.contains(&events::RoutingDisabled.into()));
+        assert!(res.events.contains(&Event::RoutingDisabled.into()));
 
         // don't emit event if already disabled
         let res = execute(
@@ -1810,7 +1807,7 @@ mod test {
         .unwrap();
 
         assert!(res.events.len() == 1);
-        assert!(res.events.contains(&events::RoutingEnabled.into()));
+        assert!(res.events.contains(&Event::RoutingEnabled.into()));
 
         // don't emit event if already enabled
         let res = execute(
@@ -1834,9 +1831,9 @@ mod test {
 
         killswitch::init(deps.as_mut().storage, killswitch::State::Engaged).unwrap();
         assert!(!is_enabled(deps.as_ref()));
-        killswitch::engage(deps.as_mut().storage, events::RoutingDisabled).unwrap();
+        killswitch::engage(deps.as_mut().storage, Event::RoutingDisabled).unwrap();
         assert!(!is_enabled(deps.as_ref()));
-        killswitch::disengage(deps.as_mut().storage, events::RoutingEnabled).unwrap();
+        killswitch::disengage(deps.as_mut().storage, Event::RoutingEnabled).unwrap();
         assert!(is_enabled(deps.as_ref()));
     }
 

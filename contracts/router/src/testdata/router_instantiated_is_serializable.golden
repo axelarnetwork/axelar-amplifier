@@ -1,0 +1,13 @@
+{
+  "type": "router_instantiated",
+  "attributes": [
+    {
+      "key": "admin_address",
+      "value": "\"cosmwasm1335hded4gyzpt00fpz75mms4m7ck02wgw07yhw9grahj4dzg4yvqysvwql\""
+    },
+    {
+      "key": "governance_address",
+      "value": "\"cosmwasm1h72z9g4qf2kjrq866zgn78xl32wn0q8aqayp05jkjpgdp2qft5aquanhrh\""
+    }
+  ]
+}

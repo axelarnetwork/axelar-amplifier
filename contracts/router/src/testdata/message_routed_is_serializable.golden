@@ -1,0 +1,25 @@
+{
+  "type": "message_routed",
+  "attributes": [
+    {
+      "key": "cc_id",
+      "value": "{\"source_chain\":\"ethereum\",\"message_id\":\"some-id\"}"
+    },
+    {
+      "key": "source_address",
+      "value": "\"0x1234\""
+    },
+    {
+      "key": "destination_chain",
+      "value": "\"avalanche\""
+    },
+    {
+      "key": "destination_address",
+      "value": "\"0x5678\""
+    },
+    {
+      "key": "payload_hash",
+      "value": "\"0000000000000000000000000000000000000000000000000000000000000000\""
+    }
+  ]
+}
