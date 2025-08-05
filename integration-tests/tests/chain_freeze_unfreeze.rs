@@ -1,7 +1,6 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::HexBinary;
 use integration_tests::contract::Contract;
-use router_api::{CrossChainId, Message};
+use router_api::{cosmos_addr, CrossChainId, Message};
 
 pub mod test_utils;
 
@@ -69,7 +68,7 @@ fn chain_can_be_freezed_unfreezed() {
 
     let response = chain1.gateway.execute(
         &mut protocol.app,
-        MockApi::default().addr_make("relayer"),
+        cosmos_addr!("relayer"),
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     test_utils::assert_contract_err_strings_equal(

@@ -1,7 +1,7 @@
 use coordinator::contract::{execute, instantiate, query};
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
+use router_api::cosmos_addr;
 
 use crate::contract::Contract;
 use crate::protocol::AxelarApp;
@@ -19,7 +19,7 @@ impl CoordinatorContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                 },

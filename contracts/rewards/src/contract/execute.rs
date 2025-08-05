@@ -267,7 +267,7 @@ mod test {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::{cosmos_addr, ChainName};
 
     use super::*;
     use crate::error::ContractError;
@@ -282,7 +282,7 @@ mod test {
         let epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -317,7 +317,7 @@ mod test {
         let epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -341,7 +341,7 @@ mod test {
         let epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -397,7 +397,7 @@ mod test {
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             cur_epoch_num,
@@ -407,9 +407,9 @@ mod test {
         );
 
         let mut simulated_participation = HashMap::new();
-        simulated_participation.insert(MockApi::default().addr_make("verifier_1"), 10);
-        simulated_participation.insert(MockApi::default().addr_make("verifier_2"), 5);
-        simulated_participation.insert(MockApi::default().addr_make("verifier_3"), 7);
+        simulated_participation.insert(cosmos_addr!("verifier_1"), 10);
+        simulated_participation.insert(cosmos_addr!("verifier_2"), 5);
+        simulated_participation.insert(cosmos_addr!("verifier_3"), 7);
 
         let event_count = 10;
         let mut cur_height = epoch_block_start;
@@ -455,7 +455,7 @@ mod test {
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             starting_epoch_num,
@@ -465,9 +465,9 @@ mod test {
         );
 
         let verifiers = vec![
-            MockApi::default().addr_make("verifier_1"),
-            MockApi::default().addr_make("verifier_2"),
-            MockApi::default().addr_make("verifier_3"),
+            cosmos_addr!("verifier_1"),
+            cosmos_addr!("verifier_2"),
+            cosmos_addr!("verifier_3"),
         ];
         // this is the height just before the next epoch starts
         let height_at_epoch_end = block_height_started + epoch_duration - 1;
@@ -522,31 +522,31 @@ mod test {
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-1"),
+            cosmos_addr!("verifier-1"),
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 3,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-2"),
+            cosmos_addr!("verifier-2"),
             (
                 PoolId {
                     chain_name: "mock-chain-2".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 4,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-3"),
+            cosmos_addr!("verifier-3"),
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-3"),
+                    contract: cosmos_addr!("contract-3"),
                 },
                 2,
             ),
@@ -610,7 +610,7 @@ mod test {
         let epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup_with_params(
             initial_epoch_num,
@@ -679,7 +679,7 @@ mod test {
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -748,7 +748,7 @@ mod test {
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -811,7 +811,7 @@ mod test {
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -871,7 +871,7 @@ mod test {
         let epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
 
         let mut mock_deps = setup(
@@ -915,7 +915,7 @@ mod test {
         let epoch_duration = 100u64;
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
 
         let mut mock_deps = setup(
@@ -926,18 +926,9 @@ mod test {
         );
         // a vector of (contract, rewards amounts) pairs
         let test_data = vec![
-            (
-                MockApi::default().addr_make("contract_1"),
-                vec![100, 200, 50],
-            ),
-            (
-                MockApi::default().addr_make("contract_2"),
-                vec![25, 500, 70],
-            ),
-            (
-                MockApi::default().addr_make("contract_3"),
-                vec![1000, 500, 2000],
-            ),
+            (cosmos_addr!("contract_1"), vec![100, 200, 50]),
+            (cosmos_addr!("contract_2"), vec![25, 500, 70]),
+            (cosmos_addr!("contract_3"), vec![1000, 500, 2000]),
         ];
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
@@ -994,31 +985,31 @@ mod test {
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-1"),
+            cosmos_addr!("verifier-1"),
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 3,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-2"),
+            cosmos_addr!("verifier-2"),
             (
                 PoolId {
                     chain_name: "mock-chain-2".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 4,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-3"),
+            cosmos_addr!("verifier-3"),
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-3"),
+                    contract: cosmos_addr!("contract-3"),
                 },
                 2,
             ),
@@ -1089,18 +1080,15 @@ mod test {
         let pools = vec![
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                contract: cosmos_addr!("contract-1"),
             },
             PoolId {
                 chain_name: "mock-chain-2".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                contract: cosmos_addr!("contract-1"),
             },
         ];
 
-        let verifiers = [
-            MockApi::default().addr_make("verifier-1"),
-            MockApi::default().addr_make("verifier-2"),
-        ];
+        let verifiers = [cosmos_addr!("verifier-1"), cosmos_addr!("verifier-2")];
 
         // simulate two verifiers each participating in two pools
         // the first verifier participates in 2 events, and the second in 3 events (out of a total of 3 events)
@@ -1189,15 +1177,15 @@ mod test {
         let pools = vec![
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                contract: cosmos_addr!("contract-1"),
             },
             PoolId {
                 chain_name: "mock-chain-2".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                contract: cosmos_addr!("contract-1"),
             },
         ];
 
-        let verifier = MockApi::default().addr_make("verifier-1");
+        let verifier = cosmos_addr!("verifier-1");
 
         // simulate one verifier participating in two events in each pool
         let simulated_participation = vec![
@@ -1271,7 +1259,7 @@ mod test {
         let participation_threshold = (2, 3);
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1282,10 +1270,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier1 = MockApi::default().addr_make("verifier1");
-        let verifier2 = MockApi::default().addr_make("verifier2");
-        let verifier3 = MockApi::default().addr_make("verifier3");
-        let verifier4 = MockApi::default().addr_make("verifier4");
+        let verifier1 = cosmos_addr!("verifier1");
+        let verifier2 = cosmos_addr!("verifier2");
+        let verifier3 = cosmos_addr!("verifier3");
+        let verifier4 = cosmos_addr!("verifier4");
         let epoch_count = 4;
         // Simulate 4 epochs worth of events with 4 verifiers
         // Each epoch has 3 possible events to participate in
@@ -1378,7 +1366,7 @@ mod test {
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1389,7 +1377,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
             let event_id = height.to_string() + "event";
@@ -1478,7 +1466,7 @@ mod test {
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1489,10 +1477,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let _ = record_participation(
@@ -1563,7 +1551,7 @@ mod test {
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1574,10 +1562,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let _ = record_participation(
@@ -1635,7 +1623,7 @@ mod test {
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1646,7 +1634,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
@@ -1694,10 +1682,10 @@ mod test {
         assert!(record_participation(
             mock_deps.as_mut().storage,
             "some-event".parse().unwrap(),
-            MockApi::default().addr_make("verifier"),
+            cosmos_addr!("verifier"),
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract")
+                contract: cosmos_addr!("contract")
             },
             block_height_started
         )
@@ -1714,7 +1702,7 @@ mod test {
             mock_deps.as_mut().storage,
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract")
+                contract: cosmos_addr!("contract")
             },
             100u128.try_into().unwrap(),
         )
@@ -1731,7 +1719,7 @@ mod test {
             mock_deps.as_mut().storage,
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract")
+                contract: cosmos_addr!("contract")
             },
             block_height_started,
             None
@@ -1749,7 +1737,7 @@ mod test {
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1760,7 +1748,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
 
         let mut cur_height = block_height_started;
         let epoch_count = 3;
@@ -1788,7 +1776,7 @@ mod test {
 
         // advance two epochs past the last participation event
         cur_height += epoch_duration * 2;
-        let proxy = MockApi::default().addr_make("proxy");
+        let proxy = cosmos_addr!("proxy");
 
         set_verifier_proxy(mock_deps.as_mut().storage, &proxy, &verifier).unwrap();
 
@@ -1817,7 +1805,7 @@ mod test {
         assert!(distribution.can_distribute_more);
 
         // update the proxy address and distribute the next epochs worth of rewards
-        let new_proxy = MockApi::default().addr_make("new_proxy");
+        let new_proxy = cosmos_addr!("new_proxy");
         set_verifier_proxy(mock_deps.as_mut().storage, &new_proxy, &verifier).unwrap();
 
         let distribution = distribute_rewards(

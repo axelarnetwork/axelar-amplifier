@@ -5,7 +5,7 @@ use axelarnet_gateway::{contract, AxelarExecutableMsg};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{message_info, mock_env, MockApi};
 use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
-use router_api::{Address, ChainName, CrossChainId, Message};
+use router_api::{cosmos_addr, Address, ChainName, CrossChainId, Message};
 
 use crate::utils::params;
 
@@ -54,7 +54,7 @@ pub fn execute_payload(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
     )
 }
@@ -66,7 +66,7 @@ pub fn route_to_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }

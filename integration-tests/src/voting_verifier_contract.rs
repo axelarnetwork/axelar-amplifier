@@ -1,8 +1,7 @@
 use axelar_wasm_std::MajorityThreshold;
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
-use router_api::ChainName;
+use router_api::{cosmos_addr, ChainName};
 use voting_verifier::contract::{execute, instantiate, query};
 
 use crate::contract::Contract;
@@ -27,7 +26,7 @@ impl VotingVerifierContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &voting_verifier::msg::InstantiateMsg {
                     governance_address: protocol.governance_address.to_string().try_into().unwrap(),
                     service_registry_address: protocol
@@ -69,7 +68,7 @@ impl VotingVerifierContract {
 impl Default for VotingVerifierContract {
     fn default() -> Self {
         VotingVerifierContract {
-            contract_addr: MockApi::default().addr_make("verifier"),
+            contract_addr: cosmos_addr!("verifier"),
             code_id: 0,
         }
     }
