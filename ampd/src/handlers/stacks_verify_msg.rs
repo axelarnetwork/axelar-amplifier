@@ -25,7 +25,7 @@ use crate::monitoring::metrics;
 use crate::stacks::error::Error as StacksError;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
-use crate::stacks::verifier::{get_type_signature_contract_call, verify_message};
+use crate::stacks::verifier::{type_signature_contract_call, verify_message};
 use crate::types::{Hash, TMAddress};
 
 type CustomResult<T> = error_stack::Result<T, Error>;
@@ -72,7 +72,7 @@ impl Handler {
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
     ) -> error_stack::Result<Self, StacksError> {
-        let type_signature_contract_call = get_type_signature_contract_call()?;
+        let type_signature_contract_call = type_signature_contract_call()?;
 
         Ok(Self {
             chain_name,
