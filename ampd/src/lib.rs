@@ -1,7 +1,7 @@
 mod asyncutil;
 mod block_height_monitor;
 #[allow(dead_code)]
-mod broadcaster_v2;
+mod broadcast;
 #[cfg(feature = "commands")]
 pub mod commands;
 #[cfg(not(feature = "commands"))]
@@ -39,7 +39,7 @@ use std::time::Duration;
 use asyncutil::future::RetryPolicy;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
-use broadcaster_v2::MsgQueue;
+use broadcast::MsgQueue;
 use error_stack::{FutureExt, Result, ResultExt};
 use event_processor::EventHandler;
 use event_sub::EventSub;
@@ -116,7 +116,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let broadcaster = broadcaster_v2::Broadcaster::builder()
+    let broadcaster = broadcast::Broadcaster::builder()
         .client(cosmos_client.clone())
         .chain_id(broadcast.chain_id)
         .pub_key(pub_key)
@@ -125,7 +125,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .build()
         .await
         .change_context(Error::Broadcaster)?;
-    let (msg_queue, msg_queue_client) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
+    let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcast.queue_cap,
         broadcast.batch_gas_limit,
@@ -138,14 +138,14 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .build();
-    let (tx_confirmer, tx_confirmer_client) = broadcaster_v2::TxConfirmer::new_confirmer_and_client(
+    let (tx_confirmer, tx_confirmer_client) = broadcast::TxConfirmer::new_confirmer_and_client(
         cosmos_client,
         RetryPolicy::repeat_constant(
             broadcast.tx_fetch_interval,
             broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         ),
     );
-    let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
+    let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)
         .msg_queue(msg_queue)
         .signer(multisig_client.clone())
@@ -198,13 +198,10 @@ struct App {
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
-    broadcaster_task: broadcaster_v2::BroadcasterTask<
-        cosmos::CosmosGrpcClient,
-        Pin<Box<MsgQueue>>,
-        MultisigClient,
-    >,
-    msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
-    tx_confirmer: broadcaster_v2::TxConfirmer<cosmos::CosmosGrpcClient>,
+    broadcaster_task:
+        broadcast::BroadcasterTask<cosmos::CosmosGrpcClient, Pin<Box<MsgQueue>>, MultisigClient>,
+    msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
     monitoring_client: monitoring::Client,
 }
 
@@ -217,13 +214,13 @@ impl App {
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
         monitoring_server: monitoring::Server,
         grpc_server: grpc::Server,
-        broadcaster_task: broadcaster_v2::BroadcasterTask<
+        broadcaster_task: broadcast::BroadcasterTask<
             cosmos::CosmosGrpcClient,
             Pin<Box<MsgQueue>>,
             MultisigClient,
         >,
-        msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
-        tx_confirmer: broadcaster_v2::TxConfirmer<cosmos::CosmosGrpcClient>,
+        msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
+        tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
         monitoring_client: monitoring::Client,
     ) -> Self {
         let event_processor = TaskGroup::new("event handler");
@@ -300,6 +297,7 @@ impl App {
                         chain.finalization.clone(),
                         rpc_client,
                         self.block_height_monitor.latest_block_height(),
+                        self.monitoring_client.clone(),
                     ),
                     event_processor_config.clone(),
                     self.monitoring_client.clone(),
@@ -330,6 +328,7 @@ impl App {
                         chain.finalization.clone(),
                         rpc_client,
                         self.block_height_monitor.latest_block_height(),
+                        self.monitoring_client.clone(),
                     ),
                     event_processor_config.clone(),
                     self.monitoring_client.clone(),
@@ -368,6 +367,7 @@ impl App {
                             .change_context(Error::Connection)?,
                     ),
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -396,6 +396,7 @@ impl App {
                         cosmwasm_contract.clone(),
                         rpc_client,
                         self.block_height_monitor.latest_block_height(),
+                        self.monitoring_client.clone(),
                     ),
                     event_processor_config.clone(),
                     self.monitoring_client.clone(),
@@ -434,6 +435,7 @@ impl App {
                             .change_context(Error::Connection)?,
                     ),
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -448,6 +450,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -462,6 +465,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -479,6 +483,7 @@ impl App {
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -496,6 +501,7 @@ impl App {
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -513,6 +519,7 @@ impl App {
                     ))
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -530,6 +537,7 @@ impl App {
                     ))
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -551,6 +559,7 @@ impl App {
                         CommitmentConfig::finalized(),
                     ),
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 ),
                 event_processor_config.clone(),
                 self.monitoring_client.clone(),
@@ -572,6 +581,7 @@ impl App {
                         CommitmentConfig::finalized(),
                     ),
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 )
                 .await,
                 event_processor_config.clone(),
@@ -590,6 +600,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 )
                 .change_context(Error::Connection)?,
                 event_processor_config.clone(),
@@ -608,6 +619,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
                     self.block_height_monitor.latest_block_height(),
+                    self.monitoring_client.clone(),
                 )
                 .change_context(Error::Connection)?,
                 event_processor_config.clone(),
