@@ -1,0 +1,21 @@
+{
+  "type": "proof_under_construction",
+  "attributes": [
+    {
+      "key": "destination_chain",
+      "value": "\"polygon\""
+    },
+    {
+      "key": "payload_id",
+      "value": "\"224a29cddde051ded023967ad77df41d9f894387aa65ba09638fbb10c1875cc9\""
+    },
+    {
+      "key": "multisig_session_id",
+      "value": "\"100\""
+    },
+    {
+      "key": "msg_ids",
+      "value": "[{\"source_chain\":\"ethereum\",\"message_id\":\"eth-msg-1\"},{\"source_chain\":\"avalanche\",\"message_id\":\"avax-msg-1\"},{\"source_chain\":\"fantom\",\"message_id\":\"ftm-msg-1\"}]"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "type": "proof_under_construction",
+  "attributes": [
+    {
+      "key": "destination_chain",
+      "value": "\"avalanche\""
+    },
+    {
+      "key": "payload_id",
+      "value": "\"252b38d71ffd032d88d0996d734ccf5103dde89cade097c5f233e052d9d70842\""
+    },
+    {
+      "key": "multisig_session_id",
+      "value": "\"0\""
+    },
+    {
+      "key": "msg_ids",
+      "value": "[{\"source_chain\":\"ethereum\",\"message_id\":\"zero-session\"}]"
+    }
+  ]
+}
