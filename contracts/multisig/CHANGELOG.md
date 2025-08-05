@@ -1,9 +1,13 @@
 
 # Changelog
 
-## [v2.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
+## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.1.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.2.0..HEAD)
+
+## [v2.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.2.0)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.1.0..multisig-v2.2.0)
 
 - minor multisig update to version 2.2.0 [#977](https://github.com/axelarnetwork/axelar-amplifier/pull/977)
 - remove `cosmwasm::Addr` type from `multisig` [#971](https://github.com/axelarnetwork/axelar-amplifier/pull/971)
@@ -13,12 +17,12 @@
 - use client package for all clients [#962](https://github.com/axelarnetwork/axelar-amplifier/pull/962)
 - ensure permissions can accept empty direct attribute [#940](https://github.com/axelarnetwork/axelar-amplifier/pull/940)
 - rename ensure permissions macro [#925](https://github.com/axelarnetwork/axelar-amplifier/pull/925)
-- replace `cargo-run-script` for `just` [#935](https://github.com/axelarnetwork/axelar-amplifier/pull/935)
-- implement blockchain broadcast [#871](https://github.com/axelarnetwork/axelar-amplifier/pull/871)
 
 ## [v2.1.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.1.0)
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.0.0..multisig-v2.1.0)
+
+- accept arbitrary length message for signing [#839](https://github.com/axelarnetwork/axelar-amplifier/pull/839)
 
 ## [v2.0.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.0.0) (2025-05-09)
 
