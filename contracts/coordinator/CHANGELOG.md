@@ -1,8 +1,12 @@
 # Changelog
 
-## [v1.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
+## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/coordinator-v1.1.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/coordinator-v2.0.0..HEAD)
+
+## [v2.0.0](https://github.com/axelarnetwork/axelar-amplifier/tree/coordinator-v2.0.0)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/coordinator-v1.1.0..coordinator-v2.0.0)
 
 - integrate axelar-lints [#941](https://github.com/axelarnetwork/axelar-amplifier/pull/941)
 - combine register chain with register deployment [#963](https://github.com/axelarnetwork/axelar-amplifier/pull/963)
