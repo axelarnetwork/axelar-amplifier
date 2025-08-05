@@ -13,11 +13,9 @@ use itertools::Itertools;
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
-use crate::events::{
-    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
-};
+use crate::events::GatewayInfo;
 use crate::state::{chain_endpoints, Config};
-use crate::{events, state};
+use crate::{state, Event as RouterEvent};
 
 pub fn register_chain(
     storage: &mut dyn Storage,
@@ -53,7 +51,7 @@ pub fn register_chain(
             msg_id_format,
         }),
     })?;
-    Ok(Response::new().add_event(ChainRegistered { name, gateway }))
+    Ok(Response::new().add_event(RouterEvent::ChainRegistered { name, gateway }))
 }
 
 pub fn find_chain_for_gateway(
@@ -81,19 +79,19 @@ pub fn upgrade_gateway(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(GatewayUpgraded {
-        gateway: GatewayInfo {
+    Ok(
+        Response::new().add_event(RouterEvent::GatewayUpgraded(GatewayInfo {
             chain,
             gateway_address: contract_address,
-        },
-    }))
+        })),
+    )
 }
 
 fn freeze_specific_chain(
     storage: &mut dyn Storage,
     chain: ChainName,
     direction: GatewayDirection,
-) -> Result<ChainFrozen, Error> {
+) -> Result<RouterEvent, Error> {
     chain_endpoints().update(storage, chain.clone(), |chain| match chain {
         None => Err(Error::ChainNotFound),
         Some(mut chain) => {
@@ -102,7 +100,7 @@ fn freeze_specific_chain(
         }
     })?;
 
-    Ok(ChainFrozen {
+    Ok(RouterEvent::ChainFrozen {
         name: chain,
         direction,
     })
@@ -126,7 +124,7 @@ fn unfreeze_specific_chain(
     storage: &mut dyn Storage,
     chain: ChainName,
     direction: GatewayDirection,
-) -> Result<ChainUnfrozen, Error> {
+) -> Result<RouterEvent, Error> {
     chain_endpoints().update(storage, chain.clone(), |chain| match chain {
         None => Err(Error::ChainNotFound),
         Some(mut chain) => {
@@ -135,7 +133,7 @@ fn unfreeze_specific_chain(
         }
     })?;
 
-    Ok(ChainUnfrozen {
+    Ok(RouterEvent::ChainUnfrozen {
         name: chain,
         direction,
     })
@@ -155,11 +153,11 @@ pub fn unfreeze_chains(
 }
 
 pub fn disable_routing(storage: &mut dyn Storage) -> Result<Response, Error> {
-    killswitch::engage(storage, events::RoutingDisabled).map_err(|err| err.into())
+    killswitch::engage(storage, RouterEvent::RoutingDisabled).map_err(|err| err.into())
 }
 
 pub fn enable_routing(storage: &mut dyn Storage) -> Result<Response, Error> {
-    killswitch::disengage(storage, events::RoutingEnabled).map_err(|err| err.into())
+    killswitch::disengage(storage, RouterEvent::RoutingEnabled).map_err(|err| err.into())
 }
 
 fn verify_msg_ids(
@@ -258,7 +256,7 @@ pub fn route_messages(
 
     Ok(Response::new()
         .add_messages(wasm_msgs)
-        .add_events(msgs.into_iter().map(|msg| MessageRouted { msg })))
+        .add_events(msgs.into_iter().map(RouterEvent::MessageRouted)))
 }
 
 #[cfg(test)]
@@ -278,9 +276,9 @@ mod test {
     use super::{freeze_chains, register_chain, unfreeze_chains};
     use crate::contract::execute::route_messages;
     use crate::contract::instantiate;
-    use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
+    use crate::Event as RouterEvent;
 
     const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
     const COORDINATOR: &str = "coordinator";
@@ -992,7 +990,7 @@ mod test {
 
         assert_eq!(res.events.len(), 1);
         assert!(res.events.contains(
-            &ChainFrozen {
+            &RouterEvent::ChainFrozen {
                 name: chain.clone(),
                 direction: GatewayDirection::Incoming,
             }
@@ -1007,7 +1005,7 @@ mod test {
 
         assert_eq!(res.events.len(), 1);
         assert!(res.events.contains(
-            &ChainUnfrozen {
+            &RouterEvent::ChainUnfrozen {
                 name: chain.clone(),
                 direction: GatewayDirection::Incoming,
             }

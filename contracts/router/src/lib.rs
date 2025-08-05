@@ -1,4 +1,6 @@
 pub mod contract;
-mod events;
 pub mod msg;
 mod state;
+
+mod events;
+use events::Event;
