@@ -1496,7 +1496,8 @@ mod tests {
 
     #[tokio::test]
     async fn should_record_transaction_broadcast_metrics_successfully_for_mixed_results() {
-        let pub_key = random_cosmos_public_key();
+        let random_cosmos_public_key = random_cosmos_public_key();
+        let pub_key = random_cosmos_public_key;
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let base_account = broadcast::test_utils::create_base_account(&address);
@@ -1504,23 +1505,7 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let (tx_1, _) = oneshot::channel();
-        let (tx_2, _) = oneshot::channel();
-        let batch_1 = vec![QueueMsg {
-            msg: dummy_msg(),
-            gas: 50000,
-            tx_res_callback: tx_1,
-        }]
-        .try_into()
-        .unwrap();
-        let batch_2 = vec![QueueMsg {
-            msg: dummy_msg(),
-            gas: 50000,
-            tx_res_callback: tx_2,
-        }]
-        .try_into()
-        .unwrap();
-        let msg_queue = iter(vec![batch_1, batch_2]);
+        let msg_queue = iter(create_queue_with_two_message_batches());
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -1530,31 +1515,12 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+        setup_success_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
 
         // first transaction broadcast succeeds
         mock_client
@@ -1637,5 +1603,62 @@ mod tests {
         ));
 
         assert!(receiver.try_recv().is_err());
+    }
+
+    fn create_queue_with_two_message_batches() -> Vec<axelar_wasm_std::nonempty::Vec<QueueMsg>> {
+        let (tx_1, _) = oneshot::channel();
+        let (tx_2, _) = oneshot::channel();
+
+        let first_batch = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx_1,
+        }]
+        .try_into()
+        .unwrap();
+
+        let second_batch = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx_2,
+        }]
+        .try_into()
+        .unwrap();
+
+        vec![first_batch, second_batch]
+    }
+
+    fn setup_success_account_and_balance_queries(
+        mock_client: &mut cosmos::MockCosmosClient,
+        seq: &mut Sequence,
+        base_account: cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount,
+        address: &crate::types::TMAddress,
+    ) {
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+
+        mock_client
+            .expect_balance()
+            .once()
+            .with(predicate::eq(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: "uaxl".to_string(),
+            }))
+            .in_sequence(seq)
+            .return_once(|_| {
+                Ok(QueryBalanceResponse {
+                    balance: Some(Coin {
+                        denom: "uaxl".to_string(),
+                        amount: "1000000".to_string(),
+                    }),
+                })
+            });
     }
 }
