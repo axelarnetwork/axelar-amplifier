@@ -441,7 +441,7 @@ impl EventStageMetrics {
         }
         self.duration
             .get_or_create(&label)
-            .inc_by(duration.as_millis() as u64);
+            .inc_by(u64::try_from(duration.as_millis()).unwrap());
     }
 }
 
