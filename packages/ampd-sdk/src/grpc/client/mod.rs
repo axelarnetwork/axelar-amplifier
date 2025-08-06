@@ -3,6 +3,7 @@ use std::vec;
 
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
+use ampd_proto::broadcast_service_client::BroadcastServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{
     AddressRequest, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyRequest,
@@ -124,9 +125,9 @@ impl Client for GrpcClient {
 
     async fn address(&mut self) -> Result<AccountId, Error> {
         let channel = self.channel().await?;
-        let mut blockchain_client = BlockchainServiceClient::new(channel);
+        let mut broadcast_client = BroadcastServiceClient::new(channel);
 
-        let broadcaster_address = blockchain_client
+        let broadcaster_address = broadcast_client
             .address(Request::new(AddressRequest {}))
             .await
             .into_report()?
@@ -139,11 +140,11 @@ impl Client for GrpcClient {
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
         let channel = self.channel().await?;
-        let mut blockchain_client = BlockchainServiceClient::new(channel);
+        let mut broadcast_client = BroadcastServiceClient::new(channel);
 
         let request = BroadcastRequest { msg: Some(msg) };
 
-        let broadcast_response = blockchain_client
+        let broadcast_response = broadcast_client
             .broadcast(request)
             .await
             .into_report()?
@@ -234,6 +235,7 @@ mod tests {
 
     use ampd::url::Url;
     use ampd_proto::blockchain_service_server::{BlockchainService, BlockchainServiceServer};
+    use ampd_proto::broadcast_service_server::{BroadcastService, BroadcastServiceServer};
     use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
     use ampd_proto::{
         AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
@@ -263,10 +265,19 @@ mod tests {
         impl BlockchainService for BlockchainService {
             type SubscribeStream = ServerSubscribeStream;
             async fn subscribe(&self, request: Request<SubscribeRequest>) -> std::result::Result<Response<ServerSubscribeStream>, Status>;
-            async fn broadcast(&self, request: Request<BroadcastRequest>) -> std::result::Result<Response<BroadcastResponse>, Status>;
             async fn contract_state(&self, request: Request<ContractStateRequest>) -> std::result::Result<Response<ContractStateResponse>, Status>;
-            async fn address(&self, request: Request<AddressRequest>) -> std::result::Result<Response<AddressResponse>, Status>;
             async fn contracts(&self, request: Request<ContractsRequest>) -> std::result::Result<Response<ContractsResponse>, Status>;
+        }
+    }
+
+    mock! {
+        #[derive(Debug)]
+        pub BroadcastService {}
+
+        #[async_trait]
+        impl BroadcastService for BroadcastService {
+            async fn broadcast(&self, request: Request<BroadcastRequest>) -> std::result::Result<Response<BroadcastResponse>, Status>;
+            async fn address(&self, request: Request<AddressRequest>) -> std::result::Result<Response<AddressResponse>, Status>;
         }
     }
 
@@ -283,10 +294,12 @@ mod tests {
 
     async fn test_setup(
         mock_blockchain: MockBlockchainService,
+        mock_broadcast: MockBroadcastService,
         mock_crypto: MockCryptoService,
     ) -> (GrpcClient, tokio::task::AbortHandle) {
         let server = transport::Server::builder()
             .add_service(BlockchainServiceServer::new(mock_blockchain))
+            .add_service(BroadcastServiceServer::new(mock_broadcast))
             .add_service(CryptoServiceServer::new(mock_crypto));
 
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
@@ -311,18 +324,23 @@ mod tests {
 
     #[tokio::test]
     async fn client_should_handle_connection_pool_reconnection() {
-        let mut mock_blockchain = MockBlockchainService::new();
+        let mut mock_broadcast = MockBroadcastService::new();
         let expected_address = sample_account_id();
         let mock_response = AddressResponse {
             address: expected_address.to_string(),
         };
 
-        mock_blockchain
+        mock_broadcast
             .expect_address()
             .times(2)
             .returning(move |_request| Ok(Response::new(mock_response.clone())));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -348,17 +366,22 @@ mod tests {
 
     #[tokio::test]
     async fn address_should_succeed_returning_the_address() {
-        let mut mock_blockchain = MockBlockchainService::new();
+        let mut mock_broadcast = MockBroadcastService::new();
         let expected_address = sample_account_id();
         let mock_response = AddressResponse {
             address: expected_address.to_string(),
         };
 
-        mock_blockchain
+        mock_broadcast
             .expect_address()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.address().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -367,12 +390,17 @@ mod tests {
 
     #[tokio::test]
     async fn address_should_return_error_if_grpc_error_occurs() {
-        let mut mock_blockchain = MockBlockchainService::new();
-        mock_blockchain
+        let mut mock_broadcast = MockBroadcastService::new();
+        mock_broadcast
             .expect_address()
             .return_once(|_request| Err(Status::unavailable("service unavailable")));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.address().await;
 
         assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
@@ -384,12 +412,17 @@ mod tests {
 
     #[tokio::test]
     async fn address_should_return_error_if_invalid_argument_is_provided() {
-        let mut mock_blockchain = MockBlockchainService::new();
-        mock_blockchain
+        let mut mock_broadcast = MockBroadcastService::new();
+        mock_broadcast
             .expect_address()
             .return_once(|_request| Err(Status::invalid_argument("invalid request")));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.address().await;
 
         assert!(
@@ -405,18 +438,23 @@ mod tests {
 
     #[tokio::test]
     async fn address_should_handle_multiple_consecutive_calls() {
-        let mut mock_blockchain = MockBlockchainService::new();
+        let mut mock_broadcast = MockBroadcastService::new();
         let expected_address = sample_account_id();
         let mock_response = AddressResponse {
             address: expected_address.to_string(),
         };
 
-        mock_blockchain
+        mock_broadcast
             .expect_address()
             .times(5)
             .returning(move |_request| Ok(Response::new(mock_response.clone())));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
 
         for _ in 0..5 {
             let result = client.address().await;
@@ -427,18 +465,23 @@ mod tests {
 
     #[tokio::test]
     async fn broadcast_should_succeed_returning_the_response() {
-        let mut mock_blockchain = MockBlockchainService::new();
+        let mut mock_broadcast = MockBroadcastService::new();
         let expected_response = sample_broadcast_response();
         let mock_response = BroadcastResponse {
             tx_hash: expected_response.tx_hash.clone(),
             index: expected_response.index,
         };
 
-        mock_blockchain
+        mock_broadcast
             .expect_broadcast()
             .return_once(move |__request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -447,12 +490,17 @@ mod tests {
 
     #[tokio::test]
     async fn broadcast_should_return_error_if_internal_error_occurs() {
-        let mut mock_blockchain = MockBlockchainService::new();
-        mock_blockchain
+        let mut mock_broadcast = MockBroadcastService::new();
+        mock_broadcast
             .expect_broadcast()
             .return_once(|_request| Err(Status::internal("gas estimation failed")));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.broadcast(any_msg()).await;
 
         assert!(
@@ -468,18 +516,23 @@ mod tests {
 
     #[tokio::test]
     async fn broadcast_should_handle_empty_message_value() {
-        let mut mock_blockchain = MockBlockchainService::new();
+        let mut mock_broadcast = MockBroadcastService::new();
         let expected_response = sample_broadcast_response();
         let mock_response = BroadcastResponse {
             tx_hash: expected_response.tx_hash.clone(),
             index: expected_response.index,
         };
 
-        mock_blockchain
+        mock_broadcast
             .expect_broadcast()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            mock_broadcast,
+            MockCryptoService::new(),
+        )
+        .await;
 
         let empty_msg = Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
@@ -513,7 +566,12 @@ mod tests {
                 }))
             });
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
         let (contract, query) = contract_state_input_args();
         let result: Result<TestResponse, Error> = client.contract_state(contract, query).await;
 
@@ -533,7 +591,12 @@ mod tests {
                 }))
             });
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
@@ -555,7 +618,12 @@ mod tests {
             .expect_contract_state()
             .return_once(|_request| Err(Status::unknown("contract execution failed")));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
         let (contract, query) = contract_state_input_args();
         let result: Result<Value, Error> = client.contract_state(contract, query).await;
 
@@ -585,7 +653,12 @@ mod tests {
             .expect_contracts()
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.contracts().await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -606,7 +679,12 @@ mod tests {
                 }))
             });
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.contracts().await;
 
         assert!(
@@ -632,7 +710,12 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -649,7 +732,12 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(SignResponse { signature: vec![] })));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -673,7 +761,12 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Err(Status::internal("signing service unavailable")));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client
             .sign(Some(generate_key(KeyAlgorithm::Ecdsa)), sample_message())
             .await;
@@ -701,7 +794,12 @@ mod tests {
             .expect_sign()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client.sign(None, sample_message()).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -720,7 +818,12 @@ mod tests {
             .expect_key()
             .return_once(|_request| Ok(Response::new(mock_response)));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
@@ -735,7 +838,12 @@ mod tests {
             .expect_key()
             .return_once(|_request| Err(Status::data_loss("connection lost during key retrieval")));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(
@@ -757,7 +865,12 @@ mod tests {
             .expect_key()
             .return_once(|_request| Err(Status::invalid_argument("key not found")));
 
-        let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
+        let (mut client, _) = test_setup(
+            MockBlockchainService::new(),
+            MockBroadcastService::new(),
+            mock_crypto,
+        )
+        .await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
 
         assert!(
@@ -791,7 +904,12 @@ mod tests {
                 ))))
             });
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
         let result = client.subscribe(vec![], true).await;
         assert!(result.is_ok());
 
@@ -811,7 +929,12 @@ mod tests {
                 )))))
             });
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
 
         let result = client.subscribe(vec![], true).await;
         let next_steam_item = result.unwrap().next().await;
@@ -834,7 +957,12 @@ mod tests {
                 )))))
             });
 
-        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let (mut client, _) = test_setup(
+            mock_blockchain,
+            MockBroadcastService::new(),
+            MockCryptoService::new(),
+        )
+        .await;
 
         let result = client.subscribe(vec![], true).await;
         let next_steam_item = result.unwrap().next().await;
