@@ -1267,7 +1267,8 @@ mod tests {
 
     #[tokio::test]
     async fn should_record_transaction_broadcast_metrics_successfully_for_mixed_results() {
-        let pub_key = random_cosmos_public_key();
+        let random_cosmos_public_key = random_cosmos_public_key();
+        let pub_key = random_cosmos_public_key;
         let address = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
         let base_account = broadcast::test_utils::create_base_account(&address);
