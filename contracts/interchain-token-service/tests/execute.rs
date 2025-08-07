@@ -25,7 +25,7 @@ fn register_update_its_contract_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
@@ -62,7 +62,7 @@ fn register_update_its_contract_succeeds() {
 fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
@@ -96,7 +96,7 @@ fn update_unknown_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
 
     assert_err_contains!(
         utils::update_chain(
@@ -1675,7 +1675,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
     ));
 
     // Deploy the same token from a different origin chain to a different destination chain now
-    let another_source_chain: ChainNameRaw = "another-source-chain".parse().unwrap();
+    let another_source_chain = chain_name_raw!("another-source-chain");
     assert_ok!(utils::register_chain(
         deps.as_mut(),
         another_source_chain.clone(),

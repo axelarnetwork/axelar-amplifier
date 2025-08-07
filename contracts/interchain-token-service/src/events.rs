@@ -143,7 +143,7 @@ mod test {
             .map(|message| {
                 let event = Event::MessageReceived {
                     cc_id: CrossChainId::new("source", "hash").unwrap(),
-                    destination_chain: "destination".parse().unwrap(),
+                    destination_chain: chain_name_raw!("destination"),
                     message,
                 };
 
@@ -196,7 +196,7 @@ mod test {
             .map(|message| {
                 let event = Event::MessageReceived {
                     cc_id: CrossChainId::new("source", "hash").unwrap(),
-                    destination_chain: "destination".parse().unwrap(),
+                    destination_chain: chain_name_raw!("destination"),
                     message,
                 };
 
