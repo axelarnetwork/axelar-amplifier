@@ -304,9 +304,9 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "stellar".parse().unwrap(),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::ContractId(
-                    stellar_xdr::curr::Hash::from([1; 32]),
-                ))
+                source_gateway_address: ScAddress::Contract(
+                    stellar_xdr::curr::Hash::from([1; 32]).into(),
+                )
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -326,9 +326,9 @@ mod tests {
                         tx_id: msg_id.tx_hash_as_hex(),
                         event_index: u32::try_from(msg_id.event_index).unwrap(),
                         message_id: msg_id.to_string().parse().unwrap(),
-                        source_address: ScAddress::Contract(stellar_xdr::curr::ContractId(
-                            stellar_xdr::curr::Hash::from([2; 32]),
-                        ))
+                        source_address: ScAddress::Contract(
+                            stellar_xdr::curr::Hash::from([2; 32]).into(),
+                        )
                         .to_string()
                         .try_into()
                         .unwrap(),

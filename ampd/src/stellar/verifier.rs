@@ -365,8 +365,7 @@ mod test {
 
     fn matching_msg_and_tx_block() -> (ScAddress, TxResponse, Message) {
         let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
-        let gateway_address =
-            ScAddress::Contract(stellar_xdr::curr::ContractId(account_id.clone()));
+        let gateway_address = ScAddress::Contract(account_id.clone().into());
 
         let destination_chain = "ethereum";
         let msg = mock_message(destination_chain);
@@ -377,8 +376,7 @@ mod test {
 
     fn msg_and_tx_response_with_different_chain_casing() -> (ScAddress, TxResponse, Message) {
         let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
-        let gateway_address =
-            ScAddress::Contract(stellar_xdr::curr::ContractId(account_id.clone()));
+        let gateway_address = ScAddress::Contract(account_id.clone().into());
 
         let msg = mock_message("ethereum");
         let tx_response = mock_tx_response("Ethereum", account_id, &msg);
@@ -388,8 +386,7 @@ mod test {
 
     fn matching_verifier_set_and_tx_block() -> (ScAddress, TxResponse, VerifierSetConfirmation) {
         let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
-        let gateway_address =
-            ScAddress::Contract(stellar_xdr::curr::ContractId(account_id.clone()));
+        let gateway_address = ScAddress::Contract(account_id.clone().into());
 
         let signers = vec![random_signer(), random_signer(), random_signer()];
         let created_at = rand::random();
