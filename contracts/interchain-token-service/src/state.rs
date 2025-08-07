@@ -351,7 +351,7 @@ mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
-    use router_api::cosmos_addr;
+    use router_api::{cosmos_addr, cosmos_address};
 
     use super::*;
 
@@ -381,8 +381,8 @@ mod tests {
 
         let chain1 = "chain1".parse().unwrap();
         let chain2: ChainNameRaw = "chain2".parse().unwrap();
-        let address1: Address = cosmos_addr!("address1").to_string().parse().unwrap();
-        let address2: Address = cosmos_addr!("address2").to_string().parse().unwrap();
+        let address1 = cosmos_address!("address1");
+        let address2 = cosmos_address!("address2");
 
         assert_err_contains!(
             load_its_contract(deps.as_ref().storage, &chain1),
