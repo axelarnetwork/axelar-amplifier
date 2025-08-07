@@ -1,7 +1,8 @@
+use axelar_wasm_std::IntoContractError;
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, IntoContractError)]
 pub enum Error {
     #[error("{0}")]
     Std(#[from] StdError),
