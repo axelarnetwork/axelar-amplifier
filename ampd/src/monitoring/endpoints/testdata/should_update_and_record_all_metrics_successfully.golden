@@ -33,6 +33,9 @@ stage_failed_total{stage="TransactionConfirmation"} 1
 stage_duration_total{stage="EventHandling"} 300
 stage_duration_total{stage="TransactionBroadcast"} 700
 stage_duration_total{stage="TransactionConfirmation"} 1100
+# HELP msg_enqueue_error number of messages enqueued error.
+# TYPE msg_enqueue_error counter
+msg_enqueue_error_total 2
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent

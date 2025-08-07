@@ -59,6 +59,10 @@ pub enum Msg {
         success: bool,
         duration: Duration,
     },
+    /// Record the number of messages enqueued error 
+    MsgEnqueueError,
+    /// Record the number of event timeout
+    EventTimeout,
 }
 
 /// Errors that can occur in metrics processing
@@ -220,6 +224,8 @@ struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
     stage_result: EventStageMetrics,
+    msg_enqueue_error: MsgEnqueueErrorMetrics,
+    event_timeout: EventTimeoutMetrics,
 }
 
 impl Metrics {
@@ -227,15 +233,21 @@ impl Metrics {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
         let stage_result = EventStageMetrics::new();
+        let msg_enqueue_error = MsgEnqueueErrorMetrics::new();
+        let event_timeout = EventTimeoutMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
         stage_result.register(registry);
+        msg_enqueue_error.register(registry);
+        event_timeout.register(registry);
 
         Self {
             block_received,
             verification_vote,
             stage_result,
+            msg_enqueue_error,
+            event_timeout,
         }
     }
 
@@ -257,6 +269,12 @@ impl Metrics {
                 duration,
             } => {
                 self.stage_result.record(success, duration, stage);
+            }
+            Msg::MsgEnqueueError => {
+                self.msg_enqueue_error.increment();
+            }
+            Msg::EventTimeout => {
+                self.event_timeout.increment();
             }
         }
     }
@@ -390,6 +408,52 @@ impl EventStageMetrics {
         self.duration
             .get_or_create(&label)
             .inc_by(u64::try_from(duration.as_millis()).unwrap());
+    }
+}
+
+struct MsgEnqueueErrorMetrics {
+    total: Counter,
+}
+
+impl MsgEnqueueErrorMetrics {
+    fn new() -> Self {
+        let total = Counter::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "msg_enqueue_error",
+            "number of messages enqueued error",
+            self.total.clone(),
+        );
+    }
+
+    fn increment(&self) {
+        self.total.inc();
+    }
+}
+
+struct EventTimeoutMetrics {
+    total: Counter,
+}
+
+impl EventTimeoutMetrics {
+    fn new() -> Self {
+        let total = Counter::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "event_stream_timeout",
+            "number of timeouts while waiting for blockchain events",
+            self.total.clone(),
+        );
+    }
+
+    fn increment(&self) {
+        self.total.inc();
     }
 }
 
@@ -570,6 +634,14 @@ mod tests {
             success: false,
             duration: Duration::from_millis(600),
         });
+
+        // Msg Enqueue Error Metrics
+        client.record_metric(Msg::MsgEnqueueError);
+        client.record_metric(Msg::MsgEnqueueError);
+
+        // Event Timeout Metrics
+        client.record_metric(Msg::EventTimeout);
+        client.record_metric(Msg::EventTimeout);
 
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
