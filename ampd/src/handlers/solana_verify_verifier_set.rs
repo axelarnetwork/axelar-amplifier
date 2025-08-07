@@ -434,7 +434,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "solana".parse().unwrap(),
+                source_chain: chain_name!("solana"),
                 source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,

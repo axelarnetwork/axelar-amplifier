@@ -487,7 +487,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stacks".parse().unwrap(),
+                source_chain: chain_name!("stacks"),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),

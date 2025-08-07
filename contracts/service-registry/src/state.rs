@@ -451,7 +451,7 @@ mod tests {
     fn load_service_no_override() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let loaded_service = service(
             deps.as_ref().storage,
@@ -467,7 +467,7 @@ mod tests {
     fn load_service_with_full_override() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -511,7 +511,7 @@ mod tests {
     fn load_service_with_partial_override() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -549,7 +549,7 @@ mod tests {
     fn load_default_service_params() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -591,7 +591,7 @@ mod tests {
     fn remove_service_override_succeeds() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -624,7 +624,7 @@ mod tests {
     fn remove_service_override_fails_if_service_override_does_not_exist() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res = remove_service_override(deps.as_mut().storage, &stored_service.name, &chain_name);
 
@@ -635,7 +635,7 @@ mod tests {
     fn may_load_service_params_override_succeeds() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -664,7 +664,7 @@ mod tests {
     fn may_load_service_params_override_returns_none_if_service_override_does_not_exist() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res = may_load_service_params_override(
             deps.as_mut().storage,

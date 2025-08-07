@@ -85,7 +85,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let destination_chain = chain_name!("destination-chain");
         let destination_address: Address = "destination-address".parse().unwrap();
         let payload = HexBinary::from(vec![1, 2, 3]);
 
@@ -141,7 +141,7 @@ mod test {
         let info = message_info(&deps.api.addr_make("deployer"), &[]);
 
         let instantiate_msg = InstantiateMsg {
-            chain_name: "source-chain".parse().unwrap(),
+            chain_name: chain_name!("source-chain"),
             router_address: deps.api.addr_make("router").to_string(),
             nexus: deps.api.addr_make("nexus").to_string(),
         };

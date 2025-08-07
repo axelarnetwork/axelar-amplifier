@@ -601,7 +601,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -652,7 +652,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -687,7 +687,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -722,7 +722,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let service = execute_register_service(deps.as_mut(), service_name.into());
         execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
@@ -761,7 +761,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res = execute(
             deps.as_mut(),
@@ -788,7 +788,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res = execute(
             deps.as_mut(),
@@ -814,7 +814,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         execute_register_service(deps.as_mut(), service_name.into());
         let params_override =
@@ -841,7 +841,7 @@ mod test {
         let deps = setup();
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res: Option<ServiceParamsOverride> = from_json(
             query(

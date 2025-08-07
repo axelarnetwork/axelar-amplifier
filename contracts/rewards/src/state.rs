@@ -492,7 +492,7 @@ mod test {
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
 
     use super::*;
     use crate::error::ContractError;
@@ -503,7 +503,7 @@ mod test {
     fn pool_id_try_from_msg_pool_id() {
         let api = MockApi::default();
         let contract = api.addr_make("some contract");
-        let chain_name: ChainName = "chain".parse().unwrap();
+        let chain_name = chain_name!("chain");
 
         let pool_id = msg::PoolId {
             chain_name: chain_name.clone(),
@@ -538,7 +538,7 @@ mod test {
                 participation_threshold: (1, 2).try_into().unwrap(),
             },
             pool_id: PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("pool_contract"),
             },
             event_count: 101u64,
@@ -604,7 +604,7 @@ mod test {
         };
         let pool = RewardsPool {
             id: PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("pool_contract"),
             },
             balance: Uint128::from(100u128),
@@ -628,7 +628,7 @@ mod test {
             block_height_started: 1000,
         };
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
 
@@ -662,7 +662,7 @@ mod test {
 
         // check different contract
         let diff_pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some other contract"),
         };
         // should be empty at first
@@ -690,7 +690,7 @@ mod test {
 
         let event = Event {
             pool_id: PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("some contract"),
             },
             event_id: "some event".try_into().unwrap(),
@@ -712,7 +712,7 @@ mod test {
 
         // different event id and contract address should return none
         let diff_pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("different contract"),
         };
         let loaded = load_event(
@@ -753,7 +753,7 @@ mod test {
             block_height_started: 1,
         };
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut tally = EpochTally::new(
@@ -781,7 +781,7 @@ mod test {
         let loaded = load_epoch_tally(
             mock_deps.as_ref().storage,
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("different contract"),
             },
             epoch_num,

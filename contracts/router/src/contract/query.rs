@@ -39,7 +39,7 @@ mod test {
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
+    use router_api::{chain_name, ChainEndpoint, ChainName, Gateway, GatewayDirection};
 
     use super::chain_info;
     use crate::state::chain_endpoints;
@@ -78,10 +78,10 @@ mod test {
     fn paginated_chains() {
         let mut deps = mock_dependencies();
         let chains: Vec<ChainName> = vec![
-            "a-chain".parse().unwrap(),
-            "b-chain".parse().unwrap(),
-            "c-chain".parse().unwrap(),
-            "d-chain".parse().unwrap(),
+            chain_name!("a-chain"),
+            chain_name!("b-chain"),
+            chain_name!("c-chain"),
+            chain_name!("d-chain"),
         ];
 
         let endpoints: Vec<ChainEndpoint> = chains
@@ -116,7 +116,7 @@ mod test {
         // with page
         let result = super::chains(
             deps.as_ref().storage,
-            Some("c-chain".parse().unwrap()),
+            Some(chain_name!("c-chain")),
             Some(2),
         )
         .unwrap();
@@ -126,7 +126,7 @@ mod test {
         // start after the last chain
         let result = super::chains(
             deps.as_ref().storage,
-            Some("d-chain".parse().unwrap()),
+            Some(chain_name!("d-chain")),
             Some(2),
         )
         .unwrap();
@@ -135,7 +135,7 @@ mod test {
         // with a key out of the scope
         let result = super::chains(
             deps.as_ref().storage,
-            Some("e-chain".parse().unwrap()),
+            Some(chain_name!("e-chain")),
             Some(2),
         )
         .unwrap();

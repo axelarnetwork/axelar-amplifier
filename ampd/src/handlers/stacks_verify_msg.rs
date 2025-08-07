@@ -474,7 +474,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stacks".parse().unwrap(),
+                source_chain: chain_name!("stacks"),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),
@@ -493,7 +493,7 @@ mod tests {
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".parse().unwrap(),
-                destination_chain: "ethereum".parse().unwrap(),
+                destination_chain: chain_name!("ethereum"),
                 destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                 payload_hash: [1; 32],
             }],

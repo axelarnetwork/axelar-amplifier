@@ -431,7 +431,7 @@ mod test {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "solana".parse().unwrap(),
+                source_chain: chain_name!("solana"),
                 source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -453,7 +453,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_1.parse().unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"
                         .parse()
                         .unwrap(),
@@ -470,7 +470,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_2.parse().unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"
                         .parse()
                         .unwrap(),

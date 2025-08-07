@@ -273,7 +273,7 @@ mod test {
     use cosmwasm_std::{QuerierWrapper, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
+    use router_api::{chain_name, ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
 
     use super::{freeze_chains, register_chain, unfreeze_chains};
     use crate::contract::execute::route_messages;
@@ -320,8 +320,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -350,8 +350,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -394,8 +394,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -426,7 +426,7 @@ mod test {
             &deps.storage,
             QuerierWrapper::new(&deps.querier),
             sender,
-            vec![rand_message("polygon".parse().unwrap(), destination_chain)]
+            vec![rand_message(chain_name!("polygon"), destination_chain)]
         )
         .is_err_and(|err| { matches!(err.current_context(), Error::WrongSourceChain) }));
     }
@@ -436,8 +436,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -493,8 +493,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -544,8 +544,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make(AXELARNET_GATEWAY);
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -579,8 +579,8 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = api.addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -640,9 +640,9 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
-        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain_1 = chain_name!("bitcoin");
+        let destination_chain_2 = chain_name!("polygon");
 
         instantiate(
             deps.as_mut(),
@@ -722,9 +722,9 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make(AXELARNET_GATEWAY);
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
-        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain_1 = chain_name!("bitcoin");
+        let destination_chain_2 = chain_name!("polygon");
 
         instantiate(
             deps.as_mut(),
@@ -793,8 +793,8 @@ mod test {
             .with_custom_handler(reply_with_is_chain_registered(false));
 
         let sender = api.addr_make(AXELARNET_GATEWAY);
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -829,8 +829,8 @@ mod test {
             .querier
             .with_custom_handler(reply_with_is_chain_registered(true));
         let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
@@ -876,7 +876,7 @@ mod test {
     #[test]
     fn multiple_freeze_unfreeze_causes_no_arithmetic_side_effect() {
         let mut deps = mock_dependencies();
-        let chain: ChainName = "ethereum".parse().unwrap();
+        let chain = chain_name!("ethereum");
 
         chain_endpoints()
             .save(
@@ -967,7 +967,7 @@ mod test {
     #[test]
     fn freezing_unfreezing_chain_emits_correct_event() {
         let mut deps = mock_dependencies();
-        let chain: ChainName = "ethereum".parse().unwrap();
+        let chain = chain_name!("ethereum");
 
         chain_endpoints()
             .save(
@@ -1026,7 +1026,7 @@ mod test {
             register_chain(
                 &mut deps.storage,
                 QuerierWrapper::new(&deps.querier),
-                "ethereum".parse().unwrap(),
+                chain_name!("ethereum"),
                 MockApi::default().addr_make("gateway"),
                 MessageIdFormat::HexTxHashAndEventIndex
             ),

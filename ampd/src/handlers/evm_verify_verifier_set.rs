@@ -348,7 +348,7 @@ mod tests {
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "ethereum".parse().unwrap(),
+                source_chain: chain_name!("ethereum"),
                 source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
                     .parse()
                     .unwrap(),

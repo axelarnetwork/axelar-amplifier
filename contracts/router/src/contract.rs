@@ -1863,7 +1863,7 @@ mod test {
     #[test]
     fn chain_info_fails_on_unregistered_chain() {
         let deps = setup();
-        let unregistered_chain: ChainName = "unregistered".parse().unwrap();
+        let unregistered_chain = chain_name!("unregistered");
 
         // Ensure that the error message doesn't change unexpectedly since the relayer depends on it
         let err = query(
