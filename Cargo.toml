@@ -105,7 +105,9 @@ starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
 starknet-types-core = { version = "0.1.7" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
-stellar-xdr = { version = "23.0.0-rc.2" }
+stellar-rpc-client = { version = "23.0.0-rc.5" }
+stellar-strkey = { version = "0.0.10" }
+stellar-xdr = { version = "23.0.0-rc.3" }
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
