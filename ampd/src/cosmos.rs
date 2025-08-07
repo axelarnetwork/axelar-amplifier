@@ -771,9 +771,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
+
     fn ensure_simulate_req_res_serialization_do_not_change() {
         let req = SimulateRequest {
+            #[allow(deprecated)]
             tx: Some(Tx {
                 body: None,
                 auth_info: None,
@@ -787,6 +788,7 @@ mod tests {
                 gas_used: 900,
             }),
             result: Some(AbciResult {
+                #[allow(deprecated)]
                 data: vec![1, 2, 3],
                 log: "simulation log".to_string(),
                 events: vec![abci::Event {
