@@ -47,7 +47,7 @@ mod test {
     #[test]
     fn should_get_chain_info() {
         let mut deps = mock_dependencies();
-        let chain_name: ChainName = "Ethereum".try_into().unwrap();
+        let chain_name = chain_name!("Ethereum");
         let endpoint = ChainEndpoint {
             name: chain_name.clone(),
             gateway: Gateway {
@@ -68,7 +68,7 @@ mod test {
     #[test]
     fn get_non_existent_chain_info() {
         let deps = mock_dependencies();
-        let chain_name: ChainName = "Ethereum".try_into().unwrap();
+        let chain_name = chain_name!("Ethereum");
         let result = chain_info(deps.as_ref().storage, chain_name);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().current_context(), &Error::ChainNotFound);

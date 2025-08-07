@@ -131,7 +131,7 @@ mod test {
     use axelar_wasm_std::nonempty::Uint128;
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
 
     use crate::client::Client;
     use crate::msg::{QueryMsg, ServiceParamsOverride, VerifierDetails};
@@ -143,7 +143,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name: ChainName = "ethereum".try_into().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -156,7 +156,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name: ChainName = "ethereum".try_into().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -219,7 +219,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = "ethereum".try_into().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -232,7 +232,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = "ethereum".try_into().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -245,7 +245,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = "ethereum".try_into().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.service_params_override(service_name, chain_name);
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -258,7 +258,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = "no-override".try_into().unwrap();
+        let chain_name = chain_name!("no-override");
         let res = client.service_params_override(service_name, chain_name);
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
