@@ -454,7 +454,7 @@ mod test {
 
         let contracts: HashMap<String, ChainName> = HashMap::from([(
             MockApi::default().addr_make("prover").to_string(),
-            ChainName::try_from("ethereum").unwrap(),
+            chain_name!("ethereum"),
         )]);
 
         match client.authorize_callers(contracts) {
@@ -471,7 +471,7 @@ mod test {
 
         let contracts: HashMap<String, ChainName> = HashMap::from([(
             MockApi::default().addr_make("prover").to_string(),
-            ChainName::try_from("ethereum").unwrap(),
+            chain_name!("ethereum"),
         )]);
 
         match client.unauthorize_callers(contracts) {
