@@ -337,7 +337,7 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
-    use router_api::ChainNameRaw;
+    use router_api::{chain_name_raw, ChainNameRaw};
 
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
@@ -348,7 +348,7 @@ mod test {
     #[test]
     fn register_custom_token_allows_reregistration() {
         let mut storage = MockStorage::new();
-        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
+        let source_chain = chain_name_raw!("source-chain");
         let register_token_msg = RegisterTokenMetadata {
             decimals: 6,
             token_address: HexBinary::from([0; 32]).try_into().unwrap(),
@@ -368,7 +368,7 @@ mod test {
     #[test]
     fn register_custom_token_errors_on_decimals_mismatch() {
         let mut storage = MockStorage::new();
-        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
+        let source_chain = chain_name_raw!("source-chain");
         let register_token_msg = RegisterTokenMetadata {
             decimals: 6,
             token_address: HexBinary::from([0; 32]).try_into().unwrap(),

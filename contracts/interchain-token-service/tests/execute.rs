@@ -12,7 +12,7 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{chain_name_raw, cosmos_address, Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{chain_name_raw, cosmos_address, Address, ChainName, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -1026,7 +1026,7 @@ fn freeze_chain_when_not_admin_fails() {
         mock_env(),
         message_info(&api.addr_make("not-admin"), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+            chain: chain_name_raw!("ethereum"),
         },
     );
     assert_err_contains!(
@@ -1048,7 +1048,7 @@ fn unfreeze_chain_when_not_admin_fails() {
         mock_env(),
         message_info(&api.addr_make("not-admin"), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+            chain: chain_name_raw!("ethereum"),
         },
     );
     assert_err_contains!(
@@ -1086,7 +1086,7 @@ fn admin_or_governance_can_freeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 
@@ -1095,7 +1095,7 @@ fn admin_or_governance_can_freeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 }
@@ -1128,7 +1128,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 
@@ -1137,7 +1137,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 }
@@ -1170,7 +1170,7 @@ fn admin_or_governance_can_modify_supply() {
         mock_env(),
         message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 
@@ -1179,7 +1179,7 @@ fn admin_or_governance_can_modify_supply() {
         mock_env(),
         message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 }
