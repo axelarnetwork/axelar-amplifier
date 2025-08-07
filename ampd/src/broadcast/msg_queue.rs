@@ -174,6 +174,9 @@ where
     /// * `Error::EstimateGas` - If gas estimation fails
     /// * `Error::EnqueueMsg` - If enqueueing fails
     async fn enqueue_with_channel(&mut self, msg: Any) -> Result<oneshot::Receiver<TxResult>> {
+        // TODO: remove this once the commands broadcast through the daemon's broadcaster, so that the sequence does not get out of sync
+        self.broadcaster.reset_sequence().await?;
+
         let (tx, rx) = oneshot::channel();
         let gas = self.broadcaster.estimate_gas(vec![msg.clone()]).await?;
 
