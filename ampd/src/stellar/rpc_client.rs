@@ -34,13 +34,13 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
         // Protocol 23: Soroban contract calls can only occur as a single operation in the tx
         // Therefore, we extract the first (and only) operation, otherwise fail.
         let tx_hash_str = transaction_hash.to_string();
+        let operation_count = response.events.contract_events.len();
         let contract_events: Vec<ContractEvent> = response
             .events
             .contract_events
             .into_iter()
             .flatten()
             .collect();
-        let operation_count = contract_events.len();
 
         if operation_count != EXPECTED_OPERATION_COUNT {
             warn!(
@@ -225,5 +225,23 @@ mod tests {
         assert_eq!(tx_response.transaction_hash, hash.to_string());
         assert_eq!(tx_response.contract_events.len(), 3);
         assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_succeeds_with_single_operation_multiple_events() {
+        let hash = Hash::from([5u8; 32]);
+        let contract_events = vec![vec![
+            create_mock_contract_event(1),
+            create_mock_contract_event(2),
+            create_mock_contract_event(3),
+        ]];
+        let response = create_mock_transaction_response(contract_events, STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 3);
+        assert!(!tx_response.has_failed());
+        assert!(tx_response.successful);
     }
 }
