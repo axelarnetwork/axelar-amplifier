@@ -86,7 +86,7 @@ mod test {
     use std::vec;
 
     use axelar_wasm_std::msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex};
-    use router_api::CrossChainId;
+    use router_api::{chain_name_raw, CrossChainId};
 
     use super::Message;
 
@@ -97,7 +97,7 @@ mod test {
             event_index: 1,
         };
         let msg = Message {
-            source_chain: "ethereum".parse().unwrap(),
+            source_chain: chain_name_raw!("ethereum"),
             source_address: "something".parse().unwrap(),
             destination_chain: "polygon".parse().unwrap(),
             destination_address: "something else".parse().unwrap(),
