@@ -17,6 +17,9 @@ blocks_received_total 0
 # TYPE stage_failed counter
 # HELP stage_duration duration of processing items per stage in milliseconds.
 # TYPE stage_duration counter
+# HELP msg_enqueue_error number of messages enqueued error.
+# TYPE msg_enqueue_error counter
+msg_enqueue_error_total 0
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
@@ -47,6 +50,9 @@ blocks_received_total 3
 # TYPE stage_failed counter
 # HELP stage_duration duration of processing items per stage in milliseconds.
 # TYPE stage_duration counter
+# HELP msg_enqueue_error number of messages enqueued error.
+# TYPE msg_enqueue_error counter
+msg_enqueue_error_total 0
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
