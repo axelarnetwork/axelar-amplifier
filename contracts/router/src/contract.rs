@@ -153,7 +153,7 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        chain_name, chain_name_raw, cosmos_addr, ChainEndpoint, ChainName, CrossChainId, GatewayDirection,
+        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainEndpoint, ChainName, CrossChainId, GatewayDirection,
         Message, FIELD_DELIMITER,
     };
 
@@ -592,7 +592,7 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: cosmos_addr!("new gateway").to_string().try_into().unwrap(),
+                contract_address: cosmos_address!("new gateway"),
             }
             .into(),
         )
@@ -611,7 +611,7 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: cosmos_addr!("new gateway").to_string().try_into().unwrap(),
+                contract_address: cosmos_address!("new gateway"),
             }
             .into(),
         )
@@ -630,7 +630,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: cosmos_addr!("new gateway").to_string().try_into().unwrap(),
+                contract_address: cosmos_address!("new gateway"),
             }
             .into(),
         );
@@ -764,7 +764,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: eth.chain_name,
-                gateway_address: cosmos_addr!("new gateway").to_string().try_into().unwrap(),
+                gateway_address: cosmos_address!("new gateway"),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             }
             .into(),
@@ -779,7 +779,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain_name!("ETHEREUM"),
-                gateway_address: cosmos_addr!("new gateway").to_string().try_into().unwrap(),
+                gateway_address: cosmos_address!("new gateway"),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             }
             .into(),

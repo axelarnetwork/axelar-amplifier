@@ -15,7 +15,7 @@ use interchain_token_service::shared::NumBits;
 use interchain_token_service_std::{HubMessage, TokenId};
 use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
-use router_api::{chain_name, cosmos_addr, Address, ChainNameRaw, CrossChainId};
+use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
@@ -124,10 +124,7 @@ pub fn register_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            msg_translator: cosmos_addr!("translation_contract")
-                .to_string()
-                .parse()
-                .unwrap(),
+            msg_translator: cosmos_address!("translation_contract"),
         }],
     )
 }
@@ -183,10 +180,7 @@ pub fn update_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            msg_translator: cosmos_addr!("translation_contract")
-                .to_string()
-                .parse()
-                .unwrap(),
+            msg_translator: cosmos_address!("translation_contract"),
         }],
     )
 }
