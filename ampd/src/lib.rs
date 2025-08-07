@@ -471,7 +471,7 @@ impl App {
                 handlers::stellar_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    stellar::rpc_client::Client::new(rpc_url.as_str().trim_end_matches('/').into())
+                    stellar::rpc_client::Client::new(rpc_url.clone())
                         .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                 ),
@@ -486,7 +486,7 @@ impl App {
                 handlers::stellar_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    stellar::rpc_client::Client::new(rpc_url.as_str().trim_end_matches('/').into())
+                    stellar::rpc_client::Client::new(rpc_url.clone())
                         .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                 ),

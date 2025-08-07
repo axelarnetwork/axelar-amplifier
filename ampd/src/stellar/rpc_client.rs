@@ -8,6 +8,8 @@ use stellar_xdr::curr::{ContractEvent, Hash};
 use thiserror::Error;
 use tracing::warn;
 
+use crate::url::Url;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to create client")]
@@ -66,7 +68,7 @@ pub struct Client(stellar_rpc_client::Client);
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new(url: String) -> error_stack::Result<Self, Error> {
+    pub fn new(url: Url) -> error_stack::Result<Self, Error> {
         Ok(Self(
             stellar_rpc_client::Client::new(url.as_str())
                 .map_err(|err_str| report!(Error::Client).attach_printable(err_str))?,
