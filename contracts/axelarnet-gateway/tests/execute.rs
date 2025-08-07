@@ -8,7 +8,7 @@ use cosmwasm_std::testing::{message_info, mock_dependencies};
 use cosmwasm_std::HexBinary;
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{CrossChainId, Message};
+use router_api::{address, CrossChainId, Message};
 
 use crate::utils::{
     axelar_query_handler, messages, mock_axelar_dependencies, params, OwnedDepsExt,
@@ -170,7 +170,7 @@ fn route_from_router_multiple_times_with_data_mismatch_fails() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     utils::route_from_router(deps.as_default_mut(), msgs.clone()).unwrap();
 
-    msgs[0].source_address = "wrong-address".parse().unwrap();
+    msgs[0].source_address = address!("wrong-address");
 
     assert_err_contains!(
         utils::route_from_router(deps.as_default_mut(), msgs),
@@ -267,7 +267,7 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
@@ -309,7 +309,7 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
@@ -350,7 +350,7 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
@@ -393,7 +393,7 @@ fn contract_call_returns_correct_message() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
@@ -426,7 +426,7 @@ fn contract_call_returns_correct_events() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
@@ -471,7 +471,7 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = params::AXELARNET.parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
