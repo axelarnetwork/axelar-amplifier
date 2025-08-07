@@ -118,6 +118,7 @@ where
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
                 warn!("event stream timed out");
+                monitoring_client.metrics().record_metric(Msg::EventTimeout);
             }
         }
     }
@@ -155,7 +156,8 @@ where
                     warn!(
                         err = LoggableError::from(err).as_value(),
                         "failed to enqueue message for broadcasting"
-                    )
+                    );
+                    monitoring_client.metrics().record_metric(Msg::MsgEnqueueError);
                 })
                 .collect::<Vec<_>>()
                 .await;
