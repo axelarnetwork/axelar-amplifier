@@ -10,7 +10,9 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use lazy_static::lazy_static;
 use multiversx_sdk::data::address::Address;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -19,9 +21,15 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::mvx::proxy::MvxProxy;
 use crate::mvx::verifier::verify_message;
 use crate::types::{Hash, TMAddress};
+
+lazy_static! {
+    static ref MULTIVERSX_CHAIN_NAME: ChainName = chain_name!("multiversx");
+}
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -29,7 +37,7 @@ type Result<T> = error_stack::Result<T, Error>;
 pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
-    pub destination_chain: router_api::ChainName,
+    pub destination_chain: ChainName,
     pub source_address: Address,
     pub payload_hash: Hash,
 }
@@ -53,6 +61,7 @@ where
     voting_verifier_contract: TMAddress,
     blockchain: P,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<P> Handler<P>
@@ -64,12 +73,14 @@ where
         voting_verifier_contract: TMAddress,
         blockchain: P,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             blockchain,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -131,6 +142,7 @@ where
             .await;
 
         let poll_id_str: String = poll_id.into();
+
         let votes = info_span!(
             "verify messages for MultiversX",
             poll_id = poll_id_str,
@@ -151,6 +163,14 @@ where
                         .map_or(Vote::NotFound, |transaction| {
                             verify_message(&source_gateway_address, transaction, msg)
                         })
+                })
+                .inspect(|vote| {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: MULTIVERSX_CHAIN_NAME.clone(),
+                        },
+                    );
                 })
                 .collect();
             info!(
@@ -173,6 +193,7 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use axelar_wasm_std::voting::Vote;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use cosmwasm_std;
@@ -182,9 +203,10 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{PollStartedEvent, MULTIVERSX_CHAIN_NAME};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
+    use crate::monitoring::{metrics, test_utils};
     use crate::mvx::proxy::MockMvxProxy;
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -228,11 +250,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             MockMvxProxy::new(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -246,11 +271,14 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             MockMvxProxy::new(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -263,11 +291,14 @@ mod tests {
         let event =
             into_structured_event(poll_started_event(participants(5, None)), &voting_verifier);
 
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
             MockMvxProxy::new(),
             watch::channel(0).1,
+            monitoring_client,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -287,11 +318,57 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, proxy, watch::channel(0).1);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            proxy,
+            watch::channel(0).1,
+            monitoring_client,
+        );
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
         assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let mut proxy = MockMvxProxy::new();
+        proxy
+            .expect_transactions_info_with_results()
+            .returning(|_| HashMap::new());
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(2, Some(worker.clone()))),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            proxy,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        let _ = handler.handle(&event).await.unwrap();
+
+        let metrics = receiver.recv().await.unwrap();
+        assert_eq!(
+            metrics,
+            metrics::Msg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: MULTIVERSX_CHAIN_NAME.clone(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[async_test]
@@ -311,7 +388,9 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(worker, voting_verifier, proxy, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(worker, voting_verifier, proxy, rx, monitoring_client);
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
