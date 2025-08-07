@@ -492,7 +492,7 @@ mod test {
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Uint128, Uint64};
-    use router_api::{chain_name, ChainName};
+    use router_api::chain_name;
 
     use super::*;
     use crate::error::ContractError;
@@ -815,7 +815,7 @@ mod test {
         };
         let mut mock_deps = mock_dependencies();
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let pool = RewardsPool {
             id: PoolId::new(
                 chain_name.clone(),
