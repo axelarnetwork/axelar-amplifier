@@ -683,6 +683,18 @@ mod tests {
         goldie::assert!(sorted_data1);
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn should_measure_async_operation_duration() {
+        let (result, duration) = timed(|| async {
+            tokio::time::advance(Duration::from_millis(100)).await;
+            true
+        })
+        .await;
+
+        assert!(result);
+        assert_eq!(duration, Duration::from_millis(100));
+    }
+
     /// Extracts the numeric value of a Prometheus metric from text output
     fn extract_metric_value(text: &str, name: &str) -> f64 {
         text.lines()
