@@ -153,7 +153,7 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainEndpoint, ChainName,
+        address, chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainEndpoint, ChainName,
         CrossChainId, GatewayDirection, Message, FIELD_DELIMITER,
     };
 
@@ -233,9 +233,9 @@ mod test {
             .to_string();
             msgs.push(Message {
                 cc_id: CrossChainId::new(src_chain.chain_name.clone(), id).unwrap(),
-                destination_address: "idc".parse().unwrap(),
+                destination_address: address!("idc"),
                 destination_chain: dest_chain.chain_name.clone(),
-                source_address: "idc".parse().unwrap(),
+                source_address: address!("idc"),
                 payload_hash: [x as u8; 32],
             })
         }

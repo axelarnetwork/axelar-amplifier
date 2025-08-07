@@ -348,7 +348,7 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name, cosmos_addr, CrossChainId, Message};
+    use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
     use serde_json::json;
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
@@ -366,9 +366,9 @@ mod test {
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
             cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
-            source_address: "source-address".parse().unwrap(),
+            source_address: address!("source-address"),
             destination_chain: chain_name!("destination-chain"),
-            destination_address: "destination-address".parse().unwrap(),
+            destination_address: address!("destination-address"),
             payload_hash: [0; 32],
         }
     }
@@ -556,18 +556,18 @@ mod test {
                     tx_id: "txId1".try_into().unwrap(),
                     event_index: 1,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress1".parse().unwrap(),
+                    destination_address: address!("destinationAddress1"),
                     destination_chain: chain_name!("destinationChain"),
-                    source_address: "sourceAddress1".parse().unwrap(),
+                    source_address: address!("sourceAddress1"),
                     payload_hash: [0; 32],
                 },
                 TxEventConfirmation {
                     tx_id: "txId2".try_into().unwrap(),
                     event_index: 2,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress2".parse().unwrap(),
+                    destination_address: address!("destinationAddress2"),
                     destination_chain: chain_name!("destinationChain"),
-                    source_address: "sourceAddress2".parse().unwrap(),
+                    source_address: address!("sourceAddress2"),
                     payload_hash: [1; 32],
                 },
             ],

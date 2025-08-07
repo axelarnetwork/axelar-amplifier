@@ -12,7 +12,7 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId};
+use router_api::{address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -861,7 +861,7 @@ fn execute_its_when_not_gateway_sender_fails() {
         message_info(&cosmos_addr!("not-gateway"), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id: CrossChainId::new("source", "hash").unwrap(),
-            source_address: "source".parse().unwrap(),
+            source_address: address!("source"),
             payload: HexBinary::from([]),
         }),
     );
@@ -894,7 +894,7 @@ fn execute_message_when_unknown_source_address_fails() {
     )
     .unwrap();
 
-    let unknown_address: Address = "unknown-address".parse().unwrap();
+    let unknown_address = address!("unknown-address");
     let result = utils::execute(
         deps.as_mut(),
         router_message.cc_id.clone(),
