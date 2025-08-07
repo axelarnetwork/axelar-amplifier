@@ -68,7 +68,7 @@ pub struct ContractDeploymentInfo<T> {
 #[cw_serde]
 pub struct ManualDeploymentParams {
     pub gateway: ContractDeploymentInfo<()>,
-    pub chain_codec: ContractDeploymentInfo<()>,
+    pub chain_codec: ContractDeploymentInfo<ChainCodecMsg>,
     pub verifier: ContractDeploymentInfo<VerifierMsg>,
     pub prover: ContractDeploymentInfo<ProverMsg>,
 }
@@ -89,9 +89,6 @@ pub struct ProverMsg {
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub key_type: KeyType,
-    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
-    pub domain_separator: Hash,
 }
 
 #[cw_serde]
@@ -106,6 +103,13 @@ pub struct VerifierMsg {
     pub rewards_address: nonempty::String,
     pub msg_id_format: MessageIdFormat,
     pub address_format: AddressFormat,
+}
+
+#[cw_serde]
+pub struct ChainCodecMsg {
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub domain_separator: Hash,
 }
 
 #[cw_serde]

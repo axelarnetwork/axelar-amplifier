@@ -1,4 +1,5 @@
-use chain_codec_evm::contract::{instantiate, query}; // TODO: use different encodings
+use axelar_wasm_std::hash::Hash;
+use chain_codec_evm::contract::{execute, instantiate, query}; // TODO: use different encodings
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, Empty};
 use cw_multi_test::{ContractWrapper, Executor};
@@ -13,8 +14,13 @@ pub struct ChainCodecContract {
 }
 
 impl ChainCodecContract {
-    pub fn instantiate_contract(protocol: &mut Protocol) -> Self {
-        let code = ContractWrapper::new_with_empty(|_, _, _, _: Empty| Err("not implemented"), instantiate, query);
+    pub fn instantiate_contract(
+        protocol: &mut Protocol,
+        domain_separator: Hash,
+        multisig_prover: Addr,
+    ) -> Self {
+        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
+
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
 
@@ -22,14 +28,20 @@ impl ChainCodecContract {
             .instantiate_contract(
                 code_id,
                 MockApi::default().addr_make("anyone"),
-                &chain_codec_api::msg::InstantiateMsg {},
+                &chain_codec_api::msg::InstantiateMsg {
+                    domain_separator,
+                    multisig_prover: multisig_prover.to_string(),
+                },
                 &[],
                 "coordinator",
                 None,
             )
             .unwrap();
 
-        ChainCodecContract { contract_addr, code_id }
+        ChainCodecContract {
+            contract_addr,
+            code_id,
+        }
     }
 }
 

@@ -1,3 +1,5 @@
+pub mod address_generator;
+pub mod chain_codec_contract;
 pub mod contract;
 pub mod coordinator_contract;
 pub mod gateway_contract;
@@ -8,4 +10,3 @@ pub mod rewards_contract;
 pub mod router_contract;
 pub mod service_registry_contract;
 pub mod voting_verifier_contract;
-pub mod chain_codec_contract;

@@ -15,7 +15,8 @@ mod reply;
 
 pub use migrations::{migrate, MigrateMsg};
 
-pub const START_MULTISIG_REPLY_ID: u64 = 1;
+pub const PAYLOAD_DIGEST_REPLY_ID: u64 = 1;
+pub const START_MULTISIG_REPLY_ID: u64 = 2;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -41,16 +42,12 @@ pub fn instantiate(
             deps.api,
             &msg.voting_verifier_address,
         )?,
-        chain_codec: address::validate_cosmwasm_address(
-            deps.api,
-            &msg.chain_codec_address,
-        )?,
+        chain_codec: address::validate_cosmwasm_address(deps.api, &msg.chain_codec_address)?,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg.chain_name.parse()?,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         key_type: msg.key_type,
-        domain_separator: msg.domain_separator,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -97,6 +94,7 @@ pub fn reply(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match reply.id {
         START_MULTISIG_REPLY_ID => reply::start_multisig_reply(deps, reply),
+        PAYLOAD_DIGEST_REPLY_ID => reply::payload_digest_reply(deps, reply),
         _ => unreachable!("unknown reply ID"),
     }
     .map_err(axelar_wasm_std::error::ContractError::from)
@@ -127,7 +125,8 @@ mod tests {
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        from_json, Addr, Empty, Fraction, HexBinary, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64
+        from_json, Addr, Empty, Fraction, HexBinary, OwnedDeps, SubMsgResponse, SubMsgResult,
+        Uint128, Uint64,
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
@@ -139,7 +138,9 @@ mod tests {
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{
-        mock_querier_handler, ADMIN, CHAIN_CODEC_ADDRESS, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE, MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS
+        mock_querier_handler, ADMIN, CHAIN_CODEC_ADDRESS, COORDINATOR_ADDRESS, GATEWAY_ADDRESS,
+        GOVERNANCE, MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS,
+        VOTING_VERIFIER_ADDRESS,
     };
 
     const RELAYER: &str = "relayer";
@@ -172,7 +173,6 @@ mod tests {
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
                 key_type: multisig::key::KeyType::Ecdsa,
-                domain_separator: [0; 32],
             },
         )
         .unwrap();
@@ -346,7 +346,6 @@ mod tests {
             chain_name: "Ethereum".to_string(),
             verifier_set_diff_threshold: 0,
             key_type: multisig::key::KeyType::Ecdsa,
-            domain_separator: [0; 32],
         };
 
         let res = instantiate(deps.as_mut(), env, info, msg);
@@ -697,7 +696,10 @@ mod tests {
         match res.status {
             ProofStatus::Completed { execute_data } => {
                 // the mock querier gives us mocked data:
-                assert_eq!(execute_data, HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap());
+                assert_eq!(
+                    execute_data,
+                    HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap()
+                );
             }
             _ => panic!("Expected proof status to be completed"), // multisig mock will always return completed multisig
         }

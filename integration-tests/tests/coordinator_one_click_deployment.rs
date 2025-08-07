@@ -6,7 +6,8 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, nonempty_str, Threshold, VerificationStatus};
 use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
-    ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
+    ChainCodecMsg, ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg,
+    VerifierMsg,
 };
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Binary, HexBinary};
@@ -82,7 +83,9 @@ fn deploy_chains(
                 chain_codec: ContractDeploymentInfo {
                     code_id: chain.chain_codec.code_id,
                     label: "ChainCodec1.0.0".to_string(),
-                    msg: (),
+                    msg: ChainCodecMsg {
+                        domain_separator: [0; 32],
+                    },
                 },
                 verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
@@ -126,7 +129,6 @@ fn deploy_chains(
                         chain_name: chain_name.parse().unwrap(),
                         verifier_set_diff_threshold: 0,
                         key_type: KeyType::Ecdsa,
-                        domain_separator: [0; 32],
                     },
                 },
             })),

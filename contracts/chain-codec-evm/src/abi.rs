@@ -18,7 +18,6 @@ use chain_codec_api::Payload;
 
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 
-
 fn command_type_from_payload(payload: &Payload) -> CommandType {
     match payload {
         Payload::Messages(_) => CommandType::ApproveMessages,
@@ -170,10 +169,16 @@ mod tests {
     #[test]
     fn command_type_from_payload_works() {
         let payload = Payload::Messages(vec![]);
-        assert_eq!(command_type_from_payload(&payload), CommandType::ApproveMessages);
+        assert_eq!(
+            command_type_from_payload(&payload),
+            CommandType::ApproveMessages
+        );
 
         let payload = Payload::VerifierSet(new_verifier_set());
-        assert_eq!(command_type_from_payload(&payload), CommandType::RotateSigners);
+        assert_eq!(
+            command_type_from_payload(&payload),
+            CommandType::RotateSigners
+        );
     }
 
     #[test]

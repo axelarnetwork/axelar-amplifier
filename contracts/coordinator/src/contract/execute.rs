@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
@@ -67,13 +68,59 @@ fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Re
                 code_info.checksum.as_slice(),
                 &deps
                     .api
-                    .addr_canonicalize(&env.contract.address.to_string().clone())
+                    .addr_canonicalize(&env.contract.address.to_string())
                     .change_context(Error::Instantiate2Address)?,
                 salt,
             )
             .change_context(Error::Instantiate2Address)?,
         )
         .change_context(Error::Instantiate2Address)
+}
+
+/// Like `launch_contract`, but with two interdependent contracts that require each other's addresses
+/// to be instantiated correctly.
+fn launch_two_contracts(
+    deps: &DepsMut,
+    info: &MessageInfo,
+    env: &Env,
+    salt: Binary,
+    contract1: ContractLaunch<impl FnOnce(&Addr, &Addr) -> Result<Binary, Error>>,
+    contract2: ContractLaunch<impl FnOnce(&Addr, &Addr) -> Result<Binary, Error>>,
+) -> Result<((WasmMsg, Addr), (WasmMsg, Addr)), Error> {
+    let addr0 = instantiate2_addr(deps, env, contract1.code_id, salt.as_slice())?;
+    let addr1 = instantiate2_addr(deps, env, contract2.code_id, salt.as_slice())?;
+    let msg0 = (contract1.instantiate_msg)(&addr0, &addr1)?;
+    let msg1 = (contract2.instantiate_msg)(&addr0, &addr1)?;
+    Ok((
+        (
+            WasmMsg::Instantiate2 {
+                admin: Some(info.sender.to_string()),
+                code_id: contract1.code_id,
+                msg: msg0,
+                funds: vec![],
+                label: contract1.label,
+                salt: salt.clone(),
+            },
+            addr0,
+        ),
+        (
+            WasmMsg::Instantiate2 {
+                admin: Some(info.sender.to_string()),
+                code_id: contract2.code_id,
+                msg: msg1,
+                funds: vec![],
+                label: contract2.label,
+                salt: salt.clone(),
+            },
+            addr1,
+        ),
+    ))
+}
+
+struct ContractLaunch<F: FnOnce(&Addr, &Addr) -> Result<Binary, Error>> {
+    pub code_id: u64,
+    pub instantiate_msg: F,
+    pub label: String,
 }
 
 fn launch_contract(
@@ -111,8 +158,8 @@ fn instantiate_gateway(
         ctx.salt.clone(),
         ctx.gateway_code_id,
         cosmwasm_std::to_json_binary(&gateway_api::msg::InstantiateMsg {
-            verifier_address: verifier_address.to_string().clone(),
-            router_address: router_address.to_string().clone(),
+            verifier_address: verifier_address.to_string(),
+            router_address: router_address.to_string(),
         })
         .change_context(Error::InstantiateGateway)?,
         label,
@@ -152,56 +199,55 @@ fn instantiate_verifier(
     )
 }
 
-fn instantiate_prover(
+fn instantiate_prover_and_chain_codec(
     ctx: &InstantiateContext,
-    label: String,
+    prover_label: String,
+    chain_codec_label: String,
     gateway_address: Addr,
     service_registry_address: Addr,
     multisig_address: Addr,
     verifier_address: Addr,
-    chain_codec_address: Addr,
     prover_msg: &ProverMsg,
-) -> Result<(WasmMsg, Addr), Error> {
-    launch_contract(
+    domain_separator: Hash,
+) -> Result<((WasmMsg, Addr), (WasmMsg, Addr)), Error> {
+    launch_two_contracts(
         &ctx.deps,
         &ctx.info,
         &ctx.env,
         ctx.salt.clone(),
-        ctx.prover_code_id,
-        cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
-            admin_address: ctx.info.sender.to_string().clone(),
-            governance_address: prover_msg.governance_address.to_string().clone(),
-            coordinator_address: ctx.env.contract.address.to_string().clone(),
-            gateway_address: gateway_address.to_string().clone(),
-            multisig_address: multisig_address.to_string().clone(),
-            service_registry_address: service_registry_address.to_string().clone(),
-            voting_verifier_address: verifier_address.to_string().clone(),
-            chain_codec_address: chain_codec_address.to_string().clone(),
-            signing_threshold: prover_msg.signing_threshold,
-            service_name: prover_msg.service_name.to_string(),
-            chain_name: prover_msg.chain_name.to_string(),
-            verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
-            key_type: prover_msg.key_type,
-            domain_separator: prover_msg.domain_separator,
-        })
-        .change_context(Error::InstantiateProver)?,
-        label,
-    )
-}
-
-fn instantiate_chain_codec(
-    ctx: &InstantiateContext,
-    label: String,
-) -> Result<(WasmMsg, Addr), Error> {
-    launch_contract(
-        &ctx.deps,
-        &ctx.info,
-        &ctx.env,
-        ctx.salt.clone(),
-        ctx.chain_codec_id,
-        cosmwasm_std::to_json_binary(&chain_codec_api::msg::InstantiateMsg {})
-            .change_context(Error::InstantiateChainCodec)?,
-        label,
+        ContractLaunch {
+            code_id: ctx.prover_code_id,
+            instantiate_msg: |_, chain_codec_addr| {
+                cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
+                    admin_address: ctx.info.sender.to_string(),
+                    governance_address: prover_msg.governance_address.to_string(),
+                    coordinator_address: ctx.env.contract.address.to_string(),
+                    gateway_address: gateway_address.to_string(),
+                    multisig_address: multisig_address.to_string(),
+                    service_registry_address: service_registry_address.to_string(),
+                    voting_verifier_address: verifier_address.to_string(),
+                    chain_codec_address: chain_codec_addr.to_string(),
+                    signing_threshold: prover_msg.signing_threshold,
+                    service_name: prover_msg.service_name.to_string(),
+                    chain_name: prover_msg.chain_name.to_string(),
+                    verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
+                    key_type: prover_msg.key_type,
+                })
+                .change_context(Error::InstantiateChainCodec)
+            },
+            label: prover_label,
+        },
+        ContractLaunch {
+            code_id: ctx.chain_codec_id,
+            instantiate_msg: |prover_addr, _| {
+                cosmwasm_std::to_json_binary(&chain_codec_api::msg::InstantiateMsg {
+                    multisig_prover: prover_addr.to_string(),
+                    domain_separator,
+                })
+                .change_context(Error::InstantiateChainCodec)
+            },
+            label: chain_codec_label,
+        },
     )
 }
 
@@ -258,12 +304,6 @@ pub fn instantiate_chain_contracts(
 
             response = response.add_message(msg);
 
-            let (msg, chain_codec_address) = instantiate_chain_codec(
-                &ctx,
-                params.chain_codec.label.clone(),
-            )?;
-
-            response = response.add_message(msg);
             let (msg, voting_verifier_address) = instantiate_verifier(
                 &ctx,
                 params.verifier.label.clone(),
@@ -273,19 +313,22 @@ pub fn instantiate_chain_contracts(
 
             response = response.add_message(msg);
 
-            let (msg, multisig_prover_address) = instantiate_prover(
-                &ctx,
-                params.prover.label.clone(),
-                gateway_address.clone(),
-                protocol.service_registry.clone(),
-                protocol.multisig.clone(),
-                voting_verifier_address.clone(),
-                chain_codec_address.clone(),
-                &params.prover.msg,
-            )?;
+            let ((prover_msg, multisig_prover_address), (chain_codec_msg, chain_codec_address)) =
+                instantiate_prover_and_chain_codec(
+                    &ctx,
+                    params.prover.label.clone(),
+                    params.chain_codec.label.clone(),
+                    gateway_address.clone(),
+                    protocol.service_registry.clone(),
+                    protocol.multisig.clone(),
+                    voting_verifier_address.clone(),
+                    &params.prover.msg,
+                    params.chain_codec.msg.domain_separator,
+                )?;
 
             response = response
-                .add_message(msg)
+                .add_message(prover_msg)
+                .add_message(chain_codec_msg)
                 .add_event(Event::ContractsInstantiated {
                     gateway: ContractInstantiation {
                         address: gateway_address.clone(),
@@ -298,6 +341,10 @@ pub fn instantiate_chain_contracts(
                     multisig_prover: ContractInstantiation {
                         address: multisig_prover_address.clone(),
                         code_id: params.prover.code_id,
+                    },
+                    chain_codec: ContractInstantiation {
+                        address: chain_codec_address.clone(),
+                        code_id: params.chain_codec.code_id,
                     },
                     chain_name: params.prover.msg.chain_name.clone(),
                     deployment_name: deployment_name.clone(),

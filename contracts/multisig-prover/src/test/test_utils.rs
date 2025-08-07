@@ -1,3 +1,4 @@
+use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{from_json, to_json_binary, HexBinary, QuerierResult, Uint128, WasmQuery};
@@ -179,17 +180,14 @@ fn voting_verifier_mock_querier_handler(status: VerificationStatus) -> QuerierRe
     Ok(to_json_binary(&status).into()).into()
 }
 
-fn chain_codec_mock_querier_handler(
-    msg: chain_codec_api::msg::QueryMsg,
-) -> QuerierResult {
+fn chain_codec_mock_querier_handler(msg: chain_codec_api::msg::QueryMsg) -> QuerierResult {
     let result = match msg {
-        chain_codec_api::msg::QueryMsg::PayloadDigest { .. } => {
-            to_json_binary(&[0u8; 32])
-        }
         chain_codec_api::msg::QueryMsg::EncodeExecData { .. } => {
             to_json_binary(&HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap())
         }
-        _ => panic!("unexpected query: {:?}", msg),
+        chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+            to_json_binary(&validate_address(&address, &AddressFormat::Eip55).is_ok())
+        }
     };
     Ok(result.into()).into()
 }

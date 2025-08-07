@@ -11,16 +11,9 @@ description = "Chain codec contract for Sui, using BCS encoding and Sui addresse
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[profile.release]
-opt-level = 3
-debug = false
-rpath = false
-lto = true
-debug-assertions = false
-codegen-units = 1
-panic = 'abort'
-incremental = false
-overflow-checks = true
+[[bin]]
+name = "chain-codec-sui-schema"
+path = "src/bin/schema.rs"
 
 [features]
 # use library feature to disable all instantiate/execute/query exports
@@ -33,6 +26,7 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 chain-codec-api = { workspace = true }
 cw2 = { workspace = true }
+cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 sui-gateway = { workspace = true }
 itertools = { workspace = true }
@@ -52,3 +46,6 @@ prost = "0.12.4"
 router-api = { workspace = true }
 service-registry-api = { workspace = true }
 hex = { workspace = true }
+
+[lints]
+workspace = true

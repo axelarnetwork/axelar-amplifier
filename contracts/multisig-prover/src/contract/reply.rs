@@ -1,9 +1,12 @@
-use cosmwasm_std::{from_json, DepsMut, Reply, Response, Uint64};
+use cosmwasm_std::{from_json, DepsMut, Reply, Response, SubMsg, Uint64};
 use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseReplyError};
 
+use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
 use crate::events::Event;
-use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
+use crate::state::{
+    CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER,
+};
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -41,6 +44,50 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),
+        }),
+        Err(_) => {
+            unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")
+        }
+    }
+}
+
+pub fn payload_digest_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    #[allow(deprecated)]
+    // TODO: use `msg_responses` instead when the cosmwasm vm is updated to 2.x.x
+    let data = reply
+        .result
+        .into_result()
+        .map_err(ParseReplyError::SubMsgFailure)?
+        .data
+        .ok_or_else(|| {
+            ParseReplyError::ParseFailure("missing payload digest reply data".to_owned())
+        })?;
+
+    match parse_execute_response_data(data.as_slice()) {
+        Ok(MsgExecuteContractResponse { data: Some(digest) }) => {
+            let multisig: multisig::Client =
+                client::ContractClient::new(deps.querier, &config.multisig).into();
+
+            let verifier_set = CURRENT_VERIFIER_SET
+                .may_load(deps.storage)
+                .map_err(ContractError::from)?
+                .ok_or(ContractError::NoVerifierSet)?;
+
+            let start_sig_msg = multisig.start_signing_session(
+                verifier_set.id(),
+                digest.into(),
+                config.chain_name,
+                None,
+            );
+
+            Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+                start_sig_msg,
+                START_MULTISIG_REPLY_ID,
+            )))
+        }
+        Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
+            reason: "no payload digest data".to_string(),
         }),
         Err(_) => {
             unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")

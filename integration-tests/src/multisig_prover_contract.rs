@@ -51,7 +51,6 @@ impl MultisigProverContract {
                     chain_name: chain_name.to_string(),
                     verifier_set_diff_threshold: 0,
                     key_type: KeyType::Ecdsa,
-                    domain_separator: [0; 32],
                 },
                 &[],
                 "multisig_prover",
