@@ -114,31 +114,19 @@ mod test {
         assert_eq!(result, vec![endpoints[0].clone(), endpoints[1].clone()]);
 
         // with page
-        let result = super::chains(
-            deps.as_ref().storage,
-            Some(chain_name!("c-chain")),
-            Some(2),
-        )
-        .unwrap();
+        let result =
+            super::chains(deps.as_ref().storage, Some(chain_name!("c-chain")), Some(2)).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result, vec![endpoints[3].clone()]);
 
         // start after the last chain
-        let result = super::chains(
-            deps.as_ref().storage,
-            Some(chain_name!("d-chain")),
-            Some(2),
-        )
-        .unwrap();
+        let result =
+            super::chains(deps.as_ref().storage, Some(chain_name!("d-chain")), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
 
         // with a key out of the scope
-        let result = super::chains(
-            deps.as_ref().storage,
-            Some(chain_name!("e-chain")),
-            Some(2),
-        )
-        .unwrap();
+        let result =
+            super::chains(deps.as_ref().storage, Some(chain_name!("e-chain")), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
     }
 }
