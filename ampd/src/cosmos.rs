@@ -771,7 +771,6 @@ mod tests {
     }
 
     #[test]
-
     fn ensure_simulate_req_res_serialization_do_not_change() {
         let req = SimulateRequest {
             #[allow(deprecated)]
