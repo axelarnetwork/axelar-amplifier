@@ -59,6 +59,12 @@ pub enum Msg {
         success: bool,
         duration: Duration,
     },
+    /// Record the number of error in msg enqueue
+    MessageEnqueueError,
+    /// Record the number of event stream polling timeout
+    EventPollingTimeout,
+    /// Record the number of error happens in event publisher
+    EventPublisherError,
 }
 
 /// Errors that can occur in metrics processing
@@ -220,6 +226,7 @@ struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
     stage_result: EventStageMetrics,
+    error_metrics: ErrorMetrics,
 }
 
 impl Metrics {
@@ -227,15 +234,18 @@ impl Metrics {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
         let stage_result = EventStageMetrics::new();
+        let error_metrics = ErrorMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
         stage_result.register(registry);
+        error_metrics.register_all(registry);
 
         Self {
             block_received,
             verification_vote,
             stage_result,
+            error_metrics,
         }
     }
 
@@ -257,6 +267,15 @@ impl Metrics {
                 duration,
             } => {
                 self.stage_result.record(success, duration, stage);
+            }
+            Msg::MessageEnqueueError => {
+                self.error_metrics.record_msg_enqueue_error();
+            }
+            Msg::EventPollingTimeout => {
+                self.error_metrics.record_event_timeout();
+            }
+            Msg::EventPublisherError => {
+                self.error_metrics.record_event_publisher_error();
             }
         }
     }
@@ -390,6 +409,52 @@ impl EventStageMetrics {
         self.duration
             .get_or_create(&label)
             .inc_by(u64::try_from(duration.as_millis()).unwrap());
+    }
+}
+
+struct ErrorMetrics {
+    msg_enqueue_error: Counter,
+    event_timeout: Counter,
+    event_publisher_error: Counter,
+}
+
+impl ErrorMetrics {
+    fn new() -> Self {
+        Self {
+            msg_enqueue_error: Counter::default(),
+            event_timeout: Counter::default(),
+            event_publisher_error: Counter::default(),
+        }
+    }
+
+    fn register_all(&self, registry: &mut Registry) {
+        registry.register(
+            "msg_enqueue_error",
+            "number of failures in message enqueue",
+            self.msg_enqueue_error.clone(),
+        );
+        registry.register(
+            "event_stream_timeout",
+            "number of timeouts while polling blockchain events",
+            self.event_timeout.clone(),
+        );
+        registry.register(
+            "event_publisher_error",
+            "number of failures in event publisher",
+            self.event_publisher_error.clone(),
+        );
+    }
+
+    fn record_msg_enqueue_error(&self) {
+        self.msg_enqueue_error.inc();
+    }
+
+    fn record_event_timeout(&self) {
+        self.event_timeout.inc();
+    }
+
+    fn record_event_publisher_error(&self) {
+        self.event_publisher_error.inc();
     }
 }
 
@@ -570,6 +635,13 @@ mod tests {
             success: false,
             duration: Duration::from_millis(600),
         });
+
+        // record error metrics
+        for _ in 0..2 {
+            client.record_metric(Msg::MessageEnqueueError);
+            client.record_metric(Msg::EventPollingTimeout);
+            client.record_metric(Msg::EventPublisherError);
+        }
 
         // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
