@@ -62,6 +62,7 @@ fn instantiate_contracts(
     chain: &Chain,
     deployment_name: nonempty::String,
     salt: Binary,
+    deploy_contracts: bool,
 ) -> Result<AppResponse, Report<ContractError>> {
     // Deploy gateway, verifier and prover using InstantiateChainContracts
     protocol.coordinator.execute(
@@ -123,6 +124,7 @@ fn instantiate_contracts(
                     },
                 },
             })),
+            deploy_contracts,
         },
     )
 }
@@ -192,6 +194,7 @@ fn coordinator_one_click_deploys_each_contract_using_correct_code_ids_and_byteco
         &chain1,
         deployment_name.clone(),
         Binary::new(vec![1]),
+        false,
     );
     assert!(res.is_ok());
 
@@ -237,7 +240,8 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         chain_name.as_str(),
         &chain1,
         nonempty::String::try_from("testchain1").unwrap(),
-        Binary::new(vec![1])
+        Binary::new(vec![1]),
+        false,
     )
     .is_ok());
     assert!(instantiate_contracts(
@@ -245,7 +249,8 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         chain_name.as_str(),
         &chain1,
         nonempty::String::try_from("testchain2").unwrap(),
-        Binary::new(vec![2])
+        Binary::new(vec![2]),
+        false,
     )
     .is_ok());
 }
@@ -267,7 +272,8 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_different_de
         chain_name_1.clone().as_str(),
         &chain1,
         nonempty::String::try_from(chain_name_1).unwrap(),
-        Binary::new(vec![1])
+        Binary::new(vec![1]),
+        false,
     )
     .is_ok());
     assert!(instantiate_contracts(
@@ -275,7 +281,8 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_different_de
         chain_name_2.clone().as_str(),
         &chain1,
         nonempty::String::try_from(chain_name_2).unwrap(),
-        Binary::new(vec![2])
+        Binary::new(vec![2]),
+        false,
     )
     .is_ok());
 }
@@ -296,7 +303,8 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_same_deploym
         chain_name_1.clone().as_str(),
         &chain1,
         nonempty::String::try_from(chain_name_1.clone()).unwrap(),
-        Binary::new(vec![1])
+        Binary::new(vec![1]),
+        false,
     )
     .is_ok());
     assert!(instantiate_contracts(
@@ -304,7 +312,8 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_same_deploym
         chain_name_2.clone().as_str(),
         &chain1,
         nonempty::String::try_from(chain_name_1).unwrap(),
-        Binary::new(vec![2])
+        Binary::new(vec![2]),
+        false,
     )
     .is_err());
 }
@@ -324,7 +333,8 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_n
         chain_name.clone().as_str(),
         &chain1,
         nonempty::String::try_from(chain_name.clone()).unwrap(),
-        Binary::new(vec![1])
+        Binary::new(vec![1]),
+        false,
     )
     .is_ok());
     assert!(instantiate_contracts(
@@ -332,7 +342,8 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_n
         chain_name.clone().as_str(),
         &chain1,
         nonempty::String::try_from(chain_name.clone()).unwrap(),
-        Binary::new(vec![2])
+        Binary::new(vec![2]),
+        false,
     )
     .is_err());
 }
@@ -403,6 +414,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         &chain1,
         nonempty::String::try_from(chain_name.clone()).unwrap(),
         Binary::new(vec![1]),
+        false,
     );
     assert!(res.is_ok());
     assert!(register_deployment(
@@ -583,6 +595,7 @@ fn coordinator_one_click_register_deployment_with_router_succeeds() {
         &chain1,
         deployment_name.clone(),
         Binary::new(vec![1]),
+        false,
     );
     assert!(res.is_ok());
     assert!(register_deployment(&mut protocol, deployment_name).is_ok());
@@ -605,6 +618,7 @@ fn coordinator_one_click_authorize_callers_succeeds() {
         &chain1,
         deployment_name.clone(),
         Binary::new(vec![1]),
+        false,
     );
     assert!(res.is_ok());
 
@@ -621,4 +635,47 @@ fn coordinator_one_click_authorize_callers_succeeds() {
     );
     assert!(res.is_ok());
     assert!(res.unwrap());
+}
+
+#[test]
+fn coordinator_one_click_successfully_combines_instantiation_and_deployment() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let deployment_name = nonempty::String::try_from("testchaindeploy").unwrap();
+    let res = instantiate_contracts(
+        &mut protocol,
+        "testchain",
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+        true,
+    );
+    assert!(res.is_ok());
+
+    let new_contracts = gather_contracts(&protocol, res.unwrap());
+
+    let res = protocol
+        .app
+        .wrap()
+        .query_wasm_contract_info(new_contracts.gateway.contract_addr.to_string().clone());
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().code_id, chain1.gateway.code_id);
+
+    let res = protocol
+        .app
+        .wrap()
+        .query_wasm_contract_info(new_contracts.voting_verifier.contract_addr.to_string());
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().code_id, chain1.voting_verifier.code_id);
+
+    let res = protocol
+        .app
+        .wrap()
+        .query_wasm_contract_info(new_contracts.multisig_prover.contract_addr.to_string());
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().code_id, chain1.multisig_prover.code_id);
 }
