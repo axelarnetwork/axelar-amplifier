@@ -1059,7 +1059,10 @@ mod tests {
             monitoring_client,
         );
 
-        let _ = msg_queue_client.enqueue_and_forget(dummy_msg()).await.unwrap();
+        let _ = msg_queue_client
+            .enqueue_and_forget(dummy_msg())
+            .await
+            .unwrap();
         let handle = tokio::spawn(async move {
             assert!(msg_queue.next().await.is_none());
         });
