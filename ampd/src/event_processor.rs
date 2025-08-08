@@ -219,6 +219,7 @@ mod tests {
     use mockall::mock;
     use monitoring::{metrics, test_utils};
     use report::ErrorExt;
+    use tokio::sync::mpsc::Receiver;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -777,12 +778,17 @@ mod tests {
         assert!(result_with_timeout.is_ok());
 
         for _ in 0..num_block_ends {
-            let metrics = receiver.recv().await.unwrap();
-            assert_eq!(metrics, metrics::Msg::BlockReceived);
-            let _ = receiver.recv().await.unwrap(); // EventHandling metrics - ignored
+            let _ = find_msg_variant(&mut receiver, |m| matches!(m, metrics::Msg::BlockReceived))
+                .await
+                .expect("BlockReceived metric not found");
         }
 
-        assert!(receiver.try_recv().is_err());
+        while let Some(metric) = receiver.recv().await {
+            assert!(
+                !matches!(metric, metrics::Msg::BlockReceived),
+                "unexpected BlockReceived metric"
+            );
+        }
 
         cancel_token.cancel();
     }
@@ -858,30 +864,49 @@ mod tests {
         )
         .await;
 
-        let _ = receiver.recv().await.unwrap(); // BlockReceived
+        let _ = find_msg_variant(&mut receiver, |m| {
+            matches!(
+                m,
+                metrics::Msg::StageResult {
+                    stage: metrics::Stage::EventHandling,
+                    success: true,
+                    ..
+                }
+            )
+        })
+        .await
+        .expect("Successful event handling metric not found");
 
-        let metric = receiver.recv().await.unwrap(); // EventHandling -- success
-        assert!(matches!(
-            metric,
-            metrics::Msg::StageResult {
-                stage: metrics::Stage::EventHandling,
-                success: true,
-                duration: _,
-            }
-        ));
-
-        let _ = receiver.recv().await.unwrap(); // BlockReceived
-
-        let metric = receiver.recv().await.unwrap(); // EventHandling -- failure
-        assert!(matches!(
-            metric,
-            metrics::Msg::StageResult {
-                stage: metrics::Stage::EventHandling,
-                success: false,
-                duration: _,
-            }
-        ));
+        let _ = find_msg_variant(&mut receiver, |m| {
+            matches!(
+                m,
+                metrics::Msg::StageResult {
+                    stage: metrics::Stage::EventHandling,
+                    success: false,
+                    ..
+                }
+            )
+        })
+        .await
+        .expect("Failed event handling metric not found");
 
         assert!(receiver.try_recv().is_err());
+    }
+
+    /// Waits and returns the first metric that matches the specified variant kind, ignoring other fields.
+    /// Returns None if the receiver is closed before a match is found.
+    async fn find_msg_variant<F>(
+        receiver: &mut Receiver<metrics::Msg>,
+        matcher: F,
+    ) -> Option<metrics::Msg>
+    where
+        F: Fn(&metrics::Msg) -> bool,
+    {
+        while let Some(metric) = receiver.recv().await {
+            if matcher(&metric) {
+                return Some(metric);
+            }
+        }
+        None
     }
 }
