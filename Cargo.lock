@@ -10559,7 +10559,7 @@ dependencies = [
 
 [[package]]
 name = "solana-multisig-prover"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_ok",
@@ -10606,7 +10606,7 @@ dependencies = [
 
 [[package]]
 name = "solana-multisig-prover-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
