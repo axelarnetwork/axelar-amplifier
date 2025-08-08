@@ -150,6 +150,7 @@ mod tests {
     use crate::broadcast::DecCoin;
     use crate::cosmos::MockCosmosClient;
     use crate::event_sub::{self, MockEventSub};
+    use crate::monitoring::test_utils;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::PREFIX;
 
@@ -213,11 +214,13 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             100,
             GAS_CAP,
             Duration::from_secs(1),
+            monitoring_client,
         );
         let service = Service::builder()
             .event_sub(mock_event_sub)
@@ -932,12 +935,14 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             1000u64,
             Duration::from_secs(1),
+            monitoring_client,
         );
 
         let service = Service::builder()
