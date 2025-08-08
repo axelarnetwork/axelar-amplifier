@@ -351,6 +351,7 @@ mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
+    use router_api::chain_name_raw;
 
     use super::*;
 
@@ -378,8 +379,8 @@ mod tests {
     fn save_and_load_its_contract_succeeds() {
         let mut deps = mock_dependencies();
 
-        let chain1 = "chain1".parse().unwrap();
-        let chain2: ChainNameRaw = "chain2".parse().unwrap();
+        let chain1 = chain_name_raw!("chain1");
+        let chain2 = chain_name_raw!("chain2");
         let address1: Address = MockApi::default()
             .addr_make("address1")
             .to_string()

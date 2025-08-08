@@ -68,11 +68,10 @@ jobs:
           ref: ${{ github.event.inputs.tag }}
           submodules: recursive
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
-          toolchain: 1.81.0
-          override: true
+          cache-key: "cache-release-${{ matrix.os }}-${{ matrix.arch }}"
 
       - name: Import GPG key
         id: import_gpg
