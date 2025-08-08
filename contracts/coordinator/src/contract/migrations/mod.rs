@@ -4,7 +4,7 @@ use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, Api, DepsMut, Env, Order, Response, Storage};
+use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
@@ -22,8 +22,6 @@ enum MigrationError {
     OldConfigNotFound,
     #[error("missing contracts to register for chain {0}")]
     MissingContracts(ChainName),
-    #[error("expected prover address {0} but saw {1}")]
-    IncorrectProver(Addr, Addr),
     #[error("extra or duplicate chains provided in message")]
     ExtraChainProvided,
     #[error("chain contracts provided for chain {0} do not match with current state")]
@@ -64,7 +62,6 @@ pub struct OldChainContracts {
 #[cw_serde]
 pub struct ChainContracts {
     pub chain_name: ChainName,
-    pub prover_address: nonempty::String,
     pub gateway_address: nonempty::String,
     pub verifier_address: nonempty::String,
 }
@@ -74,28 +71,6 @@ pub struct MigrateMsg {
     pub router: String,
     pub multisig: String,
     pub chain_contracts: Vec<ChainContracts>,
-}
-
-impl MigrateMsg {
-    fn chain_contracts_records(
-        &self,
-        api: &dyn Api,
-    ) -> error_stack::Result<Vec<ChainContractsRecord>, MigrationError> {
-        self.chain_contracts
-            .iter()
-            .map::<error_stack::Result<ChainContractsRecord, MigrationError>, _>(|cc| {
-                Ok(ChainContractsRecord {
-                    chain_name: cc.chain_name.clone(),
-                    prover_address: address::validate_cosmwasm_address(api, &cc.prover_address)
-                        .change_context(MigrationError::InvalidChainContracts)?,
-                    verifier_address: address::validate_cosmwasm_address(api, &cc.verifier_address)
-                        .change_context(MigrationError::InvalidChainContracts)?,
-                    gateway_address: address::validate_cosmwasm_address(api, &cc.gateway_address)
-                        .change_context(MigrationError::InvalidChainContracts)?,
-                })
-            })
-            .collect::<error_stack::Result<Vec<_>, MigrationError>>()
-    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -110,7 +85,7 @@ pub fn migrate(
     // Since this state has not yet been set or used, we can just clear it
     DEPLOYED_CHAINS.clear(deps.storage);
 
-    migrate_chain_contracts(deps.storage, msg.chain_contracts_records(deps.api)?)?;
+    migrate_chain_contracts(deps, msg.chain_contracts)?;
 
     Ok(Response::default())
 }
@@ -136,11 +111,11 @@ fn migrate_config(
 }
 
 fn migrate_chain_contracts(
-    storage: &mut dyn Storage,
-    chain_contracts: Vec<ChainContractsRecord>,
+    deps: DepsMut,
+    chain_contracts: Vec<ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
-        .range(storage, None, None, Order::Ascending)
+        .range(deps.storage, None, None, Order::Ascending)
         .try_collect()?;
 
     let mut chain_names_seen: HashSet<ChainName> = HashSet::new();
@@ -153,33 +128,40 @@ fn migrate_chain_contracts(
                 Ok((contracts.chain_name.clone(), contracts))
             }
         })
-        .collect::<Result<HashMap<ChainName, ChainContractsRecord>, MigrationError>>()?;
+        .collect::<Result<HashMap<ChainName, ChainContracts>, MigrationError>>()?;
 
     for (chain_name, prover_addr) in provers_by_chain {
-        let contracts =
-            contracts_for_prover(chain_name.clone(), prover_addr.clone(), &mut contracts_map)?;
+        let contracts = contracts_for_chain(chain_name.clone(), &mut contracts_map)?;
 
-        save_contracts_to_state(storage, contracts)?;
+        save_contracts_to_state(
+            deps.storage,
+            ChainContractsRecord {
+                chain_name: contracts.chain_name.clone(),
+                prover_address: prover_addr,
+                verifier_address: address::validate_cosmwasm_address(
+                    deps.api,
+                    &contracts.verifier_address,
+                )
+                .change_context(MigrationError::InvalidChainContracts)?,
+                gateway_address: address::validate_cosmwasm_address(
+                    deps.api,
+                    &contracts.gateway_address,
+                )
+                .change_context(MigrationError::InvalidChainContracts)?,
+            },
+        )?;
     }
 
     Ok(())
 }
 
-fn contracts_for_prover(
+fn contracts_for_chain(
     chain_name: ChainName,
-    prover_addr: Addr,
-    contracts_map: &mut HashMap<ChainName, ChainContractsRecord>,
-) -> Result<ChainContractsRecord, axelar_wasm_std::error::ContractError> {
+    contracts_map: &mut HashMap<ChainName, ChainContracts>,
+) -> Result<ChainContracts, axelar_wasm_std::error::ContractError> {
     let contracts = contracts_map
         .remove(&chain_name)
         .ok_or_else(|| MigrationError::MissingContracts(chain_name.clone()))?;
-
-    if contracts.prover_address != prover_addr {
-        Err(MigrationError::IncorrectProver(
-            prover_addr,
-            contracts.prover_address.clone(),
-        ))?;
-    }
 
     Ok(contracts)
 }
@@ -315,7 +297,6 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
-                    prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
                         .unwrap(),
@@ -339,60 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn migrate_fails_with_incorrect_prover_address() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
-
-        assert!(old_instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
-            },
-        )
-        .is_ok());
-
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
-
-        assert!(add_old_prover_registration(
-            deps.as_mut(),
-            vec![(chain_name.clone(), prover_addr2.clone())]
-        )
-        .is_ok());
-
-        let res = migrate(
-            deps.as_mut(),
-            env,
-            MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
-                chain_contracts: vec![ChainContracts {
-                    chain_name: chain_name.clone(),
-                    prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
-                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
-                        .unwrap(),
-                }],
-            },
-        );
-
-        assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains(&MigrationError::IncorrectProver(prover_addr2, prover_addr1).to_string()));
-    }
-
-    #[test]
-    fn migrate_fails_when_duplicate_chains_provided() {
+    fn migrate_fails_to_migrate_all_registered_provers() {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
@@ -434,8 +362,6 @@ mod tests {
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name1.clone(),
-                        prover_address: nonempty::String::try_from(prover_addr1.to_string())
-                            .unwrap(),
                         gateway_address: nonempty::String::try_from(gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -443,8 +369,6 @@ mod tests {
                     },
                     ChainContracts {
                         chain_name: chain_name1.clone(),
-                        prover_address: nonempty::String::try_from(prover_addr1.to_string())
-                            .unwrap(),
                         gateway_address: nonempty::String::try_from(gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -503,7 +427,6 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name1.clone(),
-                    prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
                         .unwrap(),
@@ -564,7 +487,6 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
-                    prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(
                         cosmos_addr!("different_gateway").to_string(),
                     )
@@ -628,7 +550,6 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
-                    prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
                         .unwrap(),
@@ -674,9 +595,8 @@ mod tests {
         let gateway_addr = api.addr_make(GATEWAY);
         let verifier_addr = api.addr_make(VERIFIER);
 
-        let extra_prover_addr = api.addr_make(PROVER_2);
-        let extra_gateway_addr = cosmos_addr!("extra_gateway");
-        let extra_verifier_addr = cosmos_addr!("extra_verifier");
+        let extra_gateway_addr = api.addr_make("extra_gateway");
+        let extra_verifier_addr = api.addr_make("extra_verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -693,8 +613,6 @@ mod tests {
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name.clone(),
-                        prover_address: nonempty::String::try_from(prover_addr.to_string())
-                            .unwrap(),
                         gateway_address: nonempty::String::try_from(gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -702,8 +620,6 @@ mod tests {
                     },
                     ChainContracts {
                         chain_name: chain_name.clone(),
-                        prover_address: nonempty::String::try_from(extra_prover_addr.to_string())
-                            .unwrap(),
                         gateway_address: nonempty::String::try_from(extra_gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(
