@@ -22,6 +22,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 goldie = { workspace = true }
+router-api = { workspace = true }
 
 [lints]
 workspace = true

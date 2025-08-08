@@ -47,8 +47,8 @@ impl Multisig {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
+    use router_api::cosmos_addr;
 
     use crate::key::{PublicKey, Signature};
     use crate::msg::Signer;
@@ -58,25 +58,24 @@ mod test {
 
     #[test]
     fn optimize_signatures() {
-        let api = MockApi::default();
         let signers = vec![
-            signer(api.addr_make("signer0"), 1),
-            signer(api.addr_make("signer1"), 3),
-            signer(api.addr_make("signer2"), 5),
-            signer(api.addr_make("signer3"), 7),
-            signer(api.addr_make("signer4"), 6),
-            signer(api.addr_make("signer5"), 4),
-            signer(api.addr_make("signer6"), 2),
+            signer(cosmos_addr!("signer0"), 1),
+            signer(cosmos_addr!("signer1"), 3),
+            signer(cosmos_addr!("signer2"), 5),
+            signer(cosmos_addr!("signer3"), 7),
+            signer(cosmos_addr!("signer4"), 6),
+            signer(cosmos_addr!("signer5"), 4),
+            signer(cosmos_addr!("signer6"), 2),
         ];
 
         let sig = Signature::Ecdsa(HexBinary::from([0; 64]).try_into().unwrap());
 
         // signer 0, 2, 3, 6 submitted signatures
         let sigs = vec![
-            (api.addr_make("signer0").to_string(), sig.clone()),
-            (api.addr_make("signer2").to_string(), sig.clone()),
-            (api.addr_make("signer3").to_string(), sig.clone()),
-            (api.addr_make("signer6").to_string(), sig.clone()),
+            (cosmos_addr!("signer0").to_string(), sig.clone()),
+            (cosmos_addr!("signer2").to_string(), sig.clone()),
+            (cosmos_addr!("signer3").to_string(), sig.clone()),
+            (cosmos_addr!("signer6").to_string(), sig.clone()),
         ];
 
         let threshold = Uint128::from(13u64);

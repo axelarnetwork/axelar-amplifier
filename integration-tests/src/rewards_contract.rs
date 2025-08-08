@@ -1,7 +1,7 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use rewards::contract::{execute, instantiate, query};
+use router_api::cosmos_addr;
 
 use crate::contract::Contract;
 use crate::protocol::AxelarApp;
@@ -23,7 +23,7 @@ impl RewardsContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &rewards::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                     rewards_denom,

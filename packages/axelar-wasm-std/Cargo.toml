@@ -52,6 +52,7 @@ cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
+router-api = { workspace = true }
 
 [lints]
 workspace = true

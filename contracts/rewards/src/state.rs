@@ -492,7 +492,7 @@ mod test {
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::{cosmos_addr, ChainName};
 
     use super::*;
     use crate::error::ContractError;
@@ -502,7 +502,7 @@ mod test {
     #[test]
     fn pool_id_try_from_msg_pool_id() {
         let api = MockApi::default();
-        let contract = api.addr_make("some contract");
+        let contract = cosmos_addr!("some contract");
         let chain_name: ChainName = "chain".parse().unwrap();
 
         let pool_id = msg::PoolId {
@@ -530,7 +530,6 @@ mod test {
     /// - no rewards if rewards per epoch is too low for number of verifiers
     #[test]
     fn rewards_by_verifier() {
-        let api = MockApi::default();
         let tally = EpochTally {
             params: Params {
                 epoch_duration: 100u64.try_into().unwrap(),
@@ -539,13 +538,13 @@ mod test {
             },
             pool_id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("pool_contract"),
+                contract: cosmos_addr!("pool_contract"),
             },
             event_count: 101u64,
             participation: HashMap::from([
-                (api.addr_make("verifier1").to_string(), 75u64),
-                (api.addr_make("verifier2").to_string(), 50u64),
-                (api.addr_make("verifier3").to_string(), 51u64),
+                (cosmos_addr!("verifier1").to_string(), 75u64),
+                (cosmos_addr!("verifier2").to_string(), 50u64),
+                (cosmos_addr!("verifier3").to_string(), 51u64),
             ]),
             epoch: Epoch {
                 epoch_num: 1u64,
@@ -558,8 +557,8 @@ mod test {
                 // distribute rewards evenly to all verifiers that reach quorum
                 tally.clone(),
                 HashMap::from([
-                    (api.addr_make("verifier1"), Uint128::from(500u128)),
-                    (api.addr_make("verifier3"), Uint128::from(500u128)),
+                    (cosmos_addr!("verifier1"), Uint128::from(500u128)),
+                    (cosmos_addr!("verifier3"), Uint128::from(500u128)),
                 ]),
             ),
             (
@@ -605,7 +604,7 @@ mod test {
         let pool = RewardsPool {
             id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("pool_contract"),
+                contract: cosmos_addr!("pool_contract"),
             },
             balance: Uint128::from(100u128),
             params,
@@ -629,7 +628,7 @@ mod test {
         };
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
 
         // should be empty at first
@@ -663,7 +662,7 @@ mod test {
         // check different contract
         let diff_pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some other contract"),
+            contract: cosmos_addr!("some other contract"),
         };
         // should be empty at first
         let loaded = load_rewards_watermark(mock_deps.as_ref().storage, diff_pool_id.clone());
@@ -691,7 +690,7 @@ mod test {
         let event = Event {
             pool_id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("some contract"),
+                contract: cosmos_addr!("some contract"),
             },
             event_id: "some event".try_into().unwrap(),
             epoch_num: 2,
@@ -713,7 +712,7 @@ mod test {
         // different event id and contract address should return none
         let diff_pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("different contract"),
+            contract: cosmos_addr!("different contract"),
         };
         let loaded = load_event(
             mock_deps.as_ref().storage,
@@ -754,7 +753,7 @@ mod test {
         };
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut tally = EpochTally::new(
             pool_id.clone(),
@@ -766,7 +765,7 @@ mod test {
             },
         );
 
-        tally = tally.record_participation(MockApi::default().addr_make("verifier"));
+        tally = tally.record_participation(cosmos_addr!("verifier"));
 
         let res = save_epoch_tally(mock_deps.as_mut().storage, &tally);
         assert!(res.is_ok());
@@ -782,7 +781,7 @@ mod test {
             mock_deps.as_ref().storage,
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("different contract"),
+                contract: cosmos_addr!("different contract"),
             },
             epoch_num,
         );
@@ -817,10 +816,7 @@ mod test {
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
         let pool = RewardsPool {
-            id: PoolId::new(
-                chain_name.clone(),
-                MockApi::default().addr_make("some contract"),
-            ),
+            id: PoolId::new(chain_name.clone(), cosmos_addr!("some contract")),
             params,
             balance: Uint128::zero(),
         };

@@ -1,11 +1,11 @@
 use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::Threshold;
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::contract::{execute, instantiate, query};
 use multisig_prover_api::encoding::Encoder;
+use router_api::cosmos_addr;
 
 use crate::contract::Contract;
 use crate::protocol::{emptying_deps_mut, Protocol};
@@ -33,7 +33,7 @@ impl MultisigProverContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &multisig_prover::msg::InstantiateMsg {
                     admin_address: admin_address.to_string(),
                     governance_address: protocol.governance_address.to_string(),
@@ -70,8 +70,8 @@ impl MultisigProverContract {
 impl Default for MultisigProverContract {
     fn default() -> Self {
         MultisigProverContract {
-            contract_addr: MockApi::default().addr_make("prover"),
-            admin_addr: MockApi::default().addr_make("admin"),
+            contract_addr: cosmos_addr!("prover"),
+            admin_addr: cosmos_addr!("admin"),
             code_id: 0,
         }
     }

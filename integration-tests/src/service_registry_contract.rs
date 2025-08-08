@@ -1,6 +1,6 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
+use router_api::cosmos_addr;
 use service_registry::contract::{execute, instantiate, query};
 
 use crate::contract::Contract;
@@ -19,7 +19,7 @@ impl ServiceRegistryContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &service_registry::msg::InstantiateMsg {
                     governance_account: governance.clone().into(),
                 },

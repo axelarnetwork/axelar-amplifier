@@ -109,6 +109,7 @@ mod test {
 
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
+    use router_api::cosmos_addr;
 
     use crate::client::Client;
     use crate::msg::{ChainContractsKey, ChainContractsResponse, QueryMsg};
@@ -118,7 +119,7 @@ mod test {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(MockApi::default().addr_make("verifier").to_string());
+        let res = client.ready_to_unbond(cosmos_addr!("verifier").to_string());
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -129,7 +130,7 @@ mod test {
         let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(MockApi::default().addr_make("verifier").to_string());
+        let res = client.ready_to_unbond(cosmos_addr!("verifier").to_string());
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
