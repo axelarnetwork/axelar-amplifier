@@ -153,7 +153,8 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message, FIELD_DELIMITER,
+        chain_name_raw, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
+        FIELD_DELIMITER,
     };
 
     use super::*;
@@ -335,7 +336,7 @@ mod test {
         let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
         messages
             .iter_mut()
-            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
+            .for_each(|msg| msg.cc_id.source_chain = chain_name_raw!("Ethereum"));
 
         let result = execute(
             deps.as_mut(),
@@ -359,7 +360,7 @@ mod test {
         let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
         messages
             .iter_mut()
-            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
+            .for_each(|msg| msg.cc_id.source_chain = chain_name_raw!("Ethereum"));
 
         let result = execute(
             deps.as_mut(),
