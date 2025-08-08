@@ -153,8 +153,8 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        chain_name_raw, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
-        FIELD_DELIMITER,
+        chain_name, chain_name_raw, ChainEndpoint, ChainName, CrossChainId, GatewayDirection,
+        Message, FIELD_DELIMITER,
     };
 
     use super::*;
@@ -794,7 +794,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
-                chain: ChainName::from_str("ETHEREUM").unwrap(),
+                chain: chain_name!("ETHEREUM"),
                 gateway_address: MockApi::default()
                     .addr_make("new gateway")
                     .to_string()
@@ -1863,7 +1863,7 @@ mod test {
     #[test]
     fn chain_info_fails_on_unregistered_chain() {
         let deps = setup();
-        let unregistered_chain: ChainName = "unregistered".parse().unwrap();
+        let unregistered_chain = chain_name!("unregistered");
 
         // Ensure that the error message doesn't change unexpectedly since the relayer depends on it
         let err = query(

@@ -52,7 +52,7 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_solana_gateway::processor::CallContractEvent;
-    use router_api::ChainName;
+    use router_api::chain_name;
     use solana_sdk::pubkey::Pubkey;
     use solana_transaction_status::option_serializer::OptionSerializer;
 
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let ((signature, tx), _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.destination_chain = ChainName::from_str("badchain").unwrap();
+        msg.destination_chain = chain_name!("badchain");
         assert_eq!(Vote::NotFound, verify_message((&signature, &tx), &msg));
     }
 

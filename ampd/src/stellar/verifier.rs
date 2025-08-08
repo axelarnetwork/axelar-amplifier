@@ -151,6 +151,7 @@ mod test {
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
+    use router_api::chain_name;
     use stellar::WeightedSigners;
     use stellar_xdr::curr::{
         AccountId, BytesM, ContractEvent, ContractEventBody, ContractEventType, ContractEventV0,
@@ -208,7 +209,7 @@ mod test {
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, tx_response, mut msg) = matching_msg_and_tx_block();
-        msg.destination_chain = "different-chain".parse().unwrap();
+        msg.destination_chain = chain_name!("different-chain");
 
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),

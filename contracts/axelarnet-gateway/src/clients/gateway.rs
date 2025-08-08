@@ -62,10 +62,9 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
+    use router_api::chain_name;
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -77,10 +76,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(
-            client.chain_name().unwrap(),
-            ChainName::from_str("source-chain").unwrap()
-        );
+        assert_eq!(client.chain_name().unwrap(), chain_name!("source-chain"));
     }
 
     #[test]
@@ -89,7 +85,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let destination_chain: ChainName = "destination-chain".parse().unwrap();
+        let destination_chain = chain_name!("destination-chain");
         let destination_address: Address = "destination-address".parse().unwrap();
         let payload = HexBinary::from(vec![1, 2, 3]);
 
@@ -145,7 +141,7 @@ mod test {
         let info = message_info(&deps.api.addr_make("deployer"), &[]);
 
         let instantiate_msg = InstantiateMsg {
-            chain_name: "source-chain".parse().unwrap(),
+            chain_name: chain_name!("source-chain"),
             router_address: deps.api.addr_make("router").to_string(),
             nexus: deps.api.addr_make("nexus").to_string(),
         };

@@ -34,7 +34,7 @@ fn accumulate_errs(
 mod test {
     use cosmwasm_std::from_json;
     use cosmwasm_std::testing::mock_dependencies;
-    use router_api::{CrossChainId, Message};
+    use router_api::{chain_name, CrossChainId, Message};
 
     use crate::state;
 
@@ -90,21 +90,21 @@ mod test {
             Message {
                 cc_id: CrossChainId::new("chain1", "id1").unwrap(),
                 destination_address: "addr1".parse().unwrap(),
-                destination_chain: "chain2".parse().unwrap(),
+                destination_chain: chain_name!("chain2"),
                 source_address: "addr2".parse().unwrap(),
                 payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId::new("chain2", "id2").unwrap(),
                 destination_address: "addr3".parse().unwrap(),
-                destination_chain: "chain3".parse().unwrap(),
+                destination_chain: chain_name!("chain3"),
                 source_address: "addr4".parse().unwrap(),
                 payload_hash: [1; 32],
             },
             Message {
                 cc_id: CrossChainId::new("chain3", "id3").unwrap(),
                 destination_address: "addr5".parse().unwrap(),
-                destination_chain: "chain4".parse().unwrap(),
+                destination_chain: chain_name!("chain4"),
                 source_address: "addr6".parse().unwrap(),
                 payload_hash: [2; 32],
             },

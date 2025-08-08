@@ -86,7 +86,7 @@ mod test {
     use std::vec;
 
     use axelar_wasm_std::msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex};
-    use router_api::{chain_name_raw, CrossChainId};
+    use router_api::{chain_name, chain_name_raw, CrossChainId};
 
     use super::Message;
 
@@ -99,7 +99,7 @@ mod test {
         let msg = Message {
             source_chain: chain_name_raw!("ethereum"),
             source_address: "something".parse().unwrap(),
-            destination_chain: "polygon".parse().unwrap(),
+            destination_chain: chain_name!("polygon"),
             destination_address: "something else".parse().unwrap(),
             payload_hash: [1; 32],
             source_tx_id: msg_id.tx_hash.to_vec().try_into().unwrap(),
@@ -129,7 +129,7 @@ mod test {
             )
             .unwrap(),
             source_address: "something".parse().unwrap(),
-            destination_chain: "polygon".parse().unwrap(),
+            destination_chain: chain_name!("polygon"),
             destination_address: "something else".parse().unwrap(),
             payload_hash: [1; 32],
         };
@@ -152,7 +152,7 @@ mod test {
             )
             .unwrap(),
             source_address: "something".parse().unwrap(),
-            destination_chain: "polygon".parse().unwrap(),
+            destination_chain: chain_name!("polygon"),
             destination_address: "something else".parse().unwrap(),
             payload_hash: [1; 32],
         };

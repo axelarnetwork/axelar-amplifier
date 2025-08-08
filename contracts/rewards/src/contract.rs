@@ -199,7 +199,7 @@ mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use router_api::ChainName;
+    use router_api::chain_name;
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
@@ -210,7 +210,7 @@ mod tests {
     /// events and then distributes the rewards.
     #[test]
     fn test_rewards_flow() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -361,7 +361,7 @@ mod tests {
     /// and that the proxy address can be correctly queried
     #[test]
     fn test_rewards_with_proxy() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -550,7 +550,7 @@ mod tests {
     // an existing tally
     #[test]
     fn params_updated_in_current_epoch_when_existing_tallies() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -704,7 +704,7 @@ mod tests {
     // test that pool parameter updates take effect in the current epoch when there are no tallies
     #[test]
     fn params_updated_in_current_epoch_with_no_existing_tallies() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -865,7 +865,7 @@ mod tests {
     // for the epoch that was ended
     #[test]
     fn params_updated_in_current_epoch_when_shortening_epoch() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");

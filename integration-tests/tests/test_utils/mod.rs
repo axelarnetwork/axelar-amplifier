@@ -25,7 +25,7 @@ use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
 use rewards::PoolId;
-use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
+use router_api::{chain_name, Address, ChainName, CrossChainId, GatewayDirection, Message};
 use service_registry_api::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
@@ -918,10 +918,7 @@ pub struct TestCase {
 // Creates an instance of Axelar Amplifier with an initial verifier set registered, and returns a TestCase instance.
 pub fn setup_test_case() -> TestCase {
     let mut protocol = setup_protocol("validators".try_into().unwrap());
-    let chains = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
-    ];
+    let chains = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
     let verifiers = create_new_verifiers_vec(
         chains.clone(),
         vec![("verifier1".to_string(), 0), ("verifier2".to_string(), 1)],

@@ -191,6 +191,7 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
+    use router_api::chain_name;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
@@ -314,7 +315,7 @@ mod tests {
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet-devnet-v1".parse().unwrap(),
+                source_chain: chain_name!("starknet-devnet-v1"),
                 source_gateway_address:
                     "0x049ec69cd2e0c987857fbda7966ff59077e2e92c18959bdb9b0012438c452047"
                         .parse()

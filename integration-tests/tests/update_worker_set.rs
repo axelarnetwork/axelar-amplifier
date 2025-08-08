@@ -2,6 +2,7 @@ use cosmwasm_std::testing::MockApi;
 use cw_multi_test::Executor;
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
+use router_api::chain_name;
 use service_registry::WeightedVerifier;
 use service_registry_api::msg::QueryMsg as ServiceRegistryQueryMsg;
 
@@ -9,10 +10,7 @@ pub mod test_utils;
 
 #[test]
 fn verifier_set_can_be_initialized_and_then_manually_updated() {
-    let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
-    ];
+    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
 
     let test_utils::TestCase {
         mut protocol,
@@ -106,10 +104,7 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
 
 #[test]
 fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirmed() {
-    let chains = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
-    ];
+    let chains = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,
@@ -226,10 +221,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
 
 #[test]
 fn verifier_set_update_can_be_resigned() {
-    let chains = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
-    ];
+    let chains = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,
@@ -321,7 +313,7 @@ fn verifier_set_update_can_be_resigned() {
 
 #[test]
 fn governance_should_confirm_new_verifier_set_without_verification() {
-    let chains: Vec<router_api::ChainName> = vec!["Ethereum".try_into().unwrap()];
+    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum")];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,

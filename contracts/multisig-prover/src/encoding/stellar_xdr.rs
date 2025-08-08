@@ -86,7 +86,7 @@ mod tests {
     use multisig::key::Signature;
     use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name_raw, CrossChainId, Message};
+    use router_api::{chain_name, chain_name_raw, CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};
     use crate::Payload;
@@ -135,7 +135,7 @@ mod tests {
             source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 .parse()
                 .unwrap(),
-            destination_chain: "stellar".parse().unwrap(),
+            destination_chain: chain_name!("stellar"),
             destination_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                 .parse()
                 .unwrap(),
@@ -249,7 +249,7 @@ mod tests {
             source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 .parse()
                 .unwrap(),
-            destination_chain: "stellar".parse().unwrap(),
+            destination_chain: chain_name!("stellar"),
             destination_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                 .parse()
                 .unwrap(),

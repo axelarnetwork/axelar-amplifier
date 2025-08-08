@@ -578,7 +578,7 @@ mod tests {
         RegisterTokenMetadata, TokenId,
     };
     use its_abi_translator::abi::hub_message_abi_encode;
-    use router_api::{chain_name_raw, cosmos_address, ChainName, ChainNameRaw, CrossChainId};
+    use router_api::{chain_name, chain_name_raw, cosmos_address, ChainNameRaw, CrossChainId};
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
@@ -2125,9 +2125,7 @@ mod tests {
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ChainName => {
-                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
-                    }
+                    QueryMsg::ChainName => Ok(to_json_binary(&chain_name!("axelar")).into()).into(),
                     _ => panic!("unsupported query"),
                 }
             }

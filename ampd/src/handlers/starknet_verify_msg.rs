@@ -500,7 +500,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
+                source_chain: chain_name!("starknet"),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -524,7 +524,7 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "destination-address".parse().unwrap(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
@@ -547,7 +547,7 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000002"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum-1".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum-1"),
                     destination_address: "destination-address-1".parse().unwrap(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
@@ -567,7 +567,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
+                source_chain: chain_name!("starknet"),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -591,7 +591,7 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "destination-address".parse().unwrap(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
@@ -614,7 +614,7 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "destination-address".parse().unwrap(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
@@ -634,7 +634,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
+                source_chain: chain_name!("starknet"),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -658,7 +658,7 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "destination-address".parse().unwrap(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
@@ -681,7 +681,7 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "destination-address".parse().unwrap(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")

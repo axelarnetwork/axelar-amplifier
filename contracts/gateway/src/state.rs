@@ -69,7 +69,7 @@ pub fn save_outgoing_message(
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
-    use router_api::{CrossChainId, Message};
+    use router_api::{chain_name, CrossChainId, Message};
 
     use crate::state::OUTGOING_MESSAGES;
 
@@ -80,7 +80,7 @@ mod test {
         let message = Message {
             cc_id: CrossChainId::new("chain", "id").unwrap(),
             source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination".parse().unwrap(),
+            destination_chain: chain_name!("destination"),
             destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         };

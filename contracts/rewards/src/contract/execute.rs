@@ -267,7 +267,7 @@ mod test {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::chain_name;
 
     use super::*;
     use crate::error::ContractError;
@@ -281,7 +281,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mock_deps = setup(
@@ -316,7 +316,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mock_deps = setup(
@@ -340,7 +340,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mock_deps = setup(
@@ -396,7 +396,7 @@ mod test {
         let epoch_duration = 100u64;
 
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut mock_deps = setup(
@@ -454,7 +454,7 @@ mod test {
         let epoch_duration = 100u64;
 
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut mock_deps = setup(
@@ -525,7 +525,7 @@ mod test {
             MockApi::default().addr_make("verifier-1"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
+                    chain_name: chain_name!("mock-chain"),
                     contract: MockApi::default().addr_make("contract-1"),
                 },
                 3,
@@ -535,7 +535,7 @@ mod test {
             MockApi::default().addr_make("verifier-2"),
             (
                 PoolId {
-                    chain_name: "mock-chain-2".parse().unwrap(),
+                    chain_name: chain_name!("mock-chain-2"),
                     contract: MockApi::default().addr_make("contract-1"),
                 },
                 4,
@@ -545,7 +545,7 @@ mod test {
             MockApi::default().addr_make("verifier-3"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
+                    chain_name: chain_name!("mock-chain"),
                     contract: MockApi::default().addr_make("contract-3"),
                 },
                 2,
@@ -609,7 +609,7 @@ mod test {
         let initial_participation_threshold = (1, 2);
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut mock_deps = setup_with_params(
@@ -678,7 +678,7 @@ mod test {
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut mock_deps = setup(
@@ -747,7 +747,7 @@ mod test {
         let initial_epoch_start = 256u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut mock_deps = setup(
@@ -810,7 +810,7 @@ mod test {
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
         let mut mock_deps = setup(
@@ -870,7 +870,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
 
@@ -914,7 +914,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("some contract"),
         };
 
@@ -940,7 +940,7 @@ mod test {
             ),
         ];
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
 
         for (pool_contract, rewards) in &test_data {
             let pool_id = PoolId {
@@ -997,7 +997,7 @@ mod test {
             MockApi::default().addr_make("verifier-1"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
+                    chain_name: chain_name!("mock-chain"),
                     contract: MockApi::default().addr_make("contract-1"),
                 },
                 3,
@@ -1007,7 +1007,7 @@ mod test {
             MockApi::default().addr_make("verifier-2"),
             (
                 PoolId {
-                    chain_name: "mock-chain-2".parse().unwrap(),
+                    chain_name: chain_name!("mock-chain-2"),
                     contract: MockApi::default().addr_make("contract-1"),
                 },
                 4,
@@ -1017,7 +1017,7 @@ mod test {
             MockApi::default().addr_make("verifier-3"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
+                    chain_name: chain_name!("mock-chain"),
                     contract: MockApi::default().addr_make("contract-3"),
                 },
                 2,
@@ -1088,11 +1088,11 @@ mod test {
         let epoch_duration = 100u64;
         let pools = vec![
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("contract-1"),
             },
             PoolId {
-                chain_name: "mock-chain-2".parse().unwrap(),
+                chain_name: chain_name!("mock-chain-2"),
                 contract: MockApi::default().addr_make("contract-1"),
             },
         ];
@@ -1188,11 +1188,11 @@ mod test {
         let base_epoch_duration = 100u64;
         let pools = vec![
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("contract-1"),
             },
             PoolId {
-                chain_name: "mock-chain-2".parse().unwrap(),
+                chain_name: chain_name!("mock-chain-2"),
                 contract: MockApi::default().addr_make("contract-1"),
             },
         ];
@@ -1270,7 +1270,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (2, 3);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1377,7 +1377,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1477,7 +1477,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1491,7 +1491,7 @@ mod test {
         );
         let verifier = MockApi::default().addr_make("verifier");
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1562,7 +1562,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1576,7 +1576,7 @@ mod test {
         );
         let verifier = MockApi::default().addr_make("verifier");
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1634,7 +1634,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 
@@ -1696,7 +1696,7 @@ mod test {
             "some-event".parse().unwrap(),
             MockApi::default().addr_make("verifier"),
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("contract")
             },
             block_height_started
@@ -1713,7 +1713,7 @@ mod test {
         assert!(add_rewards(
             mock_deps.as_mut().storage,
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("contract")
             },
             100u128.try_into().unwrap(),
@@ -1730,7 +1730,7 @@ mod test {
         assert!(distribute_rewards(
             mock_deps.as_mut().storage,
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
+                chain_name: chain_name!("mock-chain"),
                 contract: MockApi::default().addr_make("contract")
             },
             block_height_started,
@@ -1748,7 +1748,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
+            chain_name: chain_name!("mock-chain"),
             contract: MockApi::default().addr_make("pool_contract"),
         };
 

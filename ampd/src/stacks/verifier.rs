@@ -278,6 +278,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::chain_name;
     use tokio::test as async_test;
 
     use crate::handlers::stacks_verify_msg::Message;
@@ -405,7 +406,7 @@ mod tests {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
         let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
 
-        msg.destination_chain = "other".parse().unwrap();
+        msg.destination_chain = chain_name!("other");
 
         assert_eq!(
             verify_message(&gateway_address, &tx, &msg, &tuple_type_contract_call),
@@ -620,7 +621,7 @@ mod tests {
             message_id: message_id.clone(),
             source_address: PrincipalData::parse("ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG")
                 .unwrap(),
-            destination_chain: "Destination".parse().unwrap(),
+            destination_chain: chain_name!("Destination"),
             destination_address: "0x123abc".to_string(),
             payload_hash: "0x9ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e"
                 .parse()

@@ -15,7 +15,7 @@ use interchain_token_service::shared::NumBits;
 use interchain_token_service_std::{HubMessage, TokenId};
 use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use router_api::{chain_name, Address, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
@@ -65,7 +65,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
             let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
             match msg {
                 axelarnet_gateway::msg::QueryMsg::ChainName => {
-                    Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                    Ok(to_json_binary(&chain_name!("axelar")).into()).into()
                 }
                 _ => panic!("unsupported query"),
             }

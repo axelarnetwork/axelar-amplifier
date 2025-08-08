@@ -123,6 +123,7 @@ mod tests {
     use assert_ok::assert_ok;
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{HexBinary, QuerierWrapper};
+    use router_api::chain_name;
 
     use super::*;
     use crate::key::KeyType;
@@ -147,7 +148,7 @@ mod tests {
         let session = SigningSession::new(
             Uint64::one(),
             verifier_set_id,
-            "mock-chain".parse().unwrap(),
+            chain_name!("mock-chain"),
             message.clone(),
             expires_at,
             None,
@@ -183,7 +184,7 @@ mod tests {
         let session = SigningSession::new(
             Uint64::one(),
             verifier_set_id,
-            "mock-chain".parse().unwrap(),
+            chain_name!("mock-chain"),
             message.clone(),
             expires_at,
             None,
