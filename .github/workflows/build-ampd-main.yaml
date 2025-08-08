@@ -17,7 +17,7 @@ jobs:
       IMAGE_TAG: ${{ github.sha }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
@@ -26,14 +26,14 @@ jobs:
           git fetch --unshallow
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@67fbcbb121271f7775d2e7715933280b06314838 # v1
         with:
           aws-region: us-east-2
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ghwf-${{ github.event.repository.name }}
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
 
       - name: check if an image already build on same commit hash
         id: image-tag-check
@@ -41,10 +41,10 @@ jobs:
           image_tag_exists=$(aws ecr batch-get-image --repository-name ${REPOSITORY} --image-ids "imageTag=${IMAGE_TAG}" | jq '.images | length')
           echo "image_tag_exists=${image_tag_exists}" >> $GITHUB_OUTPUT
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
         if: steps.image-tag-check.outputs.image_tag_exists == 0
 
-      - uses: useblacksmith/build-push-action@v1
+      - uses: useblacksmith/build-push-action@574eb0ee0b59c6a687ace24192f0727dfb65d6d7 # v1
         if: steps.image-tag-check.outputs.image_tag_exists == 0
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
