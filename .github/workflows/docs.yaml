@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
         with:
           # only need ~/.cargo for mdBook tools and no build artifacts, so forego built-in cache and set up caching manually
           cache: false
@@ -28,7 +28,7 @@ jobs:
 
       - name: Cache cargo and tools
         id: cache-cargo
-        uses: "actions/cache@v4"
+        uses: "actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809" # v4
         with:
           path: |
             ~/.cargo
