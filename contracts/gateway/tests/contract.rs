@@ -16,7 +16,7 @@ use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
-use router_api::{CrossChainId, Message};
+use router_api::{address, CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
@@ -349,9 +349,9 @@ fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
             cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
-            destination_address: "idc".parse().unwrap(),
+            destination_address: address!("idc"),
             destination_chain: "mock-chain-2".parse().unwrap(),
-            source_address: "idc".parse().unwrap(),
+            source_address: address!("idc"),
             payload_hash: [i; 32],
         })
         .collect()
