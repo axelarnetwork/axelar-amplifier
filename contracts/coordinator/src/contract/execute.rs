@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{
-    Addr, Binary, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
+    Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
 };
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
@@ -57,7 +57,7 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
+fn instantiate2_addr(deps: &Deps, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
     let code_info: cosmwasm_std::CodeInfoResponse = deps
         .querier
         .query(&WasmQuery::CodeInfo { code_id }.into())
@@ -79,7 +79,7 @@ fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Re
 }
 
 fn launch_contract(
-    deps: &DepsMut,
+    deps: &Deps,
     info: &MessageInfo,
     env: &Env,
     salt: Binary,
@@ -191,7 +191,7 @@ fn instantiate_prover(
 }
 
 struct InstantiateContext<'a> {
-    deps: DepsMut<'a>,
+    deps: Deps<'a>,
     info: MessageInfo,
     env: Env,
     salt: Binary,
@@ -207,6 +207,7 @@ pub fn instantiate_chain_contracts(
     deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
+    deploy_contracts: bool,
 ) -> Result<Response, Error> {
     let mut response = Response::new();
     state::validate_deployment_name_availability(deps.storage, deployment_name.clone())
@@ -218,12 +219,12 @@ pub fn instantiate_chain_contracts(
     match params {
         DeploymentParams::Manual(params) => {
             let verifier_address =
-                instantiate2_addr(&deps, &env, params.verifier.code_id, salt.as_ref())
+                instantiate2_addr(&deps.as_ref(), &env, params.verifier.code_id, salt.as_ref())
                     .change_context(Error::InstantiateContracts)?;
 
             let ctx = InstantiateContext {
-                deps,
-                info,
+                deps: deps.as_ref(),
+                info: info.clone(),
                 env,
                 salt,
                 gateway_code_id: params.gateway.code_id,
@@ -280,8 +281,8 @@ pub fn instantiate_chain_contracts(
                 });
 
             state::save_deployed_contracts(
-                ctx.deps.storage,
-                deployment_name,
+                deps.storage,
+                deployment_name.clone(),
                 ChainContracts {
                     chain_name: params.prover.msg.chain_name,
                     msg_id_format: params.verifier.msg.msg_id_format,
@@ -292,6 +293,13 @@ pub fn instantiate_chain_contracts(
             )
             .change_context(Error::InstantiateContracts)?;
         }
+    }
+
+    if deploy_contracts {
+        let deploy_response = register_deployment(deps, info.sender, deployment_name)?;
+        response = response
+            .add_messages(deploy_response.messages.into_iter().map(|x| x.msg))
+            .add_events(deploy_response.events);
     }
 
     Ok(response)
