@@ -180,7 +180,7 @@ mod tests {
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, VerifierSetConfirmation};
 
     use super::{PollStartedEvent, STELLAR_CHAIN_NAME};
     use crate::event_processor::EventHandler;
@@ -349,10 +349,9 @@ mod tests {
         assert!(receiver.try_recv().is_err());
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> VotingVerifierEvent {
         let msg_id = HexTxHashAndEventIndex::new([1; 32], 0u64);
-        PollStarted::VerifierSet {
-            metadata: PollMetadata {
+        VotingVerifierEvent::VerifierSetPollStarted {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "stellar".parse().unwrap(),
                 source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([2; 32]))
@@ -364,8 +363,7 @@ mod tests {
                 participants: participants
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+                .collect(),
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: msg_id.tx_hash_as_hex(),
