@@ -1,0 +1,53 @@
+{
+  "RegisterChain": {
+    "external": [
+      "coordinator"
+    ],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "UnfreezeChains": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "FreezeChains": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "EnableRouting": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "UpgradeGateway": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "DisableRouting": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "RouteMessages": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway"
+    ]
+  }
+}

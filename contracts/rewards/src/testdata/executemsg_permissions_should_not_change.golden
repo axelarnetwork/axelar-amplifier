@@ -1,0 +1,51 @@
+{
+  "UpdatePoolParams": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "RemoveVerifierProxy": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "RecordParticipation": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "SetVerifierProxy": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "AddRewards": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "DistributeRewards": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "CreatePool": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  }
+}

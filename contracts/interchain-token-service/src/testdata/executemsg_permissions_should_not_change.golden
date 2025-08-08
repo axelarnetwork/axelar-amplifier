@@ -1,0 +1,69 @@
+{
+  "EnableExecution": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "DisableExecution": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "FreezeChain": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "RegisterChains": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "RegisterP2pTokenInstance": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": [
+      "operator"
+    ]
+  },
+  "UpdateChains": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "ModifySupply": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": [
+      "operator"
+    ]
+  },
+  "Execute": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway"
+    ]
+  },
+  "UnfreezeChain": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  }
+}

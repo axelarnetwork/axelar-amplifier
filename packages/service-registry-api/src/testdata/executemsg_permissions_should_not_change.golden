@@ -1,0 +1,86 @@
+{
+  "UnbondVerifier": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "JailVerifiers": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "UnauthorizeVerifiers": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "RegisterChainSupport": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "verifier"
+    ]
+  },
+  "UpdateService": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "ClaimStake": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "OverrideServiceParams": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "RegisterService": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "RemoveServiceParamsOverride": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "AuthorizeVerifiers": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "DeregisterChainSupport": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "verifier"
+    ]
+  },
+  "BondVerifier": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  }
+}

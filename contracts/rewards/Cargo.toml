@@ -37,6 +37,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 assert_ok = { workspace = true }
+goldie = { workspace = true }
 cw-multi-test = { workspace = true }
 
 [lints]
