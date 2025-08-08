@@ -439,6 +439,43 @@ mod tests {
         cosmos_client
     }
 
+    fn setup_client_with_simulate(
+        address: &TMAddress,
+        gas_info: Option<GasInfo>,
+        times: usize,
+    ) -> cosmos::MockCosmosClient {
+        let mut cosmos_client = cosmos::MockCosmosClient::new();
+        let base_account = test_utils::create_base_account(address);
+
+        cosmos_client.expect_balance().return_once(move |_| {
+            Ok(QueryBalanceResponse {
+                balance: Some(Coin {
+                    denom: "uaxl".to_string(),
+                    amount: "1000000".to_string(),
+                }),
+            })
+        });
+        cosmos_client
+            .expect_account()
+            .times(times + 1)
+            .returning(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        cosmos_client
+            .expect_simulate()
+            .times(times)
+            .returning(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: gas_info.clone(),
+                    result: None,
+                })
+            });
+
+        cosmos_client
+    }
+
     #[tokio::test]
     async fn msg_queue_client_address_returns_broadcaster_address() {
         let pub_key = random_cosmos_public_key();
@@ -475,16 +512,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap,
-                    gas_used: gas_cap,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap,
+            gas_used: gas_cap,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -526,16 +559,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap,
-                    gas_used: gas_cap,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap,
+            gas_used: gas_cap,
         });
+
+        let mut cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -667,13 +696,7 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: None,
-                result: None,
-            })
-        });
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), None, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -705,16 +728,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().once().returning(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap,
-                    gas_used: gas_cap,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap,
+            gas_used: gas_cap,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -750,16 +769,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap / 10,
-                    gas_used: gas_cap / 10,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap / 10,
+            gas_used: gas_cap / 10,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -804,19 +819,13 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client
-            .expect_simulate()
-            .times(msg_count)
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: gas_cost,
-                        gas_used: gas_cost,
-                    }),
-                    result: None,
-                })
-            });
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
+        });
+
+        let cosmos_client =
+            setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, msg_count);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -867,16 +876,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().once().returning(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cost,
-                    gas_used: gas_cost,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -917,19 +922,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client
-            .expect_simulate()
-            .times(2)
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: gas_cost,
-                        gas_used: gas_cost,
-                    }),
-                    result: None,
-                })
-            });
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
+        });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 2);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())

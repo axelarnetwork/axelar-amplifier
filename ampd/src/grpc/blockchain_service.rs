@@ -597,7 +597,20 @@ mod tests {
     async fn broadcast_should_return_error_if_enqueue_failed() {
         let mut mock_cosmos_client = MockCosmosClient::new();
         mock_cosmos_client.expect_clone().return_once(|| {
+            let address = TMAddress::random(PREFIX);
+            let base_account = BaseAccount {
+                address: address.to_string(),
+                pub_key: None,
+                account_number: 42,
+                sequence: 10,
+            };
+
             let mut mock_cosmos_client = MockCosmosClient::new();
+            mock_cosmos_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
             mock_cosmos_client
                 .expect_simulate()
                 .return_once(|_| Err(Status::internal("simulate error").into_report()));
@@ -618,8 +631,21 @@ mod tests {
     #[tokio::test]
     async fn broadcast_should_return_error_if_broadcast_failed() {
         let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(|| {
+        mock_cosmos_client.expect_clone().return_once(move || {
+            let address = TMAddress::random(PREFIX);
+            let base_account = BaseAccount {
+                address: address.to_string(),
+                pub_key: None,
+                account_number: 42,
+                sequence: 10,
+            };
+
             let mut mock_cosmos_client = MockCosmosClient::new();
+            mock_cosmos_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
             mock_cosmos_client.expect_simulate().return_once(|_| {
                 Ok(SimulateResponse {
                     gas_info: Some(GasInfo {
