@@ -1059,7 +1059,7 @@ mod tests {
             monitoring_client,
         );
 
-        let _ = msg_queue_client
+        msg_queue_client
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
