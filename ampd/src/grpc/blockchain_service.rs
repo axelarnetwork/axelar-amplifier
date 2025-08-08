@@ -649,11 +649,26 @@ mod tests {
         let tx_hash = "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b";
         let msg_count = 10;
         let mut mock_cosmos_client = MockCosmosClient::new();
+
         mock_cosmos_client
             .expect_clone()
             .times(msg_count)
             .returning(move || {
+                let pub_key = random_cosmos_public_key();
+                let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+                let base_account = BaseAccount {
+                    address: address.to_string(),
+                    pub_key: None,
+                    account_number: 42,
+                    sequence: 10,
+                };
+
                 let mut mock_cosmos_client = MockCosmosClient::new();
+                mock_cosmos_client.expect_account().return_once(move |_| {
+                    Ok(QueryAccountResponse {
+                        account: Some(Any::from_msg(&base_account).unwrap()),
+                    })
+                });
                 mock_cosmos_client.expect_simulate().return_once(move |_| {
                     Ok(SimulateResponse {
                         gas_info: Some(GasInfo {
