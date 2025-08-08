@@ -826,8 +826,14 @@ mod tests {
             });
 
         let mut mock_client = setup_client(&address);
-        mock_client.expect_clone().times(1).returning(|| {
+        mock_client.expect_clone().times(1).returning(move || {
+            let base_account = create_base_account(&address);
             let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
             mock_client
                 .expect_simulate()
                 .return_once(|_| Err(Status::internal("simulation failed").into_report()));
