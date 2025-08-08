@@ -49,4 +49,6 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("error with router client")]
     RouterClient,
+    #[error("address {0} has incorrect format")]
+    InvalidAddress(String),
 }
