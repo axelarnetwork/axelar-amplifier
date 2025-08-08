@@ -693,7 +693,7 @@ mod tests {
 
         // record error metrics
         for _ in 0..2 {
-            client.record_metric(Msg::MsgEnqueueError);
+            client.record_metric(Msg::MessageEnqueueError);
             client.record_metric(Msg::EventPollingTimeout);
             client.record_metric(Msg::EventPublisherError);
         }
