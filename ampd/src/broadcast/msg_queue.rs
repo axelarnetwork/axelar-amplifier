@@ -1032,16 +1032,13 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().once().returning(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cost,
-                    gas_used: gas_cost,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
+
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
