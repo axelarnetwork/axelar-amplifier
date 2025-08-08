@@ -36,7 +36,7 @@ stage_duration_total{stage="TransactionConfirmation"} 1100
 # HELP msg_enqueue_error number of failures in message enqueue.
 # TYPE msg_enqueue_error counter
 msg_enqueue_error_total 2
-# HELP event_stream_timeout number of timeouts while waiting for blockchain events.
+# HELP event_stream_timeout number of timeouts while polling blockchain events.
 # TYPE event_stream_timeout counter
 event_stream_timeout_total 2
 # HELP event_publisher_error number of failures in event publisher.

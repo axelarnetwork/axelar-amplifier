@@ -66,8 +66,8 @@ pub enum Msg {
     },
     /// Record the number of error in msg enqueue
     MessageEnqueueError,
-    /// Record the number of event timeout
-    EventTimeout,
+    /// Record the number of event stream polling timeout
+    EventPollingTimeout,
     /// Record the number of error happens in event publisher
     EventPublisherError,
 }
@@ -232,7 +232,7 @@ struct Metrics {
     verification_vote: VerificationVoteMetrics,
     rpc_call: RpcCallMetrics,
     stage_result: EventStageMetrics,
-    error_metrics: ErrorMetricsCollection, // Single field
+    error_metrics: ErrorMetrics,
 }
 
 impl Metrics {
@@ -241,7 +241,7 @@ impl Metrics {
         let verification_vote = VerificationVoteMetrics::new();
         let rpc_call = RpcCallMetrics::new();
         let stage_result = EventStageMetrics::new();
-        let error_metrics = ErrorMetricsCollection::new();
+        let error_metrics = ErrorMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
@@ -287,7 +287,7 @@ impl Metrics {
             Msg::MessageEnqueueError => {
                 self.error_metrics.record_msg_enqueue_error();
             }
-            Msg::EventTimeout => {
+            Msg::EventPollingTimeout => {
                 self.error_metrics.record_event_timeout();
             }
             Msg::EventPublisherError => {
@@ -466,69 +466,48 @@ impl EventStageMetrics {
 }
 
 struct ErrorMetrics {
-    total: Counter,
-    name: &'static str,
-    description: &'static str,
+    msg_enqueue_error: Counter,
+    event_timeout: Counter,
+    event_publisher_error: Counter,
 }
 
 impl ErrorMetrics {
-    fn new(name: &'static str, description: &'static str) -> Self {
-        Self {
-            total: Counter::default(),
-            name,
-            description,
-        }
-    }
-
-    fn register(&self, registry: &mut Registry) {
-        registry.register(self.name, self.description, self.total.clone());
-    }
-
-    fn increment(&self) {
-        self.total.inc();
-    }
-}
-
-struct ErrorMetricsCollection {
-    msg_enqueue_error: ErrorMetrics,
-    event_timeout: ErrorMetrics,
-    event_publisher_error: ErrorMetrics,
-}
-
-impl ErrorMetricsCollection {
     fn new() -> Self {
         Self {
-            msg_enqueue_error: ErrorMetrics::new(
-                "msg_enqueue_error",
-                "number of failures in message enqueue",
-            ),
-            event_timeout: ErrorMetrics::new(
-                "event_stream_timeout",
-                "number of timeouts while waiting for blockchain events",
-            ),
-            event_publisher_error: ErrorMetrics::new(
-                "event_publisher_error",
-                "number of failures in event publisher",
-            ),
+            msg_enqueue_error: Counter::default(),
+            event_timeout: Counter::default(),
+            event_publisher_error: Counter::default(),
         }
     }
 
     fn register_all(&self, registry: &mut Registry) {
-        self.msg_enqueue_error.register(registry);
-        self.event_timeout.register(registry);
-        self.event_publisher_error.register(registry);
+        registry.register(
+            "msg_enqueue_error",
+            "number of failures in message enqueue",
+            self.msg_enqueue_error.clone(),
+        );
+        registry.register(
+            "event_stream_timeout",
+            "number of timeouts while polling blockchain events",
+            self.event_timeout.clone(),
+        );
+        registry.register(
+            "event_publisher_error",
+            "number of failures in event publisher",
+            self.event_publisher_error.clone(),
+        );
     }
 
     fn record_msg_enqueue_error(&self) {
-        self.msg_enqueue_error.increment();
+        self.msg_enqueue_error.inc();
     }
 
     fn record_event_timeout(&self) {
-        self.event_timeout.increment();
+        self.event_timeout.inc();
     }
 
     fn record_event_publisher_error(&self) {
-        self.event_publisher_error.increment();
+        self.event_publisher_error.inc();
     }
 }
 
@@ -712,17 +691,12 @@ mod tests {
             duration: Duration::from_millis(600),
         });
 
-        // Msg Enqueue Error Metrics
-        client.record_metric(Msg::MessageEnqueueError);
-        client.record_metric(Msg::MessageEnqueueError);
-
-        // Event Timeout Metrics
-        client.record_metric(Msg::EventTimeout);
-        client.record_metric(Msg::EventTimeout);
-
-        // Event Publisher Error Metrics
-        client.record_metric(Msg::EventPublisherError);
-        client.record_metric(Msg::EventPublisherError);
+        // record error metrics
+        for _ in 0..2 {
+            client.record_metric(Msg::MsgEnqueueError);
+            client.record_metric(Msg::EventPollingTimeout);
+            client.record_metric(Msg::EventPublisherError);
+        }
 
         // Wait for the metrics to be updated
         // rpc calls

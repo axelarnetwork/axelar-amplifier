@@ -118,7 +118,9 @@ where
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
                 warn!("event stream timed out");
-                monitoring_client.metrics().record_metric(Msg::EventTimeout);
+                monitoring_client
+                    .metrics()
+                    .record_metric(Msg::EventPollingTimeout);
             }
         }
     }
@@ -906,7 +908,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_record_event_timeout_metric() {
+    async fn should_record_event_polling_timeout_metric() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
@@ -956,11 +958,12 @@ mod tests {
         let _ = task.await.unwrap();
 
         let metric = receiver.recv().await.unwrap();
-        assert_eq!(metric, metrics::Msg::EventTimeout);
+        assert_eq!(metric, metrics::Msg::EventPollingTimeout);
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
-    async fn record_msg_enqueue_error_when_msg_enqueue_failed() {
+    async fn should_record_msg_enqueue_error_when_msg_enqueue_failed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
