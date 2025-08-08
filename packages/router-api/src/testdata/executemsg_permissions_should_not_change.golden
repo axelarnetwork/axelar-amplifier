@@ -1,21 +1,5 @@
 {
-  "RegisterChain": {
-    "external": [
-      "coordinator"
-    ],
-    "general": [
-      "Governance"
-    ],
-    "specific": []
-  },
-  "UnfreezeChains": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
-  "FreezeChains": {
+  "DisableRouting": {
     "external": [],
     "general": [
       "Elevated"
@@ -29,17 +13,19 @@
     ],
     "specific": []
   },
-  "UpgradeGateway": {
-    "external": [],
-    "general": [
-      "Governance"
-    ],
-    "specific": []
-  },
-  "DisableRouting": {
+  "FreezeChains": {
     "external": [],
     "general": [
       "Elevated"
+    ],
+    "specific": []
+  },
+  "RegisterChain": {
+    "external": [
+      "coordinator"
+    ],
+    "general": [
+      "Governance"
     ],
     "specific": []
   },
@@ -49,5 +35,19 @@
     "specific": [
       "gateway"
     ]
+  },
+  "UnfreezeChains": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "UpgradeGateway": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
   }
 }

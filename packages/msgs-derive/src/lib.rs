@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
@@ -830,7 +830,7 @@ fn build_golden_test(
         .iter()
         .map(|variant| variant.to_string())
         .zip(permissions_jsons)
-        .collect::<HashMap<_, _>>();
+        .collect::<BTreeMap<_, _>>();
 
     let permissions_json = serde_json::to_string_pretty(&permissions_map)
         .expect("error serializing permissions map to JSON");

@@ -1,11 +1,4 @@
 {
-  "EnableExecution": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
   "DisableExecution": {
     "external": [],
     "general": [
@@ -13,12 +6,35 @@
     ],
     "specific": []
   },
+  "EnableExecution": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "Execute": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway"
+    ]
+  },
   "FreezeChain": {
     "external": [],
     "general": [
       "Elevated"
     ],
     "specific": []
+  },
+  "ModifySupply": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": [
+      "operator"
+    ]
   },
   "RegisterChains": {
     "external": [],
@@ -36,33 +52,17 @@
       "operator"
     ]
   },
-  "UpdateChains": {
-    "external": [],
-    "general": [
-      "Governance"
-    ],
-    "specific": []
-  },
-  "ModifySupply": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": [
-      "operator"
-    ]
-  },
-  "Execute": {
-    "external": [],
-    "general": [],
-    "specific": [
-      "gateway"
-    ]
-  },
   "UnfreezeChain": {
     "external": [],
     "general": [
       "Elevated"
+    ],
+    "specific": []
+  },
+  "UpdateChains": {
+    "external": [],
+    "general": [
+      "Governance"
     ],
     "specific": []
   }

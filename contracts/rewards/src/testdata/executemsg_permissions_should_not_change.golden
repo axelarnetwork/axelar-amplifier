@@ -1,12 +1,19 @@
 {
-  "UpdatePoolParams": {
+  "AddRewards": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "CreatePool": {
     "external": [],
     "general": [
       "Governance"
     ],
     "specific": []
   },
-  "RemoveVerifierProxy": {
+  "DistributeRewards": {
     "external": [],
     "general": [
       "Any"
@@ -20,6 +27,13 @@
     ],
     "specific": []
   },
+  "RemoveVerifierProxy": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
   "SetVerifierProxy": {
     "external": [],
     "general": [
@@ -27,21 +41,7 @@
     ],
     "specific": []
   },
-  "AddRewards": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "DistributeRewards": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "CreatePool": {
+  "UpdatePoolParams": {
     "external": [],
     "general": [
       "Governance"

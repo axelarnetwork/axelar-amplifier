@@ -1,22 +1,15 @@
 {
-  "Any": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "NoPrivilege": {
-    "external": [],
-    "general": [
-      "NoPrivilege"
-    ],
-    "specific": []
-  },
   "Admin": {
     "external": [],
     "general": [
       "Admin"
+    ],
+    "specific": []
+  },
+  "Any": {
+    "external": [],
+    "general": [
+      "Any"
     ],
     "specific": []
   },
@@ -38,6 +31,13 @@
     "external": [],
     "general": [
       "Admin",
+      "NoPrivilege"
+    ],
+    "specific": []
+  },
+  "NoPrivilege": {
+    "external": [],
+    "general": [
       "NoPrivilege"
     ],
     "specific": []

@@ -6,6 +6,22 @@
     ],
     "specific": []
   },
+  "Specific1": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway1"
+    ]
+  },
+  "Specific2": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": [
+      "gateway1"
+    ]
+  },
   "Specific3": {
     "external": [],
     "general": [
@@ -24,22 +40,6 @@
       "gateway1",
       "gateway2",
       "gateway3"
-    ]
-  },
-  "Specific1": {
-    "external": [],
-    "general": [],
-    "specific": [
-      "gateway1"
-    ]
-  },
-  "Specific2": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": [
-      "gateway1"
     ]
   }
 }

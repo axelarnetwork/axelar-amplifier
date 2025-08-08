@@ -1,4 +1,22 @@
 {
+  "Any": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Proxy1": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
   "Proxy2": {
     "external": [
       "gateway1"
@@ -7,6 +25,15 @@
     "specific": [
       "gateway1"
     ]
+  },
+  "Proxy3": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [
+      "Any"
+    ],
+    "specific": []
   },
   "Proxy4": {
     "external": [
@@ -21,15 +48,6 @@
       "gateway2"
     ]
   },
-  "Proxy3": {
-    "external": [
-      "gateway1"
-    ],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
   "Proxy5": {
     "external": [
       "gateway1"
@@ -38,23 +56,5 @@
     "specific": [
       "gateway2"
     ]
-  },
-  "Proxy1": {
-    "external": [
-      "gateway1"
-    ],
-    "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
-  "Any": {
-    "external": [
-      "gateway1"
-    ],
-    "general": [
-      "Any"
-    ],
-    "specific": []
   }
 }

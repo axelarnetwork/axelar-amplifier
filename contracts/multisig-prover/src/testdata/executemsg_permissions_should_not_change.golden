@@ -1,15 +1,8 @@
 {
-  "UpdateVerifierSet": {
+  "ConfirmVerifierSet": {
     "external": [],
     "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
-  "UpdateAdmin": {
-    "external": [],
-    "general": [
-      "Governance"
+      "Any"
     ],
     "specific": []
   },
@@ -20,10 +13,10 @@
     ],
     "specific": []
   },
-  "ConfirmVerifierSet": {
+  "UpdateAdmin": {
     "external": [],
     "general": [
-      "Any"
+      "Governance"
     ],
     "specific": []
   },
@@ -31,6 +24,13 @@
     "external": [],
     "general": [
       "Governance"
+    ],
+    "specific": []
+  },
+  "UpdateVerifierSet": {
+    "external": [],
+    "general": [
+      "Elevated"
     ],
     "specific": []
   }

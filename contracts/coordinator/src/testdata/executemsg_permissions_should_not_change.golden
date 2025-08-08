@@ -1,5 +1,5 @@
 {
-  "RegisterProtocol": {
+  "InstantiateChainContracts": {
     "external": [],
     "general": [
       "Governance"
@@ -13,13 +13,6 @@
     ],
     "specific": []
   },
-  "SetActiveVerifiers": {
-    "external": [],
-    "general": [],
-    "specific": [
-      "prover"
-    ]
-  },
   "RegisterDeployment": {
     "external": [],
     "general": [
@@ -27,11 +20,18 @@
     ],
     "specific": []
   },
-  "InstantiateChainContracts": {
+  "RegisterProtocol": {
     "external": [],
     "general": [
       "Governance"
     ],
     "specific": []
+  },
+  "SetActiveVerifiers": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "prover"
+    ]
   }
 }

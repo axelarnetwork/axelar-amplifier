@@ -1,12 +1,5 @@
 {
-  "Vote": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "VerifyVerifierSet": {
+  "EndPoll": {
     "external": [],
     "general": [
       "Any"
@@ -20,14 +13,21 @@
     ],
     "specific": []
   },
-  "EndPoll": {
+  "VerifyMessages": {
     "external": [],
     "general": [
       "Any"
     ],
     "specific": []
   },
-  "VerifyMessages": {
+  "VerifyVerifierSet": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Vote": {
     "external": [],
     "general": [
       "Any"
