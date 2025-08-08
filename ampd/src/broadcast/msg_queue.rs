@@ -1059,12 +1059,16 @@ mod tests {
             monitoring_client,
         );
 
-
-        msg_queue_client.enqueue_and_forget(dummy_msg()).await.unwrap();
+        msg_queue_client
+            .enqueue_and_forget(dummy_msg())
+            .await
+            .unwrap();
 
         tokio::spawn(async move {
             assert!(msg_queue.next().await.is_none());
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
         drop(msg_queue_client);
 
