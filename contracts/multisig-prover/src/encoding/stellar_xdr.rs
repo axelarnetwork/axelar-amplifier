@@ -86,7 +86,7 @@ mod tests {
     use multisig::key::Signature;
     use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message};
+    use router_api::{chain_name_raw, CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};
     use crate::Payload;
@@ -129,7 +129,7 @@ mod tests {
 
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
-                source_chain: "source".parse().unwrap(),
+                source_chain: chain_name_raw!("source"),
                 message_id: "test".parse().unwrap(),
             },
             source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -243,7 +243,7 @@ mod tests {
 
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
-                source_chain: "source".parse().unwrap(),
+                source_chain: chain_name_raw!("source"),
                 message_id: "test".parse().unwrap(),
             },
             source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
