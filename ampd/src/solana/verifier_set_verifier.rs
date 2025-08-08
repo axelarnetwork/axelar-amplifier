@@ -17,30 +17,37 @@ pub fn verify_verifier_set(
     tx: (&Signature, &UiTransactionStatusMeta),
     message: &VerifierSetConfirmation,
     domain_separator: &[u8; 32],
+    source_gateway_address: &str,
 ) -> Vote {
-    verify(tx, &message.message_id, |gateway_event| {
-        let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
-            verifier_set_hash: incoming_verifier_set_hash,
-            epoch: _,
-        }) = gateway_event
-        else {
-            error!("found gateway event but it's not VerifierSetRotated event");
-            return false;
-        };
+    verify(
+        tx,
+        &message.message_id,
+        source_gateway_address,
+        |gateway_event| {
+            let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
+                verifier_set_hash: incoming_verifier_set_hash,
+                epoch: _,
+            }) = gateway_event
+            else {
+                error!("found gateway event but it's not VerifierSetRotated event");
+                return false;
+            };
 
-        let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
-            error!("verifier set data structure could not be parsed");
-            return false;
-        };
+            let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
+                error!("verifier set data structure could not be parsed");
+                return false;
+            };
 
-        let Ok(desired_hash) = verifier_set_hash::<NativeHasher>(&verifier_set, domain_separator)
-        else {
-            error!("verifier set could not be hashed");
-            return false;
-        };
+            let Ok(desired_hash) =
+                verifier_set_hash::<NativeHasher>(&verifier_set, domain_separator)
+            else {
+                error!("verifier set could not be hashed");
+                return false;
+            };
 
-        &desired_hash == incoming_verifier_set_hash
-    })
+            &desired_hash == incoming_verifier_set_hash
+        },
+    )
 }
 
 /// Transform from Axelar VerifierSet to axelar_solana_encoding VerifierSet
@@ -97,7 +104,12 @@ mod tests {
 
         event.message_id.raw_signature = [0; 64];
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::NotFound
         );
     }
@@ -108,7 +120,12 @@ mod tests {
 
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::FailedOnChain
         );
     }
@@ -118,7 +135,12 @@ mod tests {
         let ((signature, tx), event) = fixture_bad_gateway_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::NotFound
         );
     }
@@ -129,12 +151,22 @@ mod tests {
 
         event.message_id.event_index -= 1;
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::NotFound
         );
         event.message_id.event_index += 2;
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::NotFound
         );
     }
@@ -145,7 +177,12 @@ mod tests {
 
         event.message_id.event_index = u32::MAX as u64 + 1;
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::NotFound
         );
     }
@@ -156,7 +193,12 @@ mod tests {
 
         event.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::NotFound
         );
     }
@@ -166,7 +208,12 @@ mod tests {
         let ((signature, tx), event) = fixture_success_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(
+                (&signature, &tx),
+                &event,
+                &DOMAIN_SEPARATOR,
+                &GATEWAY_PROGRAM_ID.to_string()
+            ),
             Vote::SucceededOnChain
         );
     }

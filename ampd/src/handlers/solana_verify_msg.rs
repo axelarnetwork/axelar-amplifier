@@ -45,6 +45,7 @@ pub struct Message {
 struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
+    source_gateway_address: String,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
@@ -112,6 +113,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         let PollStartedEvent {
             poll_id,
             source_chain,
+            source_gateway_address,
             messages,
             expires_at,
             participants,
@@ -161,7 +163,9 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                 .map(|msg| {
                     finalized_tx_receipts
                         .get_key_value(&msg.message_id.raw_signature.into())
-                        .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
+                        .map_or(Vote::NotFound, |entry| {
+                            verify_message(entry, msg, &source_gateway_address)
+                        })
                 })
                 .inspect(|vote| {
                     self.monitoring_client.metrics().record_metric(
@@ -211,7 +215,7 @@ mod test {
             None
         }
 
-        async fn domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self, _source_gateway_address: &str) -> Option<[u8; 32]> {
             unimplemented!()
         }
     }
@@ -237,7 +241,7 @@ mod test {
             })
         }
 
-        async fn domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self, _source_gateway_address: &str) -> Option<[u8; 32]> {
             unimplemented!()
         }
     }
