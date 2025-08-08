@@ -92,7 +92,7 @@ fn launch_contract(
             admin: Some(info.sender.to_string()),
             code_id,
             msg: instantiate_msg,
-            funds: info.funds.clone(),
+            funds: vec![],
             label,
             salt: salt.clone(),
         },
