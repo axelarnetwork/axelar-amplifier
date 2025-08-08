@@ -1,6 +1,6 @@
 use axelar_core_std::nexus;
 use cosmwasm_std::testing::MockApi;
-use router_api::{CrossChainId, Message};
+use router_api::{chain_name_raw, CrossChainId, Message};
 use sha3::Digest;
 
 use crate::utils::params;
@@ -31,7 +31,7 @@ pub fn dummy_to_router(payload: &impl AsRef<[u8]>) -> Message {
 
 pub fn dummy_from_nexus(payload: &impl AsRef<[u8]>) -> nexus::execute::Message {
     nexus::execute::Message {
-        source_chain: "Ethereum".parse().unwrap(),
+        source_chain: chain_name_raw!("Ethereum"),
         source_address: "source-address".parse().unwrap(),
         destination_chain: "destination-chain".parse().unwrap(),
         destination_address: "destination-address".parse().unwrap(),
