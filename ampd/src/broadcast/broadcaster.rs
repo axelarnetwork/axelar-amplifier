@@ -8,7 +8,7 @@ use cosmrs::{tendermint, Any, Coin, Denom, Gas};
 use error_stack::{ensure, report, Context, ResultExt};
 use num_traits::cast;
 use report::ResultCompatExt;
-use tokio::sync::{RwLock, RwLockWriteGuard};
+use tokio::sync::RwLock;
 use typed_builder::TypedBuilder;
 
 use super::{Error, Result};
@@ -177,12 +177,14 @@ where
     // the daemon's broadcaster sequence number to become out of sync. Remove this once the commands broadcast
     // through the daemon's broadcaster.
     pub async fn reset_sequence(&mut self) -> Result<()> {
-        reset_sequence(
-            &mut self.client,
-            &self.address,
-            self.acc_sequence.write().await,
-        )
-        .await
+        let account = cosmos::account(&mut self.client, &self.address)
+            .await
+            .change_context(Error::AccountQuery)?;
+
+        let mut acc_sequence = self.acc_sequence.write().await;
+        *acc_sequence = account.sequence;
+
+        Ok(())
     }
 
     /// Estimates the gas required for a transaction containing the given messages.
@@ -202,9 +204,9 @@ where
     ///
     /// * `Error::EstimateGas` - If the gas estimation fails
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
-        let acc_sequence = self.acc_sequence.read().await;
+        let acc_sequence = *self.acc_sequence.read().await;
 
-        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
+        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, acc_sequence)
             .await
             .change_context(Error::EstimateGas)
     }
@@ -244,12 +246,12 @@ where
         Err: Context,
     {
         let fee = self.estimate_fee(msgs.clone()).await?;
-        let mut acc_sequence = self.acc_sequence.write().await;
+        let acc_sequence = *self.acc_sequence.read().await;
 
         let tx = Tx::builder()
             .msgs(msgs)
             .pub_key(self.pub_key)
-            .acc_sequence(*acc_sequence)
+            .acc_sequence(acc_sequence)
             .fee(fee)
             .build()
             .sign_with(&self.chain_id, self.acc_number, sign_fn)
@@ -259,15 +261,13 @@ where
         match cosmos::broadcast(&mut self.client, tx).await {
             Ok(tx_response) => {
                 // increment sequence number on successful broadcast
-                *acc_sequence = acc_sequence
-                    .checked_add(1)
-                    .expect("account sequence must not overflow");
+                increment_sequence(&self.acc_sequence).await;
 
                 Ok(tx_response)
             }
             Err(err) => {
                 // reset sequence number on failed broadcast
-                reset_sequence(&mut self.client, &self.address, acc_sequence).await?;
+                self.reset_sequence().await?;
 
                 Err(err).change_context(Error::BroadcastTx)
             }
@@ -290,20 +290,11 @@ where
     }
 }
 
-async fn reset_sequence<T>(
-    client: &mut T,
-    address: &TMAddress,
-    mut acc_sequence: RwLockWriteGuard<'_, u64>,
-) -> Result<()>
-where
-    T: cosmos::CosmosClient,
-{
-    let account = cosmos::account(client, address)
-        .await
-        .change_context(Error::AccountQuery)?;
-    *acc_sequence = account.sequence;
-
-    Ok(())
+async fn increment_sequence(acc_sequence: &RwLock<u64>) {
+    let mut acc_sequence = acc_sequence.write().await;
+    *acc_sequence = acc_sequence
+        .checked_add(1)
+        .expect("account sequence must not overflow");
 }
 
 #[cfg(test)]
