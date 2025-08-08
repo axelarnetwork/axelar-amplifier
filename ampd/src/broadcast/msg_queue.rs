@@ -1059,10 +1059,13 @@ mod tests {
             monitoring_client,
         );
 
-        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
-        let _ = tokio::spawn(async move {
+
+        msg_queue_client.enqueue_and_forget(dummy_msg()).await.unwrap();
+
+        tokio::spawn(async move {
             assert!(msg_queue.next().await.is_none());
-        });
+        }).await.unwrap();
+
         drop(msg_queue_client);
 
         let metric = receiver.recv().await.unwrap();
