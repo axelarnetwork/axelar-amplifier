@@ -19,8 +19,9 @@ use tracing::{instrument, warn};
 use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
-use crate::cosmos;
+use crate::monitoring::metrics::Msg;
 use crate::types::TMAddress;
+use crate::{cosmos, monitoring};
 
 type TxResult = std::result::Result<(String, u64), Arc<Report<Error>>>;
 
@@ -247,6 +248,7 @@ impl MsgQueue {
         msg_cap: usize,
         gas_cap: Gas,
         duration: time::Duration,
+        monitoring_client: monitoring::Client,
     ) -> (Pin<Box<MsgQueue>>, MsgQueueClient<T>)
     where
         T: cosmos::CosmosClient,
@@ -257,7 +259,7 @@ impl MsgQueue {
             Box::pin(MsgQueue {
                 stream: ReceiverStream::new(rx).fuse(),
                 deadline: time::sleep(duration),
-                queue: Queue::new(gas_cap),
+                queue: Queue::new(gas_cap, monitoring_client),
                 duration,
             }),
             MsgQueueClient { broadcaster, tx },
@@ -333,14 +335,16 @@ struct Queue {
     msgs: Vec<QueueMsg>,
     gas_cost: Gas,
     gas_cap: Gas,
+    monitoring_client: monitoring::Client,
 }
 
 impl Queue {
-    pub fn new(gas_cap: Gas) -> Self {
+    pub fn new(gas_cap: Gas, monitoring_client: monitoring::Client) -> Self {
         Queue {
             msgs: vec![],
             gas_cost: Gas::default(),
             gas_cap,
+            monitoring_client,
         }
     }
 
@@ -355,6 +359,10 @@ impl Queue {
                 gas: msg.gas,
                 gas_cap: self.gas_cap,
             };
+            self.monitoring_client
+                .metrics()
+                .record_metric(Msg::MessageEnqueueError);
+
             handle_error(msg, err);
 
             return None;
@@ -415,8 +423,9 @@ mod tests {
     use super::*;
     use crate::broadcast::dec_coin::DecCoin;
     use crate::broadcast::{test_utils, Error};
+    use crate::monitoring::metrics::Msg;
     use crate::types::{random_cosmos_public_key, TMAddress};
-    use crate::PREFIX;
+    use crate::{monitoring, PREFIX};
 
     fn setup_client(address: &TMAddress) -> cosmos::MockCosmosClient {
         let mut cosmos_client = cosmos::MockCosmosClient::new();
@@ -495,11 +504,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (_msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             1000u64,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         assert_eq!(msg_queue_client.address(), &expected_address);
@@ -528,11 +540,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         msg_queue_client
@@ -575,11 +590,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
@@ -659,11 +677,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
+            monitoring_client,
         );
 
         let handles: Vec<_> = (0..client_count)
@@ -707,11 +728,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (_msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             1000u64,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         assert_err_contains!(
@@ -744,11 +768,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
@@ -785,9 +812,16 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let timeout = time::Duration::from_secs(3);
-        let (mut msg_queue, mut msg_queue_client) =
-            MsgQueue::new_msg_queue_and_client(broadcaster, 10, gas_cap, timeout);
+        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            timeout,
+            monitoring_client,
+        );
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
@@ -836,11 +870,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
+            monitoring_client,
         );
         let handle = tokio::spawn(async move {
             let actual = msg_queue.next().await.unwrap();
@@ -892,11 +929,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
@@ -938,11 +978,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         msg_queue_client
@@ -979,5 +1022,54 @@ mod tests {
             amount: vec![],
         })
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn should_record_msg_enqueue_err_when_gas_cost_above_cap() {
+        let gas_cap = 100;
+        let gas_cost = 101;
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+
+        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
+        cosmos_client.expect_simulate().once().returning(move |_| {
+            Ok(SimulateResponse {
+                gas_info: Some(GasInfo {
+                    gas_wanted: gas_cost,
+                    gas_used: gas_cost,
+                }),
+                result: None,
+            })
+        });
+        let broadcaster = broadcaster::Broadcaster::builder()
+            .client(cosmos_client)
+            .chain_id("chain-id".parse().unwrap())
+            .pub_key(random_cosmos_public_key())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+
+        let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
+
+        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            time::Duration::from_secs(1),
+            monitoring_client,
+        );
+
+        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _ = tokio::spawn(async move {
+            assert!(msg_queue.next().await.is_none());
+        });
+        drop(msg_queue_client);
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(metric, Msg::MessageEnqueueError);
+        assert!(receiver.try_recv().is_err());
     }
 }
