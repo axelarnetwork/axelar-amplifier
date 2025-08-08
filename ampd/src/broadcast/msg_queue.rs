@@ -457,7 +457,7 @@ mod tests {
         });
         cosmos_client
             .expect_account()
-            .times(times + 1)
+            .times(times.saturating_add(1))
             .returning(move |_| {
                 Ok(QueryAccountResponse {
                     account: Some(Any::from_msg(&base_account).unwrap()),
@@ -564,7 +564,7 @@ mod tests {
             gas_used: gas_cap,
         });
 
-        let mut cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
