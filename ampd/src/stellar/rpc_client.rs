@@ -4,7 +4,7 @@ use std::str::FromStr;
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
 use stellar_rpc_client::GetTransactionResponse;
-use stellar_xdr::curr::{ContractEvent, Hash};
+use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta};
 use thiserror::Error;
 use tracing::warn;
 
@@ -27,34 +27,59 @@ pub struct TxResponse {
 }
 
 const STATUS_SUCCESS: &str = "SUCCESS";
-const EXPECTED_OPERATION_COUNT: usize = 1;
+const EXPECTED_OPERATION_COUNT_V4: usize = 1;
 
 impl From<(Hash, GetTransactionResponse)> for TxResponse {
     fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
-        // Protocol 23: Soroban contract calls can only occur as a single operation in the tx
-        // Therefore, we extract the first (and only) operation, otherwise fail.
         let tx_hash_str = transaction_hash.to_string();
-        let operation_count = response.events.contract_events.len();
-        let contract_events: Vec<ContractEvent> = response
-            .events
-            .contract_events
-            .into_iter()
-            .flatten()
-            .collect();
 
-        if operation_count != EXPECTED_OPERATION_COUNT {
-            warn!(
-                tx_hash = %tx_hash_str,
-                operation_count = operation_count,
-                expected_count = EXPECTED_OPERATION_COUNT,
-                "Transaction operation count does not match expected single operation for Soroban contract call"
-            );
-        }
+        // Extract contract events: first try V4 (events.contract_events), then fallback to V3 (result_meta)
+        let (contract_events, successful) = match response.result_meta.as_ref() {
+            Some(TransactionMeta::V4(_)) => {
+                // Protocol 23: Soroban contract calls can only occur as a single operation in the tx
+                // Therefore, we extract the first (and only) operation, otherwise fail.
+                let contract_events_vec = response.events.contract_events;
+                let op_count = contract_events_vec.len();
+                let events = contract_events_vec.into_iter().flatten().collect();
+
+                if op_count != EXPECTED_OPERATION_COUNT_V4 {
+                    warn!(
+                        tx_hash = %tx_hash_str,
+                        operation_count = op_count,
+                        expected_count = EXPECTED_OPERATION_COUNT_V4,
+                        "V4 transaction operation count does not match expected single operation for Soroban contract call"
+                    );
+                }
+
+                (
+                    events,
+                    response.status == STATUS_SUCCESS && op_count == EXPECTED_OPERATION_COUNT_V4,
+                )
+            }
+            Some(TransactionMeta::V3(data)) => {
+                let events = data
+                    .soroban_meta
+                    .as_ref()
+                    .map(|meta| meta.events.to_vec())
+                    .unwrap_or_default();
+
+                (
+                    events.clone(),
+                    response.status == STATUS_SUCCESS && !events.is_empty(),
+                )
+            }
+            _ => {
+                warn!(
+                    tx_hash = %tx_hash_str,
+                    "Unsupported or missing transaction metadata version"
+                );
+                (vec![], false)
+            }
+        };
 
         Self {
             transaction_hash: tx_hash_str,
-            successful: (response.status == STATUS_SUCCESS)
-                && operation_count == EXPECTED_OPERATION_COUNT,
+            successful,
             contract_events,
         }
     }
@@ -140,7 +165,8 @@ impl Client {
 mod tests {
     use stellar_rpc_client::{GetTransactionEvents, GetTransactionResponse};
     use stellar_xdr::curr::{
-        ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint, ScVal,
+        ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
+        ScVal, SorobanTransactionMeta, TransactionMeta, TransactionMetaV3, TransactionMetaV4,
     };
 
     use super::*;
@@ -157,7 +183,7 @@ mod tests {
         }
     }
 
-    fn create_mock_transaction_response(
+    fn create_mock_transaction_response_v4(
         events: Vec<Vec<ContractEvent>>,
         status: &str,
     ) -> GetTransactionResponse {
@@ -165,7 +191,9 @@ mod tests {
             status: status.to_string(),
             envelope: None,
             result: None,
-            result_meta: None,
+            result_meta: Some(TransactionMeta::V4(TransactionMetaV4 {
+                ..Default::default()
+            })),
             events: GetTransactionEvents {
                 contract_events: events,
                 diagnostic_events: vec![],
@@ -174,74 +202,143 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_tx_response_succeeds_with_valid_transaction() {
-        let hash = Hash::from([1u8; 32]);
-        let contract_events = vec![vec![create_mock_contract_event(1)]];
-        let response = create_mock_transaction_response(contract_events, STATUS_SUCCESS);
+    fn create_mock_transaction_response_v3(
+        events: Vec<ContractEvent>,
+        status: &str,
+    ) -> GetTransactionResponse {
+        let soroban_meta = if events.is_empty() {
+            None
+        } else {
+            Some(SorobanTransactionMeta {
+                events: events.try_into().unwrap(),
+                ..Default::default()
+            })
+        };
 
-        let tx_response = TxResponse::from((hash.clone(), response));
-
-        assert_eq!(tx_response.transaction_hash, hash.to_string());
-        assert_eq!(tx_response.contract_events.len(), 1);
-        assert!(tx_response.successful);
+        GetTransactionResponse {
+            status: status.to_string(),
+            envelope: None,
+            result: None,
+            result_meta: Some(TransactionMeta::V3(TransactionMetaV3 {
+                soroban_meta,
+                ..Default::default()
+            })),
+            events: GetTransactionEvents {
+                contract_events: vec![],
+                diagnostic_events: vec![],
+                transaction_events: vec![],
+            },
+        }
     }
 
     #[test]
-    fn test_tx_response_fails_with_failed_transaction() {
-        let hash = Hash::from([2u8; 32]);
-        let response = create_mock_transaction_response(vec![], "FAILED");
-
-        let tx_response = TxResponse::from((hash.clone(), response));
-
-        assert_eq!(tx_response.transaction_hash, hash.to_string());
-        assert_eq!(tx_response.contract_events.len(), 0);
-        assert!(tx_response.has_failed());
-    }
-
-    #[test]
-    fn test_tx_response_fails_with_no_operations() {
-        let hash = Hash::from([3u8; 32]);
-        let response = create_mock_transaction_response(vec![], STATUS_SUCCESS);
-
-        let tx_response = TxResponse::from((hash.clone(), response));
-
-        assert_eq!(tx_response.transaction_hash, hash.to_string());
-        assert_eq!(tx_response.contract_events.len(), 0);
-        assert!(tx_response.has_failed());
-    }
-
-    #[test]
-    fn test_tx_response_fails_with_multiple_operations() {
-        let hash = Hash::from([4u8; 32]);
-        let contract_events = vec![
-            vec![create_mock_contract_event(1), create_mock_contract_event(2)],
-            vec![create_mock_contract_event(3)],
-        ];
-        let response = create_mock_transaction_response(contract_events, STATUS_SUCCESS);
-
-        let tx_response = TxResponse::from((hash.clone(), response));
-
-        assert_eq!(tx_response.transaction_hash, hash.to_string());
-        assert_eq!(tx_response.contract_events.len(), 3);
-        assert!(tx_response.has_failed());
-    }
-
-    #[test]
-    fn test_tx_response_succeeds_with_single_operation_multiple_events() {
+    fn test_tx_response_succeeds_with_valid_transaction_v4() {
         let hash = Hash::from([5u8; 32]);
         let contract_events = vec![vec![
             create_mock_contract_event(1),
             create_mock_contract_event(2),
             create_mock_contract_event(3),
         ]];
-        let response = create_mock_transaction_response(contract_events, STATUS_SUCCESS);
+        let response = create_mock_transaction_response_v4(contract_events, STATUS_SUCCESS);
 
         let tx_response = TxResponse::from((hash.clone(), response));
 
         assert_eq!(tx_response.transaction_hash, hash.to_string());
         assert_eq!(tx_response.contract_events.len(), 3);
-        assert!(!tx_response.has_failed());
         assert!(tx_response.successful);
+    }
+
+    #[test]
+    fn test_tx_response_fails_with_failed_transaction_v4() {
+        let hash = Hash::from([2u8; 32]);
+        let response = create_mock_transaction_response_v4(vec![], "FAILED");
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 0);
+        assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_fails_with_no_operations_v4() {
+        let hash = Hash::from([3u8; 32]);
+        let response = create_mock_transaction_response_v4(vec![], STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 0);
+        assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_fails_with_multiple_operations_v4() {
+        let hash = Hash::from([4u8; 32]);
+        let contract_events = vec![
+            vec![create_mock_contract_event(1), create_mock_contract_event(2)],
+            vec![create_mock_contract_event(3)],
+        ];
+        let response = create_mock_transaction_response_v4(contract_events, STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 3);
+        assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_succeeds_with_valid_transaction_v3() {
+        let hash = Hash::from([6u8; 32]);
+        let events = vec![create_mock_contract_event(1), create_mock_contract_event(2)];
+        let response = create_mock_transaction_response_v3(events, STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 2);
+        assert!(tx_response.successful);
+    }
+
+    #[test]
+    fn test_tx_response_fails_with_no_events_v3() {
+        let hash = Hash::from([7u8; 32]);
+        let response = create_mock_transaction_response_v3(vec![], STATUS_SUCCESS);
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 0);
+        assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_fails_with_failed_status_v3() {
+        let hash = Hash::from([8u8; 32]);
+        let events = vec![create_mock_contract_event(1)];
+        let response = create_mock_transaction_response_v3(events, "FAILED");
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 1);
+        assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_tx_response_fails_with_unsupported_metadata() {
+        let hash = Hash::from([9u8; 32]);
+        let mut response = create_mock_transaction_response_v4(
+            vec![vec![create_mock_contract_event(1)]],
+            STATUS_SUCCESS,
+        );
+        response.result_meta = None;
+
+        let tx_response = TxResponse::from((hash.clone(), response));
+
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert_eq!(tx_response.contract_events.len(), 0);
+        assert!(tx_response.has_failed());
     }
 }
