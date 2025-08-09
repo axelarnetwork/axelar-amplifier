@@ -87,9 +87,9 @@ jobs:
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
-          
+
           brew install protobuf
-          
+
           if [ "$ARCH" == "arm64" ]
           then
             rustup target add aarch64-apple-darwin
@@ -101,7 +101,7 @@ jobs:
             mkdir ampdbin
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           fi
-          
+
           gpg --armor --detach-sign "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
       - name: build and sign linux binaries
@@ -112,7 +112,7 @@ jobs:
           OS="linux"
           ARCH="${{ matrix.arch }}"
           sudo apt-get install protobuf-compiler
-          
+
           if [ "$ARCH" == "arm64" ]
           then
             sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
@@ -120,13 +120,13 @@ jobs:
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             cargo build --release --target aarch64-unknown-linux-gnu
             mkdir ampdbin
-            mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/aarch64-unknown-linux-gnu/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"            
+            mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/aarch64-unknown-linux-gnu/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           else
             cargo build --release
             mkdir ampdbin
             mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
-          fi     
-          
+          fi
+
            gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
 

@@ -78,7 +78,7 @@ starknet-checked-felt = { workspace = true }
 starknet-core = { workspace = true }
 starknet-providers = { workspace = true }
 stellar = { workspace = true }
-stellar-rpc-client = "21.4.0"
+stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }

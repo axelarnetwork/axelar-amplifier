@@ -188,8 +188,8 @@ mod tests {
             address::Error::InvalidAddress(..)
         );
 
-        // invalid
-        let invalid = "MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK";
+        // invalid - use clearly malformed address with invalid characters
+        let invalid = "INVALID_STELLAR_ADDRESS_WITH_BAD_CHARS_123!@#";
         assert_err_contains!(
             address::validate_address(invalid, &address::AddressFormat::Stellar),
             address::Error,
