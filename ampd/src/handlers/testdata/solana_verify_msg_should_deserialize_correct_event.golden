@@ -7,6 +7,7 @@ PollStartedEvent {
     source_chain: ChainName(
         "solana",
     ),
+    source_gateway_address: "4uX3jFnWLa4vBPyWJKd2XnUEX6JvP8q1BG7mTwQYhQeL",
     expires_at: 100,
     messages: [
         Message {
