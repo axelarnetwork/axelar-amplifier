@@ -126,7 +126,7 @@ mod test {
     use cosmwasm_std::{from_json, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::{chain_name, cosmos_addr, ChainName, CrossChainId, Message};
+    use router_api::{address, chain_name, cosmos_addr, ChainName, CrossChainId, Message};
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
@@ -471,15 +471,15 @@ mod test {
                     .parse()
                     .unwrap(),
                 destination_chain: chain_name!("destination-chain1"),
-                destination_address: "destination-address1".parse().unwrap(),
+                destination_address: address!("destination-address1"),
                 payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
                     .unwrap(),
-                source_address: "source-address2".parse().unwrap(),
+                source_address: address!("source-address2"),
                 destination_chain: chain_name!("destination-chain2"),
-                destination_address: "destination-address2".parse().unwrap(),
+                destination_address: address!("destination-address2"),
                 payload_hash: [0; 32],
             },
         ]);

@@ -1,5 +1,5 @@
 use interchain_token_service_std::{DeployInterchainToken, HubMessage, Message, TokenId};
-use router_api::{chain_name, chain_name_raw, Address, ChainNameRaw, CrossChainId};
+use router_api::{address, chain_name, chain_name_raw, Address, ChainNameRaw, CrossChainId};
 
 pub fn dummy_message() -> Message {
     DeployInterchainToken {
@@ -24,10 +24,9 @@ pub struct TestMessage {
 impl TestMessage {
     pub fn dummy() -> Self {
         let source_its_chain = chain_name_raw!("source-its-chain");
-        let source_its_contract: Address = "source-its-contract".parse().unwrap();
+        let source_its_contract = address!("source-its-contract");
         let destination_its_chain = chain_name_raw!("dest-its-chain");
-        let destination_its_contract: Address = "dest-its-contract".parse().unwrap();
-
+        let destination_its_contract = address!("dest-its-contract");
         let hub_message = HubMessage::SendToHub {
             destination_chain: destination_its_chain.clone(),
             message: dummy_message(),
@@ -36,7 +35,7 @@ impl TestMessage {
             cc_id: CrossChainId::new(source_its_chain.clone(), "message-id").unwrap(),
             source_address: source_its_contract.clone(),
             destination_chain: chain_name!("its-hub-chain"),
-            destination_address: "its-hub-contract".parse().unwrap(),
+            destination_address: address!("its-hub-contract"),
             payload_hash: [1; 32],
         };
 
