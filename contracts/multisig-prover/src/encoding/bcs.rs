@@ -112,7 +112,7 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message};
+    use router_api::{chain_name_raw, CrossChainId, Message};
 
     use super::payload_digest;
     use crate::Payload;
@@ -271,7 +271,7 @@ mod tests {
         let payload = Payload::Messages(vec![
             Message {
                 cc_id: CrossChainId {
-                    source_chain: "ethereum".parse().unwrap(),
+                    source_chain: chain_name_raw!("ethereum"),
                     message_id:
                         "0xbb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1:0"
                             .parse()
@@ -289,7 +289,7 @@ mod tests {
             },
             Message {
                 cc_id: CrossChainId {
-                    source_chain: "ethereum".parse().unwrap(),
+                    source_chain: chain_name_raw!("ethereum"),
                     message_id:
                         "0xd695e1ee9d73aeee677d4cec13d17351c1e86a0ce49b7fd3de94350e9cd0b3a9:1"
                             .parse()

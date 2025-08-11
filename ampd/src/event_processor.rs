@@ -75,7 +75,7 @@ pub async fn consume_events<H, S, C>(
     event_processor_config: Config,
     token: CancellationToken,
     msg_queue_client: broadcast::MsgQueueClient<C>,
-    metric_client: monitoring::Client,
+    monitoring_client: monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
@@ -98,7 +98,7 @@ where
             Ok(Err(err)) => StreamStatus::Error(err),
             Err(_) => StreamStatus::TimedOut,
         })
-        .inspect(|event| log_block_end_event(event, &handler_label, &metric_client))
+        .inspect(|event| log_block_end_event(event, &monitoring_client))
         .take_while(should_task_continue(token));
     pin_mut!(event_stream);
 
@@ -163,21 +163,13 @@ fn should_task_continue(token: CancellationToken) -> impl Fn(&StreamStatus) -> f
     }
 }
 
-fn log_block_end_event(
-    event: &StreamStatus,
-    handler_label: &str,
-    metric_client: &monitoring::Client,
-) {
+fn log_block_end_event(event: &StreamStatus, monitoring_client: &monitoring::Client) {
     if let StreamStatus::Ok(Event::BlockEnd(height)) = event {
         info!(height = height.value(), "handler finished processing block");
 
-        if let Err(err) = metric_client.metrics().record_metric(Msg::IncBlockReceived) {
-            warn!( handler = handler_label,
-                height = height.value(),
-                err = %err,
-                "failed to record block received metric"
-            );
-        }
+        monitoring_client
+            .metrics()
+            .record_metric(Msg::BlockReceived);
     }
 }
 
@@ -190,7 +182,6 @@ enum StreamStatus {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::time::Duration;
 
     use async_trait::async_trait;
@@ -208,8 +199,8 @@ mod tests {
     use events::Event;
     use futures::{stream, StreamExt};
     use mockall::mock;
+    use monitoring::{metrics, test_utils};
     use report::ErrorExt;
-    use reqwest::Url;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -325,7 +316,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -379,7 +370,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -433,7 +424,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -469,8 +460,15 @@ mod tests {
             .return_once(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
         let mut mock_client = setup_client(&address);
-        mock_client.expect_clone().times(2).returning(|| {
+        mock_client.expect_clone().times(2).returning(move || {
+            let base_account = create_base_account(&address);
+
             let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
             mock_client.expect_simulate().return_once(|_| {
                 Ok(SimulateResponse {
                     gas_info: Some(GasInfo {
@@ -500,7 +498,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -540,8 +538,15 @@ mod tests {
             .return_once(|_| Ok(vec![dummy_msg(), dummy_msg()]));
 
         let mut mock_client = setup_client(&address);
-        mock_client.expect_clone().times(2).returning(|| {
+        mock_client.expect_clone().times(2).returning(move || {
+            let base_account = create_base_account(&address);
+
             let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
             mock_client
                 .expect_simulate()
                 .return_once(|_| Err(Status::internal("internal error").into_report()));
@@ -565,7 +570,7 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -629,7 +634,7 @@ mod tests {
         );
 
         token.cancel();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -677,7 +682,7 @@ mod tests {
         );
 
         token.cancel();
-        let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let result = consume_events(
             "handler".to_string(),
             MockEventHandler::new(),
@@ -739,12 +744,8 @@ mod tests {
             Duration::from_millis(500),
         );
 
-        let bind_addr = monitoring::Config::enabled().bind_address;
-        let (server, monitoring_client) = monitoring::Server::new(bind_addr).unwrap();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let cancel_token = CancellationToken::new();
-        tokio::spawn(server.run(cancel_token.clone()));
-
-        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let result_with_timeout = timeout(
             Duration::from_secs(3),
@@ -761,13 +762,13 @@ mod tests {
         .await;
 
         assert!(result_with_timeout.is_ok());
-        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let base_url = Url::parse(&format!("http://{}", bind_addr.unwrap())).unwrap();
-        let metrics_url = base_url.join("metrics").unwrap();
-        let response = reqwest::get(metrics_url).await.unwrap();
-        let metrics_text = response.text().await.unwrap();
-        assert!(metrics_text.contains(&format!("blocks_received_total {}", num_block_ends)));
+        for _ in 0..num_block_ends {
+            let metrics = receiver.recv().await.unwrap();
+            assert_eq!(metrics, metrics::Msg::BlockReceived);
+        }
+
+        assert!(receiver.try_recv().is_err());
 
         cancel_token.cancel();
     }
