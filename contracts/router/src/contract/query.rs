@@ -39,7 +39,9 @@ mod test {
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use router_api::error::Error;
-    use router_api::{chain_name, cosmos_addr, ChainEndpoint, ChainName, Gateway, GatewayDirection};
+    use router_api::{
+        chain_name, cosmos_addr, ChainEndpoint, ChainName, Gateway, GatewayDirection,
+    };
 
     use super::chain_info;
     use crate::state::chain_endpoints;

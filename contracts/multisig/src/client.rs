@@ -452,10 +452,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contracts: HashMap<String, ChainName> = HashMap::from([(
-            cosmos_addr!("prover").to_string(),
-            chain_name!("ethereum"),
-        )]);
+        let contracts: HashMap<String, ChainName> =
+            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
 
         match client.authorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
@@ -469,10 +467,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contracts: HashMap<String, ChainName> = HashMap::from([(
-            cosmos_addr!("prover").to_string(),
-            chain_name!("ethereum"),
-        )]);
+        let contracts: HashMap<String, ChainName> =
+            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
 
         match client.unauthorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),

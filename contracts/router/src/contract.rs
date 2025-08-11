@@ -153,8 +153,8 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainEndpoint, ChainName, CrossChainId, GatewayDirection,
-        Message, FIELD_DELIMITER,
+        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainEndpoint, ChainName,
+        CrossChainId, GatewayDirection, Message, FIELD_DELIMITER,
     };
 
     use super::*;

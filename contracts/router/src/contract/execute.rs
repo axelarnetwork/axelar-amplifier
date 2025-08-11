@@ -274,7 +274,8 @@ mod test {
     use rand::{random, RngCore};
     use router_api::error::Error;
     use router_api::{
-        chain_name, cosmos_addr, ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message,
+        chain_name, cosmos_addr, ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection,
+        Message,
     };
 
     use super::{freeze_chains, register_chain, unfreeze_chains};

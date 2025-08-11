@@ -337,7 +337,7 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
-    use router_api::{chain_name_raw, cosmos_addr, cosmos_address};
+    use router_api::{chain_name_raw, cosmos_address};
 
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;

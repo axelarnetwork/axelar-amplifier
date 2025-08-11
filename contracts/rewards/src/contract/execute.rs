@@ -267,7 +267,7 @@ mod test {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
-    use router_api::{chain_name, cosmos_addr, ChainName};
+    use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::error::ContractError;

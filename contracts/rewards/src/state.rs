@@ -492,7 +492,7 @@ mod test {
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Uint128, Uint64};
-    use router_api::{chain_name, cosmos_addr, ChainName};
+    use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::error::ContractError;

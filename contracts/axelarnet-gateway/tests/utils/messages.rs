@@ -1,5 +1,5 @@
 use axelar_core_std::nexus;
-use router_api::{chain_name, chain_name_raw, cosmos_addr, cosmos_address, CrossChainId, Message};
+use router_api::{chain_name, chain_name_raw, cosmos_address, CrossChainId, Message};
 use sha3::Digest;
 
 use crate::utils::params;

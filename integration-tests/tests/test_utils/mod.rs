@@ -25,7 +25,9 @@ use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
 use multisig_prover::msg::VerifierSetResponse;
 use rewards::PoolId;
-use router_api::{chain_name, cosmos_addr, Address, ChainName, CrossChainId, GatewayDirection, Message};
+use router_api::{
+    chain_name, cosmos_addr, Address, ChainName, CrossChainId, GatewayDirection, Message,
+};
 use service_registry_api::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;

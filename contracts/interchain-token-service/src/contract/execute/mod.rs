@@ -578,7 +578,9 @@ mod tests {
         RegisterTokenMetadata, TokenId,
     };
     use its_abi_translator::abi::hub_message_abi_encode;
-    use router_api::{chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainNameRaw, CrossChainId};
+    use router_api::{
+        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainNameRaw, CrossChainId,
+    };
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
