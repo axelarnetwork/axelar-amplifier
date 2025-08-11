@@ -219,6 +219,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn should_get_participation() {
         let mut deps = mock_dependencies();
         let balance = Uint128::from(1000u128);
