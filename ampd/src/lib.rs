@@ -147,6 +147,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .msg_queue_client(msg_queue_client.clone())
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
+        .monitoring_client(monitoring_client.clone())
         .build();
     let (tx_confirmer, tx_confirmer_client) = broadcast::TxConfirmer::new_confirmer_and_client(
         cosmos_client,

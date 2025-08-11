@@ -26,6 +26,9 @@ event_stream_timeout_total 0
 # HELP event_publisher_error number of failures in event publisher.
 # TYPE event_publisher_error counter
 event_publisher_error_total 0
+# HELP grpc_service_error number of failures in grpc service.
+# TYPE grpc_service_error counter
+grpc_service_error_total 0
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
@@ -65,6 +68,9 @@ event_stream_timeout_total 0
 # HELP event_publisher_error number of failures in event publisher.
 # TYPE event_publisher_error counter
 event_publisher_error_total 0
+# HELP grpc_service_error number of failures in grpc service.
+# TYPE grpc_service_error counter
+grpc_service_error_total 0
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent

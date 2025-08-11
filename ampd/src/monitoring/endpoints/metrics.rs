@@ -70,6 +70,8 @@ pub enum Msg {
     EventPollingTimeout,
     /// Record the number of errors that occur in the event publisher
     EventPublisherError,
+    /// Record the number of errors that occur in the Grpc Service
+    GrpcServiceError,
 }
 
 /// Errors that can occur in metrics processing
@@ -293,6 +295,9 @@ impl Metrics {
             Msg::EventPublisherError => {
                 self.error_metrics.record_event_publisher_error();
             }
+            Msg::GrpcServiceError => {
+                self.error_metrics.record_grpc_service_error();
+            }
         }
     }
 }
@@ -469,6 +474,7 @@ struct ErrorMetrics {
     msg_enqueue_error: Counter,
     event_timeout: Counter,
     event_publisher_error: Counter,
+    grpc_service_error: Counter,
 }
 
 impl ErrorMetrics {
@@ -477,6 +483,7 @@ impl ErrorMetrics {
             msg_enqueue_error: Counter::default(),
             event_timeout: Counter::default(),
             event_publisher_error: Counter::default(),
+            grpc_service_error: Counter::default(),
         }
     }
 
@@ -496,6 +503,11 @@ impl ErrorMetrics {
             "number of failures in event publisher",
             self.event_publisher_error.clone(),
         );
+        registry.register(
+            "grpc_service_error",
+            "number of failures in grpc service",
+            self.grpc_service_error.clone(),
+        );
     }
 
     fn record_msg_enqueue_error(&self) {
@@ -508,6 +520,10 @@ impl ErrorMetrics {
 
     fn record_event_publisher_error(&self) {
         self.event_publisher_error.inc();
+    }
+
+    fn record_grpc_service_error(&self) {
+        self.grpc_service_error.inc();
     }
 }
 
@@ -696,6 +712,7 @@ mod tests {
             client.record_metric(Msg::MessageEnqueueError);
             client.record_metric(Msg::EventPollingTimeout);
             client.record_metric(Msg::EventPublisherError);
+            client.record_metric(Msg::GrpcServiceError);
         }
 
         // Wait for the metrics to be updated
