@@ -5,7 +5,6 @@ use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
@@ -17,7 +16,7 @@ use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
-use router_api::{ChainName, CrossChainId, Message};
+use router_api::{cosmos_addr, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
@@ -580,7 +579,7 @@ fn coordinator_one_click_query_verifier_info_fails() {
             &protocol.app,
             &coordinator::msg::QueryMsg::VerifierInfo {
                 service_name: protocol.service_name.to_string(),
-                verifier: MockApi::default().addr_make("random_verifier").to_string(),
+                verifier: cosmos_addr!("random_verifier").to_string(),
             },
         );
 

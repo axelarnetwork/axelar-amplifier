@@ -1,7 +1,6 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::BlockInfo;
 use integration_tests::contract::Contract;
-use router_api::chain_name;
+use router_api::{chain_name, cosmos_addr};
 use service_registry_api::msg::ExecuteMsg;
 
 pub mod test_utils;
@@ -273,8 +272,8 @@ fn claim_stake_when_jailed_fails() {
         &ExecuteMsg::JailVerifiers {
             service_name: protocol.service_name.to_string(),
             verifiers: vec![
-                MockApi::default().addr_make("verifier1").to_string(),
-                MockApi::default().addr_make("verifier2").to_string(),
+                cosmos_addr!("verifier1").to_string(),
+                cosmos_addr!("verifier2").to_string(),
             ],
         },
     );

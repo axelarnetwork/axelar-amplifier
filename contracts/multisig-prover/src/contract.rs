@@ -130,7 +130,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use multisig_prover_api::encoding::Encoder;
     use prost::Message;
-    use router_api::CrossChainId;
+    use router_api::{cosmos_addr, CrossChainId};
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
@@ -308,15 +308,14 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
-        let api = MockApi::default();
-        let instantiator = api.addr_make("instantiator");
-        let admin = api.addr_make("admin");
-        let governance = api.addr_make("governance");
-        let gateway_address = api.addr_make("gateway_address");
-        let multisig_address = api.addr_make("multisig_address");
-        let coordinator_address = api.addr_make("coordinator_address");
-        let service_registry_address = api.addr_make("service_registry_address");
-        let voting_verifier_address = api.addr_make("voting_verifier");
+        let instantiator = cosmos_addr!("instantiator");
+        let admin = cosmos_addr!("admin");
+        let governance = cosmos_addr!("governance");
+        let gateway_address = cosmos_addr!("gateway_address");
+        let multisig_address = cosmos_addr!("multisig_address");
+        let coordinator_address = cosmos_addr!("coordinator_address");
+        let service_registry_address = cosmos_addr!("service_registry_address");
+        let voting_verifier_address = cosmos_addr!("voting_verifier");
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -423,11 +422,10 @@ mod tests {
     #[test]
     fn test_update_verifier_set_from_non_admin_or_governance_should_fail() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("some random address"), &[]),
+            message_info(&cosmos_addr!("some random address"), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_err());
@@ -587,7 +585,6 @@ mod tests {
     #[test]
     fn test_confirm_verifier_set_unconfirmed() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
@@ -602,7 +599,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -614,7 +611,6 @@ mod tests {
     #[test]
     fn test_confirm_verifier_set_wrong_set() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
@@ -633,7 +629,7 @@ mod tests {
             VerificationStatus::Unknown,
         ));
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -645,9 +641,8 @@ mod tests {
     #[test]
     fn confirm_verifier_no_update_in_progress_should_fail() {
         let mut deps = setup_test_case();
-        let api = deps.api;
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -715,10 +710,9 @@ mod tests {
     #[test]
     fn non_governance_should_not_be_able_to_call_update_signing_threshold() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_signing_threshold(
             deps.as_mut(),
-            api.addr_make("random"),
+            cosmos_addr!("random"),
             Threshold::try_from((6, 10)).unwrap().try_into().unwrap(),
         );
         assert!(res.is_err());
@@ -810,7 +804,6 @@ mod tests {
     #[test]
     fn should_confirm_new_threshold() {
         let mut deps = setup_test_case();
-        let api = deps.api;
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
@@ -820,7 +813,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
         assert!(res.is_ok());
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -902,10 +895,9 @@ mod tests {
     #[test]
     fn non_governance_should_not_be_able_to_call_update_admin() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_admin(
             deps.as_mut(),
-            api.addr_make("unauthorized"),
+            cosmos_addr!("unauthorized"),
             "new admin".to_string(),
         );
         assert!(res.is_err());
@@ -915,7 +907,7 @@ mod tests {
     fn governance_should_be_able_to_call_update_admin() {
         let mut deps = setup_test_case();
         let api = deps.api;
-        let new_admin = api.addr_make("new admin");
+        let new_admin = cosmos_addr!("new admin");
 
         let res = execute_update_admin(
             deps.as_mut(),

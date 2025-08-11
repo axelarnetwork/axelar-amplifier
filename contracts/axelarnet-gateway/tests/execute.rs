@@ -8,7 +8,7 @@ use cosmwasm_std::testing::{message_info, mock_dependencies};
 use cosmwasm_std::HexBinary;
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{chain_name, CrossChainId, Message};
+use router_api::{chain_name, cosmos_addr, CrossChainId, Message};
 
 use crate::utils::{
     axelar_query_handler, messages, mock_axelar_dependencies, params, OwnedDepsExt,
@@ -260,7 +260,6 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     let nonce = rand::random();
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
@@ -273,7 +272,7 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -302,7 +301,6 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     let nonce = 210;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
@@ -315,7 +313,7 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -343,7 +341,6 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     let nonce = 200;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
@@ -356,7 +353,7 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -386,7 +383,6 @@ fn contract_call_returns_correct_message() {
     let nonce = 190;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
@@ -400,7 +396,7 @@ fn contract_call_returns_correct_message() {
 
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -419,7 +415,6 @@ fn contract_call_returns_correct_events() {
     let nonce = 160;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
@@ -432,7 +427,7 @@ fn contract_call_returns_correct_events() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -464,7 +459,6 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
     let nonce = 99;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
@@ -477,7 +471,7 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         destination_chain,
         destination_address,
         payload,

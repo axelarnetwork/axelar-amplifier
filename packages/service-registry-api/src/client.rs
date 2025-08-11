@@ -131,7 +131,7 @@ mod test {
     use axelar_wasm_std::nonempty::Uint128;
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
-    use router_api::{chain_name, ChainName};
+    use router_api::{chain_name, cosmos_addr, ChainName};
 
     use crate::client::Client;
     use crate::msg::{QueryMsg, ServiceParamsOverride, VerifierDetails};
@@ -169,7 +169,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let verifier = MockApi::default().addr_make("verifier").to_string();
+        let verifier = cosmos_addr!("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -182,7 +182,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let verifier = MockApi::default().addr_make("verifier").to_string();
+        let verifier = cosmos_addr!("verifier").to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -266,8 +266,7 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let api = MockApi::default();
-        let addr = api.addr_make("service-registry");
+        let addr = cosmos_addr!("service-registry");
         let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
@@ -284,10 +283,10 @@ mod test {
         (querier, addr_clone)
     }
 
-    fn mock_service(api: &MockApi, service_name: String, chain_name: Option<ChainName>) -> Service {
+    fn mock_service(service_name: String, chain_name: Option<ChainName>) -> Service {
         Service {
             name: service_name,
-            coordinator_contract: api.addr_make("coordinator"),
+            coordinator_contract: cosmos_addr!("coordinator"),
             min_num_verifiers: chain_name.map_or(1, |_| 2),
             max_num_verifiers: None,
             min_verifier_bond: Uint128::one(),
@@ -299,7 +298,7 @@ mod test {
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
         let api = MockApi::default();
-        let addr = api.addr_make("service-registry");
+        let addr = cosmos_addr!("service-registry");
         let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
@@ -312,7 +311,7 @@ mod test {
                         chain_name: _,
                     } => Ok(to_json_binary(&vec![WeightedVerifier {
                         verifier_info: Verifier {
-                            address: api.addr_make("verifier"),
+                            address: cosmos_addr!("verifier"),
                             bonding_state: crate::BondingState::Bonded {
                                 amount: Uint128::one(),
                             },
@@ -326,8 +325,7 @@ mod test {
                     QueryMsg::Service {
                         service_name,
                         chain_name,
-                    } => Ok(to_json_binary(&mock_service(&api, service_name, chain_name)).into())
-                        .into(),
+                    } => Ok(to_json_binary(&mock_service(service_name, chain_name)).into()).into(),
                     QueryMsg::ServiceParamsOverride {
                         service_name: _,
                         chain_name,

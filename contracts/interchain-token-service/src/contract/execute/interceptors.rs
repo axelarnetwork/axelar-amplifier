@@ -337,7 +337,7 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
-    use router_api::chain_name_raw;
+    use router_api::{chain_name_raw, cosmos_address};
 
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
@@ -430,11 +430,7 @@ mod test {
                         max_uint_bits: 32u32.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -492,11 +488,7 @@ mod test {
                         max_uint_bits: 64.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -554,11 +546,7 @@ mod test {
                         max_uint_bits: 64.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -616,11 +604,7 @@ mod test {
                         max_uint_bits: 32.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -678,11 +662,7 @@ mod test {
                         max_uint_bits: 32.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -719,11 +699,7 @@ mod test {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 12,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -741,11 +717,7 @@ mod test {
                         max_uint_bits: 128.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -801,11 +773,7 @@ mod test {
                         max_uint_bits: 128.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )
@@ -823,11 +791,7 @@ mod test {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 6,
                     },
-                    msg_translator: MockApi::default()
-                        .addr_make("translation_contract")
-                        .to_string()
-                        .parse()
-                        .unwrap(),
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
                 &MockApi::default(),
             )

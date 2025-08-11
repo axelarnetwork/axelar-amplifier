@@ -226,7 +226,7 @@ mod test {
     use cosmwasm_std::{
         coins, from_json, Api, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
-    use router_api::{chain_name, ChainName};
+    use router_api::{chain_name, cosmos_addr, ChainName};
     use service_registry_api::{Verifier, WeightedVerifier};
 
     use super::*;
@@ -246,7 +246,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("instantiator"), &[]),
+            message_info(&cosmos_addr!("instantiator"), &[]),
             InstantiateMsg {
                 governance_account: api.addr_make(GOVERNANCE_ADDRESS).to_string(),
             },
@@ -384,11 +384,11 @@ mod test {
         assert!(response.is_ok());
 
         let verifiers = vec![
-            api.addr_make("verifier1").to_string(),
-            api.addr_make("verifier2").to_string(),
-            api.addr_make("verifier3").to_string(),
-            api.addr_make("verifier4").to_string(),
-            api.addr_make("verifier5").to_string(),
+            cosmos_addr!("verifier1").to_string(),
+            cosmos_addr!("verifier2").to_string(),
+            cosmos_addr!("verifier3").to_string(),
+            cosmos_addr!("verifier4").to_string(),
+            cosmos_addr!("verifier5").to_string(),
         ];
 
         let res = execute(
@@ -418,7 +418,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -435,7 +435,7 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -871,7 +871,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -887,7 +887,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![MockApi::default().addr_make("verifier").into()],
+                verifiers: vec![cosmos_addr!("verifier").into()],
                 service_name: service_name.into(),
             },
         );
@@ -898,7 +898,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![MockApi::default().addr_make("verifier").into()],
+                verifiers: vec![cosmos_addr!("verifier").into()],
                 service_name: service_name.into(),
             },
         )
@@ -923,7 +923,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -972,7 +972,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1018,7 +1018,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1122,7 +1122,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -2533,10 +2533,7 @@ mod test {
         let mut deps = setup();
         let api = deps.api;
 
-        let verifiers = vec![
-            MockApi::default().addr_make("verifier1"),
-            MockApi::default().addr_make("verifier2"),
-        ];
+        let verifiers = vec![cosmos_addr!("verifier1"), cosmos_addr!("verifier2")];
         let min_num_verifiers = verifiers.len() as u16;
 
         let service_name = "validators";
@@ -2671,7 +2668,7 @@ mod test {
         assert!(res.is_ok());
 
         // given a bonded verifier
-        let verifier1 = MockApi::default().addr_make("verifier-1");
+        let verifier1 = cosmos_addr!("verifier-1");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2714,7 +2711,7 @@ mod test {
         ));
 
         // given a verifier passed unbonding period
-        let verifier2 = MockApi::default().addr_make("verifier-2");
+        let verifier2 = cosmos_addr!("verifier-2");
 
         // bond verifier
         let res = execute(
@@ -2924,9 +2921,9 @@ mod test {
         assert!(res.is_ok());
 
         let verifiers_1 = vec![
-            api.addr_make("verifier1").to_string(),
-            api.addr_make("verifier2").to_string(),
-            api.addr_make("verifier3").to_string(),
+            cosmos_addr!("verifier1").to_string(),
+            cosmos_addr!("verifier2").to_string(),
+            cosmos_addr!("verifier3").to_string(),
         ];
 
         let res = execute(
@@ -2941,8 +2938,8 @@ mod test {
         assert!(res.is_ok());
 
         let verifiers_2 = vec![
-            api.addr_make("verifier4").to_string(),
-            api.addr_make("verifier5").to_string(),
+            cosmos_addr!("verifier4").to_string(),
+            cosmos_addr!("verifier5").to_string(),
         ];
 
         let res = execute(
@@ -2990,9 +2987,9 @@ mod test {
         assert!(res.is_ok());
 
         let verifiers = vec![
-            api.addr_make("verifier1").to_string(),
-            api.addr_make("verifier2").to_string(),
-            api.addr_make("verifier3").to_string(),
+            cosmos_addr!("verifier1").to_string(),
+            cosmos_addr!("verifier2").to_string(),
+            cosmos_addr!("verifier3").to_string(),
         ];
 
         let res = execute(
@@ -3082,8 +3079,8 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: vec![
-                    api.addr_make("verifier1").to_string(),
-                    api.addr_make("verifier2").to_string(),
+                    cosmos_addr!("verifier1").to_string(),
+                    cosmos_addr!("verifier2").to_string(),
                 ],
                 service_name: service_name.clone(),
             },
@@ -3102,8 +3099,8 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UnauthorizeVerifiers {
                 verifiers: vec![
-                    api.addr_make("verifier1").to_string(),
-                    api.addr_make("verifier3").to_string(),
+                    cosmos_addr!("verifier1").to_string(),
+                    cosmos_addr!("verifier3").to_string(),
                 ],
                 service_name: service_name.clone(),
             },
@@ -3121,7 +3118,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::JailVerifiers {
-                verifiers: vec![api.addr_make("verifier2").to_string()],
+                verifiers: vec![cosmos_addr!("verifier2").to_string()],
                 service_name: service_name.clone(),
             },
         );
@@ -3133,7 +3130,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![api.addr_make("verifier2").to_string()],
+                verifiers: vec![cosmos_addr!("verifier2").to_string()],
                 service_name: service_name.clone(),
             },
         );
@@ -3145,7 +3142,7 @@ mod test {
     fn jailing_from_none_does_not_affect_count() {
         let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
-        let new_verifier = api.addr_make("verifier6").to_string();
+        let new_verifier = cosmos_addr!("verifier6").to_string();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -3163,7 +3160,7 @@ mod test {
     fn jailing_unauthorized_verifier_does_not_affect_authorized_count() {
         let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
-        let new_verifier = api.addr_make("verifier6").to_string();
+        let new_verifier = cosmos_addr!("verifier6").to_string();
         let res = execute(
             deps.as_mut(),
             mock_env(),

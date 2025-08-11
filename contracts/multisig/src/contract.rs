@@ -189,7 +189,7 @@ mod tests {
     use cosmwasm_std::{from_json, Addr, Empty, OwnedDeps, WasmMsg};
     use k256::elliptic_curve::rand_core;
     use permission_control::Permission;
-    use router_api::{chain_name, ChainName};
+    use router_api::{chain_name, cosmos_addr, ChainName};
     use serde_json::from_str;
 
     use super::*;
@@ -1208,9 +1208,9 @@ mod tests {
         let (mut deps, _, _) = setup();
 
         let contracts = vec![
-            (deps.api.addr_make("addr1"), chain_name!("chain1")),
-            (deps.api.addr_make("addr2"), chain_name!("chain2")),
-            (deps.api.addr_make("addr3"), chain_name!("chain3")),
+            (cosmos_addr!("addr1"), chain_name!("chain1")),
+            (cosmos_addr!("addr2"), chain_name!("chain2")),
+            (cosmos_addr!("addr3"), chain_name!("chain3")),
         ];
         do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
         assert!(contracts
@@ -1245,7 +1245,7 @@ mod tests {
     fn authorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
-        let info = message_info(&deps.api.addr_make("user"), &[]);
+        let info = message_info(&cosmos_addr!("user"), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
@@ -1270,7 +1270,7 @@ mod tests {
     fn unauthorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
-        let info = message_info(&deps.api.addr_make("user"), &[]);
+        let info = message_info(&cosmos_addr!("user"), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
@@ -1378,9 +1378,9 @@ mod tests {
         let mut deps = setup().0;
         let api = deps.api;
 
-        assert!(do_disable_signing(deps.as_mut(), api.addr_make("user1")).is_err());
+        assert!(do_disable_signing(deps.as_mut(), cosmos_addr!("user1")).is_err());
         assert!(do_disable_signing(deps.as_mut(), api.addr_make(ADMIN)).is_ok());
-        assert!(do_enable_signing(deps.as_mut(), api.addr_make("user")).is_err());
+        assert!(do_enable_signing(deps.as_mut(), cosmos_addr!("user")).is_err());
         assert!(do_enable_signing(deps.as_mut(), api.addr_make(ADMIN)).is_ok());
         assert!(do_disable_signing(deps.as_mut(), api.addr_make(GOVERNANCE)).is_ok());
         assert!(do_enable_signing(deps.as_mut(), api.addr_make(GOVERNANCE)).is_ok());
