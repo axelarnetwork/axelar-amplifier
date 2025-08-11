@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
 
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
@@ -97,9 +98,8 @@ pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
 fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
     let (variants, permissions): (Vec<_>, Vec<_>) = data
         .variants
-        .clone()
-        .into_iter()
-        .filter_map(find_permissions)
+        .iter()
+        .filter_map(|variant| Some((variant.ident.clone(), MsgPermissions::parse(variant)?)))
         .unzip();
 
     let external_execute_msg_ident = external_execute_msg_ident(enum_type.clone());
@@ -158,111 +158,136 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
 
 #[derive(Debug)]
 struct MsgPermissions {
-    specific: Vec<Path>,
-    general: Vec<Path>,
-    external: Vec<Path>,
+    specific: Vec<Ident>,
+    general: Vec<Permission>,
+    external: Vec<Ident>,
 }
 
-fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
-    let (specific, general, external): (Vec<_>, Vec<_>, Vec<_>) = variant
-        .attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("permission"))
-        .flat_map(|attr|
-        {
-            match attr.
-                parse_args_with(Punctuated::<Expr, Token![,]>::parse_terminated){
-                Ok(expr) => expr,
-                _=> panic!("wrong format of 'permission' attribute for variant {}", variant.ident)
+/// One of potentially multiple permission attributes attached to a message variant
+#[derive(Debug, Clone)]
+enum PermissionAttribute {
+    Specific(Vec<Ident>),
+    General(Permission),
+    External(Vec<Ident>),
+}
+
+impl Parse for PermissionAttribute {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let expr: Expr = input.parse()?;
+
+        match expr {
+            // Any, Admin, etc.
+            Expr::Path(path) => {
+                let ident = path.path.require_ident()?;
+
+                // parse identifier to permission
+                Ok(PermissionAttribute::General(
+                    Permission::from_str(&ident.to_string())
+                        .map_err(|_| syn::Error::new_spanned(path, "invalid permission"))?,
+                ))
             }
-        })
-        .map(|expr| match expr {
-            Expr::Path(path) => (None, Some(path.path), None),
-            Expr::Call(ExprCall { args, func, .. }) => {
-                let paths = parse_non_general_permissions(&variant, args);
+            // Specific(...), Proxy(...)
+            Expr::Call(ExprCall { func, args, .. }) => {
+                let paths = parse_permission_args(args)
+                    .map_ok(|path| path.require_ident().cloned())
+                    .flatten()
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 match *func {
-                    Expr::Path(p) if p.path.is_ident("Specific") => {
-                        (Some(paths), None, None)
-                    },
-                    Expr::Path(p) if p.path.is_ident("Proxy") => {
-                        (None, None, Some(paths))
-                    },
+                        Expr::Path(p) if p.path.is_ident("Specific") => {
+                            Ok(PermissionAttribute::Specific(paths))
+                        },
+                        Expr::Path(p) if p.path.is_ident("Proxy") => {
+                            Ok(PermissionAttribute::External(paths))
+                        },
+                        _ => Err(syn::Error::new_spanned(
+                            func,
+                            "unrecognized permission attribute, suggestion: 'Specific(...)' or 'Proxy(...)'?",
+                        )),
+                    }
+            }
+            _ => Err(syn::Error::new_spanned(
+                expr,
+                "unrecognized permission attribute",
+            )),
+        }
+    }
+}
+
+impl MsgPermissions {
+    pub fn parse(variant: &Variant) -> Option<Self> {
+        let (specific, general, external): (Vec<_>, Vec<_>, Vec<_>) = variant
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("permission"))
+            .flat_map(|attr| {
+                match attr
+                    .parse_args_with(Punctuated::<PermissionAttribute, Token![,]>::parse_terminated)
+                {
+                    Ok(expr) => expr,
                     _ => panic!(
-                        "unrecognized permission attribute for variant {}, suggestion: 'Specific(...)' or 'Proxy(...)'?",
+                        "wrong format of 'permission' attribute for variant {}",
                         variant.ident
                     ),
                 }
-            }
-            expr =>
-                panic!(
-                    "unrecognized permission attribute '{}' for variant {}",
-                    quote! {#expr}, variant.ident
-                )
-        })
-        .multiunzip();
+            })
+            .map(|attribute| match attribute {
+                PermissionAttribute::Specific(paths) => (Some(paths), None, None),
+                PermissionAttribute::General(permission) => (None, Some(permission), None),
+                PermissionAttribute::External(paths) => (None, None, Some(paths)),
+            })
+            .multiunzip();
 
-    let specific: Vec<Path> = specific.into_iter().flatten().flatten().collect();
-    let general: Vec<Path> = general.into_iter().flatten().collect();
-    let external: Vec<Path> = external.into_iter().flatten().flatten().collect();
+        let specific: Vec<_> = specific.into_iter().flatten().flatten().collect();
+        let general: Vec<_> = general.into_iter().flatten().collect();
+        let external: Vec<_> = external.into_iter().flatten().flatten().collect();
 
-    if !general.iter().all_unique() {
-        panic!("permissions for variant {} must be unique", variant.ident);
-    }
+        if !general.iter().all_unique() {
+            panic!("permissions for variant {} must be unique", variant.ident);
+        }
 
-    if !specific.iter().all_unique() {
-        panic!(
-            "whitelisted addresses for variant {} must be unique",
-            variant.ident
-        );
-    }
+        if !specific.iter().all_unique() {
+            panic!(
+                "whitelisted addresses for variant {} must be unique",
+                variant.ident
+            );
+        }
 
-    if !external.iter().all_unique() {
-        panic!(
-            "whitelisted external addresses for variant {} must be unique",
-            variant.ident
-        );
-    }
+        if !external.iter().all_unique() {
+            panic!(
+                "whitelisted external addresses for variant {} must be unique",
+                variant.ident
+            );
+        }
 
-    if general.is_empty() && specific.is_empty() {
-        panic!(
-            "permissions for variant {} must not be empty",
-            variant.ident
-        );
-    }
+        if general.is_empty() && specific.is_empty() {
+            panic!(
+                "permissions for variant {} must not be empty",
+                variant.ident
+            );
+        }
 
-    if general.iter().any(is_permission_any) && !specific.is_empty() {
-        panic!(
-            "whitelisting addresses for variant {} is useless because permission '{:?}' is set",
-            variant.ident,
-            Permission::Any
-        );
-    }
+        if general.contains(&Permission::Any) && !specific.is_empty() {
+            panic!(
+                "whitelisting addresses for variant {} is useless because permission '{:?}' is set",
+                variant.ident,
+                Permission::Any
+            );
+        }
 
-    Some((
-        variant.ident,
-        MsgPermissions {
+        Some(MsgPermissions {
             specific,
             general,
             external,
-        },
-    ))
+        })
+    }
 }
 
-fn parse_non_general_permissions(
-    variant: &Variant,
-    args: Punctuated<Expr, Comma>,
-) -> impl IntoIterator<Item = Path> + '_ {
+fn parse_permission_args(args: Punctuated<Expr, Comma>) -> impl Iterator<Item = syn::Result<Path>> {
     args.into_iter().map(|arg| match arg {
-        Expr::Path(path) => path.path,
-        _ => panic!("wrong format of non-general permission attribute for variant {}, only comma separated identifiers are allowed", variant.ident),
+        Expr::Path(path) => Ok(path.path),
+        _ => Err(syn::Error::new_spanned(arg, "wrong format of non-general permission attribute, only comma separated identifiers are allowed")),
     })
-}
-
-fn is_permission_any(path: &Path) -> bool {
-    path.get_ident()
-        .filter(|ident| ident.to_string() == format!("{:?}", Permission::Any))
-        .is_some()
 }
 
 fn build_specific_permissions_check(
@@ -307,7 +332,7 @@ fn build_general_permissions_check(
     permissions: &[MsgPermissions],
 ) -> proc_macro2::TokenStream {
     let general_permissions_quote = permissions.iter().map(|permission| {
-        let general_permissions: &[_] = permission.general.as_ref();
+        let general_permissions: Vec<_> = permission.general.iter().map(|permission| syn::Ident::new(permission.as_ref(), Span::call_site())).collect();
 
         if general_permissions.is_empty() && !permission.specific.is_empty() {
             // getting to this point means the specific check has failed, so we return an error
@@ -365,15 +390,7 @@ fn build_verify_external_executor_function(
         let allowed_contracts: Vec<_> = permission
             .external
             .iter()
-            .map(|path| {
-                syn::LitStr::new(
-                    &path
-                        .get_ident()
-                        .expect("error parsing proxy contract's name from permissions")
-                        .to_string(),
-                    Span::call_site(),
-                )
-            })
+            .map(|ident| syn::LitStr::new(&ident.to_string(), ident.span()))
             .collect();
 
         quote! {
@@ -408,14 +425,7 @@ fn build_full_check_function(
         .iter()
         .flat_map(|permission| permission.specific.iter())
         .unique()
-        .sorted_by(|a, b| {
-            sort_permissions(
-                a.get_ident()
-                    .expect("error parsing specific permission identifier"),
-                b.get_ident()
-                    .expect("error parsing specific permission identifier"),
-            )
-        })
+        .sorted_by(|a, b| sort_permissions(a, b))
         .collect::<Vec<_>>();
 
     let comments = quote! {
@@ -809,10 +819,7 @@ fn build_golden_test(
                 .iter()
                 .map(|p| p.to_token_stream().to_string())
                 .collect::<Vec<_>>();
-            let general = general
-                .iter()
-                .map(|p| p.to_token_stream().to_string())
-                .collect::<Vec<_>>();
+            let general = general.iter().map(|p| p.as_ref()).collect::<Vec<_>>();
             let external = external
                 .iter()
                 .map(|p| p.to_token_stream().to_string())
