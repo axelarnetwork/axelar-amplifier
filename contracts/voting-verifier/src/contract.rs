@@ -1,4 +1,4 @@
-use axelar_wasm_std::address::validate_address;
+use axelar_wasm_std::address::validate_contract_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -32,7 +32,7 @@ pub fn instantiate(
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    validate_address(&msg.source_gateway_address, &msg.address_format)
+    validate_contract_address(&msg.source_gateway_address, &msg.address_format)
         .change_context(ContractError::InvalidSourceGatewayAddress)?;
 
     let config = Config {
@@ -336,6 +336,25 @@ mod test {
                 should_fail: false,
             },
             TestCase {
+                source_gateway_address: "gateway.aleo".to_string(),
+                address_format: AddressFormat::Aleo(
+                    aleo_gateway::network::NetworkConfig::TestnetV0,
+                ),
+                should_fail: false,
+            },
+            TestCase {
+                source_gateway_address: "gateway.aleo".to_string(),
+                address_format: AddressFormat::Aleo(
+                    aleo_gateway::network::NetworkConfig::MainnetV0,
+                ),
+                should_fail: false,
+            },
+            TestCase {
+                source_gateway_address: "gateway.aleo".to_string(),
+                address_format: AddressFormat::Aleo(aleo_gateway::network::NetworkConfig::CanaryV0),
+                should_fail: false,
+            },
+            TestCase {
                 source_gateway_address: "0x4f4495243837681061C4743b74B3eEdf548D56A5".to_string(),
                 address_format: AddressFormat::Eip55,
                 should_fail: true,
@@ -408,6 +427,28 @@ mod test {
                         .to_string()
                         .to_uppercase(),
                 address_format: AddressFormat::Sui,
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address:
+                    "aleo1q3t7cjwk9ncxcdxfm8r5ax83mzudd923gffncv5egfjyevfevuyscvcvz".to_string(),
+                address_format: AddressFormat::Aleo(
+                    aleo_gateway::network::NetworkConfig::TestnetV0,
+                ),
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address:
+                    "aleo1q3t7cjwk9ncxcdxfm8r5ax83mzudd923gffncv5egfjyevfevuyscvcvz".to_string(),
+                address_format: AddressFormat::Aleo(
+                    aleo_gateway::network::NetworkConfig::MainnetV0,
+                ),
+                should_fail: true,
+            },
+            TestCase {
+                source_gateway_address:
+                    "aleo1q3t7cjwk9ncxcdxfm8r5ax83mzudd923gffncv5egfjyevfevuyscvcvz".to_string(),
+                address_format: AddressFormat::Aleo(aleo_gateway::network::NetworkConfig::CanaryV0),
                 should_fail: true,
             },
         ];

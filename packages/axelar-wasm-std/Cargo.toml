@@ -14,6 +14,7 @@ crate-type = ["rlib"]
 derive = ["dep:axelar-wasm-std-derive"]
 
 [dependencies]
+aleo-gateway = { workspace = true }
 alloy-primitives = { workspace = true }
 axelar-wasm-std-derive = { workspace = true, optional = true }
 bech32 = { workspace = true }
