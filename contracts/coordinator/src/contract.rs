@@ -157,7 +157,7 @@ mod tests {
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::{Addr, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
 
     use super::*;
     use crate::msg::ChainContractsKey;
@@ -177,7 +177,7 @@ mod tests {
         let mut app = App::new(no_init);
 
         let admin_addr = app.api().addr_make("admin");
-        let chain_name: ChainName = "Ethereum".parse().unwrap();
+        let chain_name = chain_name!("Ethereum");
         let prover = app.api().addr_make("eth_prover");
         let gateway = app.api().addr_make("eth_gateway");
         let verifier = app.api().addr_make("eth_voting_verifier");

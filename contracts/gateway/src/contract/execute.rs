@@ -180,7 +180,7 @@ fn messages_into_events(msgs: Vec<Message>, transform: fn(Message) -> GatewayEve
 mod tests {
     use axelar_wasm_std::err_contains;
     use cosmwasm_std::testing::mock_dependencies;
-    use router_api::{CrossChainId, Message};
+    use router_api::{chain_name, CrossChainId, Message};
 
     use crate::contract::execute::route_outgoing_messages;
     use crate::state;
@@ -190,7 +190,7 @@ mod tests {
         let mut msg = Message {
             cc_id: CrossChainId::new("source-chain", "0x1234-1").unwrap(),
             source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination-chain".parse().unwrap(),
+            destination_chain: chain_name!("destination-chain"),
             destination_address: "destination-address".parse().unwrap(),
             payload_hash: [1; 32],
         };

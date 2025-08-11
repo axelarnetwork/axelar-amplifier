@@ -183,7 +183,7 @@ mod test {
         from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmMsg,
         WasmQuery,
     };
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
 
     use crate::client::Client;
     use crate::key::{KeyType, PublicKey, Signature};
@@ -275,7 +275,7 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contract_address = MockApi::default().addr_make("prover").to_string();
-        let chain_name = "ethereum".parse().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -288,7 +288,7 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contract_address = MockApi::default().addr_make("prover").to_string();
-        let chain_name = "ethereum".parse().unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -454,7 +454,7 @@ mod test {
 
         let contracts: HashMap<String, ChainName> = HashMap::from([(
             MockApi::default().addr_make("prover").to_string(),
-            ChainName::try_from("ethereum").unwrap(),
+            chain_name!("ethereum"),
         )]);
 
         match client.authorize_callers(contracts) {
@@ -471,7 +471,7 @@ mod test {
 
         let contracts: HashMap<String, ChainName> = HashMap::from([(
             MockApi::default().addr_make("prover").to_string(),
-            ChainName::try_from("ethereum").unwrap(),
+            chain_name!("ethereum"),
         )]);
 
         match client.unauthorize_callers(contracts) {
