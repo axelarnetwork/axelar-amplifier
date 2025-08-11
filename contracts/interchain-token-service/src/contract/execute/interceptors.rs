@@ -338,6 +338,7 @@ mod test {
         DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
     use router_api::{address, chain_name_raw, cosmos_address};
+
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
     use crate::msg;

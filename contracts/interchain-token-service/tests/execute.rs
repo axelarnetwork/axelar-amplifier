@@ -12,13 +12,9 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-<<<<<<< HEAD
 use router_api::{
     address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
 };
-=======
-use router_api::{chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId};
->>>>>>> ce0dc623 (refactor(tests): use `cosmos_addr!` macro instead of string literal conversion (#991))
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
