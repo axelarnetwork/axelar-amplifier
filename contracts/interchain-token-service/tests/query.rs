@@ -8,7 +8,11 @@ use interchain_token_service::msg::{
     DEFAULT_PAGINATION_LIMIT,
 };
 use interchain_token_service_std::TokenId;
+<<<<<<< HEAD
 use router_api::{address, chain_name_raw, cosmos_addr, Address};
+=======
+use router_api::{chain_name_raw, cosmos_addr, Address};
+>>>>>>> ce0dc623 (refactor(tests): use `cosmos_addr!` macro instead of string literal conversion (#991))
 
 mod utils;
 

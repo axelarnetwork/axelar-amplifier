@@ -337,12 +337,7 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
-<<<<<<< HEAD
     use router_api::{address, chain_name_raw, cosmos_address};
-=======
-    use router_api::ChainNameRaw;
->>>>>>> 100442c7 (Revert "Merge branch 'feat/coordinator-combine-one-click' into fix/coordinator-specifies-admin-addresses")
-
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
     use crate::msg;
