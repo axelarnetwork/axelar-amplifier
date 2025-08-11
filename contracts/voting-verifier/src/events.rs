@@ -348,7 +348,11 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
+<<<<<<< HEAD
     use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
+=======
+    use router_api::{chain_name, CrossChainId, Message};
+>>>>>>> 8e6a9434 (refactor(tests): use `chain_name!` macro instead of string literal conversion (#992))
     use serde_json::json;
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};

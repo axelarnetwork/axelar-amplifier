@@ -659,7 +659,11 @@ mod tests {
                             .parse()
                             .unwrap(),
                     destination_chain: chain_name!("ethereum"),
+<<<<<<< HEAD
                     destination_address: address!("destination-address"),
+=======
+                    destination_address: "destination-address".parse().unwrap(),
+>>>>>>> 8e6a9434 (refactor(tests): use `chain_name!` macro instead of string literal conversion (#992))
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
