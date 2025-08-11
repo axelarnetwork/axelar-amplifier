@@ -8,7 +8,7 @@ use interchain_token_service::msg::{
     DEFAULT_PAGINATION_LIMIT,
 };
 use interchain_token_service_std::TokenId;
-use router_api::{chain_name_raw, cosmos_addr, Address};
+use router_api::{address, chain_name_raw, cosmos_addr, Address};
 
 mod utils;
 
@@ -25,18 +25,14 @@ impl ChainConfigTest {
 
         let eth = utils::ChainData {
             chain: chain_name_raw!("Ethereum"),
-            address: "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            address: address!("0x1234567890123456789012345678901234567890"),
             max_uint_bits: 256.try_into().unwrap(),
             max_decimals: 18,
         };
 
         let polygon = utils::ChainData {
             chain: chain_name_raw!("Polygon"),
-            address: "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            address: address!("0x1234567890123456789012345678901234567890"),
             max_uint_bits: 256.try_into().unwrap(),
             max_decimals: 18,
         };
@@ -128,15 +124,11 @@ fn query_all_its_contracts() {
     let its_contracts = vec![
         (
             chain_name_raw!("ethereum"),
-            "0x1234567890123456789012345678901234567890"
-                .parse::<Address>()
-                .unwrap(),
+            address!("0x1234567890123456789012345678901234567890"),
         ),
         (
             chain_name_raw!("Optimism"),
-            "0x0987654321098765432109876543210987654321"
-                .parse()
-                .unwrap(),
+            address!("0x0987654321098765432109876543210987654321"),
         ),
     ]
     .into_iter()

@@ -44,7 +44,7 @@ impl<'a> Client<'a> {
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{to_json_binary, HexBinary, WasmMsg};
-    use router_api::{cosmos_addr, CrossChainId};
+    use router_api::{address, cosmos_addr, CrossChainId};
 
     use crate::clients::external;
 
@@ -55,7 +55,7 @@ mod test {
         let destination_addr = cosmos_addr!("axelar-executable");
 
         let executable_msg = external::AxelarExecutableMsg {
-            source_address: "source-address".parse().unwrap(),
+            source_address: address!("source-address"),
             payload: HexBinary::from(vec![1, 2, 3]),
             cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
         };

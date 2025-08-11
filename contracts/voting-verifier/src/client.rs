@@ -120,7 +120,7 @@ mod test {
         from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
     };
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name, cosmos_addr, CrossChainId, Message};
+    use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 
     use crate::contract::{instantiate, query};
     use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
@@ -143,8 +143,8 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "0x1234".parse().unwrap(),
-            destination_address: "0x5678".parse().unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
             destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         };
@@ -159,8 +159,8 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "0x4321".parse().unwrap(),
-            destination_address: "0x8765".parse().unwrap(),
+            source_address: address!("0x4321"),
+            destination_address: address!("0x8765"),
             destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         };
@@ -238,8 +238,8 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "0x1234".parse().unwrap(),
-            destination_address: "0x5678".parse().unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
             destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         }]);

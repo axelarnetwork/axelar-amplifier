@@ -64,7 +64,7 @@ impl Client<'_> {
 mod test {
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::{address, chain_name, cosmos_addr};
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -86,7 +86,7 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let destination_chain = chain_name!("destination-chain");
-        let destination_address: Address = "destination-address".parse().unwrap();
+        let destination_address = address!("destination-address");
         let payload = HexBinary::from(vec![1, 2, 3]);
 
         let msg = client.call_contract(
