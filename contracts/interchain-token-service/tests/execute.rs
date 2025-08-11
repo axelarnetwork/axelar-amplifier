@@ -12,7 +12,9 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId};
+use router_api::{
+    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
+};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
