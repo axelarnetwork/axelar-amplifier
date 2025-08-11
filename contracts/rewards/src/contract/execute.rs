@@ -276,6 +276,7 @@ mod test {
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn current_epoch_same_epoch_is_idempotent() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -335,6 +336,7 @@ mod test {
 
     /// Tests that the current epoch is computed correctly when the expected epoch is different from the stored epoch
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn current_epoch_different_epoch() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -390,6 +392,7 @@ mod test {
 
     /// Tests that multiple participation events for the same pool within a given epoch are recorded correctly
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn record_participation_multiple_events() {
         let cur_epoch_num = 1u64;
         let epoch_block_start = 250u64;
@@ -448,6 +451,7 @@ mod test {
 
     /// Tests that the participation event is recorded correctly when the event spans multiple epochs
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn record_participation_epoch_boundary() {
         let starting_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -602,6 +606,7 @@ mod test {
     /// Test that rewards parameters are updated correctly. In this test we don't change the epoch duration, so
     /// that computation of the current epoch is unaffected.
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn successfully_update_params() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
@@ -673,6 +678,7 @@ mod test {
 
     /// Test extending the epoch duration. This should not change the current epoch
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn extend_epoch_duration() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
@@ -742,6 +748,7 @@ mod test {
     /// Test shortening the epoch duration. This test shortens the epoch duration such that the current epoch doesn't change
     /// (i.e. we are 10 blocks into the epoch, and we shorten the duration from 100 to 50)
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn shorten_epoch_duration_same_epoch() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 256u64;
@@ -805,6 +812,7 @@ mod test {
     /// Tests shortening the epoch duration such that the current epoch does change
     /// (i.e. we are 50 blocks into the epoch, and we shorten the duration to 10 blocks)
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn shorten_epoch_duration_diff_epoch() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
@@ -865,6 +873,7 @@ mod test {
 
     /// Tests that rewards are added correctly to a single pool
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn added_rewards_should_be_reflected_in_rewards_pool() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -987,6 +996,7 @@ mod test {
 
     /// Tests that pools can have different reward amounts
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn multiple_pools_different_rewards_amount() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -1082,6 +1092,7 @@ mod test {
 
     /// Tests that pools can have different participation thresholds
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn multiple_pools_different_threshold() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -1182,6 +1193,7 @@ mod test {
 
     /// Tests that pools can have different epoch lengths
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn multiple_pools_different_epoch_length() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -1263,6 +1275,7 @@ mod test {
 
     /// Tests that rewards are distributed correctly based on participation
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn successfully_distribute_rewards() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;
@@ -1370,6 +1383,7 @@ mod test {
 
     /// Tests that rewards are distributed correctly for a specified number of epochs, and that pagination works correctly
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn distribute_rewards_specify_epoch_count() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;
@@ -1741,6 +1755,7 @@ mod test {
 
     /// Tests that rewards are distributed correctly based on verifier proxy address
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn distribute_rewards_with_proxy_addresses() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;

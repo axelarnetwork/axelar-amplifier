@@ -621,6 +621,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn save_and_load_rewards_watermark() {
         let mut mock_deps = mock_dependencies();
         let epoch = Epoch {

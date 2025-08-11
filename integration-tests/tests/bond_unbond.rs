@@ -35,6 +35,7 @@ fn verifier_should_not_unbond_while_in_active_set() {
 }
 
 #[test]
+#[allow(clippy::arithmetic_side_effects)]
 fn claim_stake_after_rotation_success() {
     let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
 

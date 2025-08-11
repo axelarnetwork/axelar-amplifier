@@ -209,6 +209,7 @@ mod tests {
     /// Adds rewards to the pool, updates the rewards params, records some participation
     /// events and then distributes the rewards.
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_flow() {
         let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
@@ -360,6 +361,7 @@ mod tests {
     /// Tests that rewards are properly distributed with respect to the verifier proxy address,
     /// and that the proxy address can be correctly queried
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_with_proxy() {
         let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
@@ -549,6 +551,7 @@ mod tests {
     // test that pool parameter updates take effect in the current epoch, even when there is
     // an existing tally
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_existing_tallies() {
         let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
@@ -703,6 +706,7 @@ mod tests {
 
     // test that pool parameter updates take effect in the current epoch when there are no tallies
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_with_no_existing_tallies() {
         let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
@@ -864,6 +868,7 @@ mod tests {
     // immediately ends the current epoch and starts a new one. This tests that things like rewards_per_epoch are updated correctly
     // for the epoch that was ended
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_shortening_epoch() {
         let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
