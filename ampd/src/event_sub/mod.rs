@@ -380,11 +380,9 @@ mod tests {
         let mut stream = subscriber.subscribe();
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
-        // 1st call return LatestBlockQuery error -> record metric
         assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
         tokio::time::advance(Duration::from_secs(1)).await;
 
-        // Second call should succeed and emit events
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::BlockBegin(_))
@@ -394,7 +392,6 @@ mod tests {
         token.cancel();
         handle.await.unwrap().unwrap();
 
-        // only 1 error recorded
         let metric = receiver.recv().await.unwrap();
         assert_eq!(metric, Msg::EventPublisherError);
         assert!(receiver.try_recv().is_err());

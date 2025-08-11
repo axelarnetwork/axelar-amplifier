@@ -64,11 +64,11 @@ pub enum Msg {
         success: bool,
         duration: Duration,
     },
-    /// Record the number of error in msg enqueue
+    /// Record the number of errors in message enqueue operations
     MessageEnqueueError,
-    /// Record the number of event stream polling timeout
+    /// Record the number of event stream polling timeouts
     EventPollingTimeout,
-    /// Record the number of error happens in event publisher
+    /// Record the number of errors that occur in the event publisher
     EventPublisherError,
 }
 
