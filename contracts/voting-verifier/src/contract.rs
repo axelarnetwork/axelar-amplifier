@@ -126,7 +126,7 @@ mod test {
     use cosmwasm_std::{from_json, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::{chain_name, ChainName, CrossChainId, Message};
+    use router_api::{chain_name, cosmos_addr, ChainName, CrossChainId, Message};
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
@@ -185,7 +185,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
                 governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
@@ -423,7 +423,7 @@ mod test {
             let result = instantiate(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&api.addr_make("admin"), &[]),
+                message_info(&cosmos_addr!("admin"), &[]),
                 InstantiateMsg {
                     governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                     service_registry_address: api

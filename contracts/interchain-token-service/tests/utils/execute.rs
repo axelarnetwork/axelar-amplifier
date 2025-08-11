@@ -15,7 +15,7 @@ use interchain_token_service::shared::NumBits;
 use interchain_token_service_std::{HubMessage, TokenId};
 use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
-use router_api::{chain_name, Address, ChainNameRaw, CrossChainId};
+use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
@@ -49,9 +49,7 @@ pub fn execute_hub_message(
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
     let addr = MockApi::default().addr_make(params::GATEWAY);
-    let translation_contract_addr = MockApi::default()
-        .addr_make("translation_contract")
-        .to_string();
+    let translation_contract_addr = cosmos_addr!("translation_contract").to_string();
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
@@ -126,11 +124,7 @@ pub fn register_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            msg_translator: MockApi::default()
-                .addr_make("translation_contract")
-                .to_string()
-                .parse()
-                .unwrap(),
+            msg_translator: cosmos_address!("translation_contract"),
         }],
     )
 }
@@ -186,11 +180,7 @@ pub fn update_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            msg_translator: MockApi::default()
-                .addr_make("translation_contract")
-                .to_string()
-                .parse()
-                .unwrap(),
+            msg_translator: cosmos_address!("translation_contract"),
         }],
     )
 }
