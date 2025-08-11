@@ -1,5 +1,6 @@
 {
   "event_instantiated": {
+    "type": "instantiated",
     "attributes": [
       {
         "key": "service_name",
@@ -41,10 +42,10 @@
         "key": "address_format",
         "value": "\"eip55\""
       }
-    ],
-    "type": "instantiated"
+    ]
   },
   "event_messages_poll_started": {
+    "type": "messages_poll_started",
     "attributes": [
       {
         "key": "messages",
@@ -74,44 +75,10 @@
         "key": "participants",
         "value": "[\"cosmwasm12msqmrh0gvhyfztrlveax89unzvr2wzwc2ggdrs2pa6h8vj5kxhsvfdqwv\",\"cosmwasm162h5mj8myky9cywlshyq4l43k6agc8x3e6c96p552eakkz5z5s6sw2p4jy\",\"cosmwasm1la882th3963m9xcg5ea99mc8uvrel8796za2jwjdgantwlu5gzcqqp9ss4\"]"
       }
-    ],
-    "type": "messages_poll_started"
-  },
-  "event_poll_ended": {
-    "attributes": [
-      {
-        "key": "poll_id",
-        "value": "\"1\""
-      },
-      {
-        "key": "source_chain",
-        "value": "\"sourcechain\""
-      },
-      {
-        "key": "results",
-        "value": "[\"succeeded_on_chain\",\"failed_on_chain\",\"not_found\",null]"
-      }
-    ],
-    "type": "poll_ended"
-  },
-  "event_quorum_reached": {
-    "attributes": [
-      {
-        "key": "content",
-        "value": "\"content\""
-      },
-      {
-        "key": "status",
-        "value": "\"not_found_on_source_chain\""
-      },
-      {
-        "key": "poll_id",
-        "value": "\"1\""
-      }
-    ],
-    "type": "quorum_reached"
+    ]
   },
   "event_verifier_set_poll_started": {
+    "type": "verifier_set_poll_started",
     "attributes": [
       {
         "key": "verifier_set",
@@ -141,10 +108,27 @@
         "key": "participants",
         "value": "[\"cosmwasm143l0pxru5cs9gu0x820jy4x6a7zzuchf5p00mqml86n4k7uhw9dqzdgylr\",\"cosmwasm1z5t8zwcz9fevvk34gkepmjahxpqwtzn9vnhwc7dak7z0g2er9wgs6984ds\",\"cosmwasm1sqz9mxwpefryxcj6e4xf2nc7wayzrdy87pyw2tfdmwteff3d09pq7gkytg\"]"
       }
-    ],
-    "type": "verifier_set_poll_started"
+    ]
+  },
+  "event_quorum_reached": {
+    "type": "quorum_reached",
+    "attributes": [
+      {
+        "key": "content",
+        "value": "\"content\""
+      },
+      {
+        "key": "status",
+        "value": "\"not_found_on_source_chain\""
+      },
+      {
+        "key": "poll_id",
+        "value": "\"1\""
+      }
+    ]
   },
   "event_voted": {
+    "type": "voted",
     "attributes": [
       {
         "key": "poll_id",
@@ -158,7 +142,23 @@
         "key": "votes",
         "value": "[\"succeeded_on_chain\",\"failed_on_chain\",\"not_found\"]"
       }
-    ],
-    "type": "voted"
+    ]
+  },
+  "event_poll_ended": {
+    "type": "poll_ended",
+    "attributes": [
+      {
+        "key": "poll_id",
+        "value": "\"1\""
+      },
+      {
+        "key": "source_chain",
+        "value": "\"sourcechain\""
+      },
+      {
+        "key": "results",
+        "value": "[\"succeeded_on_chain\",\"failed_on_chain\",\"not_found\",null]"
+      }
+    ]
   }
 }

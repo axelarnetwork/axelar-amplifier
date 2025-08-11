@@ -1,0 +1,30 @@
+{
+  "CallContract": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Execute": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "RouteMessages": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "RouteMessagesFromNexus": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "nexus"
+    ]
+  }
+}
