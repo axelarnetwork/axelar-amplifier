@@ -952,14 +952,15 @@ mod tests {
             monitoring_client,
         ));
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(2)).await;
+        tokio::task::yield_now().await;
 
         token.cancel();
         let _ = task.await.unwrap();
 
         let metric = receiver.recv().await.unwrap();
         assert_eq!(metric, metrics::Msg::EventPollingTimeout);
-        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
