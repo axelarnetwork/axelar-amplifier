@@ -5,7 +5,7 @@ use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
-use router_api::ChainName;
+use router_api::chain_name;
 
 pub mod test_utils;
 
@@ -13,7 +13,7 @@ pub mod test_utils;
 fn only_prover_can_update_verifier_set_with_coordinator() {
     let test_utils::TestCase { mut protocol, .. } = test_utils::setup_test_case();
 
-    let chain_name: ChainName = "ethereum".parse().unwrap();
+    let chain_name = chain_name!("ethereum");
 
     // New chain configuration where the coordinator has the wrong prover address
     let voting_verifier = VotingVerifierContract::instantiate_contract(

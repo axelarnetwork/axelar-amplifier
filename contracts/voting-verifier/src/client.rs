@@ -120,7 +120,7 @@ mod test {
         from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
     };
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message};
+    use router_api::{chain_name, CrossChainId, Message};
 
     use crate::contract::{instantiate, query};
     use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
@@ -145,7 +145,7 @@ mod test {
             .unwrap(),
             source_address: "0x1234".parse().unwrap(),
             destination_address: "0x5678".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
+            destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         };
         let msg_2 = Message {
@@ -161,7 +161,7 @@ mod test {
             .unwrap(),
             source_address: "0x4321".parse().unwrap(),
             destination_address: "0x8765".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
+            destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         };
 
@@ -240,7 +240,7 @@ mod test {
             .unwrap(),
             source_address: "0x1234".parse().unwrap(),
             destination_address: "0x5678".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
+            destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         }]);
 
@@ -331,7 +331,7 @@ mod test {
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
-            source_chain: "source-chain".parse().unwrap(),
+            source_chain: chain_name!("source-chain"),
             rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             address_format: axelar_wasm_std::address::AddressFormat::Eip55,

@@ -199,7 +199,7 @@ mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use router_api::ChainName;
+    use router_api::chain_name;
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
@@ -209,8 +209,9 @@ mod tests {
     /// Adds rewards to the pool, updates the rewards params, records some participation
     /// events and then distributes the rewards.
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_flow() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -360,8 +361,9 @@ mod tests {
     /// Tests that rewards are properly distributed with respect to the verifier proxy address,
     /// and that the proxy address can be correctly queried
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_with_proxy() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -549,8 +551,9 @@ mod tests {
     // test that pool parameter updates take effect in the current epoch, even when there is
     // an existing tally
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_existing_tallies() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -703,8 +706,9 @@ mod tests {
 
     // test that pool parameter updates take effect in the current epoch when there are no tallies
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_with_no_existing_tallies() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
@@ -864,8 +868,9 @@ mod tests {
     // immediately ends the current epoch and starts a new one. This tests that things like rewards_per_epoch are updated correctly
     // for the epoch that was ended
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_shortening_epoch() {
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         let user = MockApi::default().addr_make("user");
         let verifier = MockApi::default().addr_make("verifier");
         let pool_contract = MockApi::default().addr_make("pool_contract");
