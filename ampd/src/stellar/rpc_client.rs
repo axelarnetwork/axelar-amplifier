@@ -44,15 +44,6 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
         (transaction_hash, response): (Hash, GetTransactionResponse),
     ) -> Result<Self, Self::Error> {
         let transaction_hash = transaction_hash.to_string();
-
-        if response.status != STATUS_SUCCESS {
-            return Ok(Self {
-                transaction_hash,
-                successful: false,
-                contract_events: vec![],
-            });
-        }
-
         let contract_events = match response.result_meta.as_ref() {
             Some(TransactionMeta::V4(_)) => {
                 let contract_events = response.events.contract_events;
@@ -79,7 +70,7 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
 
         Ok(Self {
             transaction_hash,
-            successful: true, // Only successful transactions reach this point
+            successful: response.status != STATUS_SUCCESS,
             contract_events,
         })
     }
@@ -179,7 +170,11 @@ impl Client {
             Ok(resp) => match TxResponse::try_from((hash, resp)) {
                 Ok(tx_response) => Some(tx_response),
                 Err(err) => {
-                    warn!(error = %err, tx_hash = %tx_hash, "failed to parse transaction response");
+                    warn!(
+                        error = %err,
+                        tx_hash = %tx_hash,
+                        "failed to parse transaction response"
+                    );
                     None
                 }
             },
