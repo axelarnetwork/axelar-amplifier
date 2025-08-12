@@ -85,7 +85,6 @@ mod tests {
     use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
-    use router_api::cosmos_addr;
     use solana_sdk::pubkey::Pubkey;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use solana_transaction_status::UiTransactionStatusMeta;
@@ -189,7 +188,7 @@ mod tests {
                     "aabbcc".to_string(),
                     multisig::msg::Signer {
                         weight: 500_u128.into(),
-                        address: cosmos_addr!("axelar1abc"),
+                        address: cosmwasm_std::Addr::unchecked("axelar1abc"),
                         pub_key: multisig::key::PublicKey::Ecdsa(HexBinary::from_hex(
                     "036773a9d49a2a2f04b4aa8724d0f40e197570e4bb85f6b826da2a4ec25996d018",
                 )
@@ -198,7 +197,7 @@ mod tests {
                 );
                 map.insert("aabbccdd".to_string(), multisig::msg::Signer {
                         weight: 200_u128.into(),
-                        address: cosmos_addr!("axelar1abcaa"),
+                        address: cosmwasm_std::Addr::unchecked("axelar1abcaa"),
                         pub_key: multisig::key::PublicKey::Ecdsa(HexBinary::from_hex("038f8504c6ec6c16f2b37897d33bdb0667da32d18c7144365a47ac934abedcc0ba").unwrap())
                     });
                 map

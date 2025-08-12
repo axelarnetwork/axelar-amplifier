@@ -12,7 +12,7 @@ use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 pub fn new_verifier_set() -> VerifierSet {
     let signers = vec![
         Signer {
-            address: cosmos_addr!("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+            address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -22,7 +22,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: cosmos_addr!("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
+            address: Addr::unchecked("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -32,7 +32,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: cosmos_addr!("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
+            address: Addr::unchecked("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -42,7 +42,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: cosmos_addr!("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
+            address: Addr::unchecked("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -52,7 +52,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: cosmos_addr!("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
+            address: Addr::unchecked("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -157,7 +157,7 @@ pub fn operators() -> Vec<TestOperator> {
         .into_iter()
         .map(
             |(address, pub_key, operator, weight, signature)| TestOperator {
-                address,
+                address: Addr::unchecked(address),
                 pub_key: (KeyType::Ecdsa, HexBinary::from_hex(pub_key).unwrap())
                     .try_into()
                     .unwrap(),

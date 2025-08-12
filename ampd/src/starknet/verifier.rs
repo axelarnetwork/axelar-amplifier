@@ -106,11 +106,11 @@ mod tests {
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std::{HexBinary, Uint128};
+    use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ethers_core::types::H256;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::chain_name;
     use starknet_checked_felt::CheckedFelt;
     use starknet_core::types::Felt;
 
@@ -274,7 +274,7 @@ mod tests {
 
     fn mock_valid_verifier_set_signers_rotated() -> VerifierSet {
         let signers = vec![Signer {
-            address: cosmos_addr!("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+            address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
