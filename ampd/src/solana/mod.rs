@@ -50,44 +50,38 @@ pub trait SolanaRpcClientProxy: Send + Sync + 'static {
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for Client {
     async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
-        let monitoring_client = self.monitoring_client.clone();
-        let chain_name = self.chain_name.clone();
-
-        self.client
+        let res = self
+            .client
             .get_transaction(
                 signature,
                 solana_transaction_status::UiTransactionEncoding::Base58,
             )
-            .map(|tx_data_result| {
-                tx_data_result
-                    .inspect_err(|_| {
-                        monitoring_client
-                            .metrics()
-                            .record_metric(Msg::RpcError { chain_name });
-                    })
-                    .map(|tx_data| tx_data.transaction.meta)
-                    .ok()
-                    .flatten()
-            })
-            .await
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res.map(|tx_data| tx_data.transaction.meta).ok().flatten()
     }
 
     async fn domain_separator(&self) -> Option<[u8; 32]> {
         let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
 
-        let config_data = self
-            .client
-            .get_account(&gateway_root_pda)
-            .await
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
-            .ok()?
-            .data;
+        let res = self.client.get_account(&gateway_root_pda).await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        let config_data = res.ok()?.data;
+
         let config = *GatewayConfig::read(&config_data)?;
         let domain_separator = config.domain_separator;
         Some(domain_separator)
@@ -253,8 +247,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("solana").unwrap(),
+                success: false,
             }
         );
 
@@ -264,8 +259,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("solana").unwrap(),
+                success: false,
             }
         );
 

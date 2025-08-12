@@ -106,18 +106,20 @@ impl Client {
         Ok(responses
             .into_iter()
             .zip(tx_hashes)
-            .filter_map(|(response, hash)| match response {
-                Ok(resp) => {
-                    let tx_response = TxResponse::from((hash, resp));
-                    Some((tx_response.tx_hash(), tx_response))
-                }
-                Err(_) => {
-                    self.monitoring_client
-                        .metrics()
-                        .record_metric(Msg::RpcError {
-                            chain_name: self.chain_name.clone(),
-                        });
-                    None
+            .filter_map(|(response, hash)| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcCall {
+                        chain_name: self.chain_name.clone(),
+                        success: response.is_ok(),
+                    });
+
+                match response {
+                    Ok(resp) => {
+                        let tx_response = TxResponse::from((hash, resp));
+                        Some((tx_response.tx_hash(), tx_response))
+                    }
+                    Err(_) => None,
                 }
             })
             .collect::<HashMap<_, _>>())
@@ -129,16 +131,18 @@ impl Client {
     ) -> error_stack::Result<Option<TxResponse>, Error> {
         let tx_hash = Hash::from_str(tx_hash.as_str()).change_context(Error::TxHash)?;
 
-        match self.client.get_transaction(&tx_hash).await {
+        let res = self.client.get_transaction(&tx_hash).await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        match res {
             Ok(response) => Ok(Some(TxResponse::from((tx_hash, response)))),
-            Err(_) => {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-                Ok(None)
-            }
+            Err(_) => Ok(None),
         }
     }
 }
@@ -175,8 +179,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("stellar").unwrap(),
+                success: false,
             }
         );
 
@@ -195,8 +200,9 @@ mod test {
             let msg = receiver.recv().await.unwrap();
             assert_eq!(
                 msg,
-                Msg::RpcError {
+                Msg::RpcCall {
                     chain_name: ChainName::from_str("stellar").unwrap(),
+                    success: false,
                 }
             );
         }

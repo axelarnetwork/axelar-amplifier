@@ -40,18 +40,21 @@ where
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned + Send,
     {
-        self.provider
+        let res = self
+            .provider
             .request(method, params)
             .await
             .map_err(Into::into)
-            .map_err(Report::from)
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
+            .map_err(Report::from);
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res
     }
 }
 
@@ -111,8 +114,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("ethereum").unwrap(),
+                success: false,
             }
         );
 

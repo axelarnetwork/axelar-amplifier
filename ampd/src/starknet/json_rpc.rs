@@ -94,18 +94,19 @@ where
         &self,
         message_id: FieldElementAndEventIndex,
     ) -> Option<ContractCallEvent> {
-        let receipt_with_block_info = self
+        let res = self
             .client
             .get_transaction_receipt(message_id.tx_hash.clone())
-            .await
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
-            .ok()?;
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        let receipt_with_block_info = res.ok()?;
 
         if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
             return None;
@@ -127,18 +128,19 @@ where
         &self,
         message_id: FieldElementAndEventIndex,
     ) -> Option<SignersRotatedEvent> {
-        let receipt_with_block_info = self
+        let res = self
             .client
             .get_transaction_receipt(message_id.tx_hash.clone())
-            .await
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
-            .ok()?;
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        let receipt_with_block_info = res.ok()?;
 
         if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
             return None;
@@ -526,8 +528,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("starknet").unwrap(),
+                success: false
             }
         );
 
@@ -537,8 +540,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("starknet").unwrap(),
+                success: false,
             }
         );
 
