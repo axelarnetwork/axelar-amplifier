@@ -1,6 +1,6 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
-blocks_received_total 0
+blocks_received_total 3
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
 verification_votes_total{chain_name="avalanche",vote_decision="FailedOnChain"} 1
@@ -18,6 +18,10 @@ verification_votes_total{chain_name="solana",vote_decision="SucceededOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="FailedOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="NotFound"} 1
 verification_votes_total{chain_name="stellar",vote_decision="SucceededOnChain"} 1
+# HELP rpc_errors number of errors returned from RPC calls per chain.
+# TYPE rpc_errors counter
+rpc_errors_total{chain_name="ethereum"} 1
+rpc_errors_total{chain_name="polygon"} 1
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent

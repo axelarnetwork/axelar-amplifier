@@ -6,11 +6,14 @@ use std::fmt;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
 use mockall::automock;
+use router_api::ChainName;
 use starknet_core::types::{ExecutionResult, TransactionReceipt};
 use starknet_providers::jsonrpc::JsonRpcTransport;
 use starknet_providers::{JsonRpcClient, Provider, ProviderError};
 use thiserror::Error;
 
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
 use crate::types::starknet::events::contract_call::{ContractCallError, ContractCallEvent};
 use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
@@ -34,7 +37,9 @@ pub struct Client<T>
 where
     T: JsonRpcTransport + Send + Sync,
 {
-    client: JsonRpcClient<T>,
+    transport: JsonRpcClient<T>,
+    monitoring_client: monitoring::Client,
+    chain_name: ChainName,
 }
 
 impl<T> Client<T>
@@ -44,9 +49,15 @@ where
     /// Constructor.
     /// Expects URL of any JSON RPC entry point of Starknet, which you can find
     /// as constants in the `networks.rs` module
-    pub fn new_with_transport(transport: T) -> Result<Self> {
+    pub fn new_with_transport(
+        transport: T,
+        monitoring_client: monitoring::Client,
+        chain_name: ChainName,
+    ) -> Result<Self> {
         Ok(Client {
-            client: JsonRpcClient::new(transport),
+            transport: JsonRpcClient::new(transport),
+            monitoring_client,
+            chain_name,
         })
     }
 }
@@ -84,9 +95,16 @@ where
         message_id: FieldElementAndEventIndex,
     ) -> Option<ContractCallEvent> {
         let receipt_with_block_info = self
-            .client
+            .transport
             .get_transaction_receipt(message_id.tx_hash.clone())
             .await
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcError {
+                        chain_name: self.chain_name.clone(),
+                    });
+            })
             .ok()?;
 
         if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
@@ -110,9 +128,16 @@ where
         message_id: FieldElementAndEventIndex,
     ) -> Option<SignersRotatedEvent> {
         let receipt_with_block_info = self
-            .client
+            .transport
             .get_transaction_receipt(message_id.tx_hash.clone())
             .await
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcError {
+                        chain_name: self.chain_name.clone(),
+                    });
+            })
             .ok()?;
 
         if *receipt_with_block_info.receipt.execution_result() != ExecutionResult::Succeeded {
@@ -150,6 +175,7 @@ mod test {
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axum::async_trait;
     use ethers_core::types::H256;
+    use router_api::ChainName;
     use serde::de::DeserializeOwned;
     use serde::Serialize;
     use starknet_checked_felt::CheckedFelt;
@@ -160,13 +186,20 @@ mod test {
     use starknet_providers::{ProviderError, ProviderRequestData};
 
     use super::{Client, StarknetClient};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
     use crate::types::starknet::events::contract_call::ContractCallEvent;
     use crate::types::starknet::events::signers_rotated::SignersRotatedEvent;
 
     #[tokio::test]
     async fn invalid_signers_rotated_event_tx_fetch() {
-        let mock_client =
-            Client::new_with_transport(InvalidSignersRotatedEventMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            InvalidSignersRotatedEventMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_event = mock_client
             .event_by_message_id_signers_rotated(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -179,7 +212,13 @@ mod test {
 
     #[tokio::test]
     async fn deploy_account_tx_fetch() {
-        let mock_client = Client::new_with_transport(DeployAccountMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            DeployAccountMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -192,7 +231,13 @@ mod test {
 
     #[tokio::test]
     async fn deploy_tx_fetch() {
-        let mock_client = Client::new_with_transport(DeployMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            DeployMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -205,7 +250,13 @@ mod test {
 
     #[tokio::test]
     async fn l1_handler_tx_fetch() {
-        let mock_client = Client::new_with_transport(L1HandlerMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            L1HandlerMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -218,7 +269,13 @@ mod test {
 
     #[tokio::test]
     async fn declare_tx_fetch() {
-        let mock_client = Client::new_with_transport(DeclareMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            DeclareMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -231,8 +288,13 @@ mod test {
 
     #[tokio::test]
     async fn invalid_contract_call_event_tx_fetch() {
-        let mock_client =
-            Client::new_with_transport(InvalidContractCallEventMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            InvalidContractCallEventMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -245,7 +307,13 @@ mod test {
 
     #[tokio::test]
     async fn no_events_tx_fetch() {
-        let mock_client = Client::new_with_transport(NoEventsMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            NoEventsMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -258,7 +326,13 @@ mod test {
 
     #[tokio::test]
     async fn reverted_tx_fetch() {
-        let mock_client = Client::new_with_transport(RevertedMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            RevertedMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_event = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -271,7 +345,13 @@ mod test {
 
     #[tokio::test]
     async fn failing_tx_fetch() {
-        let mock_client = Client::new_with_transport(FailingMockTransport).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            FailingMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_event = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -284,7 +364,13 @@ mod test {
 
     #[tokio::test]
     async fn successful_signers_rotated_tx_fetch() {
-        let mock_client = Client::new_with_transport(ValidMockTransportSignersRotated).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            ValidMockTransportSignersRotated,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let signers_rotated_event = mock_client
             .event_by_message_id_signers_rotated(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -320,8 +406,13 @@ mod test {
 
     #[tokio::test]
     async fn successful_two_call_contracts_in_one_tx_fetch() {
-        let mock_client =
-            Client::new_with_transport(ValidMockTransportTwoCallContractsInOneTx).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            ValidMockTransportTwoCallContractsInOneTx,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -377,7 +468,13 @@ mod test {
 
     #[tokio::test]
     async fn successful_call_contract_tx_fetch() {
-        let mock_client = Client::new_with_transport(ValidMockTransportCallContract).unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let mock_client = Client::new_with_transport(
+            ValidMockTransportCallContract,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
         let contract_call_events = mock_client
             .event_by_message_id_contract_call(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
@@ -403,6 +500,49 @@ mod test {
                 ])
             }
         );
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let client = Client::new_with_transport(
+            FailingMockTransport,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
+
+        let message_id = FieldElementAndEventIndex {
+            tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+            event_index: 0,
+        };
+
+        let result = client
+            .event_by_message_id_contract_call(message_id.clone())
+            .await;
+        assert!(result.is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcError {
+                chain_name: ChainName::from_str("starknet").unwrap(),
+            }
+        );
+
+        let result = client.event_by_message_id_signers_rotated(message_id).await;
+        assert!(result.is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcError {
+                chain_name: ChainName::from_str("starknet").unwrap(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     struct FailingMockTransport;

@@ -3,10 +3,13 @@ use std::str::FromStr;
 
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
+use router_api::ChainName;
 use stellar_rpc_client::GetTransactionResponse;
 use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta};
 use thiserror::Error;
-use tracing::warn;
+
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
 
 use crate::url::Url;
 
@@ -103,15 +106,27 @@ impl TxResponse {
 
 #[cfg_attr(test, faux::create)]
 #[derive(Debug)]
-pub struct Client(stellar_rpc_client::Client);
+pub struct Client {
+    client: stellar_rpc_client::Client,
+    monitoring_client: monitoring::Client,
+    chain_name: ChainName,
+}
 
 #[cfg_attr(test, faux::methods)]
 impl Client {
-    pub fn new(url: Url) -> error_stack::Result<Self, Error> {
-        Ok(Self(
-            stellar_rpc_client::Client::new(url.as_str())
-                .map_err(|err_str| report!(Error::Client).attach_printable(err_str))?,
-        ))
+    pub fn new(
+        url: Url,
+        monitoring_client: monitoring::Client,
+        chain_name: ChainName,
+    ) -> error_stack::Result<Self, Error> {
+        stellar_rpc_client::Client::new(url.as_str())
+                .map_err(|err_str| report!(Error::Client).attach_printable(err_str))?;
+
+        Ok(Self {
+            client,
+            monitoring_client,
+            chain_name,
+        })
     }
 
     fn validate_tx_response(
@@ -146,7 +161,7 @@ impl Client {
         let responses = join_all(
             tx_hashes
                 .iter()
-                .map(|tx_hash| self.0.get_transaction(tx_hash)),
+                .map(|tx_hash| self.client.get_transaction(tx_hash)),
         )
         .await;
 
@@ -167,7 +182,7 @@ impl Client {
         let tx_hash = Hash::from_str(tx_hash.as_str()).change_context(Error::TxHash)?;
 
         Ok(Self::validate_tx_response(
-            self.0.get_transaction(&tx_hash).await,
+            self.client.get_transaction(&tx_hash).await,
             tx_hash,
         ))
     }
@@ -421,5 +436,67 @@ mod tests {
         let result = Client::validate_tx_response(Ok(response), hash);
 
         assert!(result.is_none());
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashSet;
+    use std::str::FromStr;
+
+    use router_api::ChainName;
+
+    use super::Client;
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
+
+    #[tokio::test]
+    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let tx_hash1 =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+
+        let client = Client::new(
+            "http://invalid_link".to_string(),
+            monitoring_client,
+            ChainName::from_str("stellar").unwrap(),
+        )
+        .unwrap();
+
+        let result = client.transaction_response(tx_hash1.clone()).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcError {
+                chain_name: ChainName::from_str("stellar").unwrap(),
+            }
+        );
+
+        let mut tx_hashes = HashSet::new();
+
+        let tx_hash2 =
+            "0000000000000000000000000000000000000000000000000000000000000001".to_string();
+        tx_hashes.insert(tx_hash1.clone());
+        tx_hashes.insert(tx_hash2.clone());
+
+        let result = client.transaction_responses(tx_hashes).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+
+        for _ in 0..2 {
+            let msg = receiver.recv().await.unwrap();
+            assert_eq!(
+                msg,
+                Msg::RpcError {
+                    chain_name: ChainName::from_str("stellar").unwrap(),
+                }
+            );
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 }

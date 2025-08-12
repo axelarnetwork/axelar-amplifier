@@ -46,6 +46,8 @@ pub enum Msg {
         vote_decision: voting::Vote,
         chain_name: ChainName,
     },
+    /// Record the number of errors returned from RPC client calls
+    RpcError { chain_name: ChainName },
 }
 
 /// Errors that can occur in metrics processing
@@ -206,19 +208,23 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
+    rpc_error: RpcErrorMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
+        let rpc_error = RpcErrorMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
+        rpc_error.register(registry);
 
         Self {
             block_received,
             verification_vote,
+            rpc_error,
         }
     }
 
@@ -234,6 +240,10 @@ impl Metrics {
             } => {
                 self.verification_vote
                     .record_verification_vote(vote_decision, chain_name);
+            }
+
+            Msg::RpcError { chain_name } => {
+                self.rpc_error.record_rpc_error(chain_name);
             }
         }
     }
@@ -313,6 +323,30 @@ impl VerificationVoteMetrics {
             chain_name,
             vote_decision,
         };
+        self.total.get_or_create(&label).inc();
+    }
+}
+
+struct RpcErrorMetrics {
+    total: Family<Vec<(String, String)>, Counter>,
+}
+
+impl RpcErrorMetrics {
+    fn new() -> Self {
+        let total = Family::<Vec<(String, String)>, Counter>::default();
+        Self { total }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "rpc_errors",
+            "number of errors returned from RPC calls per chain",
+            self.total.clone(),
+        );
+    }
+
+    fn record_rpc_error(&self, chain_name: ChainName) {
+        let label = vec![("chain_name".to_string(), chain_name.to_string())];
         self.total.get_or_create(&label).inc();
     }
 }
@@ -400,19 +434,19 @@ impl Collector for SystemMetricsCollector {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+    use std::str::FromStr;
 
     use axum::Router;
     use axum_test::TestServer;
     use itertools::Itertools;
     use router_api::chain_name;
     use tokio::time;
-    use tracing_test::traced_test;
 
     use super::test_utils::zeroize_system_metrics;
     use super::*;
 
     #[tokio::test(start_paused = true)]
-    async fn should_increment_blocks_received_counter_when_message_processed() {
+    async fn should_update_all_metrics_successfully() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -421,34 +455,14 @@ mod tests {
 
         let initial_metrics = server.get("/test").await;
 
-        initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
+        // blocks received
         client.record_metric(Msg::BlockReceived);
         client.record_metric(Msg::BlockReceived);
         client.record_metric(Msg::BlockReceived);
 
-        // Wait for the metrics to be updated
-        time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
-        final_metrics.assert_text_contains("blocks_received_total 3");
-        final_metrics.assert_status_ok();
-
-        // Ensure the final metrics are in the expected format
-        goldie::assert!(zeroize_system_metrics(&final_metrics.text()))
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn should_update_verification_votes_metrics_correctly_when_multiple_chains_cast_votes() {
-        let (router, process, client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let initial_metrics = server.get("/test").await;
-        initial_metrics.assert_status_ok();
-
+        // verification votes
         let chain_names = vec![
             chain_name!("ethereum"),
             chain_name!("solana"),
@@ -472,47 +486,43 @@ mod tests {
             });
         }
 
+        // rpc errors
+        client.record_metric(Msg::RpcError {
+            chain_name: ChainName::from_str("ethereum").unwrap(),
+        });
+
+        client.record_metric(Msg::RpcError {
+            chain_name: ChainName::from_str("polygon").unwrap(),
+        });
+
+        // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
+
         final_metrics.assert_status_ok();
 
-        goldie::assert!(zeroize_system_metrics(&sort_metrics_output(
-            &final_metrics.text()
-        )))
-    }
-
-    #[tokio::test(start_paused = true)]
-    #[traced_test]
-    async fn should_show_valid_system_metrics_in_prometheus_output() {
-        let (router, process, _client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let metrics = server.get("/test").await;
-        metrics.assert_status_ok();
-
-        let metrics_text = metrics.text();
-
-        if metrics_text.contains("ampd_cpu_usage_percent") {
-            let cpu_usage = extract_metric_value(&metrics_text, "ampd_cpu_usage_percent");
+        // system metrics
+        if final_metrics.text().contains("ampd_cpu_usage_percent") {
+            let cpu_usage = extract_metric_value(&final_metrics.text(), "ampd_cpu_usage_percent");
             assert!(
                 cpu_usage >= 0.0,
                 "CPU usage should be non-negative when metric is present"
             );
         }
 
-        if metrics_text.contains("ampd_memory_usage_bytes") {
-            let memory_usage = extract_metric_value(&metrics_text, "ampd_memory_usage_bytes");
+        if final_metrics.text().contains("ampd_memory_usage_bytes") {
+            let memory_usage = extract_metric_value(&final_metrics.text(), "ampd_memory_usage_bytes");
             assert!(
                 memory_usage >= 0.0,
                 "Memory usage should be non-negative when metric is present"
             );
         }
-        goldie::assert!(zeroize_system_metrics(&metrics_text));
+
+        // Ensure the final metrics are in the expected format
+        goldie::assert!(sort_metrics_output(&zeroize_system_metrics(&final_metrics.text())))
     }
 
+   
     /// Test if the sort_metrics_output function produces consistent output.
     /// This validates the test infrastructure itself, not the metrics implementation.
     #[test]
