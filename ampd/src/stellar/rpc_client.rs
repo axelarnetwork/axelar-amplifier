@@ -64,13 +64,18 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
                     });
                 }
 
-                contract_events.get(0).expect("soroban operation not found")
+                contract_events
+                    .get(0)
+                    .expect("soroban operation not found")
+                    .clone()
             }
             Some(TransactionMeta::V3(data)) => data
                 .soroban_meta
                 .as_ref()
                 .map(|meta| meta.events.to_vec())
-                .unwrap_or_default(),
+                .get(0)
+                .expect("soroban operation not found")
+                .clone(),
             _ => {
                 return Err(TxParseError::UnsupportedMetadataVersion);
             }
