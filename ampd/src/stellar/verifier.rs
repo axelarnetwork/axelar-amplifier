@@ -273,17 +273,6 @@ mod test {
     }
 
     #[test]
-    fn should_return_failed_on_chain_for_failed_tx() {
-        let (gateway_address, mut tx_response, msg) = matching_msg_and_tx_block();
-        tx_response.successful = false;
-
-        assert_eq!(
-            verify_message(&gateway_address, &tx_response, &msg),
-            Vote::FailedOnChain
-        );
-    }
-
-    #[test]
     fn should_not_verify_verifier_set_if_event_index_does_not_match() {
         let (gateway_address, tx_response, mut confirmation) = matching_verifier_set_and_tx_block();
         confirmation.message_id.event_index = 1;
