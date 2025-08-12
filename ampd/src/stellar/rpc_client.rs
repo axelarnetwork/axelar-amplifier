@@ -471,8 +471,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("stellar").unwrap(),
+                success: false,
             }
         );
 
@@ -491,8 +492,9 @@ mod test {
             let msg = receiver.recv().await.unwrap();
             assert_eq!(
                 msg,
-                Msg::RpcError {
+                Msg::RpcCall {
                     chain_name: ChainName::from_str("stellar").unwrap(),
+                    success: false,
                 }
             );
         }

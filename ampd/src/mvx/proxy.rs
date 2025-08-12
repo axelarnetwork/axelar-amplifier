@@ -74,18 +74,19 @@ impl MvxProxy for Client {
     }
 
     async fn transaction_info_with_results(&self, tx_hash: &Hash) -> Option<TransactionOnNetwork> {
-        self.proxy
+        let res = self
+            .proxy
             .get_transaction_info_with_results(tx_hash.encode_hex::<String>().as_str())
-            .await
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
-            .ok()
-            .filter(Self::is_valid_transaction)
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res.ok().filter(Self::is_valid_transaction)
     }
 
     /// First check if a transaction has hash & logs which are required in order to parse events.
@@ -211,8 +212,9 @@ mod tests {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("multiversx").unwrap(),
+                success: false,
             }
         );
 

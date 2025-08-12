@@ -46,8 +46,11 @@ pub enum Msg {
         vote_decision: voting::Vote,
         chain_name: ChainName,
     },
-    /// Record the number of errors returned from RPC client calls
-    RpcError { chain_name: ChainName },
+    /// Record the result of RPC calls
+    RpcCall {
+        chain_name: ChainName,
+        success: bool,
+    },
 }
 
 /// Errors that can occur in metrics processing
@@ -208,23 +211,23 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
-    rpc_error: RpcErrorMetrics,
+    rpc_call: RpcCallMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
-        let rpc_error = RpcErrorMetrics::new();
+        let rpc_call = RpcCallMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
-        rpc_error.register(registry);
+        rpc_call.register(registry);
 
         Self {
             block_received,
             verification_vote,
-            rpc_error,
+            rpc_call,
         }
     }
 
@@ -242,8 +245,11 @@ impl Metrics {
                     .record_verification_vote(vote_decision, chain_name);
             }
 
-            Msg::RpcError { chain_name } => {
-                self.rpc_error.record_rpc_error(chain_name);
+            Msg::RpcCall {
+                chain_name,
+                success,
+            } => {
+                self.rpc_call.record_rpc_call(chain_name, success);
             }
         }
     }
@@ -327,27 +333,39 @@ impl VerificationVoteMetrics {
     }
 }
 
-struct RpcErrorMetrics {
+struct RpcCallMetrics {
     total: Family<Vec<(String, String)>, Counter>,
+    failed: Family<Vec<(String, String)>, Counter>,
 }
 
-impl RpcErrorMetrics {
+impl RpcCallMetrics {
     fn new() -> Self {
         let total = Family::<Vec<(String, String)>, Counter>::default();
-        Self { total }
+        let failed = Family::<Vec<(String, String)>, Counter>::default();
+        Self { total, failed }
     }
 
     fn register(&self, registry: &mut Registry) {
         registry.register(
-            "rpc_errors",
-            "number of errors returned from RPC calls per chain",
+            "rpc_calls",
+            "number of RPC calls per chain",
             self.total.clone(),
+        );
+
+        registry.register(
+            "rpc_calls_failed",
+            "number of failed RPC calls per chain",
+            self.failed.clone(),
         );
     }
 
-    fn record_rpc_error(&self, chain_name: ChainName) {
+    fn record_rpc_call(&self, chain_name: ChainName, success: bool) {
         let label = vec![("chain_name".to_string(), chain_name.to_string())];
         self.total.get_or_create(&label).inc();
+
+        if !success {
+            self.failed.get_or_create(&label).inc();
+        }
     }
 }
 
@@ -486,13 +504,15 @@ mod tests {
             });
         }
 
-        // rpc errors
-        client.record_metric(Msg::RpcError {
+        // rpc calls
+        client.record_metric(Msg::RpcCall {
             chain_name: ChainName::from_str("ethereum").unwrap(),
+            success: true,
         });
 
-        client.record_metric(Msg::RpcError {
+        client.record_metric(Msg::RpcCall {
             chain_name: ChainName::from_str("polygon").unwrap(),
+            success: false,
         });
 
         // Wait for the metrics to be updated

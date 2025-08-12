@@ -116,16 +116,17 @@ impl Client {
         tx_hash: &Hash,
         finalized_block_height: u64,
     ) -> Option<Transaction> {
-        self.transaction(tx_hash.encode_hex::<String>().as_str())
-            .await
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
-            .ok()
+        let res = self
+            .transaction(tx_hash.encode_hex::<String>().as_str())
+            .await;
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res.ok()
             .filter(|tx| Self::is_valid_transaction(tx, finalized_block_height))
     }
 
@@ -134,19 +135,22 @@ impl Client {
 
         let endpoint = self.endpoint(endpoint.as_str());
 
-        self.client
+        let res = self
+            .client
             .get(endpoint.clone())
             .send()
             .map_err(|_| Error::LatestBlock { endpoint })
             .and_then(|response| response.json::<Block>().map_err(|_| Error::Json))
-            .await
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::RpcError {
-                        chain_name: self.chain_name.clone(),
-                    });
-            })
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res
     }
 
     async fn transaction(&self, tx_id: &str) -> StdResult<Transaction, Error> {
@@ -442,8 +446,9 @@ mod tests {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("stacks").unwrap(),
+                success: false,
             }
         );
 
@@ -454,8 +459,9 @@ mod tests {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("stacks").unwrap(),
+                success: false,
             }
         );
 

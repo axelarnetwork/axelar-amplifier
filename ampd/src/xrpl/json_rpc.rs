@@ -39,21 +39,19 @@ pub trait XRPLClient {
 impl XRPLClient for Client {
     async fn tx(&self, tx_id: [u8; 32]) -> Result<Option<TxResponse>> {
         let req = TxRequest::new(HexBinary::from(tx_id).to_string().as_str());
-        self.client
-            .call(req)
-            .await
-            .map(Some)
-            .or_else(|err| match err {
-                error::Error::Api(reason) if reason == "txnNotFound" => Ok(None),
-                _ => {
-                    self.monitoring_client
-                        .metrics()
-                        .record_metric(Msg::RpcError {
-                            chain_name: self.chain_name.clone(),
-                        });
-                    Err(err.into())
-                }
-            })
+        let res = self.client.call(req).await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res.map(Some).or_else(|err| match err {
+            error::Error::Api(reason) if reason == "txnNotFound" => Ok(None),
+            _ => Err(err.into()),
+        })
     }
 }
 
@@ -95,8 +93,9 @@ mod test {
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
             msg,
-            Msg::RpcError {
+            Msg::RpcCall {
                 chain_name: ChainName::from_str("xrpl").unwrap(),
+                success: false,
             }
         );
 
