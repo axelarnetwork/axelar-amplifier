@@ -73,9 +73,7 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
                 .soroban_meta
                 .as_ref()
                 .map(|meta| meta.events.to_vec())
-                .get(0)
-                .expect("soroban operation not found")
-                .clone(),
+                .unwrap_or_default(),
             _ => {
                 return Err(TxParseError::UnsupportedMetadataVersion);
             }
