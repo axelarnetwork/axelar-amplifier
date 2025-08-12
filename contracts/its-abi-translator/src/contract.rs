@@ -33,11 +33,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
 mod tests {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-    use cosmwasm_std::{from_json, Addr, HexBinary};
+    use cosmwasm_std::{from_json, HexBinary};
     use interchain_token_service_std::{
         DeployInterchainToken, HubMessage, InterchainTransfer, Message, TokenId,
     };
-    use router_api::chain_name_raw;
+    use router_api::{chain_name_raw, cosmos_addr};
 
     use super::*;
 
@@ -45,7 +45,7 @@ mod tests {
     fn instantiate_should_succeed() {
         let mut deps = mock_dependencies();
         let env = mock_env();
-        let info = message_info(&Addr::unchecked("creator"), &[]);
+        let info = message_info(&cosmos_addr!("creator"), &[]);
         let msg = Empty {};
 
         let res = instantiate(deps.as_mut(), env, info, msg).unwrap();

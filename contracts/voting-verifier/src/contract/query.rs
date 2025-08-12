@@ -166,10 +166,10 @@ mod tests {
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::{PollId, Tallies, Vote, WeightedPoll};
     use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{Uint128, Uint64};
     use itertools::Itertools;
-    use router_api::CrossChainId;
+    use router_api::{cosmos_addr, CrossChainId};
 
     use super::*;
     use crate::state::PollContent;
@@ -345,15 +345,19 @@ mod tests {
     }
 
     pub fn poll(expires_at: u64) -> WeightedPoll {
-        let participants: nonempty::Vec<Participant> = vec!["addr1", "addr2", "addr3"]
-            .into_iter()
-            .map(|participant| Participant {
-                address: MockApi::default().addr_make(participant),
-                weight: nonempty::Uint128::try_from(Uint128::one()).unwrap(),
-            })
-            .collect::<Vec<Participant>>()
-            .try_into()
-            .unwrap();
+        let participants: nonempty::Vec<Participant> = vec![
+            cosmos_addr!("addr1"),
+            cosmos_addr!("addr2"),
+            cosmos_addr!("addr3"),
+        ]
+        .into_iter()
+        .map(|participant| Participant {
+            address: participant,
+            weight: nonempty::Uint128::try_from(Uint128::one()).unwrap(),
+        })
+        .collect::<Vec<Participant>>()
+        .try_into()
+        .unwrap();
 
         let numerator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
         let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();

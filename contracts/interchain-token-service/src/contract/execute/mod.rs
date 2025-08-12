@@ -592,11 +592,6 @@ mod tests {
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config, TokenSupply};
 
-    const SOLANA: &str = "solana";
-    const ETHEREUM: &str = "ethereum";
-    const XRPL: &str = "xrpl";
-    const AXELAR: &str = "axelar";
-
     const ITS_ADDRESS: &str = "68d30f47F19c07bCCEf4Ac7FAE2Dc12FCa3e0dC9";
 
     #[test]
@@ -2112,8 +2107,12 @@ mod tests {
             killswitch::State::Disengaged
         ));
 
-        for chain_name in [SOLANA, ETHEREUM, XRPL, AXELAR] {
-            let chain = ChainNameRaw::try_from(chain_name).unwrap();
+        for chain in [
+            chain_name_raw!("solana"),
+            chain_name_raw!("ethereum"),
+            chain_name_raw!("xrpl"),
+            chain_name_raw!("axelar"),
+        ] {
             assert_ok!(register_chain(
                 &mut deps.as_mut(),
                 msg::ChainConfig {
