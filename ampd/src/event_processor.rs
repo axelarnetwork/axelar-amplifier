@@ -778,9 +778,7 @@ mod tests {
         assert!(result_with_timeout.is_ok());
 
         for _ in 0..num_block_ends {
-            let _ = find_msg_variant(&mut receiver, |m| matches!(m, metrics::Msg::BlockReceived))
-                .await
-                .expect("BlockReceived metric not found");
+            expect_metric_msg(&mut receiver, |m| matches!(m, metrics::Msg::BlockReceived)).await;
         }
 
         while let Some(metric) = receiver.recv().await {
@@ -870,7 +868,7 @@ mod tests {
         )
         .await;
 
-        let _ = find_msg_variant(&mut receiver, |m| {
+        let _ = expect_metric_msg(&mut receiver, |m| {
             matches!(
                 m,
                 metrics::Msg::StageResult {
@@ -880,10 +878,9 @@ mod tests {
                 }
             )
         })
-        .await
-        .expect("Successful event handling metric not found");
+        .await;
 
-        let _ = find_msg_variant(&mut receiver, |m| {
+        let _ = expect_metric_msg(&mut receiver, |m| {
             matches!(
                 m,
                 metrics::Msg::StageResult {
@@ -893,26 +890,22 @@ mod tests {
                 }
             )
         })
-        .await
-        .expect("Failed event handling metric not found");
+        .await;
 
         assert!(receiver.try_recv().is_err());
     }
 
-    /// Waits and returns the first metric that matches the specified variant kind, ignoring other fields.
-    /// Returns None if the receiver is closed before a match is found.
-    async fn find_msg_variant<F>(
-        receiver: &mut Receiver<metrics::Msg>,
-        matcher: F,
-    ) -> Option<metrics::Msg>
+    /// Waits for a metric Msg that matches the specified variant kind to appear in the stream.
+    /// This function is used in tests to ignore irrelevant messages and wait for specific metrics.
+    async fn expect_metric_msg<F>(receiver: &mut Receiver<metrics::Msg>, matcher: F)
     where
         F: Fn(&metrics::Msg) -> bool,
     {
         while let Some(metric) = receiver.recv().await {
             if matcher(&metric) {
-                return Some(metric);
+                return;
             }
         }
-        None
+        panic!("monitoring channel closed before expected metric was observed");
     }
 }

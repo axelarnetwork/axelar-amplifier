@@ -344,58 +344,17 @@ mod tests {
             .returning(|_, _, _, _| Ok(vec![0u8; 64]));
 
         let mut seq = Sequence::new();
+
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
-        mock_client
-            .expect_simulate()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: 0,
-                        gas_used: 100000,
-                    }),
-                    result: None,
-                })
-            });
-        mock_client
-            .expect_broadcast_tx()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(BroadcastTxResponse {
-                    tx_response: Some(TxResponse {
-                        txhash: "tx_hash_success".to_string(),
-                        code: 0,
-                        ..Default::default()
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
+        mock_successful_broadcast(&mut mock_client, &mut seq);
 
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
@@ -466,57 +425,13 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
-        mock_client
-            .expect_simulate()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: 0,
-                        gas_used: 100000,
-                    }),
-                    result: None,
-                })
-            });
-        mock_client
-            .expect_broadcast_tx()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(BroadcastTxResponse {
-                    tx_response: Some(TxResponse {
-                        txhash: "tx_hash_success".to_string(),
-                        code: 0,
-                        ..Default::default()
-                    }),
-                })
-            });
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+        mock_successful_broadcast(&mut mock_client, &mut seq);
 
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
@@ -578,31 +493,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&initial_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            initial_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -686,31 +584,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -788,31 +669,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -935,31 +799,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&initial_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: "uaxl".to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: "uaxl".to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            initial_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -1069,31 +916,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: gas_price_denom.to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: gas_price_denom.to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -1176,31 +1006,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: gas_price_denom.to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: gas_price_denom.to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -1270,40 +1083,15 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: gas_price_denom.to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: gas_price_denom.to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
-        mock_client
-            .expect_simulate()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Err(report!(cosmos::Error::GrpcRequest(
-                    tonic::Status::internal("simulation failed")
-                )))
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
+        mock_simulate_failure(&mut mock_client, &mut seq);
 
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
@@ -1349,31 +1137,14 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        mock_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-        mock_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
-                address: address.to_string(),
-                denom: gas_price_denom.to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(|_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: gas_price_denom.to_string(),
-                        amount: "1000000".to_string(),
-                    }),
-                })
-            });
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
         mock_client
             .expect_simulate()
             .once()
@@ -1504,7 +1275,7 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let msg_queue = iter(create_queue_with_two_message_batches());
+        let msg_queue = iter(create_two_msg_batches());
 
         let mut mock_signer = MockMultisig::new();
         mock_signer
@@ -1514,51 +1285,16 @@ mod tests {
 
         let mut seq = Sequence::new();
         let mut mock_client = cosmos::MockCosmosClient::new();
-        setup_success_account_and_balance_queries(
+
+        mock_successful_account_and_balance_queries(
             &mut mock_client,
             &mut seq,
             base_account,
             &address,
         );
 
-        // first transaction broadcast succeeds
-        mock_client
-            .expect_simulate()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: 0,
-                        gas_used: 100000,
-                    }),
-                    result: None,
-                })
-            });
-        mock_client
-            .expect_broadcast_tx()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(BroadcastTxResponse {
-                    tx_response: Some(TxResponse {
-                        txhash: "tx_hash_first_batch".to_string(),
-                        code: 0,
-                        ..Default::default()
-                    }),
-                })
-            });
-
-        // second transaction broadcast fails (simulation fails)
-        mock_client
-            .expect_simulate()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Err(report!(cosmos::Error::GrpcRequest(
-                    tonic::Status::internal("simulation failed")
-                )))
-            });
+        mock_successful_broadcast(&mut mock_client, &mut seq);
+        mock_simulate_failure(&mut mock_client, &mut seq);
 
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
@@ -1579,10 +1315,9 @@ mod tests {
             .build();
         let _ = tokio::spawn(async move { broadcaster_task.run().await }).await;
 
-        // first transaction broadcast succeeds
-        let metrics = receiver.recv().await.unwrap();
+        let msg_success_broadcast = receiver.recv().await.unwrap();
         assert!(matches!(
-            metrics,
+            msg_success_broadcast,
             Msg::StageResult {
                 stage: Stage::TransactionBroadcast,
                 success: true,
@@ -1590,10 +1325,9 @@ mod tests {
             }
         ));
 
-        // second transaction broadcast fails
-        let metrics = receiver.recv().await.unwrap();
+        let msg_failed_broadcast = receiver.recv().await.unwrap();
         assert!(matches!(
-            metrics,
+            msg_failed_broadcast,
             Msg::StageResult {
                 stage: Stage::TransactionBroadcast,
                 success: false,
@@ -1604,7 +1338,7 @@ mod tests {
         assert!(receiver.try_recv().is_err());
     }
 
-    fn create_queue_with_two_message_batches() -> Vec<axelar_wasm_std::nonempty::Vec<QueueMsg>> {
+    fn create_two_msg_batches() -> Vec<axelar_wasm_std::nonempty::Vec<QueueMsg>> {
         let (tx_1, _) = oneshot::channel();
         let (tx_2, _) = oneshot::channel();
 
@@ -1627,7 +1361,49 @@ mod tests {
         vec![first_batch, second_batch]
     }
 
-    fn setup_success_account_and_balance_queries(
+    fn mock_successful_broadcast(mock_client: &mut cosmos::MockCosmosClient, seq: &mut Sequence) {
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(seq)
+            .return_once(|_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(seq)
+            .return_once(|_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "tx_hash_success".to_string(),
+                        code: 0,
+                        ..Default::default()
+                    }),
+                })
+            });
+    }
+
+    fn mock_simulate_failure(mock_client: &mut cosmos::MockCosmosClient, seq: &mut Sequence) {
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(seq)
+            .return_once(|_| {
+                Err(report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal("simulation failed")
+                )))
+            });
+    }
+
+    fn mock_successful_account_and_balance_queries(
         mock_client: &mut cosmos::MockCosmosClient,
         seq: &mut Sequence,
         base_account: cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount,

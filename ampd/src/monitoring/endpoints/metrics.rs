@@ -684,7 +684,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_measure_async_operation_duration() {
+    async fn timed_function_should_return_correct_result_and_duration() {
         let (result, duration) = timed(|| async {
             tokio::time::advance(Duration::from_millis(100)).await;
             true
