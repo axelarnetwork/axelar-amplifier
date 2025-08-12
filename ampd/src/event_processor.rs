@@ -1037,7 +1037,6 @@ mod tests {
         assert!(receiver.try_recv().is_err());
     }
 
-    
     /// Waits for a metric Msg that matches the specified variant kind to appear in the stream.
     /// This function is used in tests to ignore irrelevant messages and wait for specific metrics.
     async fn expect_metric_msg<F>(receiver: &mut Receiver<metrics::Msg>, matcher: F)
