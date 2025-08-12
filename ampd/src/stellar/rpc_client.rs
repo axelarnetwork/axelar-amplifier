@@ -27,7 +27,7 @@ pub struct TxResponse {
 }
 
 const STATUS_SUCCESS: &str = "SUCCESS";
-const EXPECTED_OPERATION_COUNT_V4: usize = 1;
+const EXPECTED_SOROBAN_OPERATION_COUNT: usize = 1;
 
 impl From<(Hash, GetTransactionResponse)> for TxResponse {
     fn from((transaction_hash, response): (Hash, GetTransactionResponse)) -> Self {
@@ -44,7 +44,7 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
                 if op_count != EXPECTED_OPERATION_COUNT_V4 {
                     warn!(
                         tx_hash = %transaction_hash,
-                        operation_count = op_count,
+                        operation_count = operation_count,
                         expected_count = EXPECTED_OPERATION_COUNT_V4,
                         "V4 transaction operation count does not match expected single operation for Soroban contract call"
                     );
@@ -52,7 +52,7 @@ impl From<(Hash, GetTransactionResponse)> for TxResponse {
 
                 (
                     events,
-                    response.status == STATUS_SUCCESS && op_count == EXPECTED_OPERATION_COUNT_V4,
+                    response.status == STATUS_SUCCESS,
                 )
             }
             Some(TransactionMeta::V3(data)) => {
