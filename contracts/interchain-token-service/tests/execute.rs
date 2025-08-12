@@ -12,7 +12,9 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{chain_name_raw, cosmos_address, Address, ChainName, CrossChainId};
+use router_api::{
+    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
+};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -852,17 +854,16 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
 #[test]
 fn execute_its_when_not_gateway_sender_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-gateway"), &[]),
+        message_info(&cosmos_addr!("not-gateway"), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id: CrossChainId::new("source", "hash").unwrap(),
-            source_address: "source".parse().unwrap(),
+            source_address: address!("source"),
             payload: HexBinary::from([]),
         }),
     );
@@ -895,7 +896,7 @@ fn execute_message_when_unknown_source_address_fails() {
     )
     .unwrap();
 
-    let unknown_address: Address = "unknown-address".parse().unwrap();
+    let unknown_address = address!("unknown-address");
     let result = utils::execute(
         deps.as_mut(),
         router_message.cc_id.clone(),
@@ -1017,14 +1018,13 @@ fn execute_message_when_invalid_message_type_fails() {
 #[test]
 fn freeze_chain_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::FreezeChain {
             chain: chain_name_raw!("ethereum"),
         },
@@ -1039,14 +1039,13 @@ fn freeze_chain_when_not_admin_fails() {
 #[test]
 fn unfreeze_chain_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum"),
         },
@@ -1187,14 +1186,13 @@ fn admin_or_governance_can_modify_supply() {
 #[test]
 fn disable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::DisableExecution,
     );
     assert_err_contains!(
@@ -1207,14 +1205,13 @@ fn disable_execution_when_not_admin_fails() {
 #[test]
 fn enable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::EnableExecution,
     );
     assert_err_contains!(

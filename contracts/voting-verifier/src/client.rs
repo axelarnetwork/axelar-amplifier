@@ -115,12 +115,12 @@ mod test {
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
-    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{
         from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
     };
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message};
+    use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 
     use crate::contract::{instantiate, query};
     use crate::msg::{InstantiateMsg, MessageStatus, QueryMsg};
@@ -143,9 +143,9 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "0x1234".parse().unwrap(),
-            destination_address: "0x5678".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
+            destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         };
         let msg_2 = Message {
@@ -159,9 +159,9 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "0x4321".parse().unwrap(),
-            destination_address: "0x8765".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
+            source_address: address!("0x4321"),
+            destination_address: address!("0x8765"),
+            destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         };
 
@@ -238,9 +238,9 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "0x1234".parse().unwrap(),
-            destination_address: "0x5678".parse().unwrap(),
-            destination_chain: "eth".parse().unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
+            destination_chain: chain_name!("eth"),
             payload_hash: [0; 32],
         }]);
 
@@ -271,9 +271,7 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let deps = mock_dependencies();
-        let api: MockApi = deps.api;
-        let addr = api.addr_make("voting-verifier");
+        let addr = cosmos_addr!("voting-verifier");
         let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
@@ -292,8 +290,7 @@ mod test {
 
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
         let mut deps = mock_dependencies();
-        let api = deps.api;
-        let addr = api.addr_make("voting-verifier");
+        let addr = cosmos_addr!("voting-verifier");
         let addr_clone = addr.clone();
         let instantiate_msg = instantiate_contract(deps.as_mut());
 
@@ -311,13 +308,11 @@ mod test {
 
     fn instantiate_contract(deps: DepsMut) -> InstantiateMsg {
         let env = mock_env();
-        let api = MockApi::default();
-        let info = message_info(&api.addr_make("deployer"), &[]);
+        let info = message_info(&cosmos_addr!("deployer"), &[]);
 
         let msg = InstantiateMsg {
-            governance_address: api.addr_make("governance").to_string().try_into().unwrap(),
-            service_registry_address: api
-                .addr_make("service-registry")
+            governance_address: cosmos_addr!("governance").to_string().try_into().unwrap(),
+            service_registry_address: cosmos_addr!("service-registry")
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -331,8 +326,8 @@ mod test {
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
-            source_chain: "source-chain".parse().unwrap(),
-            rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
+            source_chain: chain_name!("source-chain"),
+            rewards_address: cosmos_addr!("rewards").to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             address_format: axelar_wasm_std::address::AddressFormat::Eip55,
         };

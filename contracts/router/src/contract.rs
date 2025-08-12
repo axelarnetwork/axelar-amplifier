@@ -153,8 +153,8 @@ mod test {
     use permission_control::Permission;
     use router_api::error::Error;
     use router_api::{
-        chain_name_raw, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
-        FIELD_DELIMITER,
+        address, chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainEndpoint, ChainName,
+        CrossChainId, GatewayDirection, Message, FIELD_DELIMITER,
     };
 
     use super::*;
@@ -233,9 +233,9 @@ mod test {
             .to_string();
             msgs.push(Message {
                 cc_id: CrossChainId::new(src_chain.chain_name.clone(), id).unwrap(),
-                destination_address: "idc".parse().unwrap(),
+                destination_address: address!("idc"),
                 destination_chain: dest_chain.chain_name.clone(),
-                source_address: "idc".parse().unwrap(),
+                source_address: address!("idc"),
                 payload_hash: [x as u8; 32],
             })
         }
@@ -592,11 +592,7 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: MockApi::default()
-                    .addr_make("new gateway")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                contract_address: cosmos_address!("new gateway"),
             }
             .into(),
         )
@@ -615,11 +611,7 @@ mod test {
             message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: MockApi::default()
-                    .addr_make("new gateway")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                contract_address: cosmos_address!("new gateway"),
             }
             .into(),
         )
@@ -638,11 +630,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: MockApi::default()
-                    .addr_make("new gateway")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                contract_address: cosmos_address!("new gateway"),
             }
             .into(),
         );
@@ -658,7 +646,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = MockApi::default().addr_make("new-gateway");
+        let new_gateway = cosmos_addr!("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -694,7 +682,7 @@ mod test {
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
-        let new_gateway = MockApi::default().addr_make("new-gateway");
+        let new_gateway = cosmos_addr!("new-gateway");
 
         let _ = execute(
             deps.as_mut(),
@@ -776,11 +764,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: eth.chain_name,
-                gateway_address: MockApi::default()
-                    .addr_make("new gateway")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                gateway_address: cosmos_address!("new gateway"),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             }
             .into(),
@@ -794,12 +778,8 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
-                chain: ChainName::from_str("ETHEREUM").unwrap(),
-                gateway_address: MockApi::default()
-                    .addr_make("new gateway")
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                chain: chain_name!("ETHEREUM"),
+                gateway_address: cosmos_address!("new gateway"),
                 msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             }
             .into(),
@@ -1863,7 +1843,7 @@ mod test {
     #[test]
     fn chain_info_fails_on_unregistered_chain() {
         let deps = setup();
-        let unregistered_chain: ChainName = "unregistered".parse().unwrap();
+        let unregistered_chain = chain_name!("unregistered");
 
         // Ensure that the error message doesn't change unexpectedly since the relayer depends on it
         let err = query(

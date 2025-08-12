@@ -344,12 +344,11 @@ mod test {
     };
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
-    use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{Attribute, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message};
+    use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
     use serde_json::json;
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
@@ -367,9 +366,9 @@ mod test {
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
             cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
-            source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
+            source_address: address!("source-address"),
+            destination_chain: chain_name!("destination-chain"),
+            destination_address: address!("destination-address"),
             payload_hash: [0; 32],
         }
     }
@@ -536,17 +535,15 @@ mod test {
     #[test]
     #[allow(deprecated)]
     fn events_should_not_change() {
-        let api = MockApi::default();
-
         let config = Config {
             service_name: "serviceName".try_into().unwrap(),
-            service_registry_contract: api.addr_make("serviceRegistry_contract"),
+            service_registry_contract: cosmos_addr!("serviceRegistry_contract"),
             source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
             voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             block_expiry: 10u64.try_into().unwrap(),
             confirmation_height: 1,
-            source_chain: "sourceChain".try_into().unwrap(),
-            rewards_contract: api.addr_make("rewardsContract"),
+            source_chain: chain_name!("sourceChain"),
+            rewards_contract: cosmos_addr!("rewardsContract"),
             msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
             address_format: AddressFormat::Eip55,
         };
@@ -559,31 +556,31 @@ mod test {
                     tx_id: "txId1".try_into().unwrap(),
                     event_index: 1,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress1".parse().unwrap(),
-                    destination_chain: "destinationChain".try_into().unwrap(),
-                    source_address: "sourceAddress1".parse().unwrap(),
+                    destination_address: address!("destinationAddress1"),
+                    destination_chain: chain_name!("destinationChain"),
+                    source_address: address!("sourceAddress1"),
                     payload_hash: [0; 32],
                 },
                 TxEventConfirmation {
                     tx_id: "txId2".try_into().unwrap(),
                     event_index: 2,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress2".parse().unwrap(),
-                    destination_chain: "destinationChain".try_into().unwrap(),
-                    source_address: "sourceAddress2".parse().unwrap(),
+                    destination_address: address!("destinationAddress2"),
+                    destination_chain: chain_name!("destinationChain"),
+                    source_address: address!("sourceAddress2"),
                     payload_hash: [1; 32],
                 },
             ],
             metadata: PollMetadata {
                 poll_id: 1.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
+                source_chain: chain_name!("sourceChain"),
                 source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
                 confirmation_height: 1,
                 expires_at: 1,
                 participants: vec![
-                    api.addr_make("participant1"),
-                    api.addr_make("participant2"),
-                    api.addr_make("participant3"),
+                    cosmos_addr!("participant1"),
+                    cosmos_addr!("participant2"),
+                    cosmos_addr!("participant3"),
                 ],
             },
         }
@@ -598,14 +595,14 @@ mod test {
             },
             metadata: PollMetadata {
                 poll_id: 2.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
+                source_chain: chain_name!("sourceChain"),
                 source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
                 confirmation_height: 1,
                 expires_at: 1,
                 participants: vec![
-                    api.addr_make("participant4"),
-                    api.addr_make("participant5"),
-                    api.addr_make("participant6"),
+                    cosmos_addr!("participant4"),
+                    cosmos_addr!("participant5"),
+                    cosmos_addr!("participant6"),
                 ],
             },
         }
@@ -620,14 +617,14 @@ mod test {
 
         let event_voted: cosmwasm_std::Event = Voted {
             poll_id: 1.into(),
-            voter: api.addr_make("voter"),
+            voter: cosmos_addr!("voter"),
             votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
         }
         .into();
 
         let event_poll_ended: cosmwasm_std::Event = PollEnded {
             poll_id: 1.into(),
-            source_chain: "sourceChain".try_into().unwrap(),
+            source_chain: chain_name!("sourceChain"),
             results: vec![
                 Some(Vote::SucceededOnChain),
                 Some(Vote::FailedOnChain),
