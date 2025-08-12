@@ -1009,7 +1009,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_record_enqueue_err_if_enqueue_failed_in_broadcast() {
+    async fn should_record_enqueue_err_when_simulate_failed() {
         let mut mock_cosmos_client = MockCosmosClient::new();
         mock_cosmos_client.expect_clone().return_once(|| {
             let address = TMAddress::random(PREFIX);
@@ -1051,7 +1051,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_record_grpc_error_if_contract_state_failed() {
+    async fn should_record_grpc_service_err_when_contract_state_failed() {
         let address = TMAddress::random(PREFIX);
         let address_str = address.to_string();
         let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();

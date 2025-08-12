@@ -61,11 +61,11 @@ pub enum Msg {
     },
     /// Record the number of errors in message enqueue operations
     MessageEnqueueError,
-    /// Record the number of event stream polling timeouts
-    EventPollingTimeout,
+    /// Record the number of timeouts in event stream
+    EventStreamTimeout,
     /// Record the number of errors that occur in the event publisher
     EventPublisherError,
-    /// Record the number of errors that occur in the Grpc Service
+    /// Record the number of errors that occur in the grpc service
     GrpcServiceError,
 }
 
@@ -273,7 +273,7 @@ impl Metrics {
             Msg::MessageEnqueueError => {
                 self.error_metrics.record_msg_enqueue_error();
             }
-            Msg::EventPollingTimeout => {
+            Msg::EventStreamTimeout => {
                 self.error_metrics.record_event_timeout();
             }
             Msg::EventPublisherError => {
@@ -442,7 +442,7 @@ impl ErrorMetrics {
         );
         registry.register(
             "event_stream_timeout",
-            "number of timeouts while polling blockchain events",
+            "number of timeouts while waiting for event stream responses",
             self.event_timeout.clone(),
         );
         registry.register(
@@ -655,7 +655,7 @@ mod tests {
         // record error metrics
         for _ in 0..2 {
             client.record_metric(Msg::MessageEnqueueError);
-            client.record_metric(Msg::EventPollingTimeout);
+            client.record_metric(Msg::EventStreamTimeout);
             client.record_metric(Msg::EventPublisherError);
             client.record_metric(Msg::GrpcServiceError);
         }

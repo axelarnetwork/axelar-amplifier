@@ -171,14 +171,7 @@ mod tests {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
 
-        let mut multisig = MockMultisig::new();
-        multisig
-            .expect_keygen()
-            .with(
-                predicate::eq(key_id),
-                predicate::eq(tofnd::Algorithm::Ecdsa),
-            )
-            .return_once(|_, _| Err(report!(tofnd::Error::InvalidKeygenResponse)));
+        let multisig = mock_multisig_keygen_failure(key_id);
 
         let (monitoring_client, _) = test_utils::monitoring_client();
         let service = Service::new(multisig, monitoring_client);
@@ -290,14 +283,7 @@ mod tests {
         let algorithm = Algorithm::Ecdsa;
         let message = vec![0; 32];
 
-        let mut multisig = MockMultisig::new();
-        multisig
-            .expect_keygen()
-            .with(
-                predicate::eq(key_id),
-                predicate::eq(tofnd::Algorithm::Ecdsa),
-            )
-            .return_once(|_, _| Err(report!(tofnd::Error::InvalidKeygenResponse)));
+        let multisig = mock_multisig_keygen_failure(key_id);
 
         let (monitoring_client, _) = test_utils::monitoring_client();
         let service = Service::new(multisig, monitoring_client);
@@ -357,24 +343,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_record_grpc_service_metrics_when_keygen_failed() {
-        let key_id = "test_key";
+    async fn should_record_grpc_service_metrics_when_keygen_failed_in_sign() {
         let algorithm = Algorithm::Ecdsa;
         let message = vec![0; 32];
+        let key_id = "test_key";
 
-        let mut multisig = MockMultisig::new();
-        multisig
-            .expect_keygen()
-            .times(2)
-            .with(
-                predicate::eq(key_id),
-                predicate::eq(tofnd::Algorithm::Ecdsa),
-            )
-            .returning(|_, _| Err(report!(tofnd::Error::InvalidKeygenResponse)));
+        let multisig = mock_multisig_keygen_failure(key_id);
 
         let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
         let service = Service::new(multisig, monitoring_client);
-        let request_1 = Request::new(SignRequest {
+        let request = Request::new(SignRequest {
             key_id: Some(KeyId {
                 id: key_id.to_string(),
                 algorithm: algorithm.into(),
@@ -382,19 +360,8 @@ mod tests {
             msg: message,
         });
 
-        let _ = service.sign(request_1).await.unwrap_err();
+        let _ = service.sign(request).await.unwrap_err();
 
-        let res = metrics_rx.recv().await.unwrap();
-        assert_eq!(res, Msg::GrpcServiceError);
-
-        let request_2 = Request::new(KeyRequest {
-            key_id: Some(KeyId {
-                id: key_id.to_string(),
-                algorithm: algorithm.into(),
-            }),
-        });
-
-        let _ = service.key(request_2).await.unwrap_err();
         let res = metrics_rx.recv().await.unwrap();
         assert_eq!(res, Msg::GrpcServiceError);
 
@@ -402,7 +369,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_record_grpc_service_err_when_sign_failed() {
+    async fn should_record_grpc_service_metrics_when_keygen_failed_in_key() {
+        let algorithm = Algorithm::Ecdsa;
+        let key_id = "test_key";
+
+        let multisig = mock_multisig_keygen_failure(key_id);
+
+        let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
+        let service = Service::new(multisig, monitoring_client);
+
+        let request = Request::new(KeyRequest {
+            key_id: Some(KeyId {
+                id: key_id.to_string(),
+                algorithm: algorithm.into(),
+            }),
+        });
+
+        let _ = service.key(request).await.unwrap_err();
+        let res = metrics_rx.recv().await.unwrap();
+        assert_eq!(res, Msg::GrpcServiceError);
+
+        assert!(metrics_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn should_record_grpc_service_err_when_tofnd_sign_failed() {
         let key_id = "test_key";
         let algorithm = Algorithm::Ecdsa;
         let message = vec![0; 32];
@@ -446,5 +437,19 @@ mod tests {
         assert_eq!(res, Msg::GrpcServiceError);
 
         assert!(metrics_rx.try_recv().is_err());
+    }
+
+    fn mock_multisig_keygen_failure(key_id: &'static str) -> MockMultisig {
+        let mut multisig = MockMultisig::new();
+
+        multisig
+            .expect_keygen()
+            .with(
+                predicate::eq(key_id),
+                predicate::eq(tofnd::Algorithm::Ecdsa),
+            )
+            .return_once(|_, _| Err(report!(tofnd::Error::InvalidKeygenResponse)));
+
+        multisig
     }
 }
