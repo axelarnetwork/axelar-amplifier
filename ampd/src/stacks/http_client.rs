@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use error_stack::{Result, ResultExt};
 use futures::future::join_all;
+use futures::TryFutureExt;
 use hex::ToHex;
 use router_api::ChainName;
 use serde::Deserialize;
@@ -14,7 +15,6 @@ use crate::monitoring::metrics::Msg;
 use crate::types::Hash;
 use crate::url::Url;
 use crate::{monitoring, Error as BaseError};
-use futures::TryFutureExt;
 
 const TRANSACTION: &str = "extended/v1/tx/0x";
 const LATEST_BLOCK: &str = "extended/v2/blocks/latest";

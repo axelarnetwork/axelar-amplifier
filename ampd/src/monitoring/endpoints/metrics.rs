@@ -433,8 +433,8 @@ impl Collector for SystemMetricsCollector {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use std::str::FromStr;
+    use std::time::Duration;
 
     use axum::Router;
     use axum_test::TestServer;
@@ -511,7 +511,8 @@ mod tests {
         }
 
         if final_metrics.text().contains("ampd_memory_usage_bytes") {
-            let memory_usage = extract_metric_value(&final_metrics.text(), "ampd_memory_usage_bytes");
+            let memory_usage =
+                extract_metric_value(&final_metrics.text(), "ampd_memory_usage_bytes");
             assert!(
                 memory_usage >= 0.0,
                 "Memory usage should be non-negative when metric is present"
@@ -519,10 +520,11 @@ mod tests {
         }
 
         // Ensure the final metrics are in the expected format
-        goldie::assert!(sort_metrics_output(&zeroize_system_metrics(&final_metrics.text())))
+        goldie::assert!(sort_metrics_output(&zeroize_system_metrics(
+            &final_metrics.text()
+        )))
     }
 
-   
     /// Test if the sort_metrics_output function produces consistent output.
     /// This validates the test infrastructure itself, not the metrics implementation.
     #[test]
