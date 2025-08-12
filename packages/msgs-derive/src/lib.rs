@@ -254,14 +254,14 @@ impl MsgPermissions {
 
         if let Some(dup) = specific.iter().duplicates().next() {
             return Err(syn::Error::new_spanned(
-                &dup,
+                dup,
                 "whitelisted addresses must be unique",
             ));
         }
 
         if let Some(dup) = external.iter().duplicates().next() {
             return Err(syn::Error::new_spanned(
-                &dup,
+                dup,
                 "whitelisted external addresses must be unique",
             ));
         }
@@ -275,7 +275,7 @@ impl MsgPermissions {
 
         if general.iter().any(|(perm, _)| perm == &Permission::Any) && !specific.is_empty() {
             return Err(syn::Error::new_spanned(
-                &specific.first().unwrap(), // we just checked that it's not empty
+                specific.first().unwrap(), // we just checked that it's not empty
                 format!(
                     "whitelisting addresses is useless because permission '{:?}' is set",
                     Permission::Any
