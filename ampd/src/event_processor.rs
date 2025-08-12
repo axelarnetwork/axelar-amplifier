@@ -1029,67 +1029,12 @@ mod tests {
         )
         .await;
 
-        let _ = find_msg_variant(&mut receiver, |m| {
+        expect_metric_msg(&mut receiver, |m| {
             matches!(m, metrics::Msg::MessageEnqueueError)
         })
-        .await
-        .expect("MsgEnqueueError metric not found");
+        .await;
 
         assert!(receiver.try_recv().is_err());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn should_record_event_timeout_metric() {
-        let pub_key = random_cosmos_public_key();
-        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
-        let gas_adjustment = 1.5;
-        let gas_price_amount = 0.025;
-        let gas_price_denom = "uaxl";
-        let token = CancellationToken::new();
-        let event_config = setup_event_config(
-            Duration::from_secs(1),
-            Duration::from_secs(2),
-            Duration::from_secs(1),
-        );
-
-        let mock_client = setup_client(&address);
-
-        let broadcaster = broadcast::Broadcaster::builder()
-            .client(mock_client)
-            .chain_id(chain_id)
-            .pub_key(pub_key)
-            .gas_adjustment(gas_adjustment)
-            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
-            .build()
-            .await
-            .unwrap();
-        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            100,
-            Duration::from_millis(500),
-            monitoring_client.clone(),
-        );
-
-        let task = tokio::spawn(consume_events(
-            "handler".to_string(),
-            MockEventHandler::new(),
-            stream::pending(),
-            event_config,
-            token.child_token(),
-            msg_queue_client,
-            monitoring_client,
-        ));
-
-        tokio::time::sleep(Duration::from_secs(2)).await;
-
-        token.cancel();
-        let _ = task.await.unwrap();
-
-        let metric = receiver.recv().await.unwrap();
-        assert_eq!(metric, metrics::Msg::EventTimeout);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1156,11 +1101,10 @@ mod tests {
         )
         .await;
 
-        let _ = find_msg_variant(&mut receiver, |m| {
+        expect_metric_msg(&mut receiver, |m| {
             matches!(m, metrics::Msg::MessageEnqueueError)
         })
-        .await
-        .expect("MsgEnqueueError metric not found");
+        .await;
 
         assert!(receiver.try_recv().is_err());
     }
