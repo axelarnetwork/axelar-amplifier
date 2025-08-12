@@ -21,8 +21,7 @@ use xrpl_types::types::XRPLAccountId;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::tofnd::grpc::Multisig;
-use crate::tofnd::{Algorithm, MessageDigest};
+use crate::tofnd::{Algorithm, Multisig};
 use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +50,7 @@ where
         .collect()
 }
 
+#[derive(Debug)]
 pub struct Handler<S> {
     verifier: TMAddress,
     multisig: TMAddress,
@@ -151,10 +151,9 @@ where
                 .map_err(|_e| Error::PublicKey)?;
                 let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
 
-                let msg_digest = MessageDigest::from(
+                let msg_digest =
                     xrpl_types::types::message_to_sign(msg.as_ref().to_vec(), &xrpl_address)
-                        .map_err(|_e| Error::MessageToSign)?,
-                );
+                        .map_err(|_e| Error::MessageToSign)?;
 
                 let signature = self
                     .signer
@@ -190,7 +189,6 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
@@ -198,14 +196,13 @@ mod test {
     use multisig::key::PublicKey;
     use multisig::types::MsgToSign;
     use rand::rngs::OsRng;
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
     use tendermint::abci;
     use tokio::sync::watch;
 
     use super::*;
-    use crate::broadcaster::MockBroadcaster;
     use crate::tofnd;
-    use crate::tofnd::grpc::MockMultisig;
+    use crate::tofnd::MockMultisig;
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
@@ -234,7 +231,7 @@ mod test {
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: "xrpl".parse().unwrap(),
+            chain_name: chain_name!("xrpl"),
             expires_at: 100u64,
         };
 
@@ -261,11 +258,6 @@ mod test {
         signer: MockMultisig,
         latest_block_height: u64,
     ) -> Handler<MockMultisig> {
-        let mut broadcaster = MockBroadcaster::new();
-        broadcaster
-            .expect_broadcast()
-            .returning(|_| Ok(TxResponse::default()));
-
         let (_, rx) = watch::channel(latest_block_height);
 
         Handler::new(verifier, multisig, chain, signer, rx)
@@ -333,7 +325,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
-            "xrpl".parse().unwrap(),
+            chain_name!("xrpl"),
             client,
             100u64,
         );
@@ -349,12 +341,12 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "xrpl".parse().unwrap(),
+            chain_name!("xrpl"),
             client,
             100u64,
         );
@@ -370,7 +362,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -378,7 +370,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "xrpl".parse().unwrap(),
+            chain_name!("xrpl"),
             client,
             99u64,
         );
@@ -394,7 +386,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -402,7 +394,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "xrpl".parse().unwrap(),
+            chain_name!("xrpl"),
             client,
             101u64,
         );
@@ -415,7 +407,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::Error::InvalidSignResponse)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -423,7 +415,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "not-xrpl".parse().unwrap(),
+            chain_name!("not-xrpl"),
             client,
             100u64,
         );

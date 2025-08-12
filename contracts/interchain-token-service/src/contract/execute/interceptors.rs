@@ -1,11 +1,14 @@
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{OverflowError, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
+use interchain_token_service_std::{
+    DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId,
+};
 use router_api::ChainNameRaw;
 
 use super::Error;
+use crate::shared::NumBits;
 use crate::state::{self, TokenConfig, TokenDeploymentType, TokenInstance};
-use crate::{DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata, TokenId};
 
 pub fn subtract_supply_amount(
     storage: &mut dyn Storage,
@@ -185,9 +188,9 @@ fn try_load_token_instance(
 ///
 /// The destination chain's token decimals are calculated and saved as following:
 /// 1) If the source chain's `max_uint` is less than or equal to the destination chain's `max_uint`,
-///     the source chain's token decimals are used.
+///    the source chain's token decimals are used.
 /// 2) Otherwise, the minimum of the source chain's token decimals and the source chain's
-///     `max_target_decimals` is used.
+///    `max_target_decimals` is used.
 fn destination_token_decimals(
     storage: &dyn Storage,
     source_chain: &ChainNameRaw,
@@ -220,7 +223,7 @@ fn destination_token_decimals(
 /// The calculation is done as following:
 /// 1) `destination_amount` = `source_amount` * 10 ^ (`destination_chain_decimals` - `source_chain_decimals`)
 /// 3) If new_amount is greater than the destination chain's `max_uint`, the translation
-///     fails.
+///    fails.
 /// 4) If new_amount is zero, the translation fails.
 fn destination_amount(
     storage: &dyn Storage,
@@ -268,7 +271,7 @@ fn destination_amount(
             })?
     };
 
-    if amount_overflows(destination_amount, *destination_max_uint_bits) {
+    if amount_overflows(destination_amount, destination_max_uint_bits) {
         bail!(Error::InvalidTransferAmount {
             source_chain: source_chain.to_owned(),
             destination_chain: destination_chain.to_owned(),
@@ -285,8 +288,8 @@ fn destination_amount(
     })
 }
 
-fn amount_overflows(amount: Uint256, target_chain_max_bits: u32) -> bool {
-    match amount.checked_shr(target_chain_max_bits) {
+fn amount_overflows(amount: Uint256, target_chain_max_bits: NumBits) -> bool {
+    match amount.checked_shr(target_chain_max_bits.into()) {
         Ok(res) => res.gt(&Uint256::zero()),
         // this overflow error occurs when trying to shift 256 bits or more.
         // But this can only happen if max_bits is >= 256, and amount itself is only 256 bits.
@@ -329,20 +332,23 @@ mod test {
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
-    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::testing::{MockApi, MockStorage};
     use cosmwasm_std::{HexBinary, Uint256};
-    use router_api::ChainNameRaw;
+    use interchain_token_service_std::{
+        DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
+    };
+    use router_api::{address, chain_name_raw, cosmos_address};
 
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
+    use crate::msg;
     use crate::msg::TruncationConfig;
-    use crate::state::{self, TokenDeploymentType, TokenInstance};
-    use crate::{msg, DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata};
+    use crate::state::{self, ChainConfig, TokenDeploymentType, TokenInstance};
 
     #[test]
     fn register_custom_token_allows_reregistration() {
         let mut storage = MockStorage::new();
-        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
+        let source_chain = chain_name_raw!("source-chain");
         let register_token_msg = RegisterTokenMetadata {
             decimals: 6,
             token_address: HexBinary::from([0; 32]).try_into().unwrap(),
@@ -362,7 +368,7 @@ mod test {
     #[test]
     fn register_custom_token_errors_on_decimals_mismatch() {
         let mut storage = MockStorage::new();
-        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
+        let source_chain = chain_name_raw!("source-chain");
         let register_token_msg = RegisterTokenMetadata {
             decimals: 6,
             token_address: HexBinary::from([0; 32]).try_into().unwrap(),
@@ -389,8 +395,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_bigger() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -416,14 +422,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 32u32.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 32u32.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -442,8 +453,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_smaller() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -469,14 +480,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 64.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 64.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -495,8 +511,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_same() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -522,14 +538,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 64.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 64.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -548,8 +569,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_result_overflows() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -575,14 +596,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 32.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 32.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -601,8 +627,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_result_underflows() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -628,14 +654,19 @@ mod test {
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 32.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 32.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -654,33 +685,43 @@ mod test {
     #[test]
     fn calculate_scaling_factor_when_source_max_uint_is_bigger() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
 
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            msg::ChainConfig {
-                chain: source_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 12,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: source_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 12,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 128.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 128.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
         let deploy_token = DeployInterchainToken {
@@ -718,33 +759,43 @@ mod test {
     #[test]
     fn calculate_scaling_factor_when_source_max_uint_is_smaller() {
         let mut storage = MockStorage::new();
-        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
-        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
+        let source_chain = chain_name_raw!("sourcechain");
+        let destination_chain = chain_name_raw!("destinationchain");
 
         state::save_chain_config(
             &mut storage,
             &source_chain,
-            msg::ChainConfig {
-                chain: source_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 128.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: source_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 128.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
         state::save_chain_config(
             &mut storage,
             &destination_chain,
-            msg::ChainConfig {
-                chain: destination_chain.clone(),
-                its_edge_contract: "itsedgecontract".to_string().try_into().unwrap(),
-                truncation: TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 6,
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: destination_chain.clone(),
+                    its_edge_contract: address!("itsedgecontract"),
+                    truncation: TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 6,
+                    },
+                    msg_translator: cosmos_address!("translation_contract"),
                 },
-            },
+                &MockApi::default(),
+            )
+            .unwrap(),
         )
         .unwrap();
 

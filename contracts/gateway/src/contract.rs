@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::{address, FnExt};
+use client::ContractClient;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
 use error_stack::ResultExt;
-use router_api::client::Router;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state;
@@ -71,9 +71,9 @@ pub fn execute(
             execute::verify_messages(&verifier, msgs).change_context(Error::VerifyMessages)
         }
         ExecuteMsg::RouteMessages(msgs) => {
-            let router = Router::new(config.router);
+            let router = ContractClient::new(deps.querier, &config.router).into();
 
-            if info.sender == router.address {
+            if info.sender == config.router {
                 execute::route_outgoing_messages(deps.storage, msgs)
                     .change_context(Error::RouteOutgoingMessages)
             } else {
@@ -105,6 +105,7 @@ mod test {
     use assert_ok::assert_ok;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::Empty;
+    use router_api::cosmos_addr;
 
     use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
@@ -112,12 +113,11 @@ mod test {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make("sender"), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
         let instantiate_msg = InstantiateMsg {
-            verifier_address: api.addr_make("verifier").to_string(),
-            router_address: api.addr_make("router").to_string(),
+            verifier_address: cosmos_addr!("verifier").to_string(),
+            router_address: cosmos_addr!("router").to_string(),
         };
 
         assert_ok!(instantiate(

@@ -5,15 +5,18 @@ use axelarnet_gateway::msg::ExecuteMsg as AxelarnetGatewayExecuteMsg;
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
 use cosmwasm_std::{HexBinary, Uint256};
 use interchain_token_service::contract::{self, ExecuteError};
-use interchain_token_service::events::Event;
+use interchain_token_service::events::{make_message_event, Event};
 use interchain_token_service::msg::{self, ExecuteMsg, TruncationConfig};
-use interchain_token_service::{
-    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, RegisterTokenMetadata,
-    TokenId,
+use interchain_token_service_std::{
+    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
+    RegisterTokenMetadata, TokenId,
 };
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use its_abi_translator::abi::hub_message_abi_encode;
+use router_api::{
+    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
+};
 use serde_json::json;
-use utils::{make_deps, params, register_chains, TestMessage};
+use utils::{make_deps, params, TestMessage};
 
 mod utils;
 
@@ -24,17 +27,19 @@ fn register_update_its_contract_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
+    let translation_contract: Address = cosmos_address!("translation_contract");
 
-    assert_ok!(utils::register_chain(
+    assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
         address.clone(),
         256.try_into().unwrap(),
-        u8::MAX
+        u8::MAX,
+        translation_contract.clone()
     ));
 
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
@@ -43,12 +48,13 @@ fn register_update_its_contract_succeeds() {
     let new_address: Address = "0x9999999990123456789012345678901234567890"
         .parse()
         .unwrap();
-    assert_ok!(utils::update_chain(
+    assert_ok!(utils::update_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
         new_address.clone(),
         128.try_into().unwrap(),
-        18u8
+        18u8,
+        translation_contract.clone()
     ));
     let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(res.unwrap().its_edge_contract, new_address);
@@ -58,27 +64,29 @@ fn register_update_its_contract_succeeds() {
 fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
-
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let address: Address = "0x1234567890123456789012345678901234567890"
         .parse()
         .unwrap();
+    let translation_contract: Address = cosmos_address!("translation_contract");
 
-    assert_ok!(utils::register_chain(
+    assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
         address.clone(),
         256.try_into().unwrap(),
-        u8::MAX
+        u8::MAX,
+        translation_contract.clone()
     ));
 
     assert_err_contains!(
-        utils::register_chain(
+        utils::register_chain_with_translation(
             deps.as_mut(),
             chain.clone(),
             address.clone(),
             256.try_into().unwrap(),
-            u8::MAX
+            u8::MAX,
+            translation_contract.clone()
         ),
         Error,
         Error::RegisterChains
@@ -90,7 +98,7 @@ fn update_unknown_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
 
     assert_err_contains!(
         utils::update_chain(
@@ -119,9 +127,10 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
+            msg_translator: cosmos_address!("translation_contract"),
         })
         .collect();
-    assert_ok!(register_chains(deps.as_mut(), chains.clone()));
+    assert_ok!(utils::register_chains(deps.as_mut(), chains.clone()));
 
     for chain in chains {
         let res = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.chain.clone()));
@@ -141,11 +150,12 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
+            msg_translator: cosmos_address!("translation_contract"),
         })
         .collect();
-    assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
+    assert_ok!(utils::register_chains(deps.as_mut(), chains[0..1].to_vec()));
     assert_err_contains!(
-        register_chains(deps.as_mut(), chains.clone()),
+        utils::register_chains(deps.as_mut(), chains.clone()),
         Error,
         Error::RegisterChains
     );
@@ -186,16 +196,11 @@ fn execute_hub_message_succeeds() {
 
     let responses: Vec<_> = test_messages
         .into_iter()
-        .map(|message| {
+        .map(|message: Message| {
             let hub_message = HubMessage::SendToHub {
                 destination_chain: destination_its_chain.clone(),
-                message,
+                message: message.clone(),
             };
-            let receive_payload = HubMessage::ReceiveFromHub {
-                source_chain: source_its_chain.clone(),
-                message: hub_message.message().clone(),
-            }
-            .abi_encode();
 
             let response = assert_ok!(utils::execute_hub_message(
                 deps.as_mut(),
@@ -205,21 +210,48 @@ fn execute_hub_message_succeeds() {
             ));
             let msg: AxelarnetGatewayExecuteMsg =
                 assert_ok!(inspect_response_msg(response.clone()));
-            let expected_msg = AxelarnetGatewayExecuteMsg::CallContract {
-                destination_chain: ChainName::try_from(destination_its_chain.to_string()).unwrap(),
-                destination_address: destination_its_contract.clone(),
-                payload: receive_payload,
-            };
-            assert_eq!(msg, expected_msg);
 
-            let expected_event = Event::MessageReceived {
-                cc_id: router_message.cc_id.clone(),
-                destination_chain: destination_its_chain.clone(),
-                message: hub_message.message().clone(),
+            // Create the expected ReceiveFromHub message that should be sent to the destination
+            let expected_receive_hub_message = HubMessage::ReceiveFromHub {
+                source_chain: source_its_chain.clone(),
+                message: message.clone(),
             };
+
+            // Encode the expected message using the translation contract
+            let expected_payload =
+                its_abi_translator::abi::hub_message_abi_encode(expected_receive_hub_message);
+
+            // Verify the message structure and payload are correct
+            match msg {
+                AxelarnetGatewayExecuteMsg::CallContract {
+                    destination_chain,
+                    destination_address,
+                    payload,
+                } => {
+                    assert_eq!(
+                        destination_chain,
+                        ChainName::try_from(destination_its_chain.to_string()).unwrap()
+                    );
+                    assert_eq!(destination_address, destination_its_contract);
+                    assert_eq!(payload, expected_payload);
+                }
+                _ => panic!("Expected CallContract message"),
+            }
+
+            let expected_events = vec![
+                Event::MessageReceived {
+                    cc_id: router_message.cc_id.clone(),
+                    destination_chain: destination_its_chain.clone(),
+                    message: hub_message.message().clone(),
+                },
+                make_message_event(destination_its_chain.clone(), hub_message.message().clone()),
+            ];
             assert_eq!(
                 response.events,
-                vec![cosmwasm_std::Event::from(expected_event)]
+                expected_events
+                    .into_iter()
+                    .map(cosmwasm_std::Event::from)
+                    .collect::<Vec<_>>()
             );
 
             response
@@ -434,18 +466,18 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
     } = TestMessage::dummy();
     let configs = vec![
         (
-            "ethereum".parse().unwrap(),
+            chain_name_raw!("ethereum"),
             source_its_contract.clone(),
             256,
             u8::MAX,
         ),
         (
-            "stellar".parse().unwrap(),
+            chain_name_raw!("stellar"),
             source_its_contract.clone(),
             128,
             12,
         ),
-        ("sui".parse().unwrap(), source_its_contract.clone(), 64, 6),
+        (chain_name_raw!("sui"), source_its_contract.clone(), 64, 6),
     ];
 
     let (mut deps, TestMessage { router_message, .. }) =
@@ -582,18 +614,18 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
     } = TestMessage::dummy();
     let configs = vec![
         (
-            "ethereum".parse().unwrap(),
+            chain_name_raw!("ethereum"),
             source_its_contract.clone(),
             256,
             u8::MAX,
         ),
         (
-            "stellar".parse().unwrap(),
+            chain_name_raw!("stellar"),
             source_its_contract.clone(),
             128,
             12,
         ),
-        ("sui".parse().unwrap(), source_its_contract.clone(), 64, 6),
+        (chain_name_raw!("sui"), source_its_contract.clone(), 64, 6),
     ];
 
     let (mut deps, TestMessage { router_message, .. }) =
@@ -822,17 +854,16 @@ fn execute_message_deploy_interchain_token_should_translate_decimals_when_max_ui
 #[test]
 fn execute_its_when_not_gateway_sender_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-gateway"), &[]),
+        message_info(&cosmos_addr!("not-gateway"), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id: CrossChainId::new("source", "hash").unwrap(),
-            source_address: "source".parse().unwrap(),
+            source_address: address!("source"),
             payload: HexBinary::from([]),
         }),
     );
@@ -865,12 +896,12 @@ fn execute_message_when_unknown_source_address_fails() {
     )
     .unwrap();
 
-    let unknown_address: Address = "unknown-address".parse().unwrap();
+    let unknown_address = address!("unknown-address");
     let result = utils::execute(
         deps.as_mut(),
         router_message.cc_id.clone(),
         unknown_address,
-        hub_message.abi_encode(),
+        hub_message_abi_encode(hub_message),
     );
     assert_err_contains!(
         result,
@@ -881,7 +912,7 @@ fn execute_message_when_unknown_source_address_fails() {
 
 #[test]
 fn execute_message_when_invalid_payload_fails() {
-    let mut deps = mock_dependencies();
+    let mut deps = make_deps();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let TestMessage {
@@ -927,7 +958,7 @@ fn execute_message_when_unknown_chain_fails() {
         deps.as_mut(),
         router_message.cc_id.clone(),
         source_its_contract.clone(),
-        hub_message.clone().abi_encode(),
+        hub_message_abi_encode(hub_message.clone()),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::State);
 
@@ -944,7 +975,7 @@ fn execute_message_when_unknown_chain_fails() {
         deps.as_mut(),
         router_message.cc_id,
         source_its_contract,
-        hub_message.abi_encode(),
+        hub_message_abi_encode(hub_message),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::State);
 }
@@ -979,7 +1010,7 @@ fn execute_message_when_invalid_message_type_fails() {
         deps.as_mut(),
         router_message.cc_id,
         source_its_contract,
-        invalid_hub_message.abi_encode(),
+        hub_message_abi_encode(invalid_hub_message),
     );
     assert_err_contains!(result, ExecuteError, ExecuteError::InvalidMessageType);
 }
@@ -987,16 +1018,15 @@ fn execute_message_when_invalid_message_type_fails() {
 #[test]
 fn freeze_chain_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+            chain: chain_name_raw!("ethereum"),
         },
     );
     assert_err_contains!(
@@ -1009,16 +1039,15 @@ fn freeze_chain_when_not_admin_fails() {
 #[test]
 fn unfreeze_chain_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+            chain: chain_name_raw!("ethereum"),
         },
     );
     assert_err_contains!(
@@ -1035,7 +1064,7 @@ fn admin_or_governance_can_freeze_chain() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let max_uint = 256;
     let decimals = 18;
 
@@ -1056,7 +1085,7 @@ fn admin_or_governance_can_freeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 
@@ -1065,7 +1094,7 @@ fn admin_or_governance_can_freeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 }
@@ -1077,7 +1106,7 @@ fn admin_or_governance_can_unfreeze_chain() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let max_uint = 256;
     let decimals = 18;
 
@@ -1098,7 +1127,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 
@@ -1107,7 +1136,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         mock_env(),
         message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 }
@@ -1119,7 +1148,7 @@ fn admin_or_governance_can_modify_supply() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let max_uint = 256;
     let decimals = 18;
 
@@ -1140,7 +1169,7 @@ fn admin_or_governance_can_modify_supply() {
         mock_env(),
         message_info(&api.addr_make(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 
@@ -1149,7 +1178,7 @@ fn admin_or_governance_can_modify_supply() {
         mock_env(),
         message_info(&api.addr_make(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap()
+            chain: chain_name_raw!("ethereum")
         }
     ));
 }
@@ -1157,14 +1186,13 @@ fn admin_or_governance_can_modify_supply() {
 #[test]
 fn disable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::DisableExecution,
     );
     assert_err_contains!(
@@ -1177,14 +1205,13 @@ fn disable_execution_when_not_admin_fails() {
 #[test]
 fn enable_execution_when_not_admin_fails() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("not-admin"), &[]),
+        message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::EnableExecution,
     );
     assert_err_contains!(
@@ -1240,7 +1267,7 @@ fn admin_or_governance_can_disable_execution() {
 
 #[test]
 fn set_chain_config_should_succeed() {
-    let chain = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let max_uint = 256;
     let decimals = 18;
 
@@ -1262,7 +1289,7 @@ fn set_chain_config_should_succeed() {
 
 #[test]
 fn set_chain_config_should_fail_if_chain_config_is_already_set() {
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let max_uint = 256;
     let decimals = 18;
 
@@ -1645,7 +1672,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
     ));
 
     // Deploy the same token from a different origin chain to a different destination chain now
-    let another_source_chain: ChainNameRaw = "another-source-chain".parse().unwrap();
+    let another_source_chain = chain_name_raw!("another-source-chain");
     assert_ok!(utils::register_chain(
         deps.as_mut(),
         another_source_chain.clone(),
@@ -1653,7 +1680,7 @@ fn deploy_interchain_token_from_non_origin_chain_fails() {
         256.try_into().unwrap(),
         u8::MAX,
     ));
-    let another_destination_chain: ChainNameRaw = "another-dest-chain".parse().unwrap();
+    let another_destination_chain = chain_name_raw!("another-dest-chain");
     assert_ok!(utils::register_chain(
         deps.as_mut(),
         another_destination_chain.clone(),
@@ -1698,7 +1725,7 @@ fn deploy_interchain_token_to_multiple_destination_succeeds() {
         msg.clone(),
     ));
 
-    let another_chain: ChainNameRaw = "another-chain".parse().unwrap();
+    let another_chain = chain_name_raw!("another-chain");
     assert_ok!(utils::register_chain(
         deps.as_mut(),
         another_chain.clone(),

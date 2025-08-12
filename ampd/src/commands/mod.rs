@@ -1,19 +1,19 @@
+use std::pin::Pin;
+
 use clap::Subcommand;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
-use error_stack::{report, FutureExt, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
 use crate::asyncutil::future::RetryPolicy;
-use crate::broadcaster::confirm_tx::TxConfirmer;
-use crate::broadcaster::Broadcaster;
-use crate::config::{Config as AmpdConfig, Config};
-use crate::tofnd::grpc::{Multisig, MultisigClient};
+use crate::config::Config;
+use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcaster, cosmos, tofnd, Error, PREFIX};
+use crate::{broadcast, cosmos, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -25,6 +25,13 @@ pub mod send_tokens;
 pub mod set_rewards_proxy;
 pub mod unbond_verifier;
 pub mod verifier_address;
+
+#[derive(clap::Args, Debug, Valuable)]
+pub struct BroadcastArgs {
+    /// Skip transaction confirmation
+    #[arg(long, short)]
+    skip_confirmation: bool,
+}
 
 #[derive(Debug, Subcommand, Valuable)]
 pub enum SubCommand {
@@ -58,7 +65,9 @@ pub struct ServiceRegistryConfig {
 impl Default for ServiceRegistryConfig {
     fn default() -> Self {
         Self {
-            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
         }
     }
 }
@@ -71,7 +80,9 @@ pub struct RewardsConfig {
 impl Default for RewardsConfig {
     fn default() -> Self {
         Self {
-            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
         }
     }
 }
@@ -89,45 +100,12 @@ async fn verifier_pub_key(config: tofnd::Config) -> Result<CosmosPublicKey, Erro
 }
 
 async fn broadcast_tx(
-    config: AmpdConfig,
+    config: Config,
     tx: Any,
     pub_key: CosmosPublicKey,
-) -> Result<TxResponse, Error> {
-    let (confirmation_sender, mut confirmation_receiver) = tokio::sync::mpsc::channel(1);
-    let (hash_to_confirm_sender, hash_to_confirm_receiver) = tokio::sync::mpsc::channel(1);
-
-    let (mut broadcaster, confirmer) = instantiate_broadcaster(config, pub_key).await?;
-
-    broadcaster
-        .broadcast(vec![tx])
-        .change_context(Error::Broadcaster)
-        .and_then(|response| {
-            hash_to_confirm_sender
-                .send(response.txhash)
-                .change_context(Error::Broadcaster)
-        })
-        .await?;
-
-    // drop the sender so the confirmer doesn't wait for more txs
-    drop(hash_to_confirm_sender);
-
-    confirmer
-        .run(hash_to_confirm_receiver, confirmation_sender)
-        .change_context(Error::TxConfirmation)
-        .await?;
-
-    confirmation_receiver
-        .recv()
-        .await
-        .ok_or(report!(Error::TxConfirmation))
-        .map(|tx| tx.response)
-}
-
-async fn instantiate_broadcaster(
-    config: Config,
-    pub_key: CosmosPublicKey,
-) -> Result<(impl Broadcaster, TxConfirmer<cosmos::CosmosGrpcClient>), Error> {
-    let AmpdConfig {
+    skip_confirmation: bool,
+) -> Result<String, Error> {
+    let Config {
         tm_grpc,
         tm_grpc_timeout,
         broadcast,
@@ -138,6 +116,35 @@ async fn instantiate_broadcaster(
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
+
+    let mut broadcaster = instantiate_broadcaster(
+        broadcast.clone(),
+        tofnd_config,
+        cosmos_client.clone(),
+        pub_key,
+    )
+    .await?;
+
+    broadcaster
+        .broadcast(vec![tx].try_into().expect("must be non-empty"))
+        .map_err(|err| err.change_context(Error::Broadcaster))
+        .and_then(|res| handle_tx_result(broadcast, cosmos_client, res, skip_confirmation))
+        .await
+}
+
+async fn instantiate_broadcaster(
+    broadcaster_config: broadcast::Config,
+    tofnd_config: tofnd::Config,
+    cosmos_client: cosmos::CosmosGrpcClient,
+    pub_key: CosmosPublicKey,
+) -> Result<
+    broadcast::BroadcasterTask<
+        cosmos::CosmosGrpcClient,
+        Pin<Box<broadcast::MsgQueue>>,
+        MultisigClient,
+    >,
+    Error,
+> {
     let multisig_client = MultisigClient::new(
         tofnd_config.party_uid,
         tofnd_config.url.as_str(),
@@ -147,23 +154,59 @@ async fn instantiate_broadcaster(
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
 
-    let confirmer = TxConfirmer::new(
-        cosmos_client.clone(),
-        RetryPolicy::RepeatConstant {
-            sleep: broadcast.tx_fetch_interval,
-            max_attempts: broadcast.tx_fetch_max_retries.saturating_add(1).into(),
-        },
-    );
-
-    let basic_broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
-        .client(cosmos_client)
-        .signer(multisig_client)
-        .pub_key((tofnd_config.key_uid, pub_key))
-        .config(broadcast)
-        .address_prefix(PREFIX.to_string())
+    let broadcaster = broadcast::Broadcaster::builder()
+        .client(cosmos_client.clone())
+        .chain_id(broadcaster_config.chain_id)
+        .pub_key(pub_key)
+        .gas_adjustment(broadcaster_config.gas_adjustment)
+        .gas_price(broadcaster_config.gas_price)
         .build()
-        .validate_fee_denomination()
         .await
         .change_context(Error::Broadcaster)?;
-    Ok((basic_broadcaster, confirmer))
+    let (msg_queue, _) = broadcast::MsgQueue::new_msg_queue_and_client(
+        broadcaster.clone(),
+        broadcaster_config.queue_cap,
+        broadcaster_config.batch_gas_limit,
+        broadcaster_config.broadcast_interval,
+    );
+    let broadcaster_task = broadcast::BroadcasterTask::builder()
+        .broadcaster(broadcaster)
+        .msg_queue(msg_queue)
+        .signer(multisig_client.clone())
+        .key_id(tofnd_config.key_uid.clone())
+        .build();
+
+    Ok(broadcaster_task)
+}
+
+async fn handle_tx_result(
+    broadcaster_config: broadcast::Config,
+    cosmos_client: cosmos::CosmosGrpcClient,
+    res: TxResponse,
+    skip_confirmation: bool,
+) -> Result<String, Error> {
+    if skip_confirmation {
+        return Ok(res.txhash);
+    }
+
+    confirm_tx(broadcaster_config, cosmos_client, res.txhash).await
+}
+
+async fn confirm_tx(
+    broadcaster_config: broadcast::Config,
+    cosmos_client: cosmos::CosmosGrpcClient,
+    tx_hash: String,
+) -> Result<String, Error> {
+    let retry_policy = RetryPolicy::repeat_constant(
+        broadcaster_config.tx_fetch_interval,
+        broadcaster_config
+            .tx_fetch_max_retries
+            .saturating_add(1)
+            .into(),
+    );
+
+    broadcast::confirm_tx(&cosmos_client, tx_hash, retry_policy)
+        .await
+        .map(|res| res.txhash)
+        .change_context(Error::TxConfirmation)
 }

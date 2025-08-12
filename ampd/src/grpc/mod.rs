@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
@@ -13,11 +15,12 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport;
 use tower::limit::ConcurrencyLimitLayer;
 use tower_http::trace;
-use tracing::info;
+use tracing::{info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
-use crate::{broadcaster_v2, cosmos, event_sub};
+use crate::types::debug::REDACTED_VALUE;
+use crate::{broadcast, cosmos, event_sub, tofnd};
 
 mod blockchain_service;
 mod crypto_service;
@@ -30,7 +33,7 @@ pub enum Error {
     Transport(#[from] transport::Error),
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq)]
 pub struct Config {
     /// IP address on which the gRPC server will listen
     pub ip_addr: IpAddr,
@@ -67,6 +70,21 @@ impl Default for Config {
     }
 }
 
+impl Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("ip_addr", &REDACTED_VALUE)
+            .field("port", &REDACTED_VALUE)
+            .field("global_concurrency_limit", &self.global_concurrency_limit)
+            .field(
+                "concurrency_limit_per_connection",
+                &self.concurrency_limit_per_connection,
+            )
+            .field("request_timeout", &self.request_timeout)
+            .finish()
+    }
+}
+
 pub fn deserialize_config<'de, D>(deserializer: D) -> std::result::Result<Config, D::Error>
 where
     D: Deserializer<'de>,
@@ -82,15 +100,17 @@ where
     Ok(config)
 }
 
-#[derive(TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct Server {
     config: Config,
     event_sub: event_sub::EventSubscriber,
-    msg_queue_client: broadcaster_v2::MsgQueueClient<cosmos::CosmosGrpcClient>,
+    msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
+    multisig_client: tofnd::MultisigClient,
 }
 
 impl Server {
+    #[instrument]
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let addr = SocketAddr::new(self.config.ip_addr, self.config.port);
         // Configure tracing middleware for gRPC server requests
@@ -126,7 +146,9 @@ impl Server {
                     .cosmos_client(self.cosmos_grpc_client)
                     .build(),
             ))
-            .add_service(CryptoServiceServer::new(crypto_service::Service::new()));
+            .add_service(CryptoServiceServer::new(crypto_service::Service::from(
+                self.multisig_client,
+            )));
 
         info!(%addr, "gRPC server started");
 

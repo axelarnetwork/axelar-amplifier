@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{nonempty, FnExt, IntoContractError};
+use axelar_wasm_std::address::ContractAddr;
+use axelar_wasm_std::{address, nonempty, FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, OverflowError, StdError, Storage, Uint256};
 use cw_storage_plus::{Bound, Item, Map};
 use error_stack::{report, Result, ResultExt};
+use interchain_token_service_std::{RegisterTokenMetadata, TokenId};
 use itertools::Itertools;
 use router_api::{Address, ChainNameRaw};
 
+use crate::msg;
 use crate::shared::NumBits;
-use crate::{msg, RegisterTokenMetadata, TokenId};
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -23,6 +25,8 @@ pub enum Error {
     ChainNotFound(ChainNameRaw),
     #[error("chain config for chain {0} not found")]
     ChainConfigNotFound(ChainNameRaw),
+    #[error("invalid translation contract address {0}")]
+    InvalidTranslationContractAddress(Address),
     // This is a generic error to use when cw_storage_plus returns an error that is unexpected and
     // should never happen, such as an error encountered when saving data.
     #[error("storage error")]
@@ -40,25 +44,33 @@ pub struct ChainConfig {
     pub truncation: TruncationConfig,
     pub its_address: Address,
     pub frozen: bool,
+    pub msg_translator: ContractAddr,
+}
+
+impl ChainConfig {
+    pub fn new(input: msg::ChainConfig, api: &dyn cosmwasm_std::Api) -> Result<Self, Error> {
+        Ok(Self {
+            truncation: TruncationConfig {
+                max_uint_bits: input.truncation.max_uint_bits,
+                max_decimals_when_truncating: input.truncation.max_decimals_when_truncating,
+            },
+            its_address: input.its_edge_contract,
+            frozen: false,
+            msg_translator: address::validate_cosmwasm_address(
+                api,
+                &input.msg_translator.to_string(),
+            )
+            .change_context(Error::InvalidTranslationContractAddress(
+                input.msg_translator,
+            ))?,
+        })
+    }
 }
 
 #[cw_serde]
 pub struct TruncationConfig {
     pub max_uint_bits: NumBits, // The maximum number of bits used to represent unsigned integer values that is supported by the chain's token standard
     pub max_decimals_when_truncating: u8, // The maximum number of decimals that is preserved when deploying from a chain with a larger max unsigned integer
-}
-
-impl From<msg::ChainConfig> for ChainConfig {
-    fn from(value: msg::ChainConfig) -> Self {
-        Self {
-            truncation: TruncationConfig {
-                max_uint_bits: value.truncation.max_uint_bits,
-                max_decimals_when_truncating: value.truncation.max_decimals_when_truncating,
-            },
-            its_address: value.its_edge_contract,
-            frozen: false,
-        }
-    }
 }
 
 #[cw_serde]
@@ -200,10 +212,10 @@ pub fn load_chain_configs<'a>(
 pub fn save_chain_config(
     storage: &mut dyn Storage,
     chain: &ChainNameRaw,
-    config: impl Into<ChainConfig>,
+    config: &ChainConfig,
 ) -> Result<(), Error> {
     CHAIN_CONFIGS
-        .save(storage, chain, &config.into())
+        .save(storage, chain, config)
         .change_context(Error::Storage)
 }
 
@@ -339,6 +351,7 @@ mod tests {
     use assert_ok::assert_ok;
     use axelar_wasm_std::assert_err_contains;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
+    use router_api::{chain_name_raw, cosmos_addr, cosmos_address};
 
     use super::*;
 
@@ -347,8 +360,8 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let config = Config {
-            axelarnet_gateway: MockApi::default().addr_make("gateway-address"),
-            operator: MockApi::default().addr_make("operator-address"),
+            axelarnet_gateway: cosmos_addr!("gateway-address"),
+            operator: cosmos_addr!("operator-address"),
         };
 
         assert_ok!(save_config(deps.as_mut().storage, &config));
@@ -366,10 +379,10 @@ mod tests {
     fn save_and_load_its_contract_succeeds() {
         let mut deps = mock_dependencies();
 
-        let chain1 = "chain1".parse().unwrap();
-        let chain2: ChainNameRaw = "chain2".parse().unwrap();
-        let address1: Address = "address1".parse().unwrap();
-        let address2: Address = "address2".parse().unwrap();
+        let chain1 = chain_name_raw!("chain1");
+        let chain2 = chain_name_raw!("chain2");
+        let address1 = cosmos_address!("address1");
+        let address2 = cosmos_address!("address2");
 
         assert_err_contains!(
             load_its_contract(deps.as_ref().storage, &chain1),
@@ -384,26 +397,36 @@ mod tests {
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain1.clone(),
-            msg::ChainConfig {
-                chain: chain1.clone(),
-                its_edge_contract: address1.clone(),
-                truncation: msg::TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 16u8
-                }
-            }
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: chain1.clone(),
+                    its_edge_contract: address1.clone(),
+                    truncation: msg::TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    },
+                    msg_translator: address1.clone(),
+                },
+                &MockApi::default(),
+            )
+            .unwrap()
         ));
         assert_ok!(save_chain_config(
             deps.as_mut().storage,
             &chain2.clone(),
-            msg::ChainConfig {
-                chain: chain2.clone(),
-                its_edge_contract: address2.clone(),
-                truncation: msg::TruncationConfig {
-                    max_uint_bits: 256.try_into().unwrap(),
-                    max_decimals_when_truncating: 16u8
-                }
-            }
+            &ChainConfig::new(
+                msg::ChainConfig {
+                    chain: chain2.clone(),
+                    its_edge_contract: address2.clone(),
+                    truncation: msg::TruncationConfig {
+                        max_uint_bits: 256.try_into().unwrap(),
+                        max_decimals_when_truncating: 16u8
+                    },
+                    msg_translator: address2.clone(),
+                },
+                &MockApi::default(),
+            )
+            .unwrap()
         ));
         assert_eq!(
             assert_ok!(load_its_contract(deps.as_ref().storage, &chain1)),

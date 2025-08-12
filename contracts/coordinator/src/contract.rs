@@ -13,9 +13,10 @@ use cosmwasm_std::{
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
+use msgs_derive::ensure_permissions;
 
 use crate::contract::errors::Error;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -36,6 +37,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+#[ensure_permissions(direct(prover=find_prover_address(info.sender.clone())))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -43,11 +45,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg.ensure_permissions(
-        deps.storage,
-        &info.sender,
-        find_prover_address(info.sender.clone()),
-    )? {
+    match msg {
         ExecuteMsg::RegisterProtocol {
             service_registry_address: service_registry,
             router_address,
@@ -59,14 +57,6 @@ pub fn execute(
             let multisig_addr = address::validate_cosmwasm_address(deps.api, &multisig_address)?;
             execute::register_protocol(deps, service_registry_addr, router_addr, multisig_addr)
                 .change_context(Error::RegisterProtocol)
-        }
-        ExecuteMsg::RegisterProverContract {
-            chain_name,
-            new_prover_addr,
-        } => {
-            let new_prover_addr = address::validate_cosmwasm_address(deps.api, &new_prover_addr)?;
-            execute::register_prover(deps, chain_name, new_prover_addr.clone())
-                .change_context(Error::RegisterProverContract(new_prover_addr))
         }
         ExecuteMsg::RegisterChain {
             chain_name,
@@ -80,7 +70,7 @@ pub fn execute(
                 address::validate_cosmwasm_address(deps.api, &voting_verifier_address)?;
 
             execute::register_chain(
-                deps,
+                deps.storage,
                 chain_name.clone(),
                 prover_address,
                 gateway_address,
@@ -102,6 +92,10 @@ pub fn execute(
             params,
         } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params)
             .change_context(Error::InstantiateChainContracts),
+        ExecuteMsg::RegisterDeployment { deployment_name } => {
+            execute::register_deployment(deps, info.sender, deployment_name.clone())
+                .change_context(Error::RegisterDeployment(deployment_name))
+        }
     }?
     .then(Ok)
 }
@@ -144,7 +138,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             )?)?)
         }
         QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
-            &query::get_chain_contracts_info(deps, chain_contracts_key)?,
+            &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
     }
 }
@@ -154,11 +148,11 @@ mod tests {
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::{Addr, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
-    use router_api::ChainName;
+    use router_api::{chain_name, cosmos_addr, ChainName};
 
     use super::*;
     use crate::msg::ChainContractsKey;
-    use crate::state::{load_prover_by_chain, ChainContractsRecord};
+    use crate::state::{contracts_by_chain, ChainContractsRecord};
 
     struct TestSetup {
         admin_addr: Addr,
@@ -173,11 +167,11 @@ mod tests {
     fn setup() -> TestSetup {
         let mut app = App::new(no_init);
 
-        let admin_addr = app.api().addr_make("admin");
-        let chain_name: ChainName = "Ethereum".parse().unwrap();
-        let prover = app.api().addr_make("eth_prover");
-        let gateway = app.api().addr_make("eth_gateway");
-        let verifier = app.api().addr_make("eth_voting_verifier");
+        let admin_addr = cosmos_addr!("admin");
+        let chain_name = chain_name!("Ethereum");
+        let prover = cosmos_addr!("eth_prover");
+        let gateway = cosmos_addr!("eth_gateway");
+        let verifier = cosmos_addr!("eth_voting_verifier");
 
         let coordinator_code = ContractWrapper::new(execute, instantiate, query);
         let coordinator_code_id = app.store_code(Box::new(coordinator_code));
@@ -200,9 +194,9 @@ mod tests {
             admin_addr.clone(),
             coordinator_addr.clone(),
             &ExecuteMsg::RegisterProtocol {
-                service_registry_address: app.api().addr_make("service_registry").to_string(),
-                router_address: app.api().addr_make("router").to_string(),
-                multisig_address: app.api().addr_make("multisig").to_string(),
+                service_registry_address: cosmos_addr!("service_registry").to_string(),
+                router_address: cosmos_addr!("router").to_string(),
+                multisig_address: cosmos_addr!("multisig").to_string(),
             },
             &[],
         )
@@ -236,22 +230,26 @@ mod tests {
     #[test]
     fn add_prover_from_governance_succeeds() {
         let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
+        let new_prover = cosmos_addr!("new_eth_prover");
+        let new_gateway = cosmos_addr!("new_eth_gateway");
+        let new_verifier = cosmos_addr!("new_eth_verifier");
 
         assert!(test_setup
             .app
             .execute_contract(
                 test_setup.admin_addr.clone(),
                 test_setup.coordinator_addr.clone(),
-                &ExecuteMsg::RegisterProverContract {
+                &ExecuteMsg::RegisterChain {
                     chain_name: test_setup.chain_name.clone(),
-                    new_prover_addr: new_prover.to_string(),
+                    prover_address: new_prover.to_string(),
+                    gateway_address: new_gateway.to_string(),
+                    voting_verifier_address: new_verifier.to_string(),
                 },
                 &[]
             )
             .is_ok());
 
-        let chain_prover = load_prover_by_chain(
+        let chain_prover = contracts_by_chain(
             test_setup
                 .app
                 .contract_storage(&test_setup.coordinator_addr)
@@ -259,21 +257,26 @@ mod tests {
             test_setup.chain_name.clone(),
         );
         assert!(chain_prover.is_ok(), "{:?}", chain_prover);
-        assert_eq!(chain_prover.unwrap(), new_prover);
+        let chain_prover = chain_prover.unwrap();
+        assert_eq!(chain_prover.prover_address, new_prover);
     }
 
     #[test]
     fn add_prover_from_random_address_fails() {
         let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
-        let random_addr = test_setup.app.api().addr_make("random_address");
+        let new_prover = cosmos_addr!("new_eth_prover");
+        let new_gateway = cosmos_addr!("new_eth_gateway");
+        let new_verifier = cosmos_addr!("new_eth_verifier");
+        let random_addr = cosmos_addr!("random_address");
 
         let res = test_setup.app.execute_contract(
             random_addr.clone(),
             test_setup.coordinator_addr.clone(),
-            &ExecuteMsg::RegisterProverContract {
+            &ExecuteMsg::RegisterChain {
                 chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: new_prover.to_string(),
+                prover_address: new_prover.to_string(),
+                gateway_address: new_gateway.to_string(),
+                voting_verifier_address: new_verifier.to_string(),
             },
             &[],
         );

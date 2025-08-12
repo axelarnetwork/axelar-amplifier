@@ -1,177 +1,52 @@
+use std::fmt::Debug;
 use std::iter;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use error_stack::ResultExt;
 use events::Event;
-use futures::{stream, FutureExt, Stream, StreamExt};
+use futures::{stream, Stream, StreamExt, TryStream};
+use pin_project_lite::pin_project;
 use tendermint::block;
-use tokio::time::{interval, Interval};
-use tokio_util::sync::CancellationToken;
+use tokio::time::interval;
+use tokio_stream::wrappers::IntervalStream;
+use tracing::instrument;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::tm_client::TmClient;
+use crate::tm_client::{BlockResultsResponse, TmClient};
 
 type Error = super::Error;
 type Result<T> = error_stack::Result<T, Error>;
 
-pub async fn blocks<T>(
-    tm_client: &T,
+/// Returns a stream of block heights as they get generated on the blockchain.
+/// To keep the load on the blockchain node manageable, the polling frequency is adjustable.
+/// Because the blockchain state seems to be somewhat unstable when interacting with the latest state,
+/// the stream can be delayed when returning the latest block.
+///
+/// Guarantees:
+/// - the blockchain does not get queried more often than the poll_interval allows
+/// - no blocks get omitted after starting the stream
+/// - blocks get streamed in order
+/// - no duplicates
+/// - no delay when catching up, i.e. if the block height query returns a block that is n blocks
+///   ahead of the previously seen latest block, all blocks leading up to that new latest block will get
+///   streamed without delay
+#[instrument]
+pub fn blocks<Client>(
+    tm_client: &Client,
     poll_interval: Duration,
-    delay: Duration,
-    token: CancellationToken,
-) -> Result<impl Stream<Item = Result<block::Height>> + '_>
+    stream_delay: Duration,
+) -> impl Stream<Item = Result<block::Height>> + '_
 where
-    T: TmClient,
+    Client: TmClient + Sync + Debug,
 {
-    latest_block_height(tm_client)
-        .await
-        .map(BlockState::new)
-        .map(|block_state| block_state.stream(tm_client, interval(poll_interval), delay, token))
-        .map(Box::pin)
-}
-
-pub fn events<'a, T, S>(
-    tm_client: &'a T,
-    block_stream: S,
-    retry_policy: RetryPolicy,
-) -> impl Stream<Item = Result<Event>> + 'a
-where
-    T: TmClient,
-    S: Stream<Item = Result<block::Height>> + 'a,
-{
-    block_stream
-        .map(move |block_height| process_block(tm_client, block_height, retry_policy))
-        .buffered(super::BLOCK_PROCESSING_BUFFER)
-        .flat_map(|result| {
-            result.map_or_else(
-                |err| stream::iter(vec![Err(err)]),
-                |events| stream::iter(events.into_iter().map(Ok).collect::<Vec<_>>()),
-            )
-        })
-}
-
-async fn process_block<T>(
-    tm_client: &T,
-    block_height: Result<block::Height>,
-    retry_policy: RetryPolicy,
-) -> Result<Vec<Event>>
-where
-    T: TmClient,
-{
-    match block_height {
-        Ok(block_height) => {
-            with_retry(|| block_events(tm_client, block_height), retry_policy).await
-        }
-        Err(err) => Err(err),
-    }
-}
-
-async fn block_events<T>(tm_client: &T, block_height: block::Height) -> Result<Vec<Event>>
-where
-    T: TmClient,
-{
-    let block_results =
-        tm_client
-            .block_results(block_height)
-            .await
-            .change_context(Error::BlockResultsQuery {
-                block: block_height,
-            })?;
-
-    let begin_block_events = block_results.begin_block_events.into_iter().flatten();
-    let tx_events = block_results
-        .txs_results
-        .into_iter()
-        .flatten()
-        .flat_map(|tx| tx.events);
-    let end_block_events = block_results.end_block_events.into_iter().flatten();
-
-    let events = begin_block_events
-        .chain(tx_events)
-        .chain(end_block_events)
-        .map(|event| {
-            Event::try_from(event).change_context(Error::EventDecoding {
-                block: block_height,
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    Ok(iter::once(Event::BlockBegin(block_height))
-        .chain(events)
-        .chain(iter::once(Event::BlockEnd(block_height)))
-        .collect())
-}
-
-#[derive(Copy, Clone)]
-struct BlockState {
-    next_to_stream: block::Height,
-    latest: block::Height,
-}
-
-impl BlockState {
-    fn new(latest: block::Height) -> Self {
-        Self {
-            next_to_stream: latest,
-            latest,
-        }
-    }
-
-    async fn update<T>(
-        mut self,
-        tm_client: &T,
-        interval: &mut Interval,
-        delay: Duration,
-        token: &CancellationToken,
-    ) -> Result<Option<Self>>
-    where
-        T: TmClient,
-    {
-        while !token.is_cancelled() && self.next_to_stream > self.latest {
-            self.latest = interval
-                .tick()
-                .then(|_| latest_block_height(tm_client))
-                .await?;
-        }
-
-        tokio::time::sleep(delay).await;
-        match token.is_cancelled() {
-            true => Ok(None),
-            false => {
-                self.next_to_stream = self.next_to_stream.increment();
-                Ok(Some(self))
-            }
-        }
-    }
-
-    fn stream<T>(
-        self,
-        tm_client: &T,
-        interval: Interval,
-        delay: Duration,
-        token: CancellationToken,
-    ) -> impl Stream<Item = Result<block::Height>> + '_
-    where
-        T: TmClient,
-    {
-        futures::stream::unfold(
-            (self, tm_client, interval, delay, token),
-            |(block_state, tm_client, mut interval, delay, token)| async move {
-                let to_stream = block_state.next_to_stream;
-
-                match block_state
-                    .update(tm_client, &mut interval, delay, &token)
-                    .await
-                {
-                    Ok(None) => None,
-                    Ok(Some(block_state)) => Some((
-                        Ok(to_stream),
-                        (block_state, tm_client, interval, delay, token),
-                    )),
-                    Err(err) => Some((Err(err), (block_state, tm_client, interval, delay, token))),
-                }
-            },
-        )
-    }
+    IntervalStream::new(interval(poll_interval))
+        .then(|_each_tick| latest_block_height(tm_client))
+        .strictly_increasing_values()
+        .map(move |result| delay_blocks(result, stream_delay))
+        .buffered(1) // so blocks can be filled in without dealing with futures
+        .fill_gaps()
 }
 
 async fn latest_block_height<T: TmClient>(tm_client: &T) -> Result<block::Height> {
@@ -182,355 +57,1121 @@ async fn latest_block_height<T: TmClient>(tm_client: &T) -> Result<block::Height
         .map(|res| res.block.header().height)
 }
 
-#[cfg(test)]
-mod tests {
-    use axelar_wasm_std::assert_err_contains;
-    use error_stack::report;
-    use futures::StreamExt;
-    use tendermint::abci;
+/// Returns a stream of blockchain events from the provided block height stream.
+/// Events are retrieved for each block height and include begin block, transaction, and end block events.
+/// The function automatically retries failed event retrievals according to the specified retry policy.
+///
+/// Each block in the stream produces the following event sequence:
+/// 1. `Event::BlockBegin` - marks the start of block processing
+/// 2. All ABCI events from the block (begin_block, transactions, end_block)
+/// 3. `Event::BlockEnd` - marks the end of block processing
+///
+/// Guarantees:
+/// - events are streamed in the order they appear in blocks
+/// - failed block height queries from the input stream are propagated as errors
+/// - failed event retrievals are retried according to the retry policy
+/// - all events from a successfully queried block are included in the stream
+/// - block processing maintains the sequential order of the input stream
+pub fn events<'a, T, S>(
+    tm_client: &'a T,
+    block_stream: S,
+    retry_policy: RetryPolicy,
+) -> impl Stream<Item = Result<Event>> + 'a
+where
+    T: TmClient,
+    S: Stream<Item = Result<block::Height>> + 'a,
+{
+    block_stream
+        .map(move |block_height| retrieve_all_block_events(tm_client, block_height, retry_policy))
+        .buffered(super::BLOCK_PROCESSING_BUFFER)
+        .flat_map(|result| result.map_or_else(|err| stream::iter(vec![Err(err)]), stream::iter))
+}
 
-    use super::super::tests::{block_results_response, random_event};
-    use super::*;
-    use crate::tm_client::{self, MockTmClient};
+async fn delay_blocks(
+    result: Result<block::Height>,
+    stream_delay: Duration,
+) -> Result<block::Height> {
+    match result {
+        Ok(block) => {
+            tokio::time::sleep(stream_delay).await;
+            Ok(block)
+        }
+        Err(err) => Err(err),
+    }
+}
 
-    #[tokio::test]
-    async fn event_stream_should_stream_error_if_block_stream_streams_error() {
-        let tm_client = MockTmClient::new();
+async fn retrieve_all_block_events<T>(
+    tm_client: &T,
+    block_height: Result<block::Height>,
+    retry_policy: RetryPolicy,
+) -> Result<Vec<Result<Event>>>
+where
+    T: TmClient,
+{
+    match block_height {
+        Ok(block_height) => with_retry(|| block_results(tm_client, block_height), retry_policy)
+            .await
+            .map(block_events),
+        Err(err) => Err(err),
+    }
+}
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
-        let block_stream = stream::iter(vec![
-            Err(report!(Error::LatestBlockQuery)),
-            Err(report!(Error::LatestBlockQuery)),
-            Err(report!(Error::LatestBlockQuery)),
-        ]);
-        let mut stream = events(&tm_client, block_stream, retry_policy);
+async fn block_results<T>(
+    tm_client: &T,
+    block_height: block::Height,
+) -> Result<BlockResultsResponse>
+where
+    T: TmClient,
+{
+    tm_client
+        .block_results(block_height)
+        .await
+        .change_context(Error::BlockResultsQuery {
+            block: block_height,
+        })
+}
 
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-        assert!(stream.next().await.is_none());
+fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
+    let begin_block_events = block_results.begin_block_events.into_iter().flatten();
+    let tx_events = block_results
+        .txs_results
+        .into_iter()
+        .flatten()
+        .flat_map(|tx| tx.events);
+    let end_block_events = block_results.end_block_events.into_iter().flatten();
+
+    let events: Vec<Result<Event>> = begin_block_events
+        .chain(tx_events)
+        .chain(end_block_events)
+        .map(|event| {
+            Event::try_from(event).change_context(Error::EventDecoding {
+                block: block_results.height,
+            })
+        })
+        .collect();
+
+    iter::once(Ok(Event::BlockBegin(block_results.height)))
+        .chain(events)
+        .chain(iter::once(Ok(Event::BlockEnd(block_results.height))))
+        .collect()
+}
+
+pin_project! {
+    struct StrictlyIncreasing<S>
+    where
+        S: TryStream,
+    {
+        #[pin]
+        stream: S,
+        last_streamed: Option<S::Ok>,
+    }
+}
+
+trait StrictlyIncreasingExt: TryStream + Sized {
+    /// Creates a stream that only yields values that are strictly increasing compared to previously yielded values.
+    fn strictly_increasing_values(self) -> StrictlyIncreasing<Self> {
+        StrictlyIncreasing {
+            stream: self,
+            last_streamed: None,
+        }
+    }
+}
+
+impl<S> StrictlyIncreasingExt for S where S: TryStream {}
+
+impl<S> Stream for StrictlyIncreasing<S>
+where
+    S: TryStream,
+    S::Ok: Clone + PartialEq + PartialOrd,
+{
+    type Item = core::result::Result<S::Ok, S::Error>;
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<core::result::Result<S::Ok, S::Error>>> {
+        let mut me = self.as_mut().project();
+
+        // loop until we get an element that is not a duplicate of an already streamed one.
+        // We use loop instead of recursion here, because in the case of a stuck chain
+        // the stream could receive the same element for a long time, which would cause a stack overflow.
+        loop {
+            match me.stream.as_mut().try_poll_next(cx) {
+                Poll::Ready(Some(Ok(current))) => {
+                    let last_streamed = me.last_streamed.replace(current.clone());
+
+                    match last_streamed {
+                        Some(last_streamed) if last_streamed >= current => {
+                            // need to revert the previous swap, because current is not strictly increasing
+                            me.last_streamed.replace(last_streamed);
+                            continue;
+                        }
+                        _ => return Poll::Ready(Some(Ok(current))),
+                    }
+                }
+                poll_result => return poll_result,
+            }
+        }
+    }
+}
+
+pin_project! {
+    struct FillGaps<S>
+    where
+        S: TryStream,
+    {
+        #[pin]
+        stream: S,
+        state: StreamState,
+    }
+}
+
+/// Represents the current state of a block streaming system that ensures sequential block processing
+/// without gaps. This enum tracks the progression through different phases of block streaming
+/// and manages gap-filling to maintain blockchain state integrity.
+///
+/// # State Transitions
+///
+/// The state machine follows this progression:
+/// ```text
+/// Start -> First -> BlocksAvailable -> CaughtUp
+///   |        |           |              ^
+///   |        |           +------+-------+
+///   |        +----------+       |
+///   +-------------------+       |
+///                               |
+/// (new blocks arrive) ----------+
+/// ```
+///
+/// # Examples
+///
+/// ## Basic Usage
+/// ```rust, ignore
+/// use tendermint::block;
+///
+/// let mut state = StreamState::Start;
+///
+/// // Receive first block height from blockchain
+/// state = state.update_latest(block::Height::from(100u32));
+/// // State is now First { first: 100, streamed: false }
+///
+/// // Stream the first block
+/// if let Some(height) = state.stream() {
+///     println!("Streaming block {}", height); // Prints: Streaming block 100
+/// }
+/// // State is now First { first: 100, streamed: true }
+/// ```
+///
+/// ## Gap Detection and Filling
+/// ```rust, ignore,ignore
+/// use tendermint::block;
+///
+/// let mut state = StreamState::First { first: block::Height::from(100u32), streamed: true };
+///
+/// // Blockchain jumps from 100 to 105 (gap detected)
+/// state = state.update_latest(block::Height::from(105u32));
+/// // State is now BlocksAvailable { streamed: 100, latest: 105 }
+///
+/// // Stream missing blocks sequentially
+/// while let Some(height) = state.stream() {
+///     println!("Filling gap: block {}", height);
+///     // Outputs: 101, 102, 103, 104, 105
+/// }
+/// // State is now CaughtUp(105)
+/// ```
+///
+/// ## Handling New Blocks While Caught Up
+/// ```rust, ignore
+/// use tendermint::block;
+///
+/// let mut state = StreamState::CaughtUp(block::Height::from(200u32));
+///
+/// // New block arrives
+/// state = state.update_latest(block::Height::from(201u32));
+/// // State transitions to BlocksAvailable { streamed: 200, latest: 201 }
+///
+/// if let Some(height) = state.stream() {
+///     println!("New block: {}", height); // Prints: New block: 201
+/// }
+/// // Back to CaughtUp(201)
+/// ```
+#[derive(Debug, Copy, Clone)]
+pub enum StreamState {
+    /// Initial state when no blocks have been processed yet.
+    ///
+    /// This is the starting point of the state machine. No block heights
+    /// have been received from the blockchain yet.
+    Start,
+
+    /// State when the first block height has been received but may not have been streamed yet.
+    ///
+    /// # Fields
+    /// * `first` - The first block height received from the blockchain
+    /// * `streamed` - Whether this first block has been yielded by the stream yet
+    ///
+    /// This state ensures that the very first block is properly handled and streamed
+    /// exactly once before transitioning to gap-filling mode.
+    First {
+        first: block::Height,
+        streamed: bool,
+    },
+
+    /// State when there are blocks available to be streamed (gap-filling mode).
+    ///
+    /// # Fields
+    /// * `streamed` - The last block height that was successfully streamed
+    /// * `latest` - The latest known block height from the blockchain
+    ///
+    /// This state indicates there are one or more blocks between `streamed` and `latest`
+    /// that need to be streamed sequentially. The stream will yield `streamed + 1`,
+    /// `streamed + 2`, etc., until it reaches `latest`.
+    BlocksAvailable {
+        streamed: block::Height,
+        latest: block::Height,
+    },
+
+    /// State when the stream has caught up to the latest known block.
+    ///
+    /// # Fields
+    /// * `block::Height` - The current latest block height that we're caught up to
+    ///
+    /// In this state, no blocks are available to stream until a new latest block
+    /// height is received from the blockchain. The stream will yield `None` until
+    /// new blocks become available.
+    CaughtUp(block::Height),
+}
+
+impl StreamState {
+    /// Updates the state machine with a new latest block height from the blockchain.
+    ///
+    /// This method drives the state transitions by incorporating new block height information.
+    /// The state machine intelligently handles different scenarios:
+    ///
+    /// # State Transition Logic
+    ///
+    /// * **Start → First**: When receiving the very first block height
+    /// * **Ignore stale updates**: If the new latest is older than or equal to the current latest
+    /// * **Transition to BlocksAvailable**: When there's a gap between streamed and new latest
+    /// * **Stay in current state**: When the update doesn't change the streaming situation
+    ///
+    /// # Examples
+    ///
+    /// ```rust, ignore
+    /// use tendermint::block;
+    ///
+    /// // Starting fresh
+    /// let state = StreamState::Start;
+    /// let state = state.update_latest(block::Height::from(100u32));
+    /// // Now: First { first: 100, streamed: false }
+    ///
+    /// // Gap detected
+    /// let state = StreamState::First { first: block::Height::from(100u32), streamed: true };
+    /// let state = state.update_latest(block::Height::from(105u32));
+    /// // Now: BlocksAvailable { streamed: 100, latest: 105 }
+    ///
+    /// // Stale update ignored
+    /// let state = StreamState::CaughtUp(block::Height::from(200u32));
+    /// let state = state.update_latest(block::Height::from(199u32));
+    /// // Still: CaughtUp(200) - no change
+    /// ```
+    ///
+    /// # Parameters
+    ///
+    /// * `new_latest` - The latest block height received from the blockchain
+    ///
+    /// # Returns
+    ///
+    /// The new state after processing the latest block height information.
+    pub fn update_latest(self, new_latest: block::Height) -> Self {
+        match self {
+            StreamState::Start => StreamState::First {
+                first: new_latest,
+                streamed: false,
+            },
+            StreamState::First { first: latest, .. }
+            | StreamState::BlocksAvailable { latest, .. }
+            | StreamState::CaughtUp(latest)
+                if latest >= new_latest =>
+            {
+                self
+            }
+            StreamState::First {
+                first: streamed, ..
+            }
+            | StreamState::CaughtUp(streamed)
+            | StreamState::BlocksAvailable { streamed, .. } => StreamState::BlocksAvailable {
+                streamed,
+                latest: new_latest,
+            },
+        }
     }
 
-    #[tokio::test]
-    async fn event_stream_should_retry_events_retrieval() {
-        let mut tm_client = MockTmClient::new();
-        let mut block_height_1_call_count = 0;
-        let mut block_height_2_call_count = 0;
-        tm_client
-            .expect_block_results()
-            .times(6)
-            .returning(move |height| {
-                if height == 1u32.into() {
-                    block_height_1_call_count += 1;
+    /// Attempts to stream the next block height and updates the internal state.
+    ///
+    /// This is the core method that yields block heights for streaming while maintaining
+    /// the state machine's integrity. It implements the gap-filling logic that ensures
+    /// no blocks are skipped in the sequence.
+    ///
+    /// # Behavior by State
+    ///
+    /// * **Start**: Returns `None` - no blocks available to stream yet
+    /// * **CaughtUp**: Returns `None` - waiting for new blocks from blockchain
+    /// * **First**: Returns the first block once, then marks it as streamed
+    /// * **BlocksAvailable**: Returns the next sequential block and updates state
+    ///
+    /// # State Transitions
+    ///
+    /// * **First → First** (streamed=true): After yielding the first block
+    /// * **BlocksAvailable → BlocksAvailable**: While more blocks remain to stream
+    /// * **BlocksAvailable → CaughtUp**: When the last available block is streamed
+    ///
+    /// # Examples
+    ///
+    /// ```rust, ignore
+    /// use tendermint::block;
+    ///
+    /// // Stream first block
+    /// let mut state = StreamState::First {
+    ///     first: block::Height::from(100u32),
+    ///     streamed: false
+    /// };
+    /// assert_eq!(state.stream(), Some(block::Height::from(100u32)));
+    /// // State is now First { first: 100, streamed: true }
+    ///
+    /// // Stream gaps sequentially
+    /// let mut state = StreamState::BlocksAvailable {
+    ///     streamed: block::Height::from(100u32),
+    ///     latest: block::Height::from(103u32)
+    /// };
+    /// assert_eq!(state.stream(), Some(block::Height::from(101u32)));
+    /// assert_eq!(state.stream(), Some(block::Height::from(102u32)));
+    /// assert_eq!(state.stream(), Some(block::Height::from(103u32)));
+    /// // State is now CaughtUp(103)
+    /// assert_eq!(state.stream(), None);
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// * `Some(block::Height)` - The next block height to stream
+    /// * `None` - No blocks available to stream in the current state
+    pub fn stream(&mut self) -> Option<block::Height> {
+        match *self {
+            StreamState::Start | StreamState::CaughtUp(_) => None,
+            StreamState::First { first, streamed } => {
+                *self = StreamState::First {
+                    first,
+                    streamed: true,
+                };
+                (!streamed).then_some(first)
+            }
+            StreamState::BlocksAvailable { streamed, latest } => {
+                let new_streamed = streamed.increment();
 
-                    match block_height_1_call_count {
-                        1 => Err(report!(tendermint_rpc::Error::server(
-                            "server error".to_string()
-                        ))),
-                        2 => {
-                            let mut invalid_event = random_event();
-                            invalid_event.attributes = vec![abci::EventAttribute {
-                                key: "???".to_string(),
-                                value: "!!!".to_string(),
-                                index: false,
-                            }];
-
-                            Ok(block_results_response(
-                                height,
-                                vec![],
-                                vec![],
-                                vec![invalid_event],
-                            ))
-                        }
-                        3 => Ok(block_results_response(
-                            height,
-                            vec![random_event()],
-                            vec![random_event()],
-                            vec![random_event()],
-                        )),
-                        _ => unreachable!(),
-                    }
-                } else if height == 2u32.into() {
-                    block_height_2_call_count += 1;
-
-                    match block_height_2_call_count {
-                        1 | 3 => Err(report!(tendermint_rpc::Error::server(
-                            "server error".to_string()
-                        ))),
-                        2 => {
-                            let mut invalid_event = random_event();
-                            invalid_event.attributes = vec![abci::EventAttribute {
-                                key: "???".to_string(),
-                                value: "!!!".to_string(),
-                                index: false,
-                            }];
-
-                            Ok(block_results_response(
-                                height,
-                                vec![],
-                                vec![],
-                                vec![invalid_event],
-                            ))
-                        }
-                        _ => unreachable!(),
+                *self = if new_streamed < latest {
+                    StreamState::BlocksAvailable {
+                        streamed: new_streamed,
+                        latest,
                     }
                 } else {
-                    unreachable!()
+                    StreamState::CaughtUp(new_streamed)
+                };
+
+                Some(new_streamed)
+            }
+        }
+    }
+}
+
+trait FillGapsExt
+where
+    Self: TryStream + Sized,
+{
+    fn fill_gaps(self) -> FillGaps<Self> {
+        FillGaps {
+            stream: self,
+            state: StreamState::Start,
+        }
+    }
+}
+
+impl<S> FillGapsExt for S where S: TryStream {}
+
+impl<S> Stream for FillGaps<S>
+where
+    Self: Sized,
+    S: TryStream<Ok = block::Height>,
+{
+    type Item = core::result::Result<S::Ok, S::Error>;
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<core::result::Result<S::Ok, S::Error>>> {
+        let mut me = self.as_mut().project();
+
+        loop {
+            if let Some(to_stream) = me.state.stream() {
+                return Poll::Ready(Some(Ok(to_stream)));
+            }
+
+            let new_latest = match me.stream.as_mut().try_poll_next(cx) {
+                Poll::Ready(Some(Ok(new_latest))) => new_latest,
+                poll_result => return poll_result,
+            };
+            *me.state = me.state.update_latest(new_latest);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use axelar_wasm_std::err_contains;
+    use error_stack::report;
+    use events::Event;
+    use futures::{stream, StreamExt};
+    use tendermint::abci::EventAttribute;
+    use tendermint::block;
+
+    use super::super::tests::{block_results_response, random_event};
+    use crate::asyncutil::future::RetryPolicy;
+    use crate::event_sub::stream::{blocks, events};
+    use crate::event_sub::Error;
+    use crate::tm_client::{self, MockTmClient, TmClient};
+
+    #[tokio::test(start_paused = true)]
+    async fn blocks_stream_adheres_to_poll_interval_to_get_new_blocks() {
+        let base_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0u64;
+        let start_height = 100u64;
+
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+            let height = start_height + call_count - 1;
+            Ok(create_block_with_height(&base_block, height))
+        });
+
+        let poll_interval = Duration::from_secs(60); // much larger than the stream delay
+        let stream_delay = Duration::from_millis(100);
+        let start_time = tokio::time::Instant::now();
+
+        let stream = blocks(&tm_client, poll_interval, stream_delay);
+        let results: Vec<_> = stream.take(5).collect().await;
+
+        let elapsed = start_time.elapsed();
+        let expected_min_time = poll_interval * 4; // 4 intervals between 5 blocks
+
+        assert!(elapsed >= expected_min_time);
+        assert_eq!(results.len(), 5);
+
+        for (i, height_result) in results.into_iter().enumerate() {
+            assert_eq!(height_result.unwrap().value(), start_height + i as u64);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn blocks_stream_respects_stream_delay() {
+        let base_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0u64;
+        let start_height = 200u64;
+
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+            let height = start_height + call_count - 1;
+            Ok(create_block_with_height(&base_block, height))
+        });
+
+        let poll_interval = Duration::from_secs(1);
+        let stream_delay = Duration::from_secs(60); // much larger than the poll interval
+        let start_time = tokio::time::Instant::now();
+
+        let stream = blocks(&tm_client, poll_interval, stream_delay);
+        let results: Vec<_> = stream.take(3).collect().await;
+
+        let elapsed = start_time.elapsed();
+        let expected_min_time = stream_delay * 3; // Each block delayed by 1 minute
+
+        assert!(elapsed >= expected_min_time);
+        assert_eq!(results.len(), 3);
+
+        for (i, height_result) in results.into_iter().enumerate() {
+            assert_eq!(height_result.unwrap().value(), start_height + i as u64);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn blocks_stream_fills_gaps_in_block_sequence() {
+        let base_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0u64;
+        let start_height = 300u64;
+
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+            let height = match call_count {
+                1 => start_height,
+                2 => start_height + 5, // Gap: returns block 305 after 300
+                3 => start_height + 8, // Gap: returns block 308 after 305
+                _ => start_height + 8 + call_count - 3,
+            };
+            Ok(create_block_with_height(&base_block, height))
+        });
+
+        let poll_interval = Duration::from_millis(100);
+        let stream_delay = Duration::from_millis(10);
+
+        let stream = blocks(&tm_client, poll_interval, stream_delay);
+        let results: Vec<_> = stream.take(12).collect().await; // Should get 300-311
+
+        assert_eq!(results.len(), 12);
+
+        for (i, height_result) in results.into_iter().enumerate() {
+            assert_eq!(height_result.unwrap().value(), start_height + i as u64);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn blocks_stream_ignores_duplicate_blocks() {
+        let base_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0u64;
+        let start_height = 400u64;
+
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+            let height = match call_count {
+                1 => start_height,     // 400
+                2 => start_height + 1, // 401
+                3 => start_height + 1, // 401 - immediate duplicate
+                4 => start_height + 2, // 402
+                5 => start_height + 1, // 401 - duplicate, older than predecessor
+                6 => start_height + 2, // 402 - duplicate of already streamed
+                7 => start_height - 1, // 399 - older than any streamed block
+                8 => start_height + 3, // 403 - new block
+                9 => start_height,     // 400 - duplicate of first streamed
+                _ => start_height + 3 + call_count - 9,
+            };
+            Ok(create_block_with_height(&base_block, height))
+        });
+
+        let poll_interval = Duration::from_millis(100);
+        let stream_delay = Duration::from_millis(10);
+
+        let stream = blocks(&tm_client, poll_interval, stream_delay);
+        let results: Vec<_> = stream.take(10).collect().await; // Should get 400, 401, 402, 403, 404, 405, 406, 407, 408, 409
+
+        assert_eq!(results.len(), 10);
+
+        for (i, height_result) in results.into_iter().enumerate() {
+            assert_eq!(height_result.unwrap().value(), start_height + i as u64);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn blocks_stream_handles_intermittent_errors_with_gaps() {
+        let base_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0u64;
+        let start_height = 500u64;
+
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+            match call_count {
+                1 => Err(report!(tendermint_rpc::Error::server(
+                    "error 1".to_string()
+                ))), // Start with error
+                2 => Ok(create_block_with_height(&base_block, start_height)),
+                3 => Err(report!(tendermint_rpc::Error::server(
+                    "error 2".to_string()
+                ))),
+                4 => Ok(create_block_with_height(&base_block, start_height + 3)), // Gap
+                5 => Err(report!(tendermint_rpc::Error::server(
+                    "error 3".to_string()
+                ))),
+                6 => Err(report!(tendermint_rpc::Error::server(
+                    "error 4".to_string()
+                ))), // Consecutive errors
+                7 => Err(report!(tendermint_rpc::Error::server(
+                    "error 5".to_string()
+                ))), // Consecutive errors
+                8 => Ok(create_block_with_height(&base_block, start_height + 6)), // Another gap
+                _ => Ok(create_block_with_height(
+                    &base_block,
+                    start_height + 6 + call_count - 8,
+                )),
+            }
+        });
+
+        let poll_interval = Duration::from_millis(100);
+        let stream_delay = Duration::from_millis(10);
+
+        let stream = blocks(&tm_client, poll_interval, stream_delay);
+        let results: Vec<_> = stream.take(20).collect().await;
+
+        let mut error_count = 0;
+        let mut success_count = 0;
+        let mut last_successful_height = start_height - 1;
+
+        for height_result in results {
+            match height_result {
+                Ok(height) => {
+                    success_count += 1;
+                    assert_eq!(height.value(), last_successful_height + 1);
+                    last_successful_height = height.value();
+                }
+                Err(err) => {
+                    error_count += 1;
+                    assert!(err_contains!(err, Error, Error::LatestBlockQuery));
+                }
+            }
+        }
+
+        assert_eq!(error_count, 5); // 5 errors total
+        assert_eq!(success_count, 15); // 15 successful block heights
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn blocks_stream_gap_filling_blocks_have_no_delay() {
+        let base_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0u64;
+        let start_height = 600u64;
+
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+            let height = match call_count {
+                1 => start_height,
+                2 => start_height + 5, // Creates gap, will trigger gap filling
+                _ => start_height + 5, // Keep returning same to not advance further
+            };
+
+            Ok(create_block_with_height(&base_block, height))
+        });
+
+        let poll_interval = Duration::from_millis(100);
+        let stream_delay = Duration::from_secs(10); // Very long delay to test gap filling has no delay
+        let start_time = tokio::time::Instant::now();
+
+        let stream = blocks(&tm_client, poll_interval, stream_delay);
+        let results: Vec<_> = stream.take(6).collect().await; // Should get 600-605
+
+        let elapsed = start_time.elapsed();
+
+        // First block should be delayed, but gap-filling blocks (601-605) should not be delayed
+        // So total time should be much less than 6 * stream_delay
+        let max_expected_time = stream_delay * 2 + Duration::from_millis(100); // Only first block + block after gap + some buffer
+        assert!(elapsed < max_expected_time);
+
+        assert_eq!(results.len(), 6);
+        for (i, height_result) in results.into_iter().enumerate() {
+            assert_eq!(height_result.unwrap().value(), start_height + i as u64);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_single_block_with_all_event_types() {
+        let mut tm_client = MockTmClient::new();
+
+        tm_client
+            .expect_block_results()
+            .times(1)
+            .returning(|height| {
+                Ok(block_results_response(
+                    height,
+                    vec![random_event()], // begin_block_events
+                    vec![random_event()], // tx_events
+                    vec![random_event()], // end_block_events
+                ))
+            });
+
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
+        let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
+
+        assert_eq!(events.len(), 5); // BlockBegin + 3 ABCI events + BlockEnd
+        assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[1], Ok(Event::Abci { .. })));
+        assert!(matches!(events[2], Ok(Event::Abci { .. })));
+        assert!(matches!(events[3], Ok(Event::Abci { .. })));
+        assert!(matches!(events[4], Ok(Event::BlockEnd(_))));
+    }
+
+    #[tokio::test(start_paused = true)]
+    #[allow(clippy::cast_possible_truncation)]
+    async fn events_stream_multiple_blocks_sequentially() {
+        let mut tm_client = MockTmClient::new();
+
+        tm_client
+            .expect_block_results()
+            .times(3)
+            .returning(|height| {
+                let event_count = height.value() as usize; // Different event counts per block
+                Ok(block_results_response(
+                    height,
+                    vec![random_event(); event_count],
+                    vec![random_event(); event_count],
+                    vec![random_event(); event_count],
+                ))
+            });
+
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(10), 3);
+        let start_time = tokio::time::Instant::now();
+        let block_stream = stream::iter(vec![
+            Ok(block::Height::from(1u32)),
+            Ok(block::Height::from(2u32)),
+            Ok(block::Height::from(3u32)),
+        ]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
+
+        let elapsed = start_time.elapsed();
+        assert!(elapsed < Duration::from_secs(10)); // Should complete without retries
+
+        // Block 1: BlockBegin + 3 ABCI + BlockEnd = 5 events
+        // Block 2: BlockBegin + 6 ABCI + BlockEnd = 8 events
+        // Block 3: BlockBegin + 9 ABCI + BlockEnd = 11 events
+        assert_eq!(events.len(), 24);
+
+        let mut event_idx = 0;
+        for block_height in 1..=3 {
+            assert!(matches!(events[event_idx], Ok(Event::BlockBegin(_))));
+            event_idx += 1;
+
+            for _ in 0..(block_height * 3) {
+                assert!(matches!(events[event_idx], Ok(Event::Abci { .. })));
+                event_idx += 1;
+            }
+
+            assert!(matches!(events[event_idx], Ok(Event::BlockEnd(_))));
+            event_idx += 1;
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_adheres_to_retry_policy_on_block_results_failure() {
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0;
+
+        tm_client
+            .expect_block_results()
+            .times(3)
+            .returning(move |height| {
+                call_count += 1;
+                match call_count {
+                    1 | 2 => Err(report!(tendermint_rpc::Error::server(
+                        "temporary error".to_string()
+                    ))),
+                    3 => Ok(block_results_response(
+                        height,
+                        vec![random_event()],
+                        vec![],
+                        vec![],
+                    )),
+                    _ => unreachable!(),
                 }
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
-        let block_stream = stream::iter(vec![Ok(1u32.into()), Ok(2u32.into())]);
-        let mut stream = events(&tm_client, block_stream, retry_policy);
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(1), 3);
+        let start_time = tokio::time::Instant::now();
+        let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::BlockBegin(_))
-        ));
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::Abci { .. })
-        ));
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::Abci { .. })
-        ));
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::Abci { .. })
-        ));
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::BlockEnd(_))
-        ));
-        assert_err_contains!(
-            stream.next().await.unwrap(),
-            Error,
-            Error::BlockResultsQuery { .. }
-        );
-        assert!(stream.next().await.is_none());
+        let elapsed = start_time.elapsed();
+        assert!(elapsed >= Duration::from_secs(2)); // 2 retries with 1 second each
+
+        assert_eq!(events.len(), 3); // BlockBegin + 1 ABCI + BlockEnd
+        assert!(events.iter().all(Result::is_ok));
     }
 
-    #[tokio::test]
-    async fn event_stream_should_stream_event() {
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_propagates_block_height_errors() {
         let mut tm_client = MockTmClient::new();
+
         tm_client
             .expect_block_results()
             .times(2)
             .returning(move |height| {
-                if height == 1u32.into() {
-                    Ok(block_results_response(
-                        height,
-                        vec![random_event()],
-                        vec![random_event()],
-                        vec![random_event()],
-                    ))
-                } else if height == 2u32.into() {
-                    Ok(block_results_response(
-                        height,
-                        vec![random_event(), random_event()],
-                        vec![random_event(), random_event()],
-                        vec![random_event(), random_event()],
-                    ))
-                } else {
-                    unreachable!()
-                }
+                Ok(block_results_response(
+                    height,
+                    vec![random_event()],
+                    vec![random_event()],
+                    vec![random_event()],
+                ))
             });
 
-        let retry_policy = RetryPolicy::RepeatConstant {
-            sleep: Duration::from_millis(100),
-            max_attempts: 3,
-        };
-        let block_stream = stream::iter(vec![Ok(1u32.into()), Ok(2u32.into())]);
-        let stream = events(&tm_client, block_stream, retry_policy);
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
+        let block_stream = stream::iter(vec![
+            Ok(block::Height::from(100u32)),
+            Err(report!(Error::LatestBlockQuery)),
+            Ok(block::Height::from(101u32)),
+        ]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
-        let events: Vec<_> = stream.collect().await;
+        assert_eq!(events.len(), 11); // Block 100: 5 events + error + Block 101: 5 events
 
-        assert!(matches!(
-            &events[..],
-            [
-                Ok(Event::BlockBegin(_)),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::BlockEnd(_)),
-                Ok(Event::BlockBegin(_)),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::Abci { .. }),
-                Ok(Event::BlockEnd(_))
-            ]
-        ))
+        // First block (100) should be processed successfully
+        assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[1], Ok(Event::Abci { .. })));
+        assert!(matches!(events[2], Ok(Event::Abci { .. })));
+        assert!(matches!(events[3], Ok(Event::Abci { .. })));
+        assert!(matches!(events[4], Ok(Event::BlockEnd(_))));
+
+        // Error should be propagated
+        assert!(events[5].is_err());
+        assert!(err_contains!(
+            events[5].as_ref().unwrap_err(),
+            Error,
+            Error::LatestBlockQuery
+        ));
+
+        // Second block (101) should be processed successfully
+        assert!(matches!(events[6], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[7], Ok(Event::Abci { .. })));
+        assert!(matches!(events[8], Ok(Event::Abci { .. })));
+        assert!(matches!(events[9], Ok(Event::Abci { .. })));
+        assert!(matches!(events[10], Ok(Event::BlockEnd(_))));
     }
 
-    #[tokio::test]
-    async fn block_stream_should_return_error_immediately_if_latest_block_height_query_fails() {
-        let interval = std::time::Duration::from_millis(100);
-
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_handles_individual_event_decoding_failures() {
         let mut tm_client = MockTmClient::new();
-        tm_client.expect_latest_block().return_once(|| {
-            Err(report!(tendermint_rpc::Error::server(
-                "server error".to_string()
-            )))
-        });
 
-        assert!(blocks(
-            &tm_client,
-            interval,
-            Duration::from_secs(1),
-            CancellationToken::new()
-        )
-        .await
-        .is_err());
-    }
+        tm_client
+            .expect_block_results()
+            .times(1)
+            .returning(|height| {
+                let mut invalid_event = random_event();
+                invalid_event.attributes = vec![EventAttribute {
+                    key: "invalid".to_string(),
+                    value: "invalid".to_string(),
+                    index: false,
+                }]; // attributes are expected to be base64 encoded
 
-    #[tokio::test]
-    async fn block_stream_can_be_cancelled() {
-        let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
-        let interval = std::time::Duration::from_millis(100);
-
-        let token = CancellationToken::new();
-        let child_token = token.child_token();
-        let handle = tokio::spawn(async move {
-            let mut tm_client = MockTmClient::new();
-            tm_client.expect_latest_block().returning(move || {
-                Ok(tm_client::BlockResponse {
-                    block_id: Default::default(),
-                    block: block.clone(),
-                })
+                Ok(block_results_response(
+                    height,
+                    vec![random_event().clone()],
+                    vec![invalid_event, random_event().clone()],
+                    vec![random_event()],
+                ))
             });
-            let mut stream = blocks(&tm_client, interval, Duration::from_secs(1), child_token)
-                .await
-                .unwrap();
 
-            while stream.next().await.is_some() {}
-        });
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
+        let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
-        token.cancel();
-        assert!(handle.await.is_ok());
+        assert_eq!(events.len(), 6); // BlockBegin + 4 events (1 failure, 3 success) + BlockEnd
+        assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[1], Ok(Event::Abci { .. }))); // valid begin_block event
+        assert!(matches!(events[2], Ok(Event::Abci { .. }))); // valid tx event
+        assert!(events[3].is_err()); // invalid end_block event
+        assert!(matches!(events[4], Ok(Event::Abci { .. }))); // valid end_block event
+        assert!(matches!(events[5], Ok(Event::BlockEnd(_))));
     }
 
-    #[tokio::test]
-    async fn block_stream_should_stream_error_if_subsequent_latest_block_height_query_fails() {
-        let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
-        let height = block.header().height;
-        let interval = std::time::Duration::from_millis(100);
-
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_maintains_buffered_processing_order() {
         let mut tm_client = MockTmClient::new();
-        let mut call_count = 0;
-        tm_client.expect_latest_block().times(3).returning(move || {
-            call_count += 1;
 
-            match call_count {
-                1 => Ok(tm_client::BlockResponse {
-                    block_id: Default::default(),
-                    block: block.clone(),
-                }),
-                2 | 3 => Err(report!(tendermint_rpc::Error::server(
-                    "server error".to_string()
-                ))),
+        tm_client
+            .expect_block_results()
+            .times(5)
+            .returning(move |height| {
+                Ok(block_results_response(
+                    height,
+                    vec![random_event()],
+                    vec![],
+                    vec![],
+                ))
+            });
+
+        let tm_client = SlowClient::new(tm_client, |count| {
+            match count {
+                1 => Duration::from_millis(500), // Slowest
+                2 => Duration::from_millis(100), // Fastest
+                3 => Duration::from_millis(300), // Medium
+                4 => Duration::from_millis(200), // Fast
+                5 => Duration::from_millis(400), // Slow
                 _ => unreachable!(),
             }
         });
 
-        let token = CancellationToken::new();
-        let mut stream = blocks(
-            &tm_client,
-            interval,
-            Duration::from_secs(1),
-            token.child_token(),
-        )
-        .await
-        .unwrap();
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(10), 3);
+        let block_stream = stream::iter(vec![
+            Ok(block::Height::from(1u32)),
+            Ok(block::Height::from(2u32)),
+            Ok(block::Height::from(3u32)),
+            Ok(block::Height::from(4u32)),
+            Ok(block::Height::from(5u32)),
+        ]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
+        // Events should still be in order despite different processing times
+        let mut expected_block = 1u64;
+        let mut event_idx = 0;
 
-        token.cancel();
-        assert!(stream.next().await.is_none());
+        while event_idx < events.len() {
+            if let Ok(Event::BlockBegin(height)) = &events[event_idx] {
+                assert_eq!(height.value(), expected_block);
+                expected_block += 1;
+            }
+            event_idx += 1;
+        }
     }
 
-    #[tokio::test]
-    async fn block_stream_should_stream_block_height() {
-        let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
-        let height = block.header().height;
-        let interval = std::time::Duration::from_millis(100);
-
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_handles_empty_blocks() {
         let mut tm_client = MockTmClient::new();
-        let mut call_count = 0;
-        tm_client.expect_latest_block().times(4).returning(move || {
-            let mut block = block.clone();
-            call_count += 1;
 
-            match call_count {
-                1 => Ok(tm_client::BlockResponse {
-                    block_id: Default::default(),
-                    block,
-                }),
-                2 => {
-                    block.header.height = (block.header().height.value() + 3).try_into().unwrap();
-
-                    Ok(tm_client::BlockResponse {
-                        block_id: Default::default(),
-                        block,
-                    })
+        tm_client
+            .expect_block_results()
+            .times(3)
+            .returning(|height| {
+                match height.value() {
+                    1 => Ok(block_results_response(height, vec![], vec![], vec![])), // Empty block
+                    2 => Ok(block_results_response(
+                        height,
+                        vec![random_event()],
+                        vec![],
+                        vec![],
+                    )), // One event
+                    3 => Ok(block_results_response(height, vec![], vec![], vec![])), // Empty block
+                    _ => unreachable!(),
                 }
-                3 => Err(report!(tendermint_rpc::Error::server(
-                    "server error".to_string()
-                ))),
-                4 => {
-                    block.header.height = (block.header().height.value() + 6).try_into().unwrap();
+            });
 
-                    Ok(tm_client::BlockResponse {
-                        block_id: Default::default(),
-                        block,
-                    })
-                }
-                _ => unreachable!(),
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
+        let block_stream = stream::iter(vec![
+            Ok(block::Height::from(1u32)),
+            Ok(block::Height::from(2u32)),
+            Ok(block::Height::from(3u32)),
+        ]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
+
+        assert_eq!(events.len(), 7); // 3 BlockBegin + 1 ABCI + 3 BlockEnd
+
+        // Block 1: empty
+        assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[1], Ok(Event::BlockEnd(_))));
+
+        // Block 2: one event
+        assert!(matches!(events[2], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[3], Ok(Event::Abci { .. })));
+        assert!(matches!(events[4], Ok(Event::BlockEnd(_))));
+
+        // Block 3: empty
+        assert!(matches!(events[5], Ok(Event::BlockBegin(_))));
+        assert!(matches!(events[6], Ok(Event::BlockEnd(_))));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn events_stream_exhausted_retry_attempts() {
+        let mut tm_client = MockTmClient::new();
+
+        tm_client
+            .expect_block_results()
+            .times(3)
+            .returning(|_height| {
+                Err(report!(tendermint_rpc::Error::server(
+                    "persistent error".to_string()
+                )))
+            });
+
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(1), 3);
+        let start_time = tokio::time::Instant::now();
+        let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
+
+        let elapsed = start_time.elapsed();
+        assert!(elapsed >= Duration::from_secs(2)); // 2 retries with 1 second each
+
+        assert_eq!(events.len(), 1);
+        assert!(events[0].is_err());
+        assert!(err_contains!(
+            events[0].as_ref().unwrap_err(),
+            Error,
+            Error::BlockResultsQuery { block: _ }
+        ));
+    }
+
+    struct SlowClient<T, DelayFn>
+    where
+        T: TmClient,
+        DelayFn: Fn(u64) -> Duration + Send + Sync,
+    {
+        client: T,
+        delay: DelayFn,
+        call_count: std::sync::atomic::AtomicU64,
+    }
+
+    impl<T, DelayFn> SlowClient<T, DelayFn>
+    where
+        T: TmClient + Send + Sync,
+        DelayFn: Fn(u64) -> Duration + Send + Sync,
+    {
+        pub fn new(client: T, delay: DelayFn) -> Self {
+            Self {
+                client,
+                delay,
+                call_count: std::sync::atomic::AtomicU64::new(0),
             }
-        });
+        }
+    }
 
-        let token = CancellationToken::new();
-        let mut stream = blocks(
-            &tm_client,
-            interval,
-            Duration::from_secs(1),
-            token.child_token(),
-        )
-        .await
-        .unwrap();
+    #[async_trait::async_trait]
+    impl<T, DelayFn> TmClient for SlowClient<T, DelayFn>
+    where
+        T: TmClient + Send + Sync,
+        DelayFn: Fn(u64) -> Duration + Send + Sync,
+    {
+        async fn latest_block(
+            &self,
+        ) -> error_stack::Result<tm_client::BlockResponse, tm_client::Error> {
+            unimplemented!()
+        }
 
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-        let height = height.increment();
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-        let height = height.increment();
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-        let height = height.increment();
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
+        async fn block_results(
+            &self,
+            height: block::Height,
+        ) -> error_stack::Result<tm_client::BlockResultsResponse, tm_client::Error> {
+            self.call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let count = self.call_count.load(std::sync::atomic::Ordering::SeqCst);
+            tokio::time::sleep((self.delay)(count)).await; // Simulate slow response
+            self.client.block_results(height).await
+        }
+    }
 
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-
-        let height = height.increment();
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-        let height = height.increment();
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-        let height = height.increment();
-        assert_eq!(stream.next().await.unwrap().unwrap(), height);
-
-        token.cancel();
-        assert!(stream.next().await.is_none());
+    fn create_block_with_height(
+        base_block: &tendermint::Block,
+        height: u64,
+    ) -> tm_client::BlockResponse {
+        let mut block = base_block.clone();
+        block.header.height = height.try_into().unwrap();
+        tm_client::BlockResponse {
+            block_id: Default::default(),
+            block,
+        }
     }
 }

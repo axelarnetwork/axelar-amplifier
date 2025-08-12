@@ -14,7 +14,6 @@ Below is the config file format, with explanations for each entry:
 tm_jsonrpc=[JSON-RPC URL of Axelar node]
 tm_grpc=[gRPC URL of Axelar node]
 event_buffer_cap=[max blockchain events to queue. Will error if set too low]
-health_check_bind_addr=[the /status endpoint bind address i.e "0.0.0.0:3000"]
 
 [service_registry]
 cosmwasm_contract=[address of service registry]
@@ -44,21 +43,24 @@ type="MultisigSigner"
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier  | StarknetMsgVerifier | SolanaMsgVerifier]
+type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier  | StarknetMsgVerifier | SolanaMsgVerifier | StacksMsgVerifier]
 
 # handler to verify verifier set rotations. One per supported chain
 [[handlers]]
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier]
+type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier | StacksVerifierSetVerifier]
+
+[monitoring_server]
+enabled=[whether to enable the monitoring server]
+bind_address=[the /status and /metrics endpoints bind address i.e. "127.0.0.1:3000"]
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
-from Avalanche testnet and Sui testnet.
+from Avalanche testnet, Sui testnet and Stacks testnet.
 
 ```yaml
-health_check_bind_addr="0.0.0.0:3000"
 tm_jsonrpc="http://localhost:26657"
 tm_grpc="tcp://localhost:9090"
 event_buffer_cap=10000
@@ -96,6 +98,18 @@ cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns
 rpc_url = "https://fullnode.testnet.sui.io:443"
 
 [[handlers]]
+type = 'StacksMsgVerifier'
+chain_name = 'stacks'
+cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
+http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
+
+[[handlers]]
+type = 'StacksVerifierSetVerifier'
+chain_name = 'stacks'
+cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
+http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
+
+[[handlers]]
 type = 'EvmMsgVerifier'
 cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
 chain_name = 'avalanche'
@@ -124,6 +138,10 @@ cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 type = "SolanaVerifierSetVerifier"
 chain_name = "solana"
 chain_rpc_url = "https://api.devnet.solana.com"
+
+[monitoring_server]
+enabled = false
+bind_address = '127.0.0.1:3000'
 ```
 
 By default, ampd loads the config file from `~/.ampd/config.toml` when running any command.

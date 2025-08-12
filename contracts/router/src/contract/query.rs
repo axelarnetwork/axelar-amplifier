@@ -39,7 +39,9 @@ mod test {
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
+    use router_api::{
+        chain_name, cosmos_addr, ChainEndpoint, ChainName, Gateway, GatewayDirection,
+    };
 
     use super::chain_info;
     use crate::state::chain_endpoints;
@@ -47,11 +49,11 @@ mod test {
     #[test]
     fn should_get_chain_info() {
         let mut deps = mock_dependencies();
-        let chain_name: ChainName = "Ethereum".try_into().unwrap();
+        let chain_name = chain_name!("Ethereum");
         let endpoint = ChainEndpoint {
             name: chain_name.clone(),
             gateway: Gateway {
-                address: MockApi::default().addr_make("some gateway"),
+                address: cosmos_addr!("some gateway"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -68,7 +70,7 @@ mod test {
     #[test]
     fn get_non_existent_chain_info() {
         let deps = mock_dependencies();
-        let chain_name: ChainName = "Ethereum".try_into().unwrap();
+        let chain_name = chain_name!("Ethereum");
         let result = chain_info(deps.as_ref().storage, chain_name);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().current_context(), &Error::ChainNotFound);
@@ -78,10 +80,10 @@ mod test {
     fn paginated_chains() {
         let mut deps = mock_dependencies();
         let chains: Vec<ChainName> = vec![
-            "a-chain".parse().unwrap(),
-            "b-chain".parse().unwrap(),
-            "c-chain".parse().unwrap(),
-            "d-chain".parse().unwrap(),
+            chain_name!("a-chain"),
+            chain_name!("b-chain"),
+            chain_name!("c-chain"),
+            chain_name!("d-chain"),
         ];
 
         let endpoints: Vec<ChainEndpoint> = chains
@@ -114,31 +116,19 @@ mod test {
         assert_eq!(result, vec![endpoints[0].clone(), endpoints[1].clone()]);
 
         // with page
-        let result = super::chains(
-            deps.as_ref().storage,
-            Some("c-chain".parse().unwrap()),
-            Some(2),
-        )
-        .unwrap();
+        let result =
+            super::chains(deps.as_ref().storage, Some(chain_name!("c-chain")), Some(2)).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result, vec![endpoints[3].clone()]);
 
         // start after the last chain
-        let result = super::chains(
-            deps.as_ref().storage,
-            Some("d-chain".parse().unwrap()),
-            Some(2),
-        )
-        .unwrap();
+        let result =
+            super::chains(deps.as_ref().storage, Some(chain_name!("d-chain")), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
 
         // with a key out of the scope
-        let result = super::chains(
-            deps.as_ref().storage,
-            Some("e-chain".parse().unwrap()),
-            Some(2),
-        )
-        .unwrap();
+        let result =
+            super::chains(deps.as_ref().storage, Some(chain_name!("e-chain")), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
     }
 }

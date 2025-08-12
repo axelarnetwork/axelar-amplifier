@@ -1,19 +1,20 @@
 use axelar_wasm_std::{killswitch, nonempty, FnExt, IntoContractError};
-use cosmwasm_std::{DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
+use cosmwasm_std::{Addr, DepsMut, HexBinary, QuerierWrapper, Response, Storage, Uint256};
 use error_stack::{bail, ensure, report, Result, ResultExt};
 use interceptors::{deploy_token_to_destination_chain, deploy_token_to_source_chain};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
-
-use crate::events::Event;
-use crate::msg::SupplyModifier;
-use crate::primitives::HubMessage;
-use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
-use crate::{
-    msg, state, DeployInterchainToken, InterchainTransfer, LinkToken, Message,
+use interchain_token_service_std::{
+    DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
     RegisterTokenMetadata, TokenId,
 };
+use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+
+use crate::events::{make_message_event, Event};
+use crate::msg::SupplyModifier;
+use crate::state::{TokenConfig, TokenDeploymentType, TokenInstance, TokenSupply};
+use crate::{msg, state};
 
 mod interceptors;
+mod msg_translation;
 
 #[derive(thiserror::Error, Debug, IntoContractError)]
 pub enum Error {
@@ -90,17 +91,18 @@ pub enum Error {
         existing_decimals: u8,
         new_decimals: u8,
     },
-    #[error("failed to query axelarnet gateway for chain name")]
-    FailedToQueryAxelarnetGateway,
+    #[error("failed to query axelarnet gateway at address {0} for chain name")]
+    FailedToQueryAxelarnetGateway(Addr),
     #[error("supply modification overflowed. existing supply {0:?}")]
     ModifySupplyOverflow(TokenSupply),
+    #[error("translation failed")]
+    TranslationFailed,
 }
 
-/// Executes an incoming ITS message.
 ///
 /// This function handles the execution of ITS (Interchain Token Service) messages received from
-/// its sources. It verifies the source address, decodes the message, applies various checks and transformations,
-/// and forwards the message to the destination chain.
+/// its sources. It verifies the source address, decodes the message using translation hooks,
+/// applies various checks and transformations, and forwards the message to the destination chain.
 pub fn execute_message(
     deps: DepsMut,
     cc_id: CrossChainId,
@@ -113,7 +115,15 @@ pub fn execute_message(
     );
     ensure_is_its_source_address(deps.storage, &cc_id.source_chain, &source_address)?;
 
-    match HubMessage::abi_decode(&payload).change_context(Error::InvalidPayload)? {
+    // Use translation hook to decode the payload
+    let hub_message = msg_translation::hub_message_from_bytes(
+        deps.storage,
+        deps.querier,
+        &cc_id.source_chain,
+        &payload,
+    )?;
+
+    match hub_message {
         HubMessage::SendToHub {
             destination_chain,
             message,
@@ -131,7 +141,9 @@ fn axelar_chain_name(storage: &dyn Storage, querier: QuerierWrapper) -> Result<C
         client::ContractClient::new(querier, &config.axelarnet_gateway).into();
     gateway
         .chain_name()
-        .change_context(Error::FailedToQueryAxelarnetGateway)
+        .change_context(Error::FailedToQueryAxelarnetGateway(
+            config.axelarnet_gateway,
+        ))
 }
 
 fn execute_message_on_hub(
@@ -147,11 +159,18 @@ fn execute_message_on_hub(
         message,
     )?;
 
-    let destination_payload = HubMessage::ReceiveFromHub {
+    let hub_message = HubMessage::ReceiveFromHub {
         source_chain: cc_id.source_chain.clone(),
         message: message.clone(),
-    }
-    .abi_encode();
+    };
+
+    // Use translation hook to encode the message for the destination chain
+    let destination_payload = msg_translation::hub_message_to_bytes(
+        deps.storage,
+        deps.querier,
+        &destination_chain,
+        &hub_message,
+    )?;
 
     Ok(send_to_destination(
         deps.storage,
@@ -160,36 +179,11 @@ fn execute_message_on_hub(
         destination_payload,
     )?
     .add_event(Event::MessageReceived {
-        cc_id,
-        destination_chain,
-        message,
-    }))
-}
-
-fn apply_to_hub(
-    storage: &mut dyn Storage,
-    source_chain: ChainNameRaw,
-    destination_chain: ChainNameRaw,
-    message: Message,
-) -> Result<Message, Error> {
-    ensure_chain_not_frozen(storage, &source_chain)?;
-    ensure_chain_not_frozen(storage, &destination_chain)?;
-
-    match message {
-        Message::InterchainTransfer(transfer) => {
-            apply_to_transfer(storage, source_chain, destination_chain, transfer)
-                .map(Message::InterchainTransfer)?
-        }
-        Message::DeployInterchainToken(deploy_token) => {
-            apply_to_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
-                .map(Message::DeployInterchainToken)?
-        }
-        Message::LinkToken(link_token) => {
-            apply_to_link_token(storage, source_chain, destination_chain, link_token)
-                .map(Message::LinkToken)?
-        }
-    }
-    .then(Result::Ok)
+        cc_id: cc_id.clone(),
+        destination_chain: destination_chain.clone(),
+        message: message.clone(),
+    })
+    .add_event(make_message_event(destination_chain, message)))
 }
 
 fn execute_register_token_metadata(
@@ -391,39 +385,48 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
     killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
 }
 
-pub fn register_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
+pub fn register_chains(
+    mut deps: DepsMut,
+    chains: Vec<msg::ChainConfig>,
+) -> Result<Response, Error> {
     chains
         .into_iter()
-        .try_for_each(|chain_config| register_chain(deps.storage, chain_config))?;
+        .try_for_each(|chain_config| register_chain(&mut deps, chain_config))?;
 
     Ok(Response::new())
 }
 
-fn register_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
-    match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
-        Some(_) => bail!(Error::ChainAlreadyRegistered(config.chain)),
-        None => state::save_chain_config(storage, &config.chain.clone(), config)
-            .change_context(Error::State)?,
-    };
+fn register_chain(deps: &mut DepsMut, config: msg::ChainConfig) -> Result<(), Error> {
+    let chain = config.chain.clone();
+    let config = state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
 
+    match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
+        Some(_) => bail!(Error::ChainAlreadyRegistered(chain)),
+        None => {
+            state::save_chain_config(deps.storage, &chain, &config).change_context(Error::State)?
+        }
+    };
     Ok(())
 }
 
-pub fn update_chains(deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
+pub fn update_chains(mut deps: DepsMut, chains: Vec<msg::ChainConfig>) -> Result<Response, Error> {
     chains
         .into_iter()
-        .try_for_each(|chain_config| update_chain(deps.storage, chain_config))?;
+        .try_for_each(|chain_config| update_chain(&mut deps, chain_config))?;
 
     Ok(Response::new())
 }
 
-fn update_chain(storage: &mut dyn Storage, config: msg::ChainConfig) -> Result<(), Error> {
-    match state::may_load_chain_config(storage, &config.chain).change_context(Error::State)? {
-        None => bail!(Error::ChainNotRegistered(config.chain)),
-        Some(_) => state::save_chain_config(storage, &config.chain.clone(), config)
-            .change_context(Error::State)?,
-    };
+fn update_chain(deps: &mut DepsMut, config: msg::ChainConfig) -> Result<(), Error> {
+    let chain = config.chain.clone();
+    let config = state::ChainConfig::new(config, deps.api).change_context(Error::State)?;
 
+    match state::may_load_chain_config(deps.storage, &chain).change_context(Error::State)? {
+        None => bail!(Error::ChainNotRegistered(chain)),
+        Some(_) => {
+            state::save_chain_config(deps.storage, &chain, &config).change_context(Error::State)?
+        }
+    };
     Ok(())
 }
 
@@ -532,9 +535,34 @@ impl DeploymentType for DeployInterchainToken {
     }
 }
 
+fn apply_to_hub(
+    storage: &mut dyn Storage,
+    source_chain: ChainNameRaw,
+    destination_chain: ChainNameRaw,
+    message: Message,
+) -> Result<Message, Error> {
+    ensure_chain_not_frozen(storage, &source_chain)?;
+    ensure_chain_not_frozen(storage, &destination_chain)?;
+
+    match message {
+        Message::InterchainTransfer(transfer) => {
+            apply_to_transfer(storage, source_chain, destination_chain, transfer)
+                .map(Message::InterchainTransfer)?
+        }
+        Message::DeployInterchainToken(deploy_token) => {
+            apply_to_token_deployment(storage, &source_chain, &destination_chain, deploy_token)
+                .map(Message::DeployInterchainToken)?
+        }
+        Message::LinkToken(link_token) => {
+            apply_to_link_token(storage, source_chain, destination_chain, link_token)
+                .map(Message::LinkToken)?
+        }
+    }
+    .then(Result::Ok)
+}
+
 #[cfg(test)]
 mod tests {
-
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{assert_err_contains, killswitch, nonempty, permission_control};
@@ -545,19 +573,23 @@ mod tests {
         WasmQuery,
     };
     use error_stack::{report, Result};
-    use router_api::{ChainName, ChainNameRaw, CrossChainId};
+    use interchain_token_service_std::{
+        DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
+        RegisterTokenMetadata, TokenId,
+    };
+    use its_abi_translator::abi::hub_message_abi_encode;
+    use router_api::{
+        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainNameRaw, CrossChainId,
+    };
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
         apply_to_transfer, disable_execution, enable_execution, execute_message, freeze_chain,
         modify_supply, register_chain, register_chains, unfreeze_chain, update_chains, Error,
     };
+    use crate::msg;
     use crate::msg::TruncationConfig;
     use crate::state::{self, Config, TokenSupply};
-    use crate::{
-        msg, DeployInterchainToken, HubMessage, InterchainTransfer, LinkToken, Message,
-        RegisterTokenMetadata, TokenId,
-    };
 
     const SOLANA: &str = "solana";
     const ETHEREUM: &str = "ethereum";
@@ -862,7 +894,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
 
         assert_ok!(disable_execution(deps.as_mut()));
@@ -883,7 +915,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         );
         assert_err_contains!(res, Error, Error::ExecutionDisabled);
 
@@ -904,7 +936,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.abi_encode(),
+            hub_message_abi_encode(msg),
         ));
     }
 
@@ -939,7 +971,7 @@ mod tests {
                     .unwrap(),
             },
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         );
 
         assert_err_contains!(res, Error, Error::ChainFrozen(..));
@@ -956,7 +988,7 @@ mod tests {
                     .unwrap(),
             },
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
     }
 
@@ -993,7 +1025,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         );
         assert_err_contains!(res, Error, Error::ChainFrozen(..));
 
@@ -1003,7 +1035,7 @@ mod tests {
             deps.as_mut(),
             cc_id,
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg),
         ));
     }
 
@@ -1041,7 +1073,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
     }
 
@@ -1049,26 +1081,28 @@ mod tests {
     fn register_chain_fails_if_already_registered() {
         let mut deps = mock_dependencies();
         assert_ok!(register_chain(
-            deps.as_mut().storage,
+            &mut deps.as_mut(),
             msg::ChainConfig {
                 chain: SOLANA.parse().unwrap(),
                 its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                 truncation: TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
-                }
+                },
+                msg_translator: cosmos_address!("translation")
             }
         ));
         assert_err_contains!(
             register_chain(
-                deps.as_mut().storage,
+                &mut deps.as_mut(),
                 msg::ChainConfig {
                     chain: SOLANA.parse().unwrap(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
-                    }
+                    },
+                    msg_translator: cosmos_address!("translation"),
                 }
             ),
             Error,
@@ -1087,6 +1121,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
+                msg_translator: cosmos_address!("translation"),
             },
             msg::ChainConfig {
                 chain: XRPL.parse().unwrap(),
@@ -1095,6 +1130,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
+                msg_translator: cosmos_address!("translation"),
             },
         ];
         assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -1118,6 +1154,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8,
                     },
+                    msg_translator: cosmos_address!("translation"),
                 }]
             ),
             Error,
@@ -1145,6 +1182,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: new_decimals,
                 },
+                msg_translator: cosmos_address!("translation"),
             }]
         ));
 
@@ -1169,7 +1207,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
 
         // destination token instance should use 6 decimals
@@ -1240,7 +1278,7 @@ mod tests {
             deps.as_mut(),
             cc_id.clone(),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
 
         // update the max_uint to u128 max (previously was u256 max) and reduce decimals when truncating to 6
@@ -1253,6 +1291,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6u8,
                 },
+                msg_translator: cosmos_address!("translation"),
             }]
         ));
 
@@ -1466,7 +1505,7 @@ mod tests {
                         .unwrap(),
                 },
                 ITS_ADDRESS.to_string().try_into().unwrap(),
-                msg.clone().abi_encode(),
+                hub_message_abi_encode(msg.clone()),
             ),
             Error,
             Error::TokenNotRegistered(..)
@@ -1511,7 +1550,7 @@ mod tests {
                         .unwrap(),
                 },
                 ITS_ADDRESS.to_string().try_into().unwrap(),
-                msg.clone().abi_encode(),
+                hub_message_abi_encode(msg.clone()),
             ),
             Error,
             Error::TokenNotRegistered(..)
@@ -1555,7 +1594,7 @@ mod tests {
                         .unwrap(),
                 },
                 ITS_ADDRESS.to_string().try_into().unwrap(),
-                msg.clone().abi_encode(),
+                hub_message_abi_encode(msg.clone()),
             ),
             Error,
             Error::TokenNotRegistered(..)
@@ -1743,7 +1782,7 @@ mod tests {
             register_p2p_token_instance(
                 deps.as_mut(),
                 token_id(),
-                ChainNameRaw::try_from("bananas").unwrap(),
+                chain_name_raw!("bananas"),
                 ethereum(),
                 decimals,
                 supply.clone()
@@ -1757,7 +1796,7 @@ mod tests {
                 deps.as_mut(),
                 token_id(),
                 ethereum(),
-                ChainNameRaw::try_from("bananas").unwrap(),
+                chain_name_raw!("bananas"),
                 decimals,
                 supply.clone()
             ),
@@ -1881,7 +1920,7 @@ mod tests {
             deps,
             cc_id(from),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         )
     }
 
@@ -1949,7 +1988,7 @@ mod tests {
             deps,
             cc_id(from),
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         )
     }
 
@@ -1974,7 +2013,7 @@ mod tests {
                     .unwrap(),
             },
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
         assert_eq!(res.messages.len(), 0);
     }
@@ -2008,7 +2047,7 @@ mod tests {
                     .unwrap(),
             },
             ITS_ADDRESS.to_string().try_into().unwrap(),
-            msg.clone().abi_encode(),
+            hub_message_abi_encode(msg.clone()),
         ));
         assert_eq!(res.messages.len(), 1);
     }
@@ -2058,7 +2097,7 @@ mod tests {
             deps.as_mut().storage,
             &Config {
                 axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
-                operator: MockApi::default().addr_make("operator-address")
+                operator: cosmos_addr!("operator-address")
             },
         ));
 
@@ -2070,14 +2109,15 @@ mod tests {
         for chain_name in [SOLANA, ETHEREUM, XRPL, AXELAR] {
             let chain = ChainNameRaw::try_from(chain_name).unwrap();
             assert_ok!(register_chain(
-                deps.as_mut().storage,
+                &mut deps.as_mut(),
                 msg::ChainConfig {
                     chain: chain.clone(),
                     its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
                     truncation: TruncationConfig {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
-                    }
+                    },
+                    msg_translator: cosmos_address!("translation"),
                 }
             ));
         }
@@ -2087,10 +2127,25 @@ mod tests {
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ChainName {} => {
-                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
-                    }
+                    QueryMsg::ChainName => Ok(to_json_binary(&chain_name!("axelar")).into()).into(),
                     _ => panic!("unsupported query"),
+                }
+            }
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == cosmos_addr!("translation").as_str() =>
+            {
+                let msg = from_json::<its_msg_translator_api::QueryMsg>(msg).unwrap();
+                match msg {
+                    its_msg_translator_api::QueryMsg::FromBytes { payload } => Ok(to_json_binary(
+                        &its_abi_translator::abi::hub_message_abi_decode(payload).unwrap(),
+                    )
+                    .into())
+                    .into(),
+                    its_msg_translator_api::QueryMsg::ToBytes { message } => Ok(to_json_binary(
+                        &its_abi_translator::abi::hub_message_abi_encode(message),
+                    )
+                    .into())
+                    .into(),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),

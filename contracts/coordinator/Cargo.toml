@@ -1,19 +1,12 @@
 [package]
 name = "coordinator"
-version = "1.1.0"
+version = "2.0.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 
 exclude = ["contract.wasm", "hash.txt"]
-
-[package.metadata.scripts]
-optimize = """docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/optimizer:0.16.1
-"""
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

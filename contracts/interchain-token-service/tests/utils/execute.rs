@@ -6,12 +6,16 @@ use axelar_core_std::query::AxelarQueryMsg;
 use axelar_wasm_std::error::ContractError;
 use cosmwasm_std::testing::{message_info, mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response, WasmQuery,
+    from_json, to_json_binary, DepsMut, HexBinary, MemoryStorage, OwnedDeps, Response,
+    SystemResult, WasmQuery,
 };
+use interchain_token_service::contract;
 use interchain_token_service::msg::{self, ExecuteMsg, SupplyModifier, TruncationConfig};
 use interchain_token_service::shared::NumBits;
-use interchain_token_service::{contract, HubMessage, TokenId};
-use router_api::{Address, ChainName, ChainNameRaw, CrossChainId};
+use interchain_token_service_std::{HubMessage, TokenId};
+use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
+use its_msg_translator_api::QueryMsg;
+use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
 use crate::utils::params;
@@ -40,11 +44,12 @@ pub fn execute_hub_message(
     source_address: Address,
     message: HubMessage,
 ) -> Result<Response, ContractError> {
-    execute(deps, cc_id, source_address, message.abi_encode())
+    execute(deps, cc_id, source_address, hub_message_abi_encode(message))
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
     let addr = MockApi::default().addr_make(params::GATEWAY);
+    let translation_contract_addr = cosmos_addr!("translation_contract").to_string();
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
@@ -57,10 +62,31 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
         WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
             let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
             match msg {
-                axelarnet_gateway::msg::QueryMsg::ChainName {} => {
-                    Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
+                axelarnet_gateway::msg::QueryMsg::ChainName => {
+                    Ok(to_json_binary(&chain_name!("axelar")).into()).into()
                 }
                 _ => panic!("unsupported query"),
+            }
+        }
+        WasmQuery::Smart { contract_addr, msg } if *contract_addr == translation_contract_addr => {
+            // Handle translation contract queries
+            let query_msg = from_json::<QueryMsg>(msg).unwrap();
+            match query_msg {
+                QueryMsg::FromBytes { payload } => {
+                    // Use the actual translation logic
+                    match hub_message_abi_decode(payload) {
+                        Ok(hub_message) => Ok(to_json_binary(&hub_message).into()).into(),
+                        Err(_) => SystemResult::Err(cosmwasm_std::SystemError::InvalidRequest {
+                            error: "Translation failed".to_string(),
+                            request: Default::default(),
+                        }),
+                    }
+                }
+                QueryMsg::ToBytes { message } => {
+                    // Use the actual translation logic
+                    let payload = hub_message_abi_encode(message);
+                    Ok(to_json_binary(&payload).into()).into()
+                }
             }
         }
         _ => panic!("unexpected query: {:?}", msg),
@@ -98,6 +124,7 @@ pub fn register_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
+            msg_translator: cosmos_address!("translation_contract"),
         }],
     )
 }
@@ -153,6 +180,7 @@ pub fn update_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
+            msg_translator: cosmos_address!("translation_contract"),
         }],
     )
 }
@@ -203,6 +231,50 @@ pub fn modify_supply(
             token_id,
             supply_modifier,
         },
+    )
+}
+
+pub fn register_chain_with_translation(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    its_edge_contract: Address,
+    max_uint_bits: NumBits,
+    max_decimals_when_truncating: u8,
+    msg_translator: Address,
+) -> Result<Response, ContractError> {
+    register_chains(
+        deps,
+        vec![msg::ChainConfig {
+            chain,
+            its_edge_contract,
+            truncation: TruncationConfig {
+                max_uint_bits,
+                max_decimals_when_truncating,
+            },
+            msg_translator,
+        }],
+    )
+}
+
+pub fn update_chain_with_translation(
+    deps: DepsMut,
+    chain: ChainNameRaw,
+    its_edge_contract: Address,
+    max_uint_bits: NumBits,
+    max_decimals_when_truncating: u8,
+    msg_translator: Address,
+) -> Result<Response, ContractError> {
+    update_chains(
+        deps,
+        vec![msg::ChainConfig {
+            chain,
+            its_edge_contract,
+            truncation: TruncationConfig {
+                max_uint_bits,
+                max_decimals_when_truncating,
+            },
+            msg_translator,
+        }],
     )
 }
 

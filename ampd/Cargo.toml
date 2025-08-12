@@ -1,10 +1,16 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.9.0"
+version = "1.10.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["commands", "config"]
+commands = []
+config = []
+url = []
 
 [dependencies]
 ampd-proto = { workspace = true }
@@ -16,7 +22,8 @@ axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
-config = "0.13.2"
+clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
+config = "0.15.11"
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 der = { version = "0.7.9", features = ["derive"] }
@@ -38,6 +45,7 @@ hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
 itertools = { workspace = true }
 k256 = { workspace = true }
+lazy_static = "1.5.0"
 mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
@@ -47,8 +55,10 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
+prometheus-client = "0.23.1"
 prost = "0.13.5"
 prost-types = "0.13.5"
+regex = "1.10.2"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 rewards = { workspace = true }
@@ -73,6 +83,7 @@ stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sysinfo = "0.36.1"
 tendermint = { workspace = true }
 tendermint-rpc = { version = "0.40.4", features = ["http-client"] }
 thiserror = { workspace = true }
@@ -84,12 +95,9 @@ tonic = "0.13.0"
 tower = "0.5.2"
 tower-http = { version = "0.6.4", features = ["trace"] }
 tracing = { workspace = true }
-tracing-core = { version = "0.1.30", features = ["valuable"] }
-tracing-subscriber = { version = "0.3.16", features = [
-  "json",
-  "valuable",
-  "env-filter",
-] }
+tracing-core = { workspace = true }
+tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
 typed-builder = "0.18.2"
 url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
@@ -103,6 +111,8 @@ tonic-build = "0.13.0"
 
 [dev-dependencies]
 assert_ok = { workspace = true }
+axum-test = "15.7.4"
+cosmos-sdk-proto = "0.27.0"
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
 faux = "0.1.10"
@@ -114,6 +124,7 @@ random-string = "1.0.0"
 tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
+tracing-test = "0.2.5"
 
 [lints]
 workspace = true

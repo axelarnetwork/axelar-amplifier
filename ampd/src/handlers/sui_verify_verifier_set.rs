@@ -9,7 +9,9 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 use tokio::sync::watch::Receiver;
@@ -19,9 +21,15 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
+
+lazy_static! {
+    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
+}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -39,6 +47,7 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
+#[derive(Debug)]
 pub struct Handler<C>
 where
     C: SuiClient + Send + Sync,
@@ -47,6 +56,7 @@ where
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -58,12 +68,14 @@ where
         voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -133,6 +145,13 @@ where
                 verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
 
+            self.monitoring_client
+                .metrics()
+                .record_metric(metrics::Msg::VerificationVote {
+                    vote_decision: vote.clone(),
+                    chain_name: SUI_CHAIN_NAME.clone(),
+                });
+
             info!(
                 vote = vote.as_value(),
                 "ready to vote for a new verifier set in poll"
@@ -153,19 +172,22 @@ mod tests {
     use std::convert::TryInto;
 
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use error_stack::Report;
     use ethers_providers::ProviderError;
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::chain_name;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::PollStartedEvent;
+    use super::{PollStartedEvent, SUI_CHAIN_NAME};
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
+    use crate::monitoring::{metrics, test_utils};
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -207,7 +229,10 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
@@ -218,6 +243,43 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_block()
+            .returning(|_| Ok(None));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            verifier_set_poll_started_event(vec![verifier.clone()].into_iter().collect(), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            metrics::Msg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: SUI_CHAIN_NAME.clone(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
+    }
+
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
@@ -226,7 +288,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "sui".parse().unwrap(),
+                source_chain: chain_name!("sui"),
                 source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
                     .unwrap()
                     .to_string()

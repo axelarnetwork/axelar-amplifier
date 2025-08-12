@@ -86,7 +86,7 @@ impl Deref for Address {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
-        self.0.deref()
+        &self.0
     }
 }
 
@@ -102,22 +102,114 @@ impl TryFrom<String> for Address {
     type Error = Report<Error>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.contains(FIELD_DELIMITER) {
-            return Err(Report::new(Error::InvalidAddress));
-        }
+        let value = nonempty::String::try_from(value).change_context(Error::InvalidAddress)?;
 
-        Ok(Address(
-            value
-                .parse::<nonempty::String>()
-                .change_context(Error::InvalidAddress)?,
-        ))
+        value.try_into()
     }
 }
 
-impl std::fmt::Display for Address {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", *self.0)
+impl TryFrom<nonempty::String> for Address {
+    type Error = Report<Error>;
+    fn try_from(value: nonempty::String) -> Result<Self, Self::Error> {
+        if !Self::is_address(&value) {
+            return Err(Report::new(Error::InvalidAddress));
+        }
+
+        Ok(Address(value))
     }
+}
+
+impl Address {
+    pub const fn is_address(value: &str) -> bool {
+        nonempty::String::is_not_empty(value) && !contains!(value, FIELD_DELIMITER)
+    }
+}
+
+impl Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<cosmwasm_std::Addr> for Address {
+    fn from(addr: cosmwasm_std::Addr) -> Self {
+        Self::try_from(addr.to_string()).expect("the address must have already been validated")
+    }
+}
+
+/// Generates an Address from a string literal. If this address gets converted to a cosmwasm_std::Addr in the contract,
+/// it will NOT pass validation. In that case, use cosmos_address!() instead.
+#[macro_export]
+macro_rules! address {
+    ($s:literal) => {{
+        use std::str::FromStr as _;
+
+        const _: () = {
+            if !$crate::Address::is_address($s) {
+                panic!("string literal is not a valid address");
+            }
+        };
+
+        $crate::Address::from_str($s).expect("string literal was already checked")
+    }};
+}
+
+/// Generates a valid cosmos address from a string literal. This address will pass validation in the contract.
+///
+/// # Returns
+/// A `cosmwasm_std::Addr` that is properly formatted and will pass contract validation.
+///
+/// # Examples
+/// ```
+/// use router_api::cosmos_addr;
+/// let addr = cosmos_addr!("user1");
+/// // addr is now a properly formatted cosmos address like "cosmos1..."
+/// ```
+#[macro_export]
+macro_rules! cosmos_addr {
+    // Addr
+    ($s:literal) => {{
+        use cosmwasm_std::testing::MockApi;
+
+        const _: () = {
+            if $s.is_empty() {
+                panic!("address string cannot be empty");
+            }
+        };
+
+        MockApi::default().addr_make($s)
+    }};
+}
+
+/// Generates a valid cosmos address from a string literal, and then converts it to an Address.
+/// This address will pass validation in the contract.
+///
+/// # Returns
+/// A `router_api::Address` that was created from a valid cosmos address format.
+///
+/// # Examples
+/// ```
+/// use router_api::cosmos_address;
+/// let addr = cosmos_address!("user1");
+/// // addr is a router_api::Address created from a valid cosmos address
+/// ```
+#[macro_export]
+macro_rules! cosmos_address {
+    // Address
+    ($s:literal) => {{
+        use std::str::FromStr as _;
+
+        use cosmwasm_std::testing::MockApi;
+
+        const _: () = {
+            if $s.is_empty() {
+                panic!("address string cannot be empty");
+            }
+        };
+
+        let cosmos_addr = MockApi::default().addr_make($s);
+        $crate::Address::from_str(&cosmos_addr.to_string()).expect("cosmos address should be valid")
+    }};
 }
 
 #[cw_serde]
@@ -360,6 +452,8 @@ impl FromStr for ChainNameRaw {
 #[macro_export]
 macro_rules! chain_name_raw {
     ($s:literal) => {{
+        use std::str::FromStr as _;
+
         const _: () = {
             if !$crate::ChainNameRaw::is_raw_chain_name($s) {
                 panic!("string literal is not a valid chain name");

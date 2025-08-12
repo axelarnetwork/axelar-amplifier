@@ -1,0 +1,20 @@
+[
+    (
+        InvalidArgument,
+        EmptyFilter,
+    ),
+    (
+        InvalidArgument,
+        InvalidContractAddress(
+            "invalid_contract_address",
+        ),
+    ),
+    (
+        InvalidArgument,
+        InvalidQuery,
+    ),
+    (
+        InvalidArgument,
+        EmptyBroadcastMsg,
+    ),
+]

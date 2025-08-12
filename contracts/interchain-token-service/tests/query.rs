@@ -7,8 +7,8 @@ use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
 };
-use interchain_token_service::TokenId;
-use router_api::{Address, ChainNameRaw};
+use interchain_token_service_std::TokenId;
+use router_api::{address, chain_name_raw, cosmos_addr, Address};
 
 mod utils;
 
@@ -24,19 +24,15 @@ impl ChainConfigTest {
         utils::instantiate_contract(deps.as_mut()).unwrap();
 
         let eth = utils::ChainData {
-            chain: "Ethereum".parse().unwrap(),
-            address: "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            chain: chain_name_raw!("Ethereum"),
+            address: address!("0x1234567890123456789012345678901234567890"),
             max_uint_bits: 256.try_into().unwrap(),
             max_decimals: 18,
         };
 
         let polygon = utils::ChainData {
-            chain: "Polygon".parse().unwrap(),
-            address: "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            chain: chain_name_raw!("Polygon"),
+            address: address!("0x1234567890123456789012345678901234567890"),
             max_uint_bits: 256.try_into().unwrap(),
             max_decimals: 18,
         };
@@ -51,7 +47,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.eth.chain.clone(),
             self.eth.address.clone(),
-            self.eth.max_uint_bits.clone(),
+            self.eth.max_uint_bits,
             self.eth.max_decimals,
         )
         .unwrap();
@@ -60,7 +56,7 @@ impl ChainConfigTest {
             self.deps.as_mut(),
             self.polygon.chain.clone(),
             self.polygon.address.clone(),
-            self.polygon.max_uint_bits.clone(),
+            self.polygon.max_uint_bits,
             self.polygon.max_decimals,
         )
         .unwrap();
@@ -79,6 +75,7 @@ fn query_chain_config() {
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
+        msg_translator: cosmos_addr!("translation_contract"),
     };
 
     let eth_chain_config = assert_ok!(utils::query_its_chain(
@@ -90,7 +87,7 @@ fn query_chain_config() {
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
-        "ethereum".parse().unwrap()
+        chain_name_raw!("ethereum")
     ));
     assert_eq!(chain_config, None);
 
@@ -111,7 +108,7 @@ fn query_chain_config() {
     ));
     assert_eq!(chain_config.unwrap().its_edge_contract, new_address);
 
-    let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
+    let non_existent_chain = chain_name_raw!("non-existent-chain");
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
         non_existent_chain
@@ -126,16 +123,12 @@ fn query_all_its_contracts() {
 
     let its_contracts = vec![
         (
-            "ethereum".parse::<ChainNameRaw>().unwrap(),
-            "0x1234567890123456789012345678901234567890"
-                .parse::<Address>()
-                .unwrap(),
+            chain_name_raw!("ethereum"),
+            address!("0x1234567890123456789012345678901234567890"),
         ),
         (
-            "Optimism".parse().unwrap(),
-            "0x0987654321098765432109876543210987654321"
-                .parse()
-                .unwrap(),
+            chain_name_raw!("Optimism"),
+            address!("0x0987654321098765432109876543210987654321"),
         ),
     ]
     .into_iter()
@@ -161,7 +154,7 @@ fn query_token_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let token_id: TokenId = TokenId::new([1; 32]);
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
@@ -267,7 +260,7 @@ fn query_chains_pagination() {
             test_config.deps.as_mut(),
             chain_name.parse().unwrap(),
             address.parse().unwrap(),
-            test_config.eth.max_uint_bits.clone(),
+            test_config.eth.max_uint_bits,
             test_config.eth.max_decimals,
         )
         .unwrap();
@@ -287,9 +280,9 @@ fn query_chains_pagination() {
         second_page.first().unwrap().chain
     );
 
-    utils::freeze_chain(test_config.deps.as_mut(), "Chain1".parse().unwrap()).unwrap();
-    utils::freeze_chain(test_config.deps.as_mut(), "Chain3".parse().unwrap()).unwrap();
-    utils::freeze_chain(test_config.deps.as_mut(), "Chain5".parse().unwrap()).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain1")).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain3")).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain5")).unwrap();
 
     let frozen_first_page = utils::query_its_chains(
         test_config.deps.as_ref(),

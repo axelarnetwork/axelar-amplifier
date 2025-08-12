@@ -1,7 +1,9 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, MessageInfo, Response, WasmMsg, WasmQuery};
+use cosmwasm_std::{
+    Addr, Binary, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
+};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -27,25 +29,15 @@ pub fn register_protocol(
     Ok(Response::default())
 }
 
-pub fn register_prover(
-    deps: DepsMut,
-    chain_name: ChainName,
-    new_prover_addr: Addr,
-) -> Result<Response, Error> {
-    state::save_prover_for_chain(deps.storage, chain_name, new_prover_addr.clone())
-        .change_context(Error::ProverNotRegistered(new_prover_addr))?;
-    Ok(Response::new())
-}
-
 pub fn register_chain(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     chain_name: ChainName,
     prover_addr: Addr,
     gateway_addr: Addr,
     voting_verifier_address: Addr,
 ) -> Result<Response, Error> {
     state::save_chain_contracts(
-        deps.storage,
+        storage,
         chain_name.clone(),
         prover_addr,
         gateway_addr,
@@ -283,7 +275,7 @@ pub fn instantiate_chain_contracts(
                         address: multisig_prover_address.clone(),
                         code_id: params.prover.code_id,
                     },
-                    chain_name: params.prover.msg.chain_name,
+                    chain_name: params.prover.msg.chain_name.clone(),
                     deployment_name: deployment_name.clone(),
                 });
 
@@ -291,6 +283,8 @@ pub fn instantiate_chain_contracts(
                 ctx.deps.storage,
                 deployment_name,
                 ChainContracts {
+                    chain_name: params.prover.msg.chain_name,
+                    msg_id_format: params.verifier.msg.msg_id_format,
                     gateway: gateway_address,
                     voting_verifier: voting_verifier_address,
                     multisig_prover: multisig_prover_address,
@@ -301,4 +295,44 @@ pub fn instantiate_chain_contracts(
     }
 
     Ok(response)
+}
+
+pub fn register_deployment(
+    deps: DepsMut,
+    original_sender: Addr,
+    deployment_name: nonempty::String,
+) -> Result<Response, Error> {
+    let deployed_contracts = state::deployed_contracts(deps.storage, deployment_name.clone())
+        .change_context(Error::ChainContractsInfo)?;
+
+    let protocol_contracts =
+        state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
+
+    register_chain(
+        deps.storage,
+        deployed_contracts.chain_name.clone(),
+        deployed_contracts.multisig_prover.clone(),
+        deployed_contracts.gateway.clone(),
+        deployed_contracts.voting_verifier,
+    )?;
+
+    let router: router_api::Client =
+        client::ContractClient::new(deps.querier, &protocol_contracts.router).into();
+    let multisig: multisig::Client =
+        client::ContractClient::new(deps.querier, &protocol_contracts.multisig).into();
+
+    Ok(Response::new()
+        .add_message(router.register_chain(
+            original_sender.clone(),
+            deployed_contracts.chain_name.clone(),
+            router_api::Address::from(deployed_contracts.gateway),
+            deployed_contracts.msg_id_format,
+        ))
+        .add_message(multisig.authorize_callers_from_proxy(
+            original_sender,
+            HashMap::from([(
+                deployed_contracts.multisig_prover.to_string(),
+                deployed_contracts.chain_name,
+            )]),
+        )))
 }

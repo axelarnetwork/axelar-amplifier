@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, CosmosMsg, Empty, HexBinary, QuerierWrapper};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, QuerierWrapper};
 use router_api::{Address, CrossChainId};
 
 /// `AxelarExecutableMsg` is a struct containing the args used by the axelarnet gateway to execute a destination contract on Axelar.
@@ -12,34 +12,39 @@ pub struct AxelarExecutableMsg {
 }
 
 /// By convention, amplifier-compatible contracts must expose this `Execute` variant.
-/// Due to identical json serialization, we can imitate it here so the gateway can call it.
+/// The actual message type would be defined in the respective contracts, but due to identical json serialization
+/// it can be imitated here to provide a strong type for this gateway to call.
+#[cfg_attr(
+    dylint_lib = "amplifier_lints",
+    allow(msg_without_explicit_permissions)
+)]
 #[cw_serde]
 enum ExecuteMsg {
     /// Execute the message at the destination contract with the corresponding payload.
     Execute(AxelarExecutableMsg),
 }
 
-pub struct Client<'a, T = Empty> {
-    client: client::ContractClient<'a, ExecuteMsg, (), T>,
+pub struct Client<'a> {
+    client: client::ContractClient<'a, ExecuteMsg, ()>,
 }
 
-impl<'a, T> Client<'a, T> {
+impl<'a> Client<'a> {
     pub fn new(querier: QuerierWrapper<'a>, destination: &'a Addr) -> Self {
         Client {
             client: client::ContractClient::new(querier, destination),
         }
     }
 
-    pub fn execute(&self, msg: AxelarExecutableMsg) -> CosmosMsg<T> {
+    pub fn execute(&self, msg: AxelarExecutableMsg) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::Execute(msg))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::{mock_dependencies, MockApi};
-    use cosmwasm_std::{to_json_binary, Empty, HexBinary, WasmMsg};
-    use router_api::CrossChainId;
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{to_json_binary, HexBinary, WasmMsg};
+    use router_api::{address, cosmos_addr, CrossChainId};
 
     use crate::clients::external;
 
@@ -47,15 +52,17 @@ mod test {
     fn execute_message() {
         let deps = mock_dependencies();
 
-        let destination_addr = MockApi::default().addr_make("axelar-executable");
+        let destination_addr = cosmos_addr!("axelar-executable");
 
         let executable_msg = external::AxelarExecutableMsg {
-            source_address: "source-address".parse().unwrap(),
+            source_address: address!("source-address"),
             payload: HexBinary::from(vec![1, 2, 3]),
             cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
         };
 
-        let client: external::Client<'_, Empty> =
+        goldie::assert_json!(&external::ExecuteMsg::Execute(executable_msg.clone()));
+
+        let client: external::Client<'_> =
             external::Client::new(deps.as_ref().querier, &destination_addr);
 
         assert_eq!(
