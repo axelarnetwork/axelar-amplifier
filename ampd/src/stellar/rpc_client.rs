@@ -64,7 +64,7 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
                     });
                 }
 
-                contract_events.into_iter().next().unwrap_or_default()
+                contract_events.get(0).expect("soroban operation not found")
             }
             Some(TransactionMeta::V3(data)) => data
                 .soroban_meta
