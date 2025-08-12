@@ -24,8 +24,6 @@ pub enum TxParseError {
     InvalidOperationCount { expected: usize, actual: usize },
     #[error("Unsupported transaction metadata version")]
     UnsupportedMetadataVersion,
-    #[error("Transaction failed with status: {status}")]
-    TransactionFailed { status: String },
 }
 
 /// TxResponse parses XDR encoded TransactionMeta to ContractEvent type, and only contains necessary fields for verification
@@ -46,10 +44,13 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
         (transaction_hash, response): (Hash, GetTransactionResponse),
     ) -> Result<Self, Self::Error> {
         let transaction_hash = transaction_hash.to_string();
+        let successful = response.status == STATUS_SUCCESS;
 
-        if response.status != STATUS_SUCCESS {
-            return Err(TxParseError::TransactionFailed {
-                status: response.status,
+        if !successful {
+            return Ok(Self {
+                transaction_hash,
+                successful: false,
+                contract_events: vec![],
             });
         }
 
@@ -67,11 +68,22 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
 
                 contract_events.into_iter().next().unwrap_or_default()
             }
-            Some(TransactionMeta::V3(data)) => data
-                .soroban_meta
-                .as_ref()
-                .map(|meta| meta.events.to_vec())
-                .unwrap_or_default(),
+            Some(TransactionMeta::V3(data)) => {
+                let contract_events = data
+                    .soroban_meta
+                    .as_ref()
+                    .map(|meta| meta.events.to_vec())
+                    .unwrap_or_default();
+
+                if contract_events.is_empty() {
+                    return Err(TxParseError::InvalidOperationCount {
+                        expected: EXPECTED_SOROBAN_OPERATION_COUNT,
+                        actual: 0,
+                    });
+                }
+
+                contract_events
+            }
             _ => {
                 return Err(TxParseError::UnsupportedMetadataVersion);
             }
@@ -279,19 +291,17 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_fails_with_transaction_status_failed() {
+    fn test_tx_response_v4_handles_transaction_status_failed() {
         let hash = Hash::from([2u8; 32]);
         let response = create_mock_transaction_response_v4(vec![], "FAILED");
 
         let result = TxResponse::try_from((hash.clone(), response));
 
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TxParseError::TransactionFailed { status } => {
-                assert_eq!(status, "FAILED");
-            }
-            _ => panic!("Expected TransactionFailed error"),
-        }
+        assert!(result.is_ok());
+        let tx_response = result.unwrap();
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert!(!tx_response.successful);
+        assert!(tx_response.contract_events.is_empty());
     }
 
     #[test]
@@ -304,7 +314,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             TxParseError::InvalidOperationCount { expected, actual } => {
-                assert_eq!(expected, 1);
+                assert_eq!(expected, EXPECTED_SOROBAN_OPERATION_COUNT);
                 assert_eq!(actual, 0);
             }
             _ => panic!("Expected InvalidOperationCount error"),
@@ -325,7 +335,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             TxParseError::InvalidOperationCount { expected, actual } => {
-                assert_eq!(expected, 1);
+                assert_eq!(expected, EXPECTED_SOROBAN_OPERATION_COUNT);
                 assert_eq!(actual, 2);
             }
             _ => panic!("Expected InvalidOperationCount error"),
@@ -346,19 +356,34 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v3_fails_with_transaction_status_failed() {
+    fn test_tx_response_v3_handles_transaction_status_failed() {
         let hash = Hash::from([8u8; 32]);
         let events = vec![create_mock_contract_event(1)];
         let response = create_mock_transaction_response_v3(events, "FAILED");
 
         let result = TxResponse::try_from((hash.clone(), response));
 
+        assert!(result.is_ok());
+        let tx_response = result.unwrap();
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert!(!tx_response.successful);
+        assert!(tx_response.contract_events.is_empty());
+    }
+
+    #[test]
+    fn test_tx_response_v3_fails_with_no_events() {
+        let hash = Hash::from([11u8; 32]);
+        let response = create_mock_transaction_response_v3(vec![], STATUS_SUCCESS);
+
+        let result = TxResponse::try_from((hash.clone(), response));
+
         assert!(result.is_err());
         match result.unwrap_err() {
-            TxParseError::TransactionFailed { status } => {
-                assert_eq!(status, "FAILED");
+            TxParseError::InvalidOperationCount { expected, actual } => {
+                assert_eq!(expected, EXPECTED_SOROBAN_OPERATION_COUNT);
+                assert_eq!(actual, 0);
             }
-            _ => panic!("Expected TransactionFailed error"),
+            _ => panic!("Expected InvalidOperationCount error"),
         }
     }
 
