@@ -1060,7 +1060,6 @@ fn unfreeze_chain_when_not_admin_fails() {
 #[test]
 fn admin_or_governance_can_freeze_chain() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -1083,7 +1082,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!("admin"), &[]),
         ExecuteMsg::FreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1092,7 +1091,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::FreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1102,7 +1101,6 @@ fn admin_or_governance_can_freeze_chain() {
 #[test]
 fn admin_or_governance_can_unfreeze_chain() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -1125,7 +1123,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!("admin"), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1134,7 +1132,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1144,7 +1142,6 @@ fn admin_or_governance_can_unfreeze_chain() {
 #[test]
 fn admin_or_governance_can_modify_supply() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
@@ -1167,7 +1164,7 @@ fn admin_or_governance_can_modify_supply() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!("admin"), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1176,7 +1173,7 @@ fn admin_or_governance_can_modify_supply() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1224,21 +1221,20 @@ fn enable_execution_when_not_admin_fails() {
 #[test]
 fn admin_or_governance_can_enable_execution() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!("admin"), &[]),
         ExecuteMsg::EnableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::EnableExecution
     ));
 }
@@ -1246,21 +1242,20 @@ fn admin_or_governance_can_enable_execution() {
 #[test]
 fn admin_or_governance_can_disable_execution() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!("admin"), &[]),
         ExecuteMsg::DisableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::DisableExecution
     ));
 }

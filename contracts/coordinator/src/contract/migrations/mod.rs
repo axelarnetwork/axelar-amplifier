@@ -215,7 +215,7 @@ mod tests {
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use router_api::{cosmos_addr, ChainName};
+    use router_api::{chain_name, cosmos_addr, ChainName};
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{MigrationError, OldConfig, ProverAddress, OLD_CONFIG};
@@ -226,20 +226,6 @@ mod tests {
     const OLD_CONTRACT_VERSION: &str = "1.1.0";
 
     use super::{ChainContracts, OLD_CHAIN_PROVER_INDEXED_MAP};
-
-    const PROVER_1: &str = "prover";
-    const PROVER_2: &str = "prover2";
-    const GATEWAY: &str = "gateweay";
-    const VERIFIER: &str = "verifier";
-    const CHAIN_1: &str = "axelar";
-    const CHAIN_2: &str = "cosmos";
-
-    const MULTISIG: &str = "multisig";
-    const ROUTER: &str = "router";
-    const SERVICE_REGISTRY: &str = "service_registry";
-    const GOVERNANCE: &str = "governance";
-
-    const SENDER: &str = "sender";
 
     #[cw_serde]
     pub struct OldInstantiateMsg {
@@ -282,25 +268,24 @@ mod tests {
     #[test]
     fn migrate_properly_registers_provers() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name = chain_name!("axelar");
+        let prover_addr = cosmos_addr!("prover");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -317,8 +302,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
@@ -347,26 +332,25 @@ mod tests {
     #[test]
     fn migrate_fails_with_incorrect_prover_address() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name = chain_name!("axelar");
+        let prover_addr1 = cosmos_addr!("prover");
+        let prover_addr2 = cosmos_addr!("prover2");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -378,8 +362,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
@@ -400,27 +384,26 @@ mod tests {
     #[test]
     fn migrate_fails_to_migrate_all_registered_provers() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
-        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name1 = chain_name!("axelar");
+        let chain_name2 = chain_name!("cosmos");
+        let prover_addr1 = cosmos_addr!("prover");
+        let prover_addr2 = cosmos_addr!("prover2");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -435,8 +418,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name1.clone(),
@@ -470,27 +453,26 @@ mod tests {
     #[test]
     fn migrate_fails_with_too_few_contracts() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
-        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name1 = chain_name!("axelar");
+        let chain_name2 = chain_name!("cosmos");
+        let prover_addr1 = cosmos_addr!("prover");
+        let prover_addr2 = cosmos_addr!("prover2");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -505,8 +487,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name1.clone(),
                     prover_address: nonempty::String::try_from(prover_addr1.to_string()).unwrap(),
@@ -527,28 +509,27 @@ mod tests {
     #[test]
     fn migrate_fails_with_extra_prover_in_migration_msg() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name = chain_name!("axelar");
+        let prover_addr = cosmos_addr!("prover");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
-        let extra_chain_name = ChainName::try_from(CHAIN_2).unwrap();
-        let extra_prover_addr = api.addr_make(PROVER_2);
+        let extra_chain_name = chain_name!("cosmos");
+        let extra_prover_addr = cosmos_addr!("prover2");
         let extra_gateway_addr = cosmos_addr!("extra_gateway");
         let extra_verifier_addr = cosmos_addr!("extra_verifier");
 
@@ -562,8 +543,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name.clone(),
@@ -599,25 +580,24 @@ mod tests {
     #[test]
     fn migrate_fails_with_incorrect_contracts_in_migration_msg() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name = chain_name!("axelar");
+        let prover_addr = cosmos_addr!("prover");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -638,8 +618,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
@@ -663,25 +643,24 @@ mod tests {
     #[test]
     fn migrate_succeeds_with_matching_contracts_in_state() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name = chain_name!("axelar");
+        let prover_addr = cosmos_addr!("prover");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -702,8 +681,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
@@ -732,27 +711,26 @@ mod tests {
     #[test]
     fn migrate_fails_with_duplicate_chain_contracts_present() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!("sender"), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
+                service_registry: cosmos_addr!("service_registry").to_string(),
             },
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let chain_name = chain_name!("axelar");
+        let prover_addr = cosmos_addr!("prover");
+        let gateway_addr = cosmos_addr!("gateway");
+        let verifier_addr = cosmos_addr!("verifier");
 
-        let extra_prover_addr = api.addr_make(PROVER_2);
+        let extra_prover_addr = cosmos_addr!("prover2");
         let extra_gateway_addr = cosmos_addr!("extra_gateway");
         let extra_verifier_addr = cosmos_addr!("extra_verifier");
 
@@ -766,8 +744,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!("router").to_string(),
+                multisig: cosmos_addr!("multisig").to_string(),
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name.clone(),
