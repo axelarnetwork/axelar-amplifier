@@ -405,4 +405,38 @@ mod tests {
             _ => panic!("Expected UnsupportedMetadataVersion error"),
         }
     }
+
+    #[test]
+    fn test_process_transaction_result_returns_failed_transactions() {
+        let hash = Hash::from([10u8; 32]);
+        let response = create_mock_transaction_response_v4(vec![], "FAILED");
+        let rpc_response = Ok(response);
+
+        let result = Client::process_transaction_result((rpc_response, hash.clone()));
+
+        assert!(result.is_some());
+        let (tx_hash, tx_response) = result.unwrap();
+        assert_eq!(tx_hash, hash.to_string());
+        assert!(tx_response.has_failed());
+    }
+
+    #[test]
+    fn test_failed_transaction_with_wrong_operation_count_v4() {
+        let hash = Hash::from([11u8; 32]);
+        let response = create_mock_transaction_response_v4(
+            vec![
+                vec![create_mock_contract_event(1)],
+                vec![create_mock_contract_event(2)],
+            ],
+            "FAILED",
+        );
+        let rpc_response = Ok(response);
+
+        let result = Client::process_transaction_result((rpc_response, hash.clone()));
+
+        assert!(result.is_some());
+        let (tx_hash, tx_response) = result.unwrap();
+        assert_eq!(tx_hash, hash.to_string());
+        assert!(tx_response.has_failed());
+    }
 }
