@@ -521,10 +521,9 @@ mod tests {
                             .parse()
                             .unwrap(),
                     event_index: 0,
-                    source_address:
+                    source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()
-                            .unwrap(),
+                    ),
                     destination_chain: chain_name!("ethereum"),
                     destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
@@ -587,10 +586,9 @@ mod tests {
                             .parse()
                             .unwrap(),
                     event_index: 0,
-                    source_address:
+                    source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()
-                            .unwrap(),
+                    ),
                     destination_chain: chain_name!("ethereum"),
                     destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
@@ -610,10 +608,9 @@ mod tests {
                             .parse()
                             .unwrap(),
                     event_index: 1,
-                    source_address:
+                    source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()
-                            .unwrap(),
+                    ),
                     destination_chain: chain_name!("ethereum"),
                     destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
@@ -654,10 +651,9 @@ mod tests {
                             .parse()
                             .unwrap(),
                     event_index: 1,
-                    source_address:
+                    source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()
-                            .unwrap(),
+                    ),
                     destination_chain: chain_name!("ethereum"),
                     destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
@@ -677,10 +673,9 @@ mod tests {
                             .parse()
                             .unwrap(),
                     event_index: 1,
-                    source_address:
+                    source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
-                            .parse()
-                            .unwrap(),
+                    ),
                     destination_chain: chain_name!("ethereum"),
                     destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[

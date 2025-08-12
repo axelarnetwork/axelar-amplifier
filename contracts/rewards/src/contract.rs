@@ -198,7 +198,7 @@ pub fn query(
 mod tests {
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::{chain_name, cosmos_addr, cosmos_address};
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
@@ -419,7 +419,7 @@ mod tests {
             verifier.clone(),
             contract_address.clone(),
             &ExecuteMsg::SetVerifierProxy {
-                proxy_address: proxy.to_string().parse().unwrap(),
+                proxy_address: cosmos_address!("proxy"),
             },
             &[],
         )
@@ -431,7 +431,7 @@ mod tests {
             .query_wasm_smart(
                 contract_address.clone(),
                 &QueryMsg::VerifierProxy {
-                    verifier: verifier.to_string().parse().unwrap(),
+                    verifier: cosmos_address!("verifier"),
                 },
             )
             .unwrap();
@@ -500,7 +500,7 @@ mod tests {
             .query_wasm_smart(
                 contract_address.clone(),
                 &QueryMsg::VerifierProxy {
-                    verifier: verifier.to_string().parse().unwrap(),
+                    verifier: cosmos_address!("verifier"),
                 },
             )
             .unwrap();

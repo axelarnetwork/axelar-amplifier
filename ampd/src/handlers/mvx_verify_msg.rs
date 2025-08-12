@@ -199,7 +199,7 @@ mod tests {
     use cosmwasm_std;
     use ethers_core::types::H160;
     use hex::ToHex;
-    use router_api::chain_name;
+    use router_api::{address, chain_name};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -430,9 +430,7 @@ mod tests {
                 .to_string()
                 .parse()
                 .unwrap(),
-                source_address: "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"
-                    .parse()
-                    .unwrap(),
+                source_address: address!("erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"),
                 destination_chain: chain_name!("ethereum"),
                 destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                 payload_hash: [1;32],
