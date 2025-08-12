@@ -5,7 +5,6 @@ use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
-use futures::FutureExt;
 use router_api::ChainName;
 use serde::{Deserialize, Deserializer};
 use solana_client::nonblocking::rpc_client::RpcClient;
