@@ -51,6 +51,7 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
                 contract_events: vec![],
             });
         }
+
         let contract_events = match response.result_meta.as_ref() {
             Some(TransactionMeta::V4(_)) => {
                 let contract_events = response.events.contract_events;
