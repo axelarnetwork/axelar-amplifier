@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_tx_response_v3_handles_transaction_status_failed() {
-        let hash = Hash::from([8u8; 32]);
+        let hash = Hash::from([10u8; 32]);
         let events = vec![create_mock_contract_event(1)];
         let response = create_mock_transaction_response_v3(events, "FAILED");
 
