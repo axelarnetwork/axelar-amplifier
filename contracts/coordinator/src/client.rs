@@ -104,7 +104,7 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::{chain_name, cosmos_addr};
 
@@ -212,29 +212,25 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "coordinator";
-
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
+            } if contract_addr == cosmos_addr!("coordinator").as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, cosmos_addr!("coordinator"))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = "coordinator";
-
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+                if contract_addr == cosmos_addr!("coordinator").as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
@@ -260,6 +256,6 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, cosmos_addr!("coordinator"))
     }
 }

@@ -16,7 +16,7 @@ use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
-use router_api::{cosmos_addr, ChainName, CrossChainId, Message};
+use router_api::{chain_name, cosmos_addr, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
@@ -386,7 +386,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain_name.parse().unwrap(),
+        destination_chain: chain_name!("testchain"),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )
@@ -420,7 +420,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
                 verifier.addr.clone(),
                 &service_registry::msg::ExecuteMsg::RegisterChainSupport {
                     service_name: protocol.service_name.parse().unwrap(),
-                    chains: vec![chain_name.parse().unwrap(),]
+                    chains: vec![chain_name!("testchain"),]
                 }
             )
             .is_ok());
@@ -615,7 +615,7 @@ fn coordinator_one_click_authorize_callers_succeeds() {
         &protocol.app,
         &multisig::msg::QueryMsg::IsCallerAuthorized {
             contract_address: contracts.multisig_prover.contract_address().to_string(),
-            chain_name: router_api::ChainName::try_from(chain_name.clone()).unwrap(),
+            chain_name: chain_name!("testchain"),
         },
     );
     assert!(res.is_ok());

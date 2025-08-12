@@ -530,7 +530,6 @@ mod tests {
     #[test]
     fn start_signing_session_wrong_sender() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
         let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
@@ -538,12 +537,10 @@ mod tests {
         )
         .unwrap();
 
-        let sender = "someone else";
-
         for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(sender),
+                cosmos_addr!("someone else"),
                 &verifier_set_id,
                 chain_name.clone(),
             );

@@ -7,12 +7,12 @@ use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use multisig::key::{KeyType, Signature};
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
-use router_api::{address, chain_name, CrossChainId, Message};
+use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 
 pub fn new_verifier_set() -> VerifierSet {
     let signers = vec![
         Signer {
-            address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+            address: cosmos_addr!("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -22,7 +22,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: Addr::unchecked("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
+            address: cosmos_addr!("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -32,7 +32,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: Addr::unchecked("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
+            address: cosmos_addr!("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -42,7 +42,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: Addr::unchecked("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
+            address: cosmos_addr!("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -52,7 +52,7 @@ pub fn new_verifier_set() -> VerifierSet {
             ),
         },
         Signer {
-            address: Addr::unchecked("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
+            address: cosmos_addr!("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
             weight: Uint128::from(10u128),
             pub_key: multisig::key::PublicKey::Ecdsa(
                 HexBinary::from_hex(
@@ -119,35 +119,35 @@ pub struct TestOperator {
 pub fn operators() -> Vec<TestOperator> {
     [
         (
-            "axelar1up3vvhxg4swh2lfeh8n84dat86j6hmgz20d6d3",
+            cosmos_addr!("axelar1up3vvhxg4swh2lfeh8n84dat86j6hmgz20d6d3"),
             "0312474390012cfbb621c91295dae42b11daaceffbcb7136045c86537a7b37042c",
             "6C51eec96bf0a8ec799cdD0Bbcb4512f8334Afe8",
             1u128,
             None,
         ),
         (
-            "axelar10ad5vqhuw2jgp8x6hf59qjjejlna2nh4sfsklc",
+            cosmos_addr!("axelar10ad5vqhuw2jgp8x6hf59qjjejlna2nh4sfsklc"),
             "0315a4c9807fb3e3eb360c6b2cd09ba9edb28b566aaf986b4e107180d89895d42c",
             "7aeB4EEbf1E8DCDE3016d4e1dcA52B4538Cf7aAf",
             1u128,
             Some("72b242d7247fc31d14ce82b32f3ea911808f6f600f362150f9904c974315942927c25f9388cecdbbb0b3723164eea92206775870cd28e1ffd8f1cb9655fb3c4a1b"),
         ),
         (
-            "axelar14g0tmk5ldxxdqtl0utl69ck43cpcvd0ay4lfyt",
+            cosmos_addr!("axelar14g0tmk5ldxxdqtl0utl69ck43cpcvd0ay4lfyt"),
             "022ffb2327809de022e5aaa651508d397c10d7a2ce60c9115884a295cbab293530",
             "c5b95c99D883c3204CFc2E73669CE3aa7437f4A6",
             1u128,
             Some("86909155a6ba27f173edf15d283da6a0019fb6afe6b223ca68530464813f468f356e70788faf6d1d9ff7bfcfd9021b560d72408bef4c86c66e3a94b9dee0a34a1b"),
         ),
         (
-            "axelar1gwd8wd3qkapk8pnwdu4cchah2sjjws6lx694r6",
+            cosmos_addr!("axelar1gwd8wd3qkapk8pnwdu4cchah2sjjws6lx694r6"),
             "028e02adae730573377cd167095c8b4c63dcc4a2095171ffc9538c7bbbaed31fb2",
             "ffFfDe829096DfE8b833997E939865FF57422Ea9",
             1u128,
             Some("9b2d986652fdebe67554f1b33ae6161b205ea84e0dacb07ffde0889791bcab2e5be3b8229eae01f2c22805c87f15cb7f9642e9cba951489edcac5d12ace399391b"),
         ),
         (
-            "axelar1fcrwupthhxm6zsd7kw00w2fk530p6wtt8mj92l",
+            cosmos_addr!("axelar1fcrwupthhxm6zsd7kw00w2fk530p6wtt8mj92l"),
             "02d1e0cff63aa3e7988e4070242fa37871a9abc79ecf851cce9877297d1316a090",
             "4ef5C8d81b6417fa80c320B5Fc1D3900506dFf54",
             1u128,
@@ -157,7 +157,7 @@ pub fn operators() -> Vec<TestOperator> {
         .into_iter()
         .map(
             |(address, pub_key, operator, weight, signature)| TestOperator {
-                address: Addr::unchecked(address),
+                address,
                 pub_key: (KeyType::Ecdsa, HexBinary::from_hex(pub_key).unwrap())
                     .try_into()
                     .unwrap(),
