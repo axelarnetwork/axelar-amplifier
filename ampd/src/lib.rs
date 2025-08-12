@@ -45,8 +45,8 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
-use multiversx_sdk::gateway::GatewayProxy;
 use lazy_static::lazy_static;
+use multiversx_sdk::gateway::GatewayProxy;
 use router_api::{chain_name, ChainName};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -402,13 +402,13 @@ impl App {
                             .change_context(Error::Connection)?,
                     )
                     .build();
-    
+
                 let rpc_client = xrpl::json_rpc::Client::new(
                     xrpl_client,
                     self.monitoring_client.clone(),
                     chain_name.clone(),
                 );
-    
+
                 Ok(self.create_handler_task(
                     format!("{}-msg-verifier", chain_name),
                     handlers::xrpl_verify_msg::Handler::new(
@@ -678,7 +678,6 @@ impl App {
             )),
         }
     }
-    
 
     fn create_handler_task<L, H>(
         &mut self,
