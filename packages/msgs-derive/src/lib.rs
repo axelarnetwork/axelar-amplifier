@@ -10,6 +10,7 @@ use quote::{format_ident, quote, ToTokens};
 use serde_json::json;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Variant};
 
@@ -96,13 +97,21 @@ pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
 }
 
 fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
-    let (variants, permissions): (Vec<_>, Vec<_>) = data
+    let (variants, permissions): (Vec<_>, Vec<_>) = match data
         .variants
         .iter()
-        .filter_map(|variant| Some((variant.ident.clone(), MsgPermissions::parse(variant)?)))
-        .unzip();
+        .map(|variant| {
+            MsgPermissions::parse(variant).map(|permissions| (variant.ident.clone(), permissions))
+        })
+        .collect::<Result<(Vec<_>, Vec<_>), _>>()
+    {
+        Ok((variants, permissions)) => (variants, permissions),
+        Err(err) => {
+            return TokenStream::from(err.into_compile_error());
+        }
+    };
 
-    let external_execute_msg_ident = external_execute_msg_ident(enum_type.clone());
+    let external_execute_msg_ident = external_execute_msg_ident(&enum_type);
     let visibility = data.vis.clone();
 
     let specific_check = build_specific_permissions_check(&enum_type, &variants, &permissions);
@@ -215,67 +224,65 @@ impl Parse for PermissionAttribute {
 }
 
 impl MsgPermissions {
-    pub fn parse(variant: &Variant) -> Option<Self> {
-        let (specific, general, external): (Vec<_>, Vec<_>, Vec<_>) = variant
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("permission"))
-            .flat_map(|attr| {
-                match attr
-                    .parse_args_with(Punctuated::<PermissionAttribute, Token![,]>::parse_terminated)
-                {
-                    Ok(expr) => expr,
-                    _ => panic!(
-                        "wrong format of 'permission' attribute for variant {}",
-                        variant.ident
-                    ),
-                }
-            })
-            .map(|attribute| match attribute {
-                PermissionAttribute::Specific(paths) => (Some(paths), None, None),
-                PermissionAttribute::General(permission) => (None, Some(permission), None),
-                PermissionAttribute::External(paths) => (None, None, Some(paths)),
-            })
-            .multiunzip();
+    pub fn parse(variant: &Variant) -> syn::Result<Self> {
+        let mut specific = Vec::new();
+        let mut general = Vec::new();
+        let mut external = Vec::new();
 
-        let specific: Vec<_> = specific.into_iter().flatten().flatten().collect();
-        let general: Vec<_> = general.into_iter().flatten().collect();
-        let external: Vec<_> = external.into_iter().flatten().flatten().collect();
+        for attr in &variant.attrs {
+            if attr.path().is_ident("permission") {
+                let permissions = attr.parse_args_with(
+                    Punctuated::<PermissionAttribute, Token![,]>::parse_terminated,
+                )?;
+                for permission in permissions {
+                    match permission {
+                        PermissionAttribute::Specific(paths) => specific.extend(paths),
+                        PermissionAttribute::General(permission) => general.push(permission),
+                        PermissionAttribute::External(paths) => external.extend(paths),
+                    }
+                }
+            }
+        }
 
         if !general.iter().all_unique() {
-            panic!("permissions for variant {} must be unique", variant.ident);
+            return Err(syn::Error::new_spanned(
+                &variant.ident,
+                "permissions must be unique",
+            ));
         }
 
         if !specific.iter().all_unique() {
-            panic!(
-                "whitelisted addresses for variant {} must be unique",
-                variant.ident
-            );
+            return Err(syn::Error::new_spanned(
+                &variant.ident,
+                "whitelisted addresses must be unique",
+            ));
         }
 
         if !external.iter().all_unique() {
-            panic!(
-                "whitelisted external addresses for variant {} must be unique",
-                variant.ident
-            );
+            return Err(syn::Error::new_spanned(
+                &variant.ident,
+                "whitelisted external addresses must be unique",
+            ));
         }
 
         if general.is_empty() && specific.is_empty() {
-            panic!(
-                "permissions for variant {} must not be empty",
-                variant.ident
-            );
+            return Err(syn::Error::new_spanned(
+                &variant.ident,
+                "permissions must not be empty",
+            ));
         }
 
         if general.contains(&Permission::Any) && !specific.is_empty() {
-            panic!(
-                "whitelisting addresses for variant {} is useless because permission '{:?}' is set",
-                variant.ident,
-                Permission::Any
-            );
+            return Err(syn::Error::new_spanned(
+                &variant.ident,
+                format!(
+                    "whitelisting addresses is useless because permission '{:?}' is set",
+                    Permission::Any
+                ),
+            ));
         }
 
-        Some(MsgPermissions {
+        Ok(MsgPermissions {
             specific,
             general,
             external,
@@ -490,8 +497,8 @@ fn sort_permissions(p1: &Ident, p2: &Ident) -> Ordering {
     p1.to_string().cmp(&p2.to_string())
 }
 
-fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
-    format_ident!("{}FromProxy", execute_msg_ident.clone())
+fn external_execute_msg_ident(execute_msg_ident: &Ident) -> Ident {
+    format_ident!("{}FromProxy", execute_msg_ident)
 }
 
 /// AllPermissions is a custom struct used to parse the attributes for the external_execute macro
@@ -532,64 +539,69 @@ struct AllPermissions {
 }
 
 impl Parse for AllPermissions {
-    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
         let punct = Punctuated::<ExprCall, Token![,]>::parse_terminated(input)?;
-        let parse_permissions_list = |expr_call: ExprCall,
-                                      expected_call_name: String|
-         -> Option<Vec<(Ident, Expr)>> {
-            let mut contracts_seen: HashMap<String, ()> = HashMap::new();
 
-            match *expr_call.func {
+        fn filter_call<'a>(
+            expr_call: &'a ExprCall,
+            expected_call_name: &str,
+        ) -> syn::Result<Option<&'a ExprCall>> {
+            match &*expr_call.func {
                 Expr::Path(path) => {
-                    match path.path.get_ident() {
-                        Some(path_ident) => {
-                            if path_ident
-                                .eq(&Ident::new(expected_call_name.as_str(), Span::call_site()))
-                            {
-                                // Permission functions for checking contract addresses
-                                Some(expr_call.args
-                                    .into_iter()
-                                    .filter_map(|arg| match arg {
-                                        Expr::Assign(a) => {
-                                            let Expr::Path(contract_name) = *a.left else {
-                                                return None;
-                                            };
-
-                                            let contract_ident = contract_name.path.get_ident()?;
-                                            match contracts_seen.insert(contract_ident.to_string().clone(), ()) {
-                                                Some(_) => panic!("every identifier must appear at most once (left hand side of assignment)"),
-                                                None => Some((contract_ident.clone(), *a.right)),
-                                            }
-                                        },
-                                        _ => panic!("expected format 'contract == contract_permission_fn'"),
-                                    })
-                                    .collect::<Vec<(Ident, Expr)>>()
-                                )
-                            } else {
-                                None
-                            }
-                        }
-                        None => None,
-                    }
+                    let path_ident = path.path.require_ident()?;
+                    Ok(if path_ident == expected_call_name {
+                        Some(expr_call)
+                    } else {
+                        None
+                    })
                 }
-                _ => panic!("expecting call to be a path name"),
+                _ => Err(syn::Error::new(
+                    expr_call.func.span(),
+                    "expected either 'proxy' or 'direct'",
+                )),
             }
+        }
+
+        let parse_permissions_list = |expr_call: ExprCall| -> syn::Result<Vec<(Ident, Expr)>> {
+            let mut contracts_seen: HashMap<String, ()> = HashMap::new();
+            // Permission functions for checking contract addresses
+            expr_call.args
+                .into_iter()
+                .map(|arg| match arg {
+                    Expr::Assign(a) => {
+                        let Expr::Path(contract_name) = &*a.left else {
+                            return Err(syn::Error::new(a.span(), "expected a contract name"));
+                        };
+
+                        let contract_ident = contract_name.path.require_ident()?;
+                        match contracts_seen.insert(contract_ident.to_string().clone(), ()) {
+                            Some(_) => Err(syn::Error::new(a.span(), "every identifier must appear at most once (left hand side of assignment)")),
+                            None => Ok((contract_ident.clone(), *a.right)),
+                        }
+                    },
+                    _ => Err(syn::Error::new(arg.span(), "expected format 'contract = contract_permission_fn'")),
+                })
+                .collect::<syn::Result<Vec<_>>>()
         };
 
         Ok(AllPermissions {
             relay_permissions: ContractPermission(
                 punct
                     .iter()
-                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("proxy")))
+                    .filter_map(|e| filter_call(e, "proxy").transpose())
+                    .map_ok(|e| parse_permissions_list(e.clone()))
                     .flatten()
-                    .collect(),
+                    .flatten_ok()
+                    .collect::<Result<_, _>>()?,
             ),
             specific_permissions: ContractPermission(
                 punct
                     .iter()
-                    .filter_map(|e| parse_permissions_list(e.clone(), String::from("direct")))
+                    .filter_map(|e| filter_call(e, "direct").transpose())
+                    .map_ok(|e| parse_permissions_list(e.clone()))
                     .flatten()
-                    .collect(),
+                    .flatten_ok()
+                    .collect::<Result<_, _>>()?,
             ),
         })
     }
@@ -635,8 +647,7 @@ fn validate_external_contract_no_args() -> TokenStream {
         fn validate_external_contract(
                 storage: &dyn cosmwasm_std::Storage,
                 contract_addr: Addr,
-            ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error>
-                {
+            ) -> error_stack::Result<String, axelar_wasm_std::permission_control::Error> {
             // This is only called when a relay message is executed. Since no proxy contract has
             // permission to execute a message, this will always be an error.
             Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
@@ -694,12 +705,26 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 /// for addresses. The right hand side can be an expression that returns a function with that signature.
 #[proc_macro_attribute]
 pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut execute_fn = syn::parse_macro_input!(item as ItemFn);
+    let all_permissions = syn::parse_macro_input!(attr as AllPermissions);
+    let execute_fn = syn::parse_macro_input!(item as ItemFn);
+
+    TokenStream::from(match ensure_permissions_impl(all_permissions, execute_fn) {
+        Ok(tokens) => tokens,
+        Err(err) => err.into_compile_error(),
+    })
+}
+
+fn ensure_permissions_impl(
+    all_permissions: AllPermissions,
+    mut execute_fn: ItemFn,
+) -> syn::Result<proc_macro2::TokenStream> {
     if execute_fn.sig.ident != format_ident!("execute") {
-        panic!("ensure_permissions macro can only be used with execute endpoint")
+        return Err(syn::Error::new(
+            execute_fn.sig.ident.span(),
+            "the `ensure_permissions` macro can only be used on the `execute` endpoint",
+        ));
     }
 
-    let all_permissions = syn::parse_macro_input!(attr as AllPermissions);
     let (contract_names, contract_permissions): (Vec<_>, Vec<_>) =
         all_permissions.relay_permissions.into_iter().unzip();
     let (_, specific_permissions): (Vec<_>, Vec<_>) = all_permissions
@@ -713,33 +738,10 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
         .map(|cn| Literal::string(cn.to_string().as_str()))
         .collect();
 
-    // Replace ExecuteMsg with ExecuteMsgFromProxy
-    let original_msg = execute_fn
-        .sig
-        .inputs
-        .pop()
-        .expect("error parsing execute endpoint's last argument")
-        .into_value();
-    let original_msg_ident = match original_msg {
-        syn::FnArg::Typed(typ) => match *typ.ty {
-            syn::Type::Path(p) => p
-                .path
-                .get_ident()
-                .expect("error parsing execute message type")
-                .clone(),
-            _ => panic!("problem parsing final argument of 'execute'"),
-        },
-        _ => panic!("last argument of 'execute' must be a typed execute message"),
-    };
-    let new_msg_ident = external_execute_msg_ident(original_msg_ident.clone());
-
-    execute_fn
-        .sig
-        .inputs
-        .push(parse_quote! {msg: #new_msg_ident});
+    let new_msg_ident = replace_execute_message_type(&mut execute_fn)?;
 
     let validate_fn = validate_external_contract_function(contract_names.clone());
-    let validate_fn = syn::parse_macro_input!(validate_fn as ItemFn);
+    let validate_fn: ItemFn = syn::parse(validate_fn)?;
 
     let validate_external_contract_call = if contract_permissions.is_empty() {
         quote!(validate_external_contract(
@@ -788,11 +790,53 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     );
 
-    TokenStream::from(quote! {
+    Ok(quote! {
         #execute_fn
 
         #validate_fn
     })
+}
+
+/// Replaces `ExecuteMsg` with `ExecuteMsgFromProxy`
+fn replace_execute_message_type(execute_fn: &mut ItemFn) -> syn::Result<Ident> {
+    let original_msg = execute_fn
+        .sig
+        .inputs
+        .pop()
+        .ok_or_else(|| {
+            syn::Error::new(
+                execute_fn.sig.span(),
+                "error parsing execute endpoint parameters",
+            )
+        })?
+        .into_value();
+
+    let original_msg_ident = match original_msg {
+        syn::FnArg::Typed(ref typ) => match &*typ.ty {
+            syn::Type::Path(p) => p.path.require_ident()?,
+            _ => {
+                return Err(syn::Error::new(
+                    execute_fn.sig.ident.span(),
+                    "could not parse final argument, expected typed argument",
+                ))
+            }
+        },
+        _ => {
+            return Err(syn::Error::new(
+                original_msg.span(),
+                "last argument of 'execute' must be a typed execute message",
+            ))
+        }
+    };
+
+    let new_msg_ident = external_execute_msg_ident(original_msg_ident);
+
+    execute_fn
+        .sig
+        .inputs
+        .push(parse_quote! {msg: #new_msg_ident});
+
+    Ok(new_msg_ident)
 }
 
 fn build_golden_test(
