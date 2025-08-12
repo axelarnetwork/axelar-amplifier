@@ -4,6 +4,7 @@ use axelar_wasm_std::{assert_err_contains, permission_control};
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
 use interchain_token_service::contract;
 use interchain_token_service::msg::InstantiateMsg;
+use router_api::cosmos_addr;
 use utils::params;
 
 mod utils;
@@ -18,7 +19,6 @@ fn instantiate_succeeds() {
 #[test]
 fn instantiate_with_args_succeeds() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
     let governance_address = deps.api.addr_make(params::GOVERNANCE);
     let admin_address = deps.api.addr_make(params::ADMIN);
     let axelarnet_gateway_address = deps.api.addr_make(params::GATEWAY);
@@ -27,7 +27,7 @@ fn instantiate_with_args_succeeds() {
     let mut response = assert_ok!(contract::instantiate(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         InstantiateMsg {
             governance_address: governance_address.to_string(),
             admin_address: admin_address.to_string(),
@@ -67,7 +67,6 @@ fn instantiate_with_args_succeeds() {
 #[test]
 fn invalid_gateway_address() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
     let msg = InstantiateMsg {
         governance_address: utils::params::GOVERNANCE.to_string(),
         admin_address: utils::params::ADMIN.to_string(),
@@ -78,7 +77,7 @@ fn invalid_gateway_address() {
         contract::instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("sender"), &[]),
+            message_info(&cosmos_addr!("sender"), &[]),
             msg
         ),
         axelar_wasm_std::address::Error,

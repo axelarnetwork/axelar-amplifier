@@ -96,7 +96,8 @@ pub fn sender_role(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{MockApi, MockStorage};
+    use cosmwasm_std::testing::MockStorage;
+    use router_api::cosmos_addr;
 
     use super::*;
 
@@ -121,9 +122,9 @@ mod tests {
 
     #[test]
     fn sender_role_from_storage() {
-        let admin = MockApi::default().addr_make("admin");
-        let governance = MockApi::default().addr_make("governance");
-        let regular_user = MockApi::default().addr_make("regular user");
+        let admin = cosmos_addr!("admin");
+        let governance = cosmos_addr!("governance");
+        let regular_user = cosmos_addr!("regular user");
 
         let mut storage = MockStorage::new();
         set_admin(&mut storage, &admin).unwrap();

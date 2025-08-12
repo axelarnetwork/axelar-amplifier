@@ -187,7 +187,6 @@ impl EventHandler for Handler {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -198,7 +197,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::ChainName;
+    use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -269,7 +268,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -291,7 +290,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -320,7 +319,7 @@ mod tests {
         );
 
         let handler = Handler::new(
-            ChainName::from_str("other").unwrap(),
+            chain_name!("other"),
             verifier,
             voting_verifier,
             client,
@@ -343,7 +342,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
@@ -381,7 +380,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             verifier,
             voting_verifier,
             client,
@@ -421,7 +420,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             worker,
             voting_verifier,
             client,
@@ -456,7 +455,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             worker,
             voting_verifier,
             client,
@@ -488,7 +487,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stacks".parse().unwrap(),
+                source_chain: chain_name!("stacks"),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),
