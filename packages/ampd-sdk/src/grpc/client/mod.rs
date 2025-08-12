@@ -18,7 +18,7 @@ use mockall::automock;
 use report::{ResultCompatExt, ResultExt};
 use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
-use tonic::{transport, Request};
+use tonic::{transport, Code, Request, Status};
 
 use crate::grpc::client::types::{BroadcastClientResponse, ContractsAddresses, Key};
 
@@ -85,14 +85,25 @@ impl GrpcClient {
     }
 
     /// Called from inspect_err callbacks throughout gRPC client methods to trigger reconnection
-    /// when errors occur without blocking the main execution flow.
-    fn handle_grpc_error(&self) {
-        tokio::spawn({
+    /// when transport/connection errors occur without blocking the main execution flow.
+    fn handle_grpc_error(&self, status: &Status) {
+        if Self::is_transport_error(status) {
             let handle = self.connection_handle.clone();
-            async move {
+            tokio::spawn(async move {
                 let _ = handle.request_reconnect().await;
-            }
-        });
+            });
+        }
+    }
+
+    fn is_transport_error(status: &Status) -> bool {
+        match status.code() {
+            Code::Unavailable => true,       // Service unavailable, connection issues
+            Code::DeadlineExceeded => true,  // Timeout, connection hanging
+            Code::ResourceExhausted => true, // Connection pool exhausted
+            Code::Aborted => true,           // Connection aborted
+            Code::Cancelled => true,         // Request cancelled, connection interrupted
+            _ => false,
+        }
     }
 }
 
@@ -121,7 +132,7 @@ impl Client for GrpcClient {
         let streaming_response = blockchain_client
             .subscribe(request)
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()?;
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
@@ -144,7 +155,7 @@ impl Client for GrpcClient {
         let broadcaster_address = blockchain_client
             .address(Request::new(AddressRequest {}))
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()?
             .into_inner()
             .address;
@@ -161,7 +172,7 @@ impl Client for GrpcClient {
         let broadcast_response = blockchain_client
             .broadcast(request)
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()?
             .into_inner();
 
@@ -182,7 +193,7 @@ impl Client for GrpcClient {
                 query: query.into(),
             })
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()
             .map(|response| response.into_inner().result)
             .and_then(|result| {
@@ -199,7 +210,7 @@ impl Client for GrpcClient {
         let contracts_response = blockchain_client
             .contracts(Request::new(ContractsRequest {}))
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()?
             .into_inner();
 
@@ -222,7 +233,7 @@ impl Client for GrpcClient {
                 msg: message.into(),
             }))
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().signature)
@@ -239,7 +250,7 @@ impl Client for GrpcClient {
                 key_id: key.map(|k| k.into()),
             }))
             .await
-            .inspect_err(|_| self.handle_grpc_error())
+            .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().pub_key)
