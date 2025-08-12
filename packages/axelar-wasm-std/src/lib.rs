@@ -4,7 +4,7 @@ pub use crate::threshold::{MajorityThreshold, Threshold};
 pub use crate::verification::VerificationStatus;
 
 pub mod address;
-pub mod chain_name;
+pub mod chain;
 pub mod counter;
 pub mod error;
 pub mod event;

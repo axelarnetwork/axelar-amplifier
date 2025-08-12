@@ -51,12 +51,12 @@ macro_rules! chain_name {
         use std::str::FromStr;
 
         const _: () = {
-            if !$crate::chain_name::ChainNameRaw::is_raw_chain_name($s) {
+            if !$crate::chain::ChainNameRaw::is_raw_chain_name($s) {
                 panic!("string literal is not a valid chain name");
             }
         };
 
-        $crate::chain_name::ChainName::from_str($s).expect("string literal was already checked")
+        $crate::chain::ChainName::from_str($s).expect("string literal was already checked")
     }};
 }
 
@@ -206,12 +206,12 @@ macro_rules! chain_name_raw {
         use std::str::FromStr as _;
 
         const _: () = {
-            if !$crate::chain_name::ChainNameRaw::is_raw_chain_name($s) {
+            if !$crate::chain::ChainNameRaw::is_raw_chain_name($s) {
                 panic!("string literal is not a valid chain name");
             }
         };
 
-        $crate::chain_name::ChainNameRaw::from_str($s).expect("string literal was already checked")
+        $crate::chain::ChainNameRaw::from_str($s).expect("string literal was already checked")
     }};
 }
 
