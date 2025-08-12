@@ -20,7 +20,7 @@ blocks_received_total 0
 # HELP msg_enqueue_error number of failures in message enqueue.
 # TYPE msg_enqueue_error counter
 msg_enqueue_error_total 0
-# HELP event_stream_timeout number of timeouts while polling blockchain events.
+# HELP event_stream_timeout number of timeouts while waiting for event stream responses.
 # TYPE event_stream_timeout counter
 event_stream_timeout_total 0
 # HELP event_publisher_error number of failures in event publisher.
@@ -62,7 +62,7 @@ blocks_received_total 3
 # HELP msg_enqueue_error number of failures in message enqueue.
 # TYPE msg_enqueue_error counter
 msg_enqueue_error_total 0
-# HELP event_stream_timeout number of timeouts while polling blockchain events.
+# HELP event_stream_timeout number of timeouts while waiting for event stream responses.
 # TYPE event_stream_timeout counter
 event_stream_timeout_total 0
 # HELP event_publisher_error number of failures in event publisher.

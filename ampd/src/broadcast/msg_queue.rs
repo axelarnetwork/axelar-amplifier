@@ -359,6 +359,7 @@ impl Queue {
                 gas: msg.gas,
                 gas_cap: self.gas_cap,
             };
+
             self.monitoring_client
                 .metrics()
                 .record_metric(Msg::MessageEnqueueError);
@@ -1063,6 +1064,7 @@ mod tests {
             .enqueue_and_forget(dummy_msg())
             .await
             .unwrap();
+
         let handle = tokio::spawn(async move {
             assert!(msg_queue.next().await.is_none());
         });

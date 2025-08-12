@@ -117,10 +117,9 @@ where
             }
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
-                warn!("event stream timed out");
                 monitoring_client
                     .metrics()
-                    .record_metric(Msg::EventPollingTimeout);
+                    .record_metric(Msg::EventStreamTimeout);
             }
         }
     }
@@ -154,11 +153,7 @@ where
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
                 .buffered(TX_BROADCAST_BUFFER_SIZE)
-                .inspect_err(|err| {
-                    warn!(
-                        err = LoggableError::from(err).as_value(),
-                        "failed to enqueue message for broadcasting"
-                    );
+                .inspect_err(|_| {
                     monitoring_client
                         .metrics()
                         .record_metric(Msg::MessageEnqueueError);
@@ -296,6 +291,26 @@ mod tests {
         });
 
         cosmos_client
+    }
+
+    fn mock_client_with_simulate_error(address: TMAddress) -> cosmos::MockCosmosClient {
+        let mut mock_client = setup_client(&address);
+
+        mock_client.expect_clone().times(1).returning(move || {
+            let base_account = create_base_account(&address);
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+            mock_client
+                .expect_simulate()
+                .return_once(|_| Err(Status::internal("internal error").into_report()));
+            mock_client
+        });
+
+        mock_client
     }
 
     #[tokio::test(start_paused = true)]
@@ -908,7 +923,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_record_event_polling_timeout_metric() {
+    async fn should_record_event_timeout_metric() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
@@ -960,11 +975,11 @@ mod tests {
         let _ = task.await.unwrap();
 
         let metric = receiver.recv().await.unwrap();
-        assert_eq!(metric, metrics::Msg::EventPollingTimeout);
+        assert_eq!(metric, metrics::Msg::EventStreamTimeout);
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_record_msg_enqueue_error_when_msg_enqueue_failed() {
+    async fn should_record_msg_enqueue_error_when_msg_simulate_failed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
@@ -983,20 +998,7 @@ mod tests {
             .expect_handle()
             .return_once(|_| Ok(vec![dummy_msg()]));
 
-        let mut mock_client = setup_client(&address);
-        mock_client.expect_clone().times(1).returning(move || {
-            let base_account = create_base_account(&address);
-            let mut mock_client = cosmos::MockCosmosClient::new();
-            mock_client.expect_account().return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-            mock_client
-                .expect_simulate()
-                .return_once(|_| Err(Status::internal("internal error").into_report()));
-            mock_client
-        });
+        let mock_client = mock_client_with_simulate_error(address);
 
         let broadcaster = broadcast::Broadcaster::builder()
             .client(mock_client)
