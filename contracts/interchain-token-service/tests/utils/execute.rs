@@ -18,7 +18,6 @@ use its_msg_translator_api::QueryMsg;
 use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
-use crate::utils::params;
 
 pub fn execute(
     deps: DepsMut,
@@ -29,7 +28,7 @@ pub fn execute(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GATEWAY), &[]),
+        message_info(&cosmos_addr!("gateway"), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id,
             source_address,
@@ -48,7 +47,7 @@ pub fn execute_hub_message(
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
-    let addr = MockApi::default().addr_make(params::GATEWAY);
+    let addr = cosmos_addr!("gateway");
     let translation_contract_addr = cosmos_addr!("translation_contract").to_string();
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
@@ -136,7 +135,7 @@ pub fn register_chains(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::RegisterChains { chains },
     )
 }
@@ -192,7 +191,7 @@ pub fn update_chains(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::UpdateChains { chains },
     )
 }
@@ -201,7 +200,7 @@ pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Cont
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::FreezeChain { chain },
     )
 }
@@ -210,7 +209,7 @@ pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractErr
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!("governance"), &[]),
         ExecuteMsg::DisableExecution,
     )
 }

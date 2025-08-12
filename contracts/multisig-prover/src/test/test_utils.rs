@@ -1,21 +1,14 @@
 use axelar_wasm_std::{nonempty, VerificationStatus};
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
 use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 use multisig::verifier_set::VerifierSet;
+use router_api::cosmos_addr;
 use service_registry_api::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
 use super::test_data::{self, TestOperator};
 
-pub const GATEWAY_ADDRESS: &str = "gateway";
-pub const MULTISIG_ADDRESS: &str = "multisig";
-pub const COORDINATOR_ADDRESS: &str = "coordinator";
-pub const SERVICE_REGISTRY_ADDRESS: &str = "service_registry";
-pub const VOTING_VERIFIER_ADDRESS: &str = "voting_verifier";
-pub const ADMIN: &str = "admin";
-pub const GOVERNANCE: &str = "governance";
 pub const SERVICE_NAME: &str = "validators";
 
 pub fn mock_querier_handler(
@@ -24,28 +17,22 @@ pub fn mock_querier_handler(
 ) -> impl Fn(&WasmQuery) -> QuerierResult {
     move |wq: &WasmQuery| match wq {
         WasmQuery::Smart { contract_addr, .. }
-            if contract_addr == MockApi::default().addr_make(GATEWAY_ADDRESS).as_str() =>
+            if contract_addr == cosmos_addr!("gateway").as_str() =>
         {
             gateway_mock_querier_handler()
         }
         WasmQuery::Smart { contract_addr, msg }
-            if contract_addr == MockApi::default().addr_make(MULTISIG_ADDRESS).as_str() =>
+            if contract_addr == cosmos_addr!("multisig").as_str() =>
         {
             multisig_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
         }
         WasmQuery::Smart { contract_addr, msg }
-            if contract_addr
-                == MockApi::default()
-                    .addr_make(SERVICE_REGISTRY_ADDRESS)
-                    .as_str() =>
+            if contract_addr == cosmos_addr!("service_registry").as_str() =>
         {
             service_registry_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
         }
         WasmQuery::Smart { contract_addr, .. }
-            if contract_addr
-                == MockApi::default()
-                    .addr_make(VOTING_VERIFIER_ADDRESS)
-                    .as_str() =>
+            if contract_addr == cosmos_addr!("voting_verifier").as_str() =>
         {
             voting_verifier_mock_querier_handler(verifier_set_status)
         }
@@ -136,7 +123,7 @@ fn service_registry_mock_querier_handler(
             chain_name: _,
         } => to_json_binary(&service_registry_api::Service {
             name: service_name.to_string(),
-            coordinator_contract: MockApi::default().addr_make(COORDINATOR_ADDRESS),
+            coordinator_contract: cosmos_addr!("coordinator"),
             min_num_verifiers: 1,
             max_num_verifiers: Some(100),
             min_verifier_bond: Uint128::new(1).try_into().unwrap(),

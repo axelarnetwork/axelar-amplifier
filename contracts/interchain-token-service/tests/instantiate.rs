@@ -1,11 +1,10 @@
 use assert_ok::assert_ok;
 use axelar_wasm_std::permission_control::Permission;
 use axelar_wasm_std::{assert_err_contains, permission_control};
-use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi};
+use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
 use interchain_token_service::contract;
 use interchain_token_service::msg::InstantiateMsg;
 use router_api::cosmos_addr;
-use utils::params;
 
 mod utils;
 
@@ -19,10 +18,10 @@ fn instantiate_succeeds() {
 #[test]
 fn instantiate_with_args_succeeds() {
     let mut deps = mock_dependencies();
-    let governance_address = deps.api.addr_make(params::GOVERNANCE);
-    let admin_address = deps.api.addr_make(params::ADMIN);
-    let axelarnet_gateway_address = deps.api.addr_make(params::GATEWAY);
-    let operator_address = deps.api.addr_make(params::OPERATOR);
+    let governance_address = cosmos_addr!("governance");
+    let admin_address = cosmos_addr!("admin");
+    let axelarnet_gateway_address = cosmos_addr!("gateway");
+    let operator_address = cosmos_addr!("operator");
 
     let mut response = assert_ok!(contract::instantiate(
         deps.as_mut(),
@@ -51,14 +50,14 @@ fn instantiate_with_args_succeeds() {
     assert_eq!(
         assert_ok!(permission_control::sender_role(
             deps.as_ref().storage,
-            &MockApi::default().addr_make(params::ADMIN)
+            &cosmos_addr!("admin")
         )),
         Permission::Admin.into()
     );
     assert_eq!(
         assert_ok!(permission_control::sender_role(
             deps.as_ref().storage,
-            &MockApi::default().addr_make(params::GOVERNANCE)
+            &cosmos_addr!("governance")
         )),
         Permission::Governance.into()
     );

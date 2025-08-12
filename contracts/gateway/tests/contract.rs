@@ -20,9 +20,6 @@ use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
-const ROUTER: &str = "router";
-const VERIFIER: &str = "verifier";
-
 #[test]
 fn instantiate_works() {
     let mut deps = mock_dependencies();
@@ -113,7 +110,7 @@ fn successful_route_outgoing() {
     let mut responses = vec![];
     for msgs in test_cases {
         let mut deps = instantiate_contract();
-        let router = deps.api.addr_make(ROUTER);
+        let router = cosmos_addr!("router");
 
         let query_msg =
             QueryMsg::OutgoingMessages(msgs.iter().map(|msg| msg.cc_id.clone()).collect());
@@ -193,7 +190,7 @@ fn calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = instantiate_contract();
-        let router = deps.api.addr_make(ROUTER);
+        let router = cosmos_addr!("router");
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
@@ -245,7 +242,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     let mut msgs = generate_msgs(VerificationStatus::SucceededOnSourceChain, 10);
 
     let mut deps = instantiate_contract();
-    let router = deps.api.addr_make(ROUTER);
+    let router = cosmos_addr!("router");
 
     let response = execute(
         deps.as_mut(),
@@ -430,8 +427,8 @@ fn update_query_handler<U: Serialize>(
 
 fn instantiate_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies();
-    let verifier_address = deps.api.addr_make(VERIFIER);
-    let router_address = deps.api.addr_make(ROUTER);
+    let verifier_address = cosmos_addr!("verifier");
+    let router_address = cosmos_addr!("router");
 
     let response = instantiate(
         deps.as_mut(),
