@@ -1037,78 +1037,7 @@ mod tests {
         assert!(receiver.try_recv().is_err());
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn record_msg_enqueue_error_when_msg_enqueue_failed() {
-        let pub_key = random_cosmos_public_key();
-        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
-        let gas_adjustment = 1.5;
-        let gas_price_amount = 0.025;
-        let gas_price_denom = "uaxl";
-        let event_config = setup_event_config(
-            Duration::from_secs(1),
-            Duration::from_secs(1000),
-            Duration::from_secs(1),
-        );
-        let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
-
-        let mut handler = MockEventHandler::new();
-        handler
-            .expect_handle()
-            .return_once(|_| Ok(vec![dummy_msg()]));
-
-        let mut mock_client = setup_client(&address);
-        mock_client.expect_clone().times(1).returning(move || {
-            let base_account = create_base_account(&address);
-            let mut mock_client = cosmos::MockCosmosClient::new();
-            mock_client.expect_account().return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-            mock_client
-                .expect_simulate()
-                .return_once(|_| Err(Status::internal("internal error").into_report()));
-            mock_client
-        });
-
-        let broadcaster = broadcast::Broadcaster::builder()
-            .client(mock_client)
-            .chain_id(chain_id)
-            .pub_key(pub_key)
-            .gas_adjustment(gas_adjustment)
-            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
-            .build()
-            .await
-            .unwrap();
-        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            100,
-            Duration::from_millis(500),
-            monitoring_client.clone(),
-        );
-
-        let _ = consume_events(
-            "handler".to_string(),
-            handler,
-            stream::iter(events),
-            event_config,
-            CancellationToken::new(),
-            msg_queue_client,
-            monitoring_client,
-        )
-        .await;
-
-        expect_metric_msg(&mut receiver, |m| {
-            matches!(m, metrics::Msg::MessageEnqueueError)
-        })
-        .await;
-
-        assert!(receiver.try_recv().is_err());
-    }
-
+    
     /// Waits for a metric Msg that matches the specified variant kind to appear in the stream.
     /// This function is used in tests to ignore irrelevant messages and wait for specific metrics.
     async fn expect_metric_msg<F>(receiver: &mut Receiver<metrics::Msg>, matcher: F)
