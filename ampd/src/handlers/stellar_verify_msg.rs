@@ -197,6 +197,7 @@ mod tests {
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use router_api::chain_name;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -375,7 +376,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stellar".parse().unwrap(),
+                source_chain: chain_name!("stellar"),
                 source_gateway_address: ScAddress::Contract(
                     stellar_xdr::curr::Hash::from([1; 32]).into(),
                 )
@@ -404,7 +405,7 @@ mod tests {
                         .to_string()
                         .try_into()
                         .unwrap(),
-                        destination_chain: "ethereum".parse().unwrap(),
+                        destination_chain: chain_name!("ethereum"),
                         destination_address: format!("0x{:x}", H160::repeat_byte(i))
                             .parse()
                             .unwrap(),

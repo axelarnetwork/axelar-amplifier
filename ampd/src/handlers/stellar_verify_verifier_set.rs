@@ -177,6 +177,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
+    use router_api::chain_name;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -354,7 +355,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stellar".parse().unwrap(),
+                source_chain: chain_name!("stellar"),
                 source_gateway_address: ScAddress::Contract(
                     stellar_xdr::curr::Hash::from([2; 32]).into(),
                 )
