@@ -11,7 +11,9 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::{from_json, ContractResult, Deps, OwnedDeps, SystemResult};
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{address, cosmos_addr, cosmos_address, ChainName, CrossChainId, Message};
+use router_api::{
+    address, chain_name, cosmos_addr, cosmos_address, ChainName, CrossChainId, Message,
+};
 use serde_json::json;
 use sha3::{Digest, Keccak256};
 
@@ -119,7 +121,7 @@ fn populate_executable_messages(
         .map(|i| Message {
             cc_id: CrossChainId::new("source-chain", format!("hash-index-{}", i)).unwrap(),
             source_address: address!("source-address"),
-            destination_chain: params::AXELARNET.parse().unwrap(),
+            destination_chain: chain_name!("axelarnet"),
             destination_address: cosmos_address!("destination-address"),
             payload_hash: Keccak256::digest(vec![i]).into(),
         })

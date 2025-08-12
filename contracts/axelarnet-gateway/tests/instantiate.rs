@@ -3,7 +3,7 @@ use axelar_wasm_std::assert_err_contains;
 use axelarnet_gateway::contract;
 use axelarnet_gateway::msg::InstantiateMsg;
 use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-use router_api::cosmos_addr;
+use router_api::{chain_name, cosmos_addr};
 
 use crate::utils::{instantiate_contract, params};
 
@@ -20,7 +20,7 @@ fn invalid_router_address() {
     let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
-        chain_name: params::AXELARNET.parse().unwrap(),
+        chain_name: chain_name!("axelarnet"),
         router_address: "".to_string(),
         nexus: params::NEXUS.parse().unwrap(),
     };
@@ -42,7 +42,7 @@ fn invalid_nexus_module_address() {
     let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
-        chain_name: params::AXELARNET.parse().unwrap(),
+        chain_name: chain_name!("axelarnet"),
         router_address: params::ROUTER.parse().unwrap(),
         nexus: "".to_string(),
     };

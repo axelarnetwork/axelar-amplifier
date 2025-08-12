@@ -193,7 +193,7 @@ mod test {
 
     use axelar_wasm_std::voting::Vote;
     use cosmrs::AccountId;
-    use router_api::chain_name;
+    use router_api::{address, chain_name};
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
@@ -454,9 +454,7 @@ mod test {
                     .unwrap(),
                     message_id: message_id_1.parse().unwrap(),
                     destination_chain: chain_name!("ethereum"),
-                    destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"
-                        .parse()
-                        .unwrap(),
+                    destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"),
                     payload_hash: Hash::from_slice(&[1; 32]).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
@@ -471,9 +469,7 @@ mod test {
                     .unwrap(),
                     message_id: message_id_2.parse().unwrap(),
                     destination_chain: chain_name!("ethereum"),
-                    destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"
-                        .parse()
-                        .unwrap(),
+                    destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"),
                     payload_hash: Hash::from_slice(&[2; 32]).to_fixed_bytes(),
                 },
             ],

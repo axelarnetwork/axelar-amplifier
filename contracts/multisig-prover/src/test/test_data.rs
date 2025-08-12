@@ -7,7 +7,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use multisig::key::{KeyType, Signature};
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
-use router_api::{chain_name, CrossChainId, Message};
+use router_api::{address, chain_name, CrossChainId, Message};
 
 pub fn new_verifier_set() -> VerifierSet {
     let signers = vec![
@@ -82,12 +82,8 @@ pub fn messages() -> Vec<Message> {
             "0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0",
         )
         .unwrap(),
-        source_address: "0x52444f1835Adc02086c37Cb226561605e2E1699b"
-            .parse()
-            .unwrap(),
-        destination_address: "0xA4f10f76B86E01B98daF66A3d02a65e14adb0767"
-            .parse()
-            .unwrap(),
+        source_address: address!("0x52444f1835Adc02086c37Cb226561605e2E1699b"),
+        destination_address: address!("0xA4f10f76B86E01B98daF66A3d02a65e14adb0767"),
         destination_chain: chain_name!("ganache-0"),
         payload_hash: HexBinary::from_hex(
             "8c3685dc41c2eca11426f8035742fb97ea9f14931152670a5703f18fe8b392f0",

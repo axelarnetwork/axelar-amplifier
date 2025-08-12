@@ -12,9 +12,7 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{
-    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
-};
+use router_api::{address, chain_name_raw, cosmos_addr, cosmos_address, ChainName, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -28,10 +26,8 @@ fn register_update_its_contract_succeeds() {
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     let chain = chain_name_raw!("ethereum");
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-    let translation_contract: Address = cosmos_address!("translation_contract");
+    let address = address!("0x1234567890123456789012345678901234567890");
+    let translation_contract = cosmos_address!("translation_contract");
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -45,9 +41,7 @@ fn register_update_its_contract_succeeds() {
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(chain_config.unwrap().its_edge_contract, address);
 
-    let new_address: Address = "0x9999999990123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let new_address = address!("0x9999999990123456789012345678901234567890");
     assert_ok!(utils::update_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
@@ -65,10 +59,8 @@ fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
     let chain = chain_name_raw!("ethereum");
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-    let translation_contract: Address = cosmos_address!("translation_contract");
+    let address = address!("0x1234567890123456789012345678901234567890");
+    let translation_contract = cosmos_address!("translation_contract");
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -104,9 +96,7 @@ fn update_unknown_chain_fails() {
         utils::update_chain(
             deps.as_mut(),
             chain,
-            "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            address!("0x1234567890123456789012345678901234567890"),
             256.try_into().unwrap(),
             u8::MAX
         ),
@@ -1067,9 +1057,7 @@ fn admin_or_governance_can_freeze_chain() {
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!("0x1234567890123456789012345678901234567890");
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1108,9 +1096,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!("0x1234567890123456789012345678901234567890");
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1149,9 +1135,7 @@ fn admin_or_governance_can_modify_supply() {
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!("0x1234567890123456789012345678901234567890");
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1266,9 +1250,7 @@ fn set_chain_config_should_succeed() {
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!("0x1234567890123456789012345678901234567890");
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
@@ -1288,9 +1270,7 @@ fn set_chain_config_should_fail_if_chain_config_is_already_set() {
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!("0x1234567890123456789012345678901234567890");
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
