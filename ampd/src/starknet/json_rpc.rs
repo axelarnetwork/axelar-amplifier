@@ -37,7 +37,7 @@ pub struct Client<T>
 where
     T: JsonRpcTransport + Send + Sync,
 {
-    transport: JsonRpcClient<T>,
+    client: JsonRpcClient<T>,
     monitoring_client: monitoring::Client,
     chain_name: ChainName,
 }
@@ -50,12 +50,12 @@ where
     /// Expects URL of any JSON RPC entry point of Starknet, which you can find
     /// as constants in the `networks.rs` module
     pub fn new_with_transport(
-        transport: T,
+        client: T,
         monitoring_client: monitoring::Client,
         chain_name: ChainName,
     ) -> Result<Self> {
         Ok(Client {
-            transport: JsonRpcClient::new(transport),
+            client: JsonRpcClient::new(client),
             monitoring_client,
             chain_name,
         })
@@ -95,7 +95,7 @@ where
         message_id: FieldElementAndEventIndex,
     ) -> Option<ContractCallEvent> {
         let receipt_with_block_info = self
-            .transport
+            .client
             .get_transaction_receipt(message_id.tx_hash.clone())
             .await
             .inspect_err(|_| {
@@ -128,7 +128,7 @@ where
         message_id: FieldElementAndEventIndex,
     ) -> Option<SignersRotatedEvent> {
         let receipt_with_block_info = self
-            .transport
+            .client
             .get_transaction_receipt(message_id.tx_hash.clone())
             .await
             .inspect_err(|_| {
