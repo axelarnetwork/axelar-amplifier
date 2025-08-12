@@ -168,7 +168,7 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
 #[derive(Debug)]
 struct MsgPermissions {
     specific: Vec<Ident>,
-    general: Vec<Permission>,
+    general: Vec<(Permission, Span)>,
     external: Vec<Ident>,
 }
 
@@ -176,7 +176,7 @@ struct MsgPermissions {
 #[derive(Debug, Clone)]
 enum PermissionAttribute {
     Specific(Vec<Ident>),
-    General(Permission),
+    General(Permission, Span),
     External(Vec<Ident>),
 }
 
@@ -190,9 +190,11 @@ impl Parse for PermissionAttribute {
                 let ident = path.path.require_ident()?;
 
                 // parse identifier to permission
+                let span = path.span();
                 Ok(PermissionAttribute::General(
                     Permission::from_str(&ident.to_string())
                         .map_err(|_| syn::Error::new_spanned(path, "invalid permission"))?,
+                    span,
                 ))
             }
             // Specific(...), Proxy(...)
@@ -237,30 +239,29 @@ impl MsgPermissions {
                 for permission in permissions {
                     match permission {
                         PermissionAttribute::Specific(paths) => specific.extend(paths),
-                        PermissionAttribute::General(permission) => general.push(permission),
+                        PermissionAttribute::General(permission, span) => {
+                            general.push((permission, span))
+                        }
                         PermissionAttribute::External(paths) => external.extend(paths),
                     }
                 }
             }
         }
 
-        if !general.iter().all_unique() {
-            return Err(syn::Error::new_spanned(
-                &variant.ident,
-                "permissions must be unique",
-            ));
+        if let Some((_, span)) = general.iter().duplicates_by(|(perm, _)| perm).next() {
+            return Err(syn::Error::new(*span, "permissions must be unique"));
         }
 
-        if !specific.iter().all_unique() {
+        if let Some(dup) = specific.iter().duplicates().next() {
             return Err(syn::Error::new_spanned(
-                &variant.ident,
+                &dup,
                 "whitelisted addresses must be unique",
             ));
         }
 
-        if !external.iter().all_unique() {
+        if let Some(dup) = external.iter().duplicates().next() {
             return Err(syn::Error::new_spanned(
-                &variant.ident,
+                &dup,
                 "whitelisted external addresses must be unique",
             ));
         }
@@ -272,9 +273,9 @@ impl MsgPermissions {
             ));
         }
 
-        if general.contains(&Permission::Any) && !specific.is_empty() {
+        if general.iter().any(|(perm, _)| perm == &Permission::Any) && !specific.is_empty() {
             return Err(syn::Error::new_spanned(
-                &variant.ident,
+                &specific.first().unwrap(), // we just checked that it's not empty
                 format!(
                     "whitelisting addresses is useless because permission '{:?}' is set",
                     Permission::Any
@@ -339,7 +340,7 @@ fn build_general_permissions_check(
     permissions: &[MsgPermissions],
 ) -> proc_macro2::TokenStream {
     let general_permissions_quote = permissions.iter().map(|permission| {
-        let general_permissions: Vec<_> = permission.general.iter().map(|permission| syn::Ident::new(permission.as_ref(), Span::call_site())).collect();
+        let general_permissions: Vec<_> = permission.general.iter().map(|(permission, span)| syn::Ident::new(permission.as_ref(), *span)).collect();
 
         if general_permissions.is_empty() && !permission.specific.is_empty() {
             // getting to this point means the specific check has failed, so we return an error
@@ -863,7 +864,7 @@ fn build_golden_test(
                 .iter()
                 .map(|p| p.to_token_stream().to_string())
                 .collect::<Vec<_>>();
-            let general = general.iter().map(|p| p.as_ref()).collect::<Vec<_>>();
+            let general = general.iter().map(|(p, _)| p.as_ref()).collect::<Vec<_>>();
             let external = external
                 .iter()
                 .map(|p| p.to_token_stream().to_string())
