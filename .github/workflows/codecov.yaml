@@ -35,7 +35,7 @@ jobs:
         run: sudo apt-get install libclang-dev
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@d411fc90b6227faf782d40f921b31b725fe5cb1d # cargo-llvm-cov branch (v2.58.3)
+        uses: taiki-e/install-action@1fd1160ee1f4387ce162a5a4f9c26ea274278b7f # cargo-llvm-cov branch (v2.58.7)
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
