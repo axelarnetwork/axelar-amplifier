@@ -67,8 +67,18 @@ pub fn verify_events(
         return Ok(Response::new());
     }
 
-    // Get source chain from the first event - all events in a batch should have the same source chain
+    // Ensure all events to verify have the same source chain
     let source_chain = &events_to_verify[0].event_id.source_chain;
+    let same_chain = events_to_verify
+        .iter()
+        .all(|e| &e.event_id.source_chain == source_chain);
+    if !same_chain {
+        return Err(report!(ContractError::SourceChainMismatch(
+            source_chain.clone(),
+        )));
+    }
+
+    // Get source chain from the first event - all events in a batch should have the same source chain
     let snapshot = take_snapshot(deps.as_ref(), source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;

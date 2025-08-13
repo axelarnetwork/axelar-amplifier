@@ -329,4 +329,29 @@ mod test {
         let threshold: MajorityThreshold = from_json(res).unwrap();
         assert_eq!(threshold, new_voting_threshold);
     }
+
+	#[test]
+	fn verify_events_should_fail_when_source_chains_differ() {
+		let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+		let verifiers = verifiers(2);
+		let mut deps = setup(verifiers, &msg_id_format);
+		let api = deps.api;
+
+		let mut evs = events(2, &msg_id_format);
+		// change the second event's source chain to a different one
+		evs[1].event_id.source_chain = "another-chain".parse().unwrap();
+
+		let res = execute(
+			deps.as_mut(),
+			mock_env(),
+			message_info(&api.addr_make(SENDER), &[]),
+			ExecuteMsg::VerifyEvents(evs),
+		);
+
+		let err = res.expect_err("expected SourceChainMismatch error");
+		assert_contract_err_strings_equal(
+			err,
+			ContractError::SourceChainMismatch(source_chain()),
+		);
+	}
 }
