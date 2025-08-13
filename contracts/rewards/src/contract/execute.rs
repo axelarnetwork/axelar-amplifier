@@ -267,7 +267,7 @@ mod test {
     use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
     use cosmwasm_std::{Addr, OwnedDeps, Uint128, Uint64};
-    use router_api::ChainName;
+    use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::error::ContractError;
@@ -276,13 +276,14 @@ mod test {
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn current_epoch_same_epoch_is_idempotent() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -316,8 +317,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -335,13 +336,14 @@ mod test {
 
     /// Tests that the current epoch is computed correctly when the expected epoch is different from the stored epoch
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn current_epoch_different_epoch() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -390,14 +392,15 @@ mod test {
 
     /// Tests that multiple participation events for the same pool within a given epoch are recorded correctly
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn record_participation_multiple_events() {
         let cur_epoch_num = 1u64;
         let epoch_block_start = 250u64;
         let epoch_duration = 100u64;
 
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             cur_epoch_num,
@@ -407,9 +410,9 @@ mod test {
         );
 
         let mut simulated_participation = HashMap::new();
-        simulated_participation.insert(MockApi::default().addr_make("verifier_1"), 10);
-        simulated_participation.insert(MockApi::default().addr_make("verifier_2"), 5);
-        simulated_participation.insert(MockApi::default().addr_make("verifier_3"), 7);
+        simulated_participation.insert(cosmos_addr!("verifier_1"), 10);
+        simulated_participation.insert(cosmos_addr!("verifier_2"), 5);
+        simulated_participation.insert(cosmos_addr!("verifier_3"), 7);
 
         let event_count = 10;
         let mut cur_height = epoch_block_start;
@@ -448,14 +451,15 @@ mod test {
 
     /// Tests that the participation event is recorded correctly when the event spans multiple epochs
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn record_participation_epoch_boundary() {
         let starting_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             starting_epoch_num,
@@ -465,9 +469,9 @@ mod test {
         );
 
         let verifiers = vec![
-            MockApi::default().addr_make("verifier_1"),
-            MockApi::default().addr_make("verifier_2"),
-            MockApi::default().addr_make("verifier_3"),
+            cosmos_addr!("verifier_1"),
+            cosmos_addr!("verifier_2"),
+            cosmos_addr!("verifier_3"),
         ];
         // this is the height just before the next epoch starts
         let height_at_epoch_end = block_height_started + epoch_duration - 1;
@@ -522,31 +526,31 @@ mod test {
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-1"),
+            cosmos_addr!("verifier-1"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    chain_name: chain_name!("mock-chain"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 3,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-2"),
+            cosmos_addr!("verifier-2"),
             (
                 PoolId {
-                    chain_name: "mock-chain-2".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    chain_name: chain_name!("mock-chain-2"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 4,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-3"),
+            cosmos_addr!("verifier-3"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-3"),
+                    chain_name: chain_name!("mock-chain"),
+                    contract: cosmos_addr!("contract-3"),
                 },
                 2,
             ),
@@ -602,6 +606,7 @@ mod test {
     /// Test that rewards parameters are updated correctly. In this test we don't change the epoch duration, so
     /// that computation of the current epoch is unaffected.
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn successfully_update_params() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
@@ -609,8 +614,8 @@ mod test {
         let initial_participation_threshold = (1, 2);
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup_with_params(
             initial_epoch_num,
@@ -673,13 +678,14 @@ mod test {
 
     /// Test extending the epoch duration. This should not change the current epoch
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn extend_epoch_duration() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -742,13 +748,14 @@ mod test {
     /// Test shortening the epoch duration. This test shortens the epoch duration such that the current epoch doesn't change
     /// (i.e. we are 10 blocks into the epoch, and we shorten the duration from 100 to 50)
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn shorten_epoch_duration_same_epoch() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 256u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -805,13 +812,14 @@ mod test {
     /// Tests shortening the epoch duration such that the current epoch does change
     /// (i.e. we are 50 blocks into the epoch, and we shorten the duration to 10 blocks)
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn shorten_epoch_duration_diff_epoch() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -865,13 +873,14 @@ mod test {
 
     /// Tests that rewards are added correctly to a single pool
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn added_rewards_should_be_reflected_in_rewards_pool() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
 
         let mut mock_deps = setup(
@@ -914,8 +923,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("some contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("some contract"),
         };
 
         let mut mock_deps = setup(
@@ -926,21 +935,12 @@ mod test {
         );
         // a vector of (contract, rewards amounts) pairs
         let test_data = vec![
-            (
-                MockApi::default().addr_make("contract_1"),
-                vec![100, 200, 50],
-            ),
-            (
-                MockApi::default().addr_make("contract_2"),
-                vec![25, 500, 70],
-            ),
-            (
-                MockApi::default().addr_make("contract_3"),
-                vec![1000, 500, 2000],
-            ),
+            (cosmos_addr!("contract_1"), vec![100, 200, 50]),
+            (cosmos_addr!("contract_2"), vec![25, 500, 70]),
+            (cosmos_addr!("contract_3"), vec![1000, 500, 2000]),
         ];
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
 
         for (pool_contract, rewards) in &test_data {
             let pool_id = PoolId {
@@ -987,6 +987,7 @@ mod test {
 
     /// Tests that pools can have different reward amounts
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn multiple_pools_different_rewards_amount() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
@@ -994,31 +995,31 @@ mod test {
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-1"),
+            cosmos_addr!("verifier-1"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    chain_name: chain_name!("mock-chain"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 3,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-2"),
+            cosmos_addr!("verifier-2"),
             (
                 PoolId {
-                    chain_name: "mock-chain-2".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-1"),
+                    chain_name: chain_name!("mock-chain-2"),
+                    contract: cosmos_addr!("contract-1"),
                 },
                 4,
             ),
         );
         simulated_participation.insert(
-            MockApi::default().addr_make("verifier-3"),
+            cosmos_addr!("verifier-3"),
             (
                 PoolId {
-                    chain_name: "mock-chain".parse().unwrap(),
-                    contract: MockApi::default().addr_make("contract-3"),
+                    chain_name: chain_name!("mock-chain"),
+                    contract: cosmos_addr!("contract-3"),
                 },
                 2,
             ),
@@ -1082,25 +1083,23 @@ mod test {
 
     /// Tests that pools can have different participation thresholds
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn multiple_pools_different_threshold() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pools = vec![
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                chain_name: chain_name!("mock-chain"),
+                contract: cosmos_addr!("contract-1"),
             },
             PoolId {
-                chain_name: "mock-chain-2".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                chain_name: chain_name!("mock-chain-2"),
+                contract: cosmos_addr!("contract-1"),
             },
         ];
 
-        let verifiers = [
-            MockApi::default().addr_make("verifier-1"),
-            MockApi::default().addr_make("verifier-2"),
-        ];
+        let verifiers = [cosmos_addr!("verifier-1"), cosmos_addr!("verifier-2")];
 
         // simulate two verifiers each participating in two pools
         // the first verifier participates in 2 events, and the second in 3 events (out of a total of 3 events)
@@ -1182,22 +1181,23 @@ mod test {
 
     /// Tests that pools can have different epoch lengths
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn multiple_pools_different_epoch_length() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let base_epoch_duration = 100u64;
         let pools = vec![
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                chain_name: chain_name!("mock-chain"),
+                contract: cosmos_addr!("contract-1"),
             },
             PoolId {
-                chain_name: "mock-chain-2".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract-1"),
+                chain_name: chain_name!("mock-chain-2"),
+                contract: cosmos_addr!("contract-1"),
             },
         ];
 
-        let verifier = MockApi::default().addr_make("verifier-1");
+        let verifier = cosmos_addr!("verifier-1");
 
         // simulate one verifier participating in two events in each pool
         let simulated_participation = vec![
@@ -1263,6 +1263,7 @@ mod test {
 
     /// Tests that rewards are distributed correctly based on participation
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn successfully_distribute_rewards() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;
@@ -1270,8 +1271,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (2, 3);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1282,10 +1283,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier1 = MockApi::default().addr_make("verifier1");
-        let verifier2 = MockApi::default().addr_make("verifier2");
-        let verifier3 = MockApi::default().addr_make("verifier3");
-        let verifier4 = MockApi::default().addr_make("verifier4");
+        let verifier1 = cosmos_addr!("verifier1");
+        let verifier2 = cosmos_addr!("verifier2");
+        let verifier3 = cosmos_addr!("verifier3");
+        let verifier4 = cosmos_addr!("verifier4");
         let epoch_count = 4;
         // Simulate 4 epochs worth of events with 4 verifiers
         // Each epoch has 3 possible events to participate in
@@ -1370,6 +1371,7 @@ mod test {
 
     /// Tests that rewards are distributed correctly for a specified number of epochs, and that pagination works correctly
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn distribute_rewards_specify_epoch_count() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;
@@ -1377,8 +1379,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1389,7 +1391,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
             let event_id = height.to_string() + "event";
@@ -1477,8 +1479,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1489,10 +1491,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let _ = record_participation(
@@ -1562,8 +1564,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1574,10 +1576,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let _ = record_participation(
@@ -1634,8 +1636,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1646,7 +1648,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
@@ -1694,10 +1696,10 @@ mod test {
         assert!(record_participation(
             mock_deps.as_mut().storage,
             "some-event".parse().unwrap(),
-            MockApi::default().addr_make("verifier"),
+            cosmos_addr!("verifier"),
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract")
+                chain_name: chain_name!("mock-chain"),
+                contract: cosmos_addr!("contract")
             },
             block_height_started
         )
@@ -1713,8 +1715,8 @@ mod test {
         assert!(add_rewards(
             mock_deps.as_mut().storage,
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract")
+                chain_name: chain_name!("mock-chain"),
+                contract: cosmos_addr!("contract")
             },
             100u128.try_into().unwrap(),
         )
@@ -1730,8 +1732,8 @@ mod test {
         assert!(distribute_rewards(
             mock_deps.as_mut().storage,
             PoolId {
-                chain_name: "mock-chain".parse().unwrap(),
-                contract: MockApi::default().addr_make("contract")
+                chain_name: chain_name!("mock-chain"),
+                contract: cosmos_addr!("contract")
             },
             block_height_started,
             None
@@ -1741,6 +1743,7 @@ mod test {
 
     /// Tests that rewards are distributed correctly based on verifier proxy address
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn distribute_rewards_with_proxy_addresses() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;
@@ -1748,8 +1751,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
-            chain_name: "mock-chain".parse().unwrap(),
-            contract: MockApi::default().addr_make("pool_contract"),
+            chain_name: chain_name!("mock-chain"),
+            contract: cosmos_addr!("pool_contract"),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1760,7 +1763,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = MockApi::default().addr_make("verifier");
+        let verifier = cosmos_addr!("verifier");
 
         let mut cur_height = block_height_started;
         let epoch_count = 3;
@@ -1788,7 +1791,7 @@ mod test {
 
         // advance two epochs past the last participation event
         cur_height += epoch_duration * 2;
-        let proxy = MockApi::default().addr_make("proxy");
+        let proxy = cosmos_addr!("proxy");
 
         set_verifier_proxy(mock_deps.as_mut().storage, &proxy, &verifier).unwrap();
 
@@ -1817,7 +1820,7 @@ mod test {
         assert!(distribution.can_distribute_more);
 
         // update the proxy address and distribute the next epochs worth of rewards
-        let new_proxy = MockApi::default().addr_make("new_proxy");
+        let new_proxy = cosmos_addr!("new_proxy");
         set_verifier_proxy(mock_deps.as_mut().storage, &new_proxy, &verifier).unwrap();
 
         let distribution = distribute_rewards(

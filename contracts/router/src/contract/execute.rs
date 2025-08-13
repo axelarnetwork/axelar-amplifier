@@ -273,7 +273,10 @@ mod test {
     use cosmwasm_std::{QuerierWrapper, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
+    use router_api::{
+        chain_name, cosmos_addr, ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection,
+        Message,
+    };
 
     use super::{freeze_chains, register_chain, unfreeze_chains};
     use crate::contract::execute::route_messages;
@@ -319,17 +322,17 @@ mod test {
     fn route_messages_with_not_registered_source_chain() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -349,17 +352,17 @@ mod test {
     fn route_messages_with_frozen_source_chain() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -393,17 +396,17 @@ mod test {
     fn route_messages_with_wrong_source_chain() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -426,7 +429,7 @@ mod test {
             &deps.storage,
             QuerierWrapper::new(&deps.querier),
             sender,
-            vec![rand_message("polygon".parse().unwrap(), destination_chain)]
+            vec![rand_message(chain_name!("polygon"), destination_chain)]
         )
         .is_err_and(|err| { matches!(err.current_context(), Error::WrongSourceChain) }));
     }
@@ -435,17 +438,17 @@ mod test {
     fn route_messages_with_frozen_destination_chain() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -469,7 +472,7 @@ mod test {
         let destination_chain_endpoint = ChainEndpoint {
             name: destination_chain.clone(),
             gateway: Gateway {
-                address: MockApi::default().addr_make("destination"),
+                address: cosmos_addr!("destination"),
             },
             frozen_status: FlagSet::from(GatewayDirection::Bidirectional),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -492,17 +495,17 @@ mod test {
     fn route_messages_from_non_nexus_with_invalid_message_id() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -544,16 +547,16 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make(AXELARNET_GATEWAY);
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -578,17 +581,17 @@ mod test {
     fn route_messages_from_non_nexus_with_incorrect_message_id_format() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = api.addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -639,18 +642,18 @@ mod test {
     fn route_messages_from_non_nexus_to_non_nexus() {
         let mut deps = mock_dependencies();
         let api = deps.api;
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
-        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain_1 = chain_name!("bitcoin");
+        let destination_chain_2 = chain_name!("polygon");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -675,7 +678,7 @@ mod test {
         let destination_chain_endpoint_1 = ChainEndpoint {
             name: destination_chain_1.clone(),
             gateway: Gateway {
-                address: MockApi::default().addr_make("destination_1"),
+                address: cosmos_addr!("destination_1"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -690,7 +693,7 @@ mod test {
         let destination_chain_endpoint_2 = ChainEndpoint {
             name: destination_chain_2.clone(),
             gateway: Gateway {
-                address: MockApi::default().addr_make("destination_2"),
+                address: cosmos_addr!("destination_2"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -722,17 +725,17 @@ mod test {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let sender = MockApi::default().addr_make(AXELARNET_GATEWAY);
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
-        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain_1 = chain_name!("bitcoin");
+        let destination_chain_2 = chain_name!("polygon");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -793,16 +796,16 @@ mod test {
             .with_custom_handler(reply_with_is_chain_registered(false));
 
         let sender = api.addr_make(AXELARNET_GATEWAY);
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -828,17 +831,17 @@ mod test {
         deps.querier = deps
             .querier
             .with_custom_handler(reply_with_is_chain_registered(true));
-        let sender = MockApi::default().addr_make("sender");
-        let source_chain: ChainName = "ethereum".parse().unwrap();
-        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+        let sender = cosmos_addr!("sender");
+        let source_chain = chain_name!("ethereum");
+        let destination_chain = chain_name!("bitcoin");
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make("admin").to_string(),
-                governance_address: api.addr_make("governance").to_string(),
+                admin_address: cosmos_addr!("admin").to_string(),
+                governance_address: cosmos_addr!("governance").to_string(),
                 axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY).to_string(),
                 coordinator_address: api.addr_make(COORDINATOR).to_string(),
             },
@@ -876,7 +879,7 @@ mod test {
     #[test]
     fn multiple_freeze_unfreeze_causes_no_arithmetic_side_effect() {
         let mut deps = mock_dependencies();
-        let chain: ChainName = "ethereum".parse().unwrap();
+        let chain = chain_name!("ethereum");
 
         chain_endpoints()
             .save(
@@ -885,7 +888,7 @@ mod test {
                 &ChainEndpoint {
                     name: chain.clone(),
                     gateway: Gateway {
-                        address: MockApi::default().addr_make("gateway"),
+                        address: cosmos_addr!("gateway"),
                     },
                     frozen_status: FlagSet::from(GatewayDirection::None),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -967,7 +970,7 @@ mod test {
     #[test]
     fn freezing_unfreezing_chain_emits_correct_event() {
         let mut deps = mock_dependencies();
-        let chain: ChainName = "ethereum".parse().unwrap();
+        let chain = chain_name!("ethereum");
 
         chain_endpoints()
             .save(
@@ -976,7 +979,7 @@ mod test {
                 &ChainEndpoint {
                     name: chain.clone(),
                     gateway: Gateway {
-                        address: MockApi::default().addr_make("gateway"),
+                        address: cosmos_addr!("gateway"),
                     },
                     frozen_status: FlagSet::from(GatewayDirection::None),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
@@ -1026,8 +1029,8 @@ mod test {
             register_chain(
                 &mut deps.storage,
                 QuerierWrapper::new(&deps.querier),
-                "ethereum".parse().unwrap(),
-                MockApi::default().addr_make("gateway"),
+                chain_name!("ethereum"),
+                cosmos_addr!("gateway"),
                 MessageIdFormat::HexTxHashAndEventIndex
             ),
             Error,

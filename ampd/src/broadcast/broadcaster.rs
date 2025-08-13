@@ -173,6 +173,18 @@ where
         BroadcasterBuilderParams::builder()
     }
 
+    // TODO: this is a temporary method to reset the sequence number because executing commands will cause
+    // the daemon's broadcaster sequence number to become out of sync. Remove this once the commands broadcast
+    // through the daemon's broadcaster.
+    pub async fn reset_sequence(&mut self) -> Result<()> {
+        reset_sequence(
+            &mut self.client,
+            &self.address,
+            self.acc_sequence.write().await,
+        )
+        .await
+    }
+
     /// Estimates the gas required for a transaction containing the given messages.
     ///
     /// This performs a simulated execution of the transaction without actually

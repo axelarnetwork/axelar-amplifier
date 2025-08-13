@@ -193,6 +193,7 @@ mod test {
 
     use axelar_wasm_std::voting::Vote;
     use cosmrs::AccountId;
+    use router_api::chain_name;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
@@ -265,7 +266,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -287,7 +288,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -310,7 +311,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -333,7 +334,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -358,7 +359,7 @@ mod test {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -374,7 +375,7 @@ mod test {
                 msg,
                 metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: ChainName::from_str("solana").unwrap(),
+                    chain_name: chain_name!("solana"),
                 }
             );
         }
@@ -397,7 +398,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            ChainName::from_str("solana").unwrap(),
+            chain_name!("solana"),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -430,7 +431,7 @@ mod test {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "solana".parse().unwrap(),
+                source_chain: chain_name!("solana"),
                 source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -452,7 +453,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_1.parse().unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"
                         .parse()
                         .unwrap(),
@@ -469,7 +470,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_2.parse().unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
                     destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"
                         .parse()
                         .unwrap(),
