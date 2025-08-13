@@ -16,7 +16,7 @@ jobs:
     name: Test Suite
     runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
@@ -26,7 +26,7 @@ jobs:
           cache-key: "cache-tests"
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -39,7 +39,7 @@ jobs:
     name: Cosmwasm Compilation
     runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
@@ -66,7 +66,7 @@ jobs:
     name: Ampd Release Compilation
     runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
@@ -76,7 +76,7 @@ jobs:
           cache-key: "cache-ampd-compilation"
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -88,7 +88,7 @@ jobs:
     name: Lints
     runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
@@ -103,12 +103,12 @@ jobs:
         run: rustup toolchain install nightly --component rustfmt --profile minimal
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install cargo-sort
-        uses: baptiste0928/cargo-install@v3
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
         with:
           crate: cargo-sort
 
