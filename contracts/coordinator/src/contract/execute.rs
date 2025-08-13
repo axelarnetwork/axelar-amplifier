@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::nonempty;
@@ -7,10 +7,11 @@ use cosmwasm_std::{
 };
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
+use serde_json::Value;
 
 use crate::contract::errors::Error;
 use crate::events::{ContractInstantiation, Event};
-use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
+use crate::msg::{DeploymentParams, Extended, ProverMsg, VerifierMsg};
 use crate::state;
 use crate::state::{ChainContracts, ProtocolContracts};
 
@@ -214,6 +215,7 @@ fn instantiate_prover_and_chain_codec(
     verifier_address: Addr,
     prover_msg: &ProverMsg,
     domain_separator: Hash,
+    additional: BTreeMap<String, Value>,
 ) -> Result<(Instantiate2Data, Instantiate2Data), Error> {
     launch_two_contracts(
         &ctx.deps,
@@ -246,9 +248,12 @@ fn instantiate_prover_and_chain_codec(
         ContractLaunch {
             code_id: ctx.chain_codec_id,
             instantiate_msg: |prover_addr, _| {
-                cosmwasm_std::to_json_binary(&chain_codec_api::msg::InstantiateMsg {
-                    multisig_prover: prover_addr.to_string(),
-                    domain_separator,
+                cosmwasm_std::to_json_binary(&Extended {
+                    inner: chain_codec_api::msg::InstantiateMsg {
+                        multisig_prover: prover_addr.to_string(),
+                        domain_separator,
+                    },
+                    additional, // pass additional fields on to the contract
                 })
                 .change_context(Error::InstantiateChainCodec)
             },
@@ -329,7 +334,8 @@ pub fn instantiate_chain_contracts(
                     protocol.multisig.clone(),
                     voting_verifier_address.clone(),
                     &params.prover.msg,
-                    params.chain_codec.msg.domain_separator,
+                    params.chain_codec.msg.inner.domain_separator,
+                    params.chain_codec.msg.additional,
                 )?;
 
             response = response

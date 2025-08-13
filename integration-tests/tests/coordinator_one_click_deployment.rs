@@ -80,7 +80,8 @@ fn instantiate_contracts(
                     label: "ChainCodec1.0.0".to_string(),
                     msg: ChainCodecMsg {
                         domain_separator: [0; 32],
-                    },
+                    }
+                    .into(),
                 },
                 verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
