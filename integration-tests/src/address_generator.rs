@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::num::NonZeroU64;
 use std::rc::Rc;
 
+use anyhow::Context;
 use cosmwasm_std::{Addr, Api, CanonicalAddr, Storage};
 use cw_multi_test::SimpleAddressGenerator;
 
@@ -49,8 +50,17 @@ impl AddressGenerator {
             &SimpleAddressGenerator,
             api,
             storage,
-            inner.next_code_id + n.get() - 1,
-            inner.next_instance_id + n.get() - 1,
+            // the clippy lint is incorrect here since n > 0 is guaranteed, and this is test code anyways
+            #[allow(clippy::arithmetic_side_effects)]
+            inner
+                .next_code_id
+                .checked_add(n.get() - 1)
+                .context("code id overflow")?,
+            #[allow(clippy::arithmetic_side_effects)]
+            inner
+                .next_instance_id
+                .checked_add(n.get() - 1)
+                .context("instance id overflow")?,
         )
     }
 }
@@ -65,8 +75,16 @@ impl cw_multi_test::AddressGenerator for AddressGenerator {
         instance_id: u64,
     ) -> anyhow::Result<Addr> {
         let mut inner = self.inner.borrow_mut();
-        inner.next_code_id = inner.next_code_id.max(code_id) + 1;
-        inner.next_instance_id = inner.next_instance_id.max(instance_id) + 1;
+        inner.next_code_id = inner
+            .next_code_id
+            .max(code_id)
+            .checked_add(1)
+            .context("code id overflow")?;
+        inner.next_instance_id = inner
+            .next_instance_id
+            .max(instance_id)
+            .checked_add(1)
+            .context("instance id overflow")?;
 
         SimpleAddressGenerator.contract_address(api, storage, code_id, instance_id)
     }

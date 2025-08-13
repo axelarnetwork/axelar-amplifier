@@ -70,7 +70,7 @@ fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Re
                 code_info.checksum.as_slice(),
                 &deps
                     .api
-                    .addr_canonicalize(&env.contract.address.to_string())
+                    .addr_canonicalize(env.contract.address.as_ref())
                     .change_context(Error::Instantiate2Address)?,
                 salt,
             )
@@ -78,6 +78,8 @@ fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Re
         )
         .change_context(Error::Instantiate2Address)
 }
+
+type Instantiate2Data = (WasmMsg, Addr);
 
 /// Like `launch_contract`, but with two interdependent contracts that require each other's addresses
 /// to be instantiated correctly.
@@ -88,7 +90,7 @@ fn launch_two_contracts(
     salt: Binary,
     contract1: ContractLaunch<impl FnOnce(&Addr, &Addr) -> Result<Binary, Error>>,
     contract2: ContractLaunch<impl FnOnce(&Addr, &Addr) -> Result<Binary, Error>>,
-) -> Result<((WasmMsg, Addr), (WasmMsg, Addr)), Error> {
+) -> Result<(Instantiate2Data, Instantiate2Data), Error> {
     let addr0 = instantiate2_addr(deps, env, contract1.code_id, salt.as_slice())?;
     let addr1 = instantiate2_addr(deps, env, contract2.code_id, salt.as_slice())?;
     let msg0 = (contract1.instantiate_msg)(&addr0, &addr1)?;
@@ -201,6 +203,7 @@ fn instantiate_verifier(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn instantiate_prover_and_chain_codec(
     ctx: &InstantiateContext,
     prover_label: String,
@@ -211,7 +214,7 @@ fn instantiate_prover_and_chain_codec(
     verifier_address: Addr,
     prover_msg: &ProverMsg,
     domain_separator: Hash,
-) -> Result<((WasmMsg, Addr), (WasmMsg, Addr)), Error> {
+) -> Result<(Instantiate2Data, Instantiate2Data), Error> {
     launch_two_contracts(
         &ctx.deps,
         &ctx.info,
