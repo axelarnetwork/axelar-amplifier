@@ -1,4 +1,6 @@
-use std::{cell::RefCell, num::NonZeroU64, rc::Rc};
+use std::cell::RefCell;
+use std::num::NonZeroU64;
+use std::rc::Rc;
 
 use cosmwasm_std::{Addr, Api, CanonicalAddr, Storage};
 use cw_multi_test::SimpleAddressGenerator;

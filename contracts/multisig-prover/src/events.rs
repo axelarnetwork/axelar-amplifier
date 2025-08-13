@@ -1,8 +1,7 @@
 use axelar_wasm_std::IntoEvent;
 use cosmwasm_std::Uint64;
-use router_api::{ChainName, CrossChainId};
-
 use multisig_prover_api::payload::PayloadId;
+use router_api::{ChainName, CrossChainId};
 
 #[derive(IntoEvent)]
 pub enum Event {

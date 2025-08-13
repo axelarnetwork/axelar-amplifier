@@ -1,6 +1,7 @@
 use std::iter;
 
 use axelar_wasm_std::hash::Hash;
+use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use k256::ecdsa::RecoveryId;
@@ -11,7 +12,6 @@ use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
 use crate::error::Error;
-use chain_codec_api::Payload;
 
 fn encode_payload(payload: &Payload) -> Result<Vec<u8>, Error> {
     let encoded: Vec<u8> = match payload {
@@ -106,6 +106,7 @@ where
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::hash::Hash;
+    use chain_codec_api::Payload;
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::msg::Signer;
@@ -113,7 +114,6 @@ mod tests {
     use router_api::{chain_name, chain_name_raw, cosmos_addr, CrossChainId, Message};
 
     use super::payload_digest;
-    use chain_codec_api::Payload;
 
     #[test]
     fn payload_digest_should_encode_correctly_for_verifier_set() {

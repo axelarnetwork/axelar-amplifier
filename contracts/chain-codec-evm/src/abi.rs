@@ -1,4 +1,5 @@
 use axelar_wasm_std::hash::Hash;
+use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use ethers_contract::contract::EthCall;
@@ -14,7 +15,6 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 
 use crate::error::Error;
-use chain_codec_api::Payload;
 
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 
@@ -149,6 +149,7 @@ mod tests {
     use std::str::FromStr;
 
     use assert_ok::assert_ok;
+    use chain_codec_api::Payload;
     use cosmwasm_std::HexBinary;
     use elliptic_curve::consts::U32;
     use ethers_core::types::Signature as EthersSignature;
@@ -164,7 +165,6 @@ mod tests {
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
     };
-    use chain_codec_api::Payload;
 
     #[test]
     fn command_type_from_payload_works() {

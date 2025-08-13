@@ -1,6 +1,5 @@
-use cosmwasm_schema::write_api;
-
 use chain_codec_evm::msg::{InstantiateMsg, QueryMsg};
+use cosmwasm_schema::write_api;
 
 fn main() {
     write_api! {

@@ -1,17 +1,13 @@
-use axelar_wasm_std::{
-    address::{validate_address, AddressFormat},
-    error::ContractError,
-};
+use axelar_wasm_std::address::{validate_address, AddressFormat};
+use axelar_wasm_std::error::ContractError;
 use chain_codec_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
-use crate::{
-    abi,
-    error::Error,
-    state::{Config, CONFIG},
-};
+use crate::abi;
+use crate::error::Error;
+use crate::state::{Config, CONFIG};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");

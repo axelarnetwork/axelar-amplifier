@@ -1,6 +1,7 @@
 use cosmwasm_std::{CosmosMsg, HexBinary};
 use error_stack::{Result, ResultExt};
-use multisig::{msg::SignerWithSig, verifier_set::VerifierSet};
+use multisig::msg::SignerWithSig;
+use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
 
 use crate::error::Error;

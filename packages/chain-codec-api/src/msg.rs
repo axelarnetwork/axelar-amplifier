@@ -2,7 +2,8 @@ use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Empty, HexBinary};
 use msgs_derive::Permissions;
-use multisig::{msg::SignerWithSig, verifier_set::VerifierSet};
+use multisig::msg::SignerWithSig;
+use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
 
 /// The instantiate message for a chain-codec contract. If you need to receive additional parameters,
