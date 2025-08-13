@@ -24,8 +24,8 @@ use crate::grpc::client::types::{BroadcastClientResponse, ContractsAddresses, Ke
 
 pub mod types;
 
-pub(crate) fn parse_addr(addr: &str) -> error_stack::Result<cosmrs::AccountId, Error> {
-    addr.parse::<cosmrs::AccountId>()
+pub(crate) fn parse_addr(addr: &str) -> Result<AccountId, Error> {
+    addr.parse::<AccountId>()
         .change_context(AppError::InvalidAddress.into())
         .attach_printable(addr.to_string())
 }
