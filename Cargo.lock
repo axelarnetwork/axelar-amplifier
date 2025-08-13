@@ -1065,6 +1065,7 @@ dependencies = [
  "axelar-wasm-std-derive",
  "bech32 0.11.0",
  "bs58 0.5.1",
+ "const-str",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",

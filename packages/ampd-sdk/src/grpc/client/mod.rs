@@ -20,7 +20,7 @@ use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
 use tonic::{transport, Code, Request, Status};
 
-use crate::grpc::client::types::{BroadcastClientResponse, ContractsAddresses, Key};
+use crate::grpc::client::types::{BroadcastClientResponse, ChainName, ContractsAddresses, Key};
 
 pub mod types;
 
@@ -53,7 +53,7 @@ pub trait Client {
         query: nonempty::Vec<u8>,
     ) -> Result<T, Error>;
 
-    async fn contracts(&mut self) -> Result<ContractsAddresses, Error>;
+    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error>;
 
     async fn sign(
         &mut self,
@@ -203,7 +203,7 @@ impl Client for GrpcClient {
             })
     }
 
-    async fn contracts(&mut self) -> Result<ContractsAddresses, Error> {
+    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error> {
         let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
@@ -270,6 +270,7 @@ mod tests {
         AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
         KeyResponse, SignResponse, SubscribeResponse,
     };
+    use axelar_wasm_std::chain_name;
     use cosmrs::{AccountId, Any};
     use futures::StreamExt;
     use mockall::mock;
@@ -612,6 +613,7 @@ mod tests {
             multisig_prover: expected_contracts.multisig_prover.to_string(),
             service_registry: expected_contracts.service_registry.to_string(),
             rewards: expected_contracts.rewards.to_string(),
+            multisig: expected_contracts.multisig.to_string(),
         };
 
         mock_blockchain
@@ -619,7 +621,7 @@ mod tests {
             .return_once(move |_request| Ok(Response::new(mock_response)));
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
-        let result = client.contracts().await;
+        let result = client.contracts(chain_name!("chain")).await;
 
         assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
         assert_eq!(result.unwrap(), expected_contracts);
@@ -636,11 +638,12 @@ mod tests {
                     multisig_prover: "".to_string(),
                     service_registry: "".to_string(),
                     rewards: "".to_string(),
+                    multisig: "".to_string(),
                 }))
             });
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
-        let result = client.contracts().await;
+        let result = client.contracts(chain_name!("chain")).await;
 
         assert!(
             result.is_err(),
@@ -932,6 +935,7 @@ mod tests {
             multisig_prover: sample_account_id(),
             service_registry: sample_account_id(),
             rewards: sample_account_id(),
+            multisig: sample_account_id(),
         }
     }
 
