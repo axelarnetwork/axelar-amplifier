@@ -391,4 +391,39 @@ mod tests {
         assert!(!tx_response.successful);
         assert!(tx_response.contract_events.is_empty());
     }
+
+    #[test]
+    fn validate_tx_response_with_successful_response() {
+        let hash = Hash::from([1u8; 32]);
+        let events = vec![vec![create_mock_contract_event(42)]];
+        let response = create_mock_transaction_response_v4(events, "SUCCESS");
+
+        let result = Client::validate_tx_response(Ok(response), hash.clone());
+
+        assert!(result.is_some());
+        let tx_response = result.unwrap();
+        assert_eq!(tx_response.transaction_hash, hash.to_string());
+        assert!(tx_response.successful);
+        assert_eq!(tx_response.contract_events.len(), 1);
+    }
+
+    #[test]
+    fn validate_tx_response_with_rpc_error() {
+        let hash = Hash::from([2u8; 32]);
+        let rpc_error = stellar_rpc_client::Error::InvalidResponse;
+
+        let result = Client::validate_tx_response(Err(rpc_error), hash);
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn validate_tx_response_with_parse_error() {
+        let hash = Hash::from([3u8; 32]);
+        let response = create_mock_transaction_response_v4(vec![], "SUCCESS");
+
+        let result = Client::validate_tx_response(Ok(response), hash);
+
+        assert!(result.is_none());
+    }
 }
