@@ -16,6 +16,7 @@ use crate::contract::query::event_status;
 use crate::error::ContractError;
 use crate::events::{PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted};
 use crate::state::{self, Poll, CONFIG, POLLS, POLL_ID, VOTES};
+use axelar_wasm_std::nonempty;
 
 pub fn update_voting_threshold(
     deps: DepsMut,
@@ -33,9 +34,54 @@ pub fn update_voting_threshold(
     Ok(Response::new())
 }
 
+pub fn update_fee(
+    deps: DepsMut,
+    _info: MessageInfo,
+    new_fee: cosmwasm_std::Coin,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage).expect("failed to load config");
+    config.fee = new_fee;
+    CONFIG
+        .save(deps.storage, &config)
+        .change_context(ContractError::StorageError)?;
+    Ok(Response::new())
+}
+
+pub fn withdraw(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    receiver: nonempty::String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage).expect("failed to load config");
+
+    let receiver = deps
+        .api
+        .addr_validate(&receiver)
+        .change_context(ContractError::Unauthorized)?;
+
+    let balance = deps
+        .querier
+        .query_balance(env.contract.address, config.fee.denom.clone())
+        .map_err(ContractError::from)
+        .map_err(Report::from)?;
+
+    if balance.amount.is_zero() {
+        return Ok(Response::new());
+    }
+
+    let send = cosmwasm_std::BankMsg::Send {
+        to_address: receiver.to_string(),
+        amount: vec![balance],
+    };
+
+    Ok(Response::new().add_message(send))
+}
+
 pub fn verify_events(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     events: Vec<crate::msg::EventToVerify>,
 ) -> Result<Response, ContractError> {
     if events.is_empty() {
@@ -62,6 +108,19 @@ pub fn verify_events(
 
     if events_to_verify.is_empty() {
         return Ok(Response::new());
+    }
+
+    // Check fee
+    if !config.fee.amount.is_zero() {
+        let provided = info
+            .funds
+            .iter()
+            .find(|c| c.denom == config.fee.denom)
+            .map(|c| c.amount)
+            .unwrap_or_default();
+        if provided < config.fee.amount {
+            return Err(report!(ContractError::InsufficientFee));
+        }
     }
 
     // Ensure all events to verify have the same source chain

@@ -2,7 +2,7 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::voting::{PollId, Vote, WeightedPoll};
 use axelar_wasm_std::{counter, nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Order, StdResult, Storage};
+use cosmwasm_std::{Addr, Coin, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 use crate::error::ContractError;
@@ -12,9 +12,11 @@ use crate::msg::EventToVerify;
 pub struct Config {
     pub service_registry_contract: Addr,
     pub service_name: nonempty::String,
+    pub admin: Addr,
     pub voting_threshold: MajorityThreshold,
     pub block_expiry: nonempty::Uint64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
+    pub fee: Coin,
 }
 
 #[cw_serde]

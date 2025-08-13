@@ -30,6 +30,8 @@ pub fn instantiate(
 
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    permission_control::set_admin(deps.storage, &admin)?;
 
 
 
@@ -39,9 +41,11 @@ pub fn instantiate(
             deps.api,
             &msg.service_registry_address,
         )?,
+        admin: address::validate_cosmwasm_address(deps.api, &msg.admin_address)?,
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
         confirmation_height: msg.confirmation_height,
+        fee: msg.fee,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -57,7 +61,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::VerifyEvents(events) => Ok(execute::verify_events(deps, env, events)?),
+        ExecuteMsg::VerifyEvents(events) => Ok(execute::verify_events(deps, env, info, events)?),
         ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
@@ -65,6 +69,8 @@ pub fn execute(
             deps,
             new_voting_threshold,
         )?),
+        ExecuteMsg::UpdateFee { new_fee } => Ok(execute::update_fee(deps, info, new_fee)?),
+        ExecuteMsg::Withdraw { receiver } => Ok(execute::withdraw(deps, env, info, receiver)?),
     }
 }
 
@@ -171,10 +177,11 @@ mod test {
                 governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
+                admin_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
-                // rewards address removed
+                fee: cosmwasm_std::coin(0, "uaxl"),
             },
         )
         .unwrap();
@@ -326,6 +333,50 @@ mod test {
 
         let threshold: MajorityThreshold = from_json(res).unwrap();
         assert_eq!(threshold, new_voting_threshold);
+    }
+
+    #[test]
+    fn admin_update_fee_and_withdraw_permissions() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers, &msg_id_format);
+        let api = deps.api;
+
+        // Unauthorized update_fee by non-admin
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("not-admin"), &[]),
+            ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(1, "uaxl") },
+        );
+        assert!(res.is_err());
+
+        // Authorized update_fee by admin (governance address used as admin in setup)
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(2, "uaxl") },
+        );
+        assert!(res.is_ok());
+
+        // Unauthorized withdraw by non-admin
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("not-admin"), &[]),
+            ExecuteMsg::Withdraw { receiver: api.addr_make("rcv").as_str().parse().unwrap() },
+        );
+        assert!(res.is_err());
+
+        // Authorized withdraw by admin
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::Withdraw { receiver: api.addr_make("rcv").as_str().parse().unwrap() },
+        );
+        assert!(res.is_ok());
     }
 
 	#[test]

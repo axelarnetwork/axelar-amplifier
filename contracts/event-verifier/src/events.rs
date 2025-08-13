@@ -16,9 +16,11 @@ impl From<Config> for Vec<Attribute> {
         let Config {
             service_name,
             service_registry_contract,
+            admin,
             voting_threshold,
             block_expiry,
             confirmation_height,
+            fee,
         } = other;
 
         vec![
@@ -27,13 +29,12 @@ impl From<Config> for Vec<Attribute> {
                 "service_registry_contract",
                 service_registry_contract.to_string(),
             ),
-            (
-                "voting_threshold",
-                serde_json::to_string(&voting_threshold)
-                    .expect("failed to serialize voting_threshold"),
-            ),
+            ("admin", admin.to_string()),
+            ("voting_threshold", serde_json::to_string(&voting_threshold)
+                .expect("failed to serialize voting_threshold")),
             ("block_expiry", block_expiry.to_string()),
             ("confirmation_height", confirmation_height.to_string()),
+            ("fee", serde_json::to_string(&fee).expect("failed to serialize fee")),
         ]
         .into_iter()
         .map(Attribute::from)

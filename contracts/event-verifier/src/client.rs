@@ -184,12 +184,14 @@ mod test {
                 .try_into()
                 .unwrap(),
             service_name: "event-verifier".try_into().unwrap(),
+            admin_address: api.addr_make("governance").to_string().try_into().unwrap(),
             voting_threshold: Threshold::try_from((Uint64::new(2), Uint64::new(3)))
                 .unwrap()
                 .try_into()
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
+            fee: cosmwasm_std::coin(0, "uaxl"),
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

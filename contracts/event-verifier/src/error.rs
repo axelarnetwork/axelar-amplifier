@@ -44,6 +44,9 @@ pub enum ContractError {
     #[error("invalid source address")]
     InvalidSourceAddress,
 
+    #[error("insufficient fee provided")]
+    InsufficientFee,
+
 
 
     // Generic error to wrap cw_storage_plus errors

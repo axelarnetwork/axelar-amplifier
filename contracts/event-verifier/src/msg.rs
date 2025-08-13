@@ -2,7 +2,7 @@ use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::{Coin, HexBinary, Uint256};
 use msgs_derive::Permissions;
 use router_api::{Address, ChainName, FIELD_DELIMITER};
 use sha3::{Digest, Keccak256};
@@ -19,12 +19,16 @@ pub struct InstantiateMsg {
     pub service_registry_address: nonempty::String,
     /// Name of service in the service registry for which verifiers are registered.
     pub service_name: nonempty::String,
+    /// Admin that can manage contract parameters
+    pub admin_address: nonempty::String,
     /// Threshold of weighted votes required for voting to be considered complete for a particular message
     pub voting_threshold: MajorityThreshold,
     /// The number of blocks after which a poll expires
     pub block_expiry: nonempty::Uint64,
     /// The number of blocks to wait for on the source chain before considering a transaction final
     pub confirmation_height: u64,
+    /// Fee required to call verify_events
+    pub fee: Coin,
 }
 
 #[cw_serde]
@@ -44,6 +48,14 @@ pub enum ExecuteMsg {
     UpdateVotingThreshold {
         new_voting_threshold: MajorityThreshold,
     },
+
+    // Admin-only: update the required fee for verify_events
+    #[permission(Admin)]
+    UpdateFee { new_fee: Coin },
+
+    // Admin-only: withdraw accumulated fee balance to a receiver
+    #[permission(Admin)]
+    Withdraw { receiver: nonempty::String },
 }
 
 #[cw_serde]
