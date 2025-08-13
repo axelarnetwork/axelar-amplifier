@@ -43,4 +43,7 @@ pub struct InstantiateMsg {
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
+    /// Address of a contract responsible for signature verification.
+    /// For detailed information, see [`multisig::msg::ExecuteMsg::StartSigningSession::sig_verifier`]
+    pub sig_verifier_address: Option<String>,
 }

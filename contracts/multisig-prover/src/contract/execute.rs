@@ -549,6 +549,7 @@ mod tests {
             chain_name: chain_name!("ethereum"),
             verifier_set_diff_threshold: 0,
             key_type: multisig::key::KeyType::Ecdsa,
+            sig_verifier_address: None,
         }
     }
 }

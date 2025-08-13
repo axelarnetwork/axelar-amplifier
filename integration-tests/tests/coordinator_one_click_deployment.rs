@@ -124,6 +124,7 @@ fn instantiate_contracts(
                         chain_name: chain_name.parse().unwrap(),
                         verifier_set_diff_threshold: 0,
                         key_type: KeyType::Ecdsa,
+                        sig_verifier_address: None,
                     },
                 },
             })),

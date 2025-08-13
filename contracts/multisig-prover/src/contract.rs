@@ -48,6 +48,10 @@ pub fn instantiate(
         chain_name: msg.chain_name.parse()?,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         key_type: msg.key_type,
+        sig_verifier_address: msg
+            .sig_verifier_address
+            .map(|addr| address::validate_cosmwasm_address(deps.api, &addr))
+            .transpose()?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -173,6 +177,7 @@ mod tests {
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
                 key_type: multisig::key::KeyType::Ecdsa,
+                sig_verifier_address: None,
             },
         )
         .unwrap();
@@ -345,6 +350,7 @@ mod tests {
             chain_name: "Ethereum".to_string(),
             verifier_set_diff_threshold: 0,
             key_type: multisig::key::KeyType::Ecdsa,
+            sig_verifier_address: None,
         };
 
         let res = instantiate(deps.as_mut(), env, info, msg);

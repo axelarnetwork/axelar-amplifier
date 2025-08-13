@@ -78,7 +78,7 @@ pub fn payload_digest_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 verifier_set.id(),
                 digest.into(),
                 config.chain_name,
-                None,
+                config.sig_verifier_address.map(Into::into),
             );
 
             Ok(Response::new().add_submessage(SubMsg::reply_on_success(

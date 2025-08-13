@@ -237,6 +237,7 @@ fn instantiate_prover_and_chain_codec(
                     chain_name: prover_msg.chain_name.to_string(),
                     verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
                     key_type: prover_msg.key_type,
+                    sig_verifier_address: prover_msg.sig_verifier_address.clone(),
                 })
                 .change_context(Error::InstantiateChainCodec)
             },
