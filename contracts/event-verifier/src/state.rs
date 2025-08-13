@@ -15,7 +15,6 @@ pub struct Config {
     pub voting_threshold: MajorityThreshold,
     pub block_expiry: nonempty::Uint64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
-    pub rewards_contract: Addr,
 }
 
 #[cw_serde]

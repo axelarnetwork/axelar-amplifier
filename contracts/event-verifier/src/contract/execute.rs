@@ -5,8 +5,7 @@ use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use cosmwasm_std::{
-    to_json_binary, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
-    Response, Storage, WasmMsg,
+    Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation, Response, Storage,
 };
 use error_stack::{report, Report, Result, ResultExt};
 use itertools::Itertools;
@@ -15,9 +14,7 @@ use service_registry::WeightedVerifier;
 
 use crate::contract::query::event_status;
 use crate::error::ContractError;
-use crate::events::{
-    PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted,
-};
+use crate::events::{PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted};
 use crate::state::{self, Poll, CONFIG, POLLS, POLL_ID, VOTES};
 
 pub fn update_voting_threshold(
@@ -205,62 +202,7 @@ pub fn vote(
         .add_events(quorum_events.into_iter().flatten()))
 }
 
-pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage).expect("failed to load config");
-    
-    // Get source chain from the poll events
-    let events = state::poll_events().idx.load_events(deps.storage, poll_id)
-        .change_context(ContractError::StorageError)?;
-    let source_chain = events.first()
-        .ok_or(ContractError::EmptyEvents)?
-        .event_id.source_chain.clone();
 
-    let poll = POLLS
-        .may_load(deps.storage, poll_id)
-        .change_context(ContractError::StorageError)?
-        .ok_or(ContractError::PollNotFound)?
-        .try_map(|poll| poll.finish(env.block.height).map_err(ContractError::from))?;
-
-    POLLS
-        .save(deps.storage, poll_id, &poll)
-        .change_context(ContractError::StorageError)?;
-
-    let votes: Vec<(String, Vec<Vote>)> = VOTES
-        .prefix(poll_id)
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .try_collect()
-        .change_context(ContractError::StorageError)?;
-
-    let poll_result = match &poll {
-        Poll::Events(poll) => poll.state(HashMap::from_iter(votes)),
-    };
-
-    // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
-    let rewards_msgs = poll_result
-        .consensus_participants
-        .iter()
-        .map(|address| WasmMsg::Execute {
-            contract_addr: config.rewards_contract.to_string(),
-            msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                chain_name: source_chain.clone(),
-                event_id: poll_id
-                    .to_string()
-                    .try_into()
-                    .expect("couldn't convert poll id to nonempty string"),
-                verifier_address: address.to_string(),
-            })
-            .expect("failed to serialize message for rewards contract"),
-            funds: vec![],
-        });
-
-    Ok(Response::new()
-        .add_messages(rewards_msgs)
-        .add_event(PollEnded {
-            poll_id: poll_result.poll_id,
-            results: poll_result.results.0.clone(),
-            source_chain: source_chain,
-        }))
-}
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage).expect("failed to load config");

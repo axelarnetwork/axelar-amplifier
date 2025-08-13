@@ -25,18 +25,11 @@ pub struct InstantiateMsg {
     pub block_expiry: nonempty::Uint64,
     /// The number of blocks to wait for on the source chain before considering a transaction final
     pub confirmation_height: u64,
-    /// Rewards contract address on axelar.
-    pub rewards_address: nonempty::String,
 }
 
 #[cw_serde]
 #[derive(Permissions)]
 pub enum ExecuteMsg {
-    // Computes the results of a poll
-    // For all verified events, calls EventsVerified on the verifier
-    #[permission(Any)]
-    EndPoll { poll_id: PollId },
-
     // Casts votes for specified poll
     #[permission(Any)]
     Vote { poll_id: PollId, votes: Vec<Vote> },

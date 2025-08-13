@@ -49,9 +49,7 @@ impl Client<'_> {
         self.client.execute(&ExecuteMsg::Vote { poll_id, votes })
     }
 
-    pub fn end_poll(&self, poll_id: PollId) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::EndPoll { poll_id })
-    }
+    // end_poll removed
 
     pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::UpdateVotingThreshold {
@@ -192,7 +190,6 @@ mod test {
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
-            rewards_address: api.addr_make("rewards").to_string().try_into().unwrap(),
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

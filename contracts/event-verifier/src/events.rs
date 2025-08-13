@@ -19,7 +19,6 @@ impl From<Config> for Vec<Attribute> {
             voting_threshold,
             block_expiry,
             confirmation_height,
-            rewards_contract,
         } = other;
 
         vec![
@@ -35,7 +34,6 @@ impl From<Config> for Vec<Attribute> {
             ),
             ("block_expiry", block_expiry.to_string()),
             ("confirmation_height", confirmation_height.to_string()),
-            ("rewards_contract", rewards_contract.to_string()),
         ]
         .into_iter()
         .map(Attribute::from)
@@ -144,30 +142,7 @@ impl From<Voted> for Event {
     }
 }
 
-pub struct PollEnded {
-    pub poll_id: PollId,
-    pub source_chain: ChainName,
-    pub results: Vec<Option<Vote>>,
-}
-
-impl From<PollEnded> for Event {
-    fn from(other: PollEnded) -> Self {
-        Event::new("poll_ended")
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
-            )
-            .add_attribute(
-                "source_chain",
-                serde_json::to_string(&other.source_chain)
-                    .expect("failed to serialize source_chain"),
-            )
-            .add_attribute(
-                "results",
-                serde_json::to_string(&other.results).expect("failed to serialize results"),
-            )
-    }
-}
+// PollEnded event removed
 
 pub struct QuorumReached<T> {
     pub content: T,

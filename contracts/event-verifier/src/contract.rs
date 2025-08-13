@@ -42,7 +42,6 @@ pub fn instantiate(
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
         confirmation_height: msg.confirmation_height,
-        rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -60,7 +59,6 @@ pub fn execute(
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::VerifyEvents(events) => Ok(execute::verify_events(deps, env, events)?),
         ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
-        ExecuteMsg::EndPoll { poll_id } => Ok(execute::end_poll(deps, env, poll_id)?),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         } => Ok(execute::update_voting_threshold(
@@ -121,7 +119,7 @@ mod test {
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
-    const REWARDS_ADDRESS: &str = "rewards_address";
+    // rewards address removed
     const SERVICE_NAME: &str = "service_name";
     const POLL_BLOCK_EXPIRY: u64 = 100;
     const GOVERNANCE: &str = "governance";
@@ -176,7 +174,7 @@ mod test {
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
-                rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
+                // rewards address removed
             },
         )
         .unwrap();
