@@ -45,17 +45,3 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 }
-
-#[cfg(test)]
-mod test {
-
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
-    use cosmwasm_std::{
-        from_json, to_json_binary, Addr, QuerierWrapper, SystemError, Uint64, WasmQuery,
-    };
-
-    use crate::client::Client;
-    use crate::msg::QueryMsg;
-
-    // TODO: add tests
-}
