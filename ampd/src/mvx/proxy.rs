@@ -6,10 +6,33 @@ use hex::ToHex;
 use mockall::automock;
 use multiversx_sdk::data::transaction::TransactionOnNetwork;
 use multiversx_sdk::gateway::GatewayProxy;
+use router_api::ChainName;
 
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
 use crate::types::Hash;
 
 const STATUS_SUCCESS: &str = "success";
+
+pub struct Client {
+    proxy: GatewayProxy,
+    monitoring_client: monitoring::Client,
+    chain_name: ChainName,
+}
+
+impl Client {
+    pub fn new(
+        proxy: GatewayProxy,
+        monitoring_client: monitoring::Client,
+        chain_name: ChainName,
+    ) -> Self {
+        Client {
+            proxy,
+            monitoring_client,
+            chain_name,
+        }
+    }
+}
 
 #[automock]
 #[async_trait]
@@ -25,7 +48,7 @@ pub trait MvxProxy {
 }
 
 #[async_trait]
-impl MvxProxy for GatewayProxy {
+impl MvxProxy for Client {
     async fn transactions_info_with_results(
         &self,
         tx_hashes: HashSet<Hash>,
@@ -51,10 +74,19 @@ impl MvxProxy for GatewayProxy {
     }
 
     async fn transaction_info_with_results(&self, tx_hash: &Hash) -> Option<TransactionOnNetwork> {
-        self.get_transaction_info_with_results(tx_hash.encode_hex::<String>().as_str())
-            .await
-            .ok()
-            .filter(Self::is_valid_transaction)
+        let res = self
+            .proxy
+            .get_transaction_info_with_results(tx_hash.encode_hex::<String>().as_str())
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res.ok().filter(Self::is_valid_transaction)
     }
 
     /// First check if a transaction has hash & logs which are required in order to parse events.
@@ -72,11 +104,17 @@ impl MvxProxy for GatewayProxy {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, TransactionOnNetwork};
     use multiversx_sdk::gateway::GatewayProxy;
+    use router_api::ChainName;
 
-    use super::MvxProxy;
+    use super::{Client, MvxProxy};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
+    use crate::types::Hash;
 
     #[test]
     fn should_not_be_valid_transaction_no_hash() {
@@ -85,7 +123,7 @@ mod tests {
             ..TransactionOnNetwork::default()
         };
 
-        assert!(!GatewayProxy::is_valid_transaction(&tx));
+        assert!(!Client::is_valid_transaction(&tx));
     }
 
     #[test]
@@ -96,7 +134,7 @@ mod tests {
             ..TransactionOnNetwork::default()
         };
 
-        assert!(!GatewayProxy::is_valid_transaction(&tx));
+        assert!(!Client::is_valid_transaction(&tx));
     }
 
     #[test]
@@ -114,7 +152,7 @@ mod tests {
             ..TransactionOnNetwork::default()
         };
 
-        assert!(!GatewayProxy::is_valid_transaction(&tx));
+        assert!(!Client::is_valid_transaction(&tx));
     }
 
     #[test]
@@ -133,7 +171,7 @@ mod tests {
             ..TransactionOnNetwork::default()
         };
 
-        assert!(!GatewayProxy::is_valid_transaction(&tx));
+        assert!(!Client::is_valid_transaction(&tx));
     }
 
     #[test]
@@ -152,6 +190,34 @@ mod tests {
             ..TransactionOnNetwork::default()
         };
 
-        assert!(GatewayProxy::is_valid_transaction(&tx));
+        assert!(Client::is_valid_transaction(&tx));
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_failure_metrics_successfully() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let gateway_proxy = GatewayProxy::new("http://invalid-url-that-will-fail".into());
+
+        let client = Client::new(
+            gateway_proxy,
+            monitoring_client,
+            ChainName::from_str("multiversx").unwrap(),
+        );
+
+        let tx_hash = Hash::from([0u8; 32]);
+        let result = client.transaction_info_with_results(&tx_hash).await;
+        assert!(result.is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("multiversx").unwrap(),
+                success: false,
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 }
