@@ -8,6 +8,8 @@ use multisig_prover_api::payload::Payload;
 /// The instantiate message for a chain-codec contract. If you need to receive additional parameters,
 /// you can extend this struct using `#[serde(flatten)]` like this:
 /// ```rust
+/// # use cosmwasm_schema::cw_serde;
+///
 /// #[cw_serde]
 /// pub struct InstantiateMsg {
 ///    my_custom_field: String,
