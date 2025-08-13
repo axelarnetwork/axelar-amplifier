@@ -118,6 +118,26 @@ impl Client {
         ))
     }
 
+    fn validate_tx_response(
+        result: Result<GetTransactionResponse, stellar_rpc_client::Error>,
+        hash: Hash,
+    ) -> Option<TxResponse> {
+        result
+            .map_err(|err| {
+                warn!(error = ?err, tx_hash = ?hash, "failed to get transaction response");
+                err
+            })
+            .ok()
+            .and_then(|response| {
+                TxResponse::try_from((hash.clone(), response))
+                    .map_err(|err| {
+                        warn!(error = %err, tx_hash = ?hash, "failed to parse transaction response");
+                        err
+                    })
+                    .ok()
+            })
+    }
+
     pub async fn transaction_responses(
         &self,
         tx_hashes: HashSet<String>,
@@ -137,18 +157,9 @@ impl Client {
         Ok(responses
             .into_iter()
             .zip(tx_hashes)
-            .filter_map(|(response, hash)| match response {
-                Ok(resp) => match TxResponse::try_from((hash, resp)) {
-                    Ok(tx_response) => Some((tx_response.tx_hash(), tx_response)),
-                    Err(err) => {
-                        warn!(error = %err, "failed to parse transaction response");
-                        None
-                    }
-                },
-                Err(err) => {
-                    warn!(error = ?err, "failed to get transaction response");
-                    None
-                }
+            .filter_map(|(response, hash)| {
+                Self::validate_tx_response(response, hash)
+                    .map(|tx_response| (tx_response.tx_hash(), tx_response))
             })
             .collect())
     }
@@ -159,19 +170,10 @@ impl Client {
     ) -> error_stack::Result<Option<TxResponse>, Error> {
         let tx_hash = Hash::from_str(tx_hash.as_str()).change_context(Error::TxHash)?;
 
-        match self.0.get_transaction(&tx_hash).await {
-            Ok(response) => match TxResponse::try_from((tx_hash, response)) {
-                Ok(tx_response) => Ok(Some(tx_response)),
-                Err(err) => {
-                    warn!(error = %err, "failed to parse transaction response");
-                    Ok(None)
-                }
-            },
-            Err(err) => {
-                warn!(error = ?err, "failed to get transaction response");
-                Ok(None)
-            }
-        }
+        Ok(Self::validate_tx_response(
+            self.0.get_transaction(&tx_hash).await,
+            tx_hash,
+        ))
     }
 }
 
@@ -246,7 +248,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_succeeds_with_valid_transaction() {
+    fn tx_response_v4_succeeds_with_valid_transaction() {
         let hash = Hash::from([1u8; 32]);
         let contract_events = vec![vec![
             create_mock_contract_event(1),
@@ -263,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_handles_transaction_status_failed() {
+    fn tx_response_v4_handles_transaction_status_failed() {
         let hash = Hash::from([2u8; 32]);
         let response = create_mock_transaction_response_v4(vec![], "FAILED");
 
@@ -277,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_fails_with_single_empty_operation() {
+    fn tx_response_v4_fails_with_single_empty_operation() {
         let hash = Hash::from([3u8; 32]);
         let response = create_mock_transaction_response_v4(vec![vec![]], STATUS_SUCCESS);
 
@@ -291,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_fails_with_no_operations() {
+    fn tx_response_v4_fails_with_no_operations() {
         let hash = Hash::from([4u8; 32]);
         let response = create_mock_transaction_response_v4(vec![], STATUS_SUCCESS);
 
@@ -308,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_fails_with_multiple_operations() {
+    fn tx_response_v4_fails_with_multiple_operations() {
         let hash = Hash::from([5u8; 32]);
         let contract_events = vec![
             vec![create_mock_contract_event(1), create_mock_contract_event(2)],
@@ -329,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v4_fails_with_no_metadata() {
+    fn tx_response_v4_fails_with_no_metadata() {
         let hash = Hash::from([6u8; 32]);
         let mut response = create_mock_transaction_response_v4(
             vec![vec![create_mock_contract_event(1)]],
@@ -349,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v3_succeeds_with_valid_transaction() {
+    fn tx_response_v3_succeeds_with_valid_transaction() {
         let hash = Hash::from([7u8; 32]);
         let events = vec![create_mock_contract_event(1), create_mock_contract_event(2)];
         let response = create_mock_transaction_response_v3(events, STATUS_SUCCESS);
@@ -362,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v3_succeeds_with_none_soroban_meta() {
+    fn tx_response_v3_succeeds_with_none_soroban_meta() {
         let hash = Hash::from([9u8; 32]);
         let response = create_mock_transaction_response_v3(vec![], STATUS_SUCCESS);
 
@@ -376,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tx_response_v3_handles_transaction_status_failed() {
+    fn tx_response_v3_handles_transaction_status_failed() {
         let hash = Hash::from([10u8; 32]);
         let events = vec![create_mock_contract_event(1)];
         let response = create_mock_transaction_response_v3(events, "FAILED");

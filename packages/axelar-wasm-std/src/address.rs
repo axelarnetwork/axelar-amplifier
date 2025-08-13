@@ -37,6 +37,9 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
             if address != address.to_uppercase() {
                 bail!(Error::InvalidAddress(address.to_string()))
             }
+            if address.starts_with('M') {
+                bail!(Error::InvalidAddress(address.to_string()))
+            }
             ScAddress::from_str(address)
                 .change_context(Error::InvalidAddress(address.to_string()))?;
         }
@@ -188,10 +191,33 @@ mod tests {
             address::Error::InvalidAddress(..)
         );
 
+        // muxed address - supported in protocol V23 but we consider it as invalid
+        // unless there is a clear requirement to support these address types
+        let muxed_addr = "MA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVAAAAAAAAAAAAAJLK";
+        assert_err_contains!(
+            address::validate_address(muxed_addr, &address::AddressFormat::Stellar),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        let lower_case = muxed_addr.to_lowercase();
+        assert_err_contains!(
+            address::validate_address(&lower_case, &address::AddressFormat::Stellar),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
         // invalid - use clearly malformed address with invalid characters
         let invalid = "INVALID_STELLAR_ADDRESS_WITH_BAD_CHARS_123!@#";
         assert_err_contains!(
             address::validate_address(invalid, &address::AddressFormat::Stellar),
+            address::Error,
+            address::Error::InvalidAddress(..)
+        );
+
+        let lower_case = invalid.to_lowercase();
+        assert_err_contains!(
+            address::validate_address(&lower_case, &address::AddressFormat::Stellar),
             address::Error,
             address::Error::InvalidAddress(..)
         );
