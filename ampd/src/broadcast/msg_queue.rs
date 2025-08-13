@@ -217,6 +217,7 @@ pin_project! {
         deadline: time::Sleep,
         queue: Queue,
         duration: time::Duration,
+        monitoring_client: monitoring::Client,
     }
 }
 
@@ -259,8 +260,9 @@ impl MsgQueue {
             Box::pin(MsgQueue {
                 stream: ReceiverStream::new(rx).fuse(),
                 deadline: time::sleep(duration),
-                queue: Queue::new(gas_cap, monitoring_client),
+                queue: Queue::new(gas_cap),
                 duration,
+                monitoring_client,
             }),
             MsgQueueClient { broadcaster, tx },
         )
@@ -293,7 +295,10 @@ impl Stream for MsgQueue {
 
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
-                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
+                    if let Some(msgs) =
+                        me.queue
+                            .push_or(msg, handle_queue_error, &me.monitoring_client)
+                    {
                         return Poll::Ready(Some(msgs));
                     }
                 }
@@ -316,7 +321,7 @@ impl Stream for MsgQueue {
     }
 }
 
-fn handle_queue_error(msg: QueueMsg, err: Error) {
+fn handle_queue_error(msg: QueueMsg, err: Error, monitoring_client: &monitoring::Client) {
     let QueueMsg {
         tx_res_callback, ..
     } = msg;
@@ -327,6 +332,10 @@ fn handle_queue_error(msg: QueueMsg, err: Error) {
         "message dropped"
     );
 
+    monitoring_client
+        .metrics()
+        .record_metric(Msg::MessageEnqueueError);
+
     let _ = tx_res_callback.send(Err(Arc::new(report)));
 }
 
@@ -335,23 +344,26 @@ struct Queue {
     msgs: Vec<QueueMsg>,
     gas_cost: Gas,
     gas_cap: Gas,
-    monitoring_client: monitoring::Client,
 }
 
 impl Queue {
-    pub fn new(gas_cap: Gas, monitoring_client: monitoring::Client) -> Self {
+    pub fn new(gas_cap: Gas) -> Self {
         Queue {
             msgs: vec![],
             gas_cost: Gas::default(),
             gas_cap,
-            monitoring_client,
         }
     }
 
     #[instrument(skip(handle_error))]
-    pub fn push_or<F>(&mut self, msg: QueueMsg, handle_error: F) -> Option<nonempty::Vec<QueueMsg>>
+    pub fn push_or<F>(
+        &mut self,
+        msg: QueueMsg,
+        handle_error: F,
+        monitoring_client: &monitoring::Client,
+    ) -> Option<nonempty::Vec<QueueMsg>>
     where
-        F: FnOnce(QueueMsg, Error),
+        F: FnOnce(QueueMsg, Error, &monitoring::Client),
     {
         if msg.gas > self.gas_cap {
             let err = Error::GasExceedsGasCap {
@@ -360,11 +372,7 @@ impl Queue {
                 gas_cap: self.gas_cap,
             };
 
-            self.monitoring_client
-                .metrics()
-                .record_metric(Msg::MessageEnqueueError);
-
-            handle_error(msg, err);
+            handle_error(msg, err, monitoring_client);
 
             return None;
         }

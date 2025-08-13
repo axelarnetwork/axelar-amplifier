@@ -153,7 +153,11 @@ where
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
                 .buffered(TX_BROADCAST_BUFFER_SIZE)
-                .inspect_err(|_| {
+                .inspect_err(|err| {
+                    warn!(
+                        err = LoggableError::from(err).as_value(),
+                        "failed to enqueue message for broadcasting"
+                    );
                     monitoring_client
                         .metrics()
                         .record_metric(Msg::MessageEnqueueError);
@@ -176,6 +180,7 @@ where
 fn should_task_continue(token: CancellationToken) -> impl Fn(&StreamStatus) -> future::Ready<bool> {
     move |event| match event {
         StreamStatus::Ok(Event::BlockBegin(_)) | StreamStatus::TimedOut => {
+            warn!("event stream timed out");
             future::ready(!token.is_cancelled())
         }
         _ => future::ready(true),
