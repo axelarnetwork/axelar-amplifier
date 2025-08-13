@@ -1,6 +1,6 @@
 mod client;
-pub mod msg;
 pub mod error;
+pub mod msg;
 
 pub use client::Client;
 

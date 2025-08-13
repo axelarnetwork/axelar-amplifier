@@ -1,6 +1,6 @@
-pub mod contract;
-pub mod state;
-mod error;
 mod bcs;
+pub mod contract;
+mod error;
+pub mod state;
 
 pub use chain_codec_api::msg;

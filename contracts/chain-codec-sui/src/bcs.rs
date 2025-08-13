@@ -72,8 +72,7 @@ pub fn encode_execute_data(
 
     let encoded_payload = encode_payload(payload)?;
     let encoded_proof = bcs::to_bytes(
-        &Proof::try_from((verifier_set.clone(), signatures))
-            .change_context(Error::Proof)?,
+        &Proof::try_from((verifier_set.clone(), signatures)).change_context(Error::Proof)?,
     )
     .expect("failed to serialize proof");
     let execute_data = ExecuteData::new(encoded_payload, encoded_proof);
