@@ -194,7 +194,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+    async fn should_record_rpc_failure_metrics_successfully() {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let gateway_proxy = GatewayProxy::new("http://invalid-url-that-will-fail".into());

@@ -505,7 +505,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+    async fn should_record_rpc_failure_metrics_successfully() {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let client = Client::new_with_transport(
@@ -543,6 +543,71 @@ mod test {
             Msg::RpcCall {
                 chain_name: ChainName::from_str("starknet").unwrap(),
                 success: false,
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_success_metrics_when_contract_call_succeeds() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let client = Client::new_with_transport(
+            ValidMockTransportCallContract,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
+
+        let message_id = FieldElementAndEventIndex {
+            tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+            event_index: 0,
+        };
+
+        let result = client
+            .event_by_message_id_contract_call(message_id.clone())
+            .await;
+
+        assert!(result.is_some());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("starknet").unwrap(),
+                success: true
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_success_metrics_when_signers_rotated_succeeds() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let client = Client::new_with_transport(
+            ValidMockTransportSignersRotated,
+            monitoring_client,
+            ChainName::from_str("starknet").unwrap(),
+        )
+        .unwrap();
+
+        let message_id = FieldElementAndEventIndex {
+            tx_hash: CheckedFelt::try_from(&Felt::ONE.to_bytes_be()).unwrap(),
+            event_index: 0,
+        };
+
+        let result = client.event_by_message_id_signers_rotated(message_id).await;
+        assert!(result.is_some());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("starknet").unwrap(),
+                success: true,
             }
         );
 
