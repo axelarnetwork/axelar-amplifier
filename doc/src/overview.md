@@ -113,6 +113,7 @@ sequenceDiagram
     participant OutgoingGateway
     participant Router
     participant Prover
+    participant ChainCodec
     participant Multisig
     end
     participant Verifiers (ampd)
@@ -123,6 +124,8 @@ sequenceDiagram
     Prover->>OutgoingGateway: OutgoingMessages([M1,M2])
     OutgoingGateway-->>Prover: [M1,M2]
     Prover->>Prover: create payload of [M1,M2]
+    Prover->>ChainCodec: PayloadDigest(payload)
+    ChainCodec-->>Prover: payload hash
     Prover->>Multisig: StartSigningSession(snapshot, payload hash)
     Multisig-->>Prover: multisig_session_id
     Prover-->>Relayer: multisig_session_id
@@ -176,6 +179,11 @@ The prover contract is responsible for constructing proofs of routed messages, t
 common example of this is the [`multisig-prover`](contracts/multisig_prover.md) that constructs signed payload of routed
 messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the
 messages from the gateway, and interacts with the multisig contract to conduct the signing.
+
+### Chain-Codec
+
+The [chain-codec](contracts/chain_codec.md) contract abstracts away chain-specific functionality for a chain.
+It is used internally by the multisig-prover and voting-verifier contracts.
 
 ### Multisig Contract
 
