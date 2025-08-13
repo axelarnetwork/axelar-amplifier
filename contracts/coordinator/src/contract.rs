@@ -10,7 +10,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use error_stack::ResultExt;
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 use msgs_derive::ensure_permissions;
@@ -102,14 +102,8 @@ pub fn execute(
 
 fn find_prover_address(
     sender: Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, state::Error> {
-    move |storage, _| {
-        if state::is_prover_registered(storage, sender.clone())? {
-            Ok(sender)
-        } else {
-            Err(report!(state::Error::ProverNotRegistered(sender)))
-        }
-    }
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, state::Error> {
+    move |storage, _| state::is_prover_registered(storage, sender.clone())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

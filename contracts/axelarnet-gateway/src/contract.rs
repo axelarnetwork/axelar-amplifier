@@ -107,6 +107,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     .then(Ok)
 }
 
-fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Addr, Report<Error>> {
-    Ok(state::load_config(storage).nexus)
+fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Vec<Addr>, Report<Error>> {
+    Ok(vec![state::load_config(storage).nexus])
 }

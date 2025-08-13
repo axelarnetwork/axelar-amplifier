@@ -177,18 +177,24 @@ pub fn register_pub_key(
     }))
 }
 
-pub fn require_authorized_caller(
+pub fn authorized_callers(
     storage: &dyn Storage,
-    contract_address: &Addr,
     chain_name: &ChainName,
-) -> Result<Addr, ContractError> {
-    let expected_chain_name = AUTHORIZED_CALLERS.load(storage, contract_address)?;
-    if expected_chain_name != *chain_name {
-        return Err(ContractError::WrongChainName {
-            expected: expected_chain_name,
-        });
-    }
-    Ok(contract_address.clone())
+) -> Result<Vec<Addr>, ContractError> {
+    Ok(AUTHORIZED_CALLERS
+        .range(storage, None, None, cosmwasm_std::Order::Ascending)
+        .filter_map(|entry| {
+            if let Ok((addr, chain)) = entry {
+                if chain.eq(chain_name) {
+                    Some(addr)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>())
 }
 
 pub fn authorize_callers(

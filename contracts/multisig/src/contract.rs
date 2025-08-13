@@ -59,7 +59,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session()))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -127,12 +127,11 @@ fn validate_contract_addresses(
 }
 
 fn can_start_signing_session(
-    sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, permission_control::Error> + '_
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, permission_control::Error>
 {
     |storage, msg| match msg {
         ExecuteMsg::StartSigningSession { chain_name, .. } => {
-            execute::require_authorized_caller(storage, sender, chain_name)
+            execute::authorized_callers(storage, chain_name)
                 .change_context(permission_control::Error::Unauthorized)
         }
         _ => Err(report!(permission_control::Error::WrongVariant)),
@@ -564,10 +563,13 @@ mod tests {
                 chain_name.clone(),
             );
 
-            assert!(res
-                .unwrap_err()
+            assert!(res.unwrap_err().to_string().contains(
+                &permission_control::Error::AddressNotWhitelisted {
+                    expected: vec![MockApi::default().addr_make(PROVER)],
+                    actual: api.addr_make(sender)
+                }
                 .to_string()
-                .contains(&permission_control::Error::Unauthorized.to_string()));
+            ));
         }
     }
 
@@ -1192,10 +1194,13 @@ mod tests {
                 chain_name.clone(),
             );
 
-            assert!(res
-                .unwrap_err()
+            assert!(res.unwrap_err().to_string().contains(
+                &permission_control::Error::AddressNotWhitelisted {
+                    expected: vec![],
+                    actual: api.addr_make(PROVER)
+                }
                 .to_string()
-                .contains(&permission_control::Error::Unauthorized.to_string()));
+            ));
         }
 
         let caller_authorization_status =
@@ -1409,8 +1414,9 @@ mod tests {
             );
 
             assert!(res.unwrap_err().to_string().contains(
-                &ContractError::WrongChainName {
-                    expected: chain_name.clone()
+                &permission_control::Error::AddressNotWhitelisted {
+                    expected: vec![],
+                    actual: api.addr_make(PROVER)
                 }
                 .to_string()
             ));
