@@ -451,11 +451,17 @@ mod test {
     use crate::monitoring::test_utils;
 
     #[tokio::test]
-    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+    async fn should_record_rpc_failure_metrics_successfully_when_transaction_responses_fails() {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-
         let tx_hash1 =
             "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        let tx_hash2 =
+            "0000000000000000000000000000000000000000000000000000000000000001".to_string();
+
+        let mut tx_hashes = HashSet::new();
+
+        tx_hashes.insert(tx_hash1.clone());
+        tx_hashes.insert(tx_hash2.clone());
 
         let client = Client::new(
             "http://invalid_link".to_string(),
@@ -463,26 +469,6 @@ mod test {
             ChainName::from_str("stellar").unwrap(),
         )
         .unwrap();
-
-        let result = client.transaction_response(tx_hash1.clone()).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
-
-        let msg = receiver.recv().await.unwrap();
-        assert_eq!(
-            msg,
-            Msg::RpcCall {
-                chain_name: ChainName::from_str("stellar").unwrap(),
-                success: false,
-            }
-        );
-
-        let mut tx_hashes = HashSet::new();
-
-        let tx_hash2 =
-            "0000000000000000000000000000000000000000000000000000000000000001".to_string();
-        tx_hashes.insert(tx_hash1.clone());
-        tx_hashes.insert(tx_hash2.clone());
 
         let result = client.transaction_responses(tx_hashes).await;
         assert!(result.is_ok());
@@ -500,5 +486,33 @@ mod test {
         }
 
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_failure_metrics_successfully_when_transaction_response_fails() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let tx_hash =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+
+        let client = Client::new(
+            "http://invalid_link".to_string(),
+            monitoring_client,
+            ChainName::from_str("stellar").unwrap(),
+        )
+        .unwrap();
+
+        let result = client.transaction_response(tx_hash.clone()).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("stellar").unwrap(),
+                success: false,
+            }
+        );
     }
 }

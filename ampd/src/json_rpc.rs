@@ -83,32 +83,62 @@ impl Debug for Client<Http> {
 
 #[cfg(test)]
 mod test {
+    use std::fmt::Debug;
     use std::str::FromStr;
 
+    use async_trait::async_trait;
+    use ethers_providers::{JsonRpcClient, ProviderError};
     use router_api::ChainName;
+    use serde::de::DeserializeOwned;
+    use serde::Serialize;
 
     use super::Client;
     use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
-    use crate::url::Url;
+
+    #[derive(Debug, Clone)]
+    pub struct FailingJsonRpcClient;
+
+    #[async_trait]
+    impl JsonRpcClient for FailingJsonRpcClient {
+        type Error = ProviderError;
+
+        async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned + Send,
+        {
+            Err(ProviderError::UnsupportedNodeClient)
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct ValidJsonRpcClient;
+
+    #[async_trait]
+    impl JsonRpcClient for ValidJsonRpcClient {
+        type Error = ProviderError;
+
+        async fn request<T, R>(&self, _: &str, _: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned + Send,
+        {
+            serde_json::from_value(serde_json::json!("0x1")).map_err(ProviderError::SerdeJson)
+        }
+    }
 
     #[tokio::test]
-    async fn should_record_rpc_error_metrics_when_rpc_fails() {
+    async fn should_record_rpc_failure_metrics_successfully() {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
-        let client = Client::new_http(
-            Url::new_sensitive("http://localhost:9999").unwrap(),
-            reqwest::ClientBuilder::new()
-                .timeout(std::time::Duration::from_millis(1))
-                .build()
-                .unwrap(),
+        let client = Client::new(
+            FailingJsonRpcClient,
             monitoring_client,
             ChainName::from_str("ethereum").unwrap(),
         );
 
-        let result = client
-            .request::<[serde_json::Value; 0], serde_json::Value>("non_existing_method", [])
-            .await;
+        let result: Result<String, _> = client.request("parameter", serde_json::json!([])).await;
         assert!(result.is_err());
 
         let msg = receiver.recv().await.unwrap();
@@ -117,6 +147,31 @@ mod test {
             Msg::RpcCall {
                 chain_name: ChainName::from_str("ethereum").unwrap(),
                 success: false,
+            }
+        );
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn should_record_rpc_success_metrics_when_mock_succeeds() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let client = Client::new(
+            ValidJsonRpcClient,
+            monitoring_client,
+            ChainName::from_str("ethereum").unwrap(),
+        );
+
+        let result: Result<String, _> = client.request("parameter", serde_json::json!([])).await;
+
+        assert!(result.is_ok());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("ethereum").unwrap(),
+                success: true,
             }
         );
 
