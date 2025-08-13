@@ -215,7 +215,7 @@ mod tests {
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use router_api::ChainName;
+    use router_api::{cosmos_addr, ChainName};
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{MigrationError, OldConfig, ProverAddress, OLD_CONFIG};
@@ -549,8 +549,8 @@ mod tests {
 
         let extra_chain_name = ChainName::try_from(CHAIN_2).unwrap();
         let extra_prover_addr = api.addr_make(PROVER_2);
-        let extra_gateway_addr = api.addr_make("extra_gateway");
-        let extra_verifier_addr = api.addr_make("extra_verifier");
+        let extra_gateway_addr = cosmos_addr!("extra_gateway");
+        let extra_verifier_addr = cosmos_addr!("extra_verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -644,7 +644,7 @@ mod tests {
                     chain_name: chain_name.clone(),
                     prover_address: nonempty::String::try_from(prover_addr.to_string()).unwrap(),
                     gateway_address: nonempty::String::try_from(
-                        api.addr_make("different_gateway").to_string(),
+                        cosmos_addr!("different_gateway").to_string(),
                     )
                     .unwrap(), // Different gateway
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -753,8 +753,8 @@ mod tests {
         let verifier_addr = api.addr_make(VERIFIER);
 
         let extra_prover_addr = api.addr_make(PROVER_2);
-        let extra_gateway_addr = api.addr_make("extra_gateway");
-        let extra_verifier_addr = api.addr_make("extra_verifier");
+        let extra_gateway_addr = cosmos_addr!("extra_gateway");
+        let extra_verifier_addr = cosmos_addr!("extra_verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),

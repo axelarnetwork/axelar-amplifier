@@ -1065,6 +1065,7 @@ dependencies = [
  "axelar-wasm-std-derive",
  "bech32 0.11.0",
  "bs58 0.5.1",
+ "const-str",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1081,6 +1082,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "report",
+ "router-api",
  "schemars",
  "semver 1.0.26",
  "serde",
@@ -2319,7 +2321,7 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -6415,6 +6417,7 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
+ "router-api",
  "serde",
  "syn 2.0.101",
  "thiserror 1.0.69",
@@ -6494,7 +6497,7 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "multisig"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "assert_ok",
  "axelar-wasm-std",

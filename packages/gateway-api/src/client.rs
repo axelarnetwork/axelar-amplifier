@@ -56,7 +56,7 @@ impl Client<'_> {
 mod tests {
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
-    use router_api::{CrossChainId, Message};
+    use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
 
     use crate::client::Client;
     use crate::msg::QueryMsg;
@@ -68,7 +68,7 @@ mod tests {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
-            source_chain: "ethereum".parse().unwrap(),
+            source_chain: chain_name_raw!("ethereum"),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
                 .parse()
                 .unwrap(),
@@ -85,7 +85,7 @@ mod tests {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
-            source_chain: "ethereum".parse().unwrap(),
+            source_chain: chain_name_raw!("ethereum"),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
                 .parse()
                 .unwrap(),
@@ -127,9 +127,9 @@ mod tests {
                             .into_iter()
                             .map(|cc_id| Message {
                                 cc_id,
-                                source_address: "foobar".parse().unwrap(),
-                                destination_chain: "ethereum".parse().unwrap(),
-                                destination_address: "foobar".parse().unwrap(),
+                                source_address: address!("foobar"),
+                                destination_chain: chain_name!("ethereum"),
+                                destination_address: address!("foobar"),
                                 payload_hash: [0u8; 32],
                             })
                             .collect::<Vec<Message>>(),

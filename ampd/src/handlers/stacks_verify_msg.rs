@@ -208,7 +208,6 @@ impl EventHandler for Handler {
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -217,7 +216,7 @@ mod tests {
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::H160;
-    use router_api::ChainName;
+    use router_api::{address, chain_name};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
@@ -298,7 +297,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("other").unwrap(),
+            chain_name!("other"),
             worker,
             voting_verifier,
             client,
@@ -322,7 +321,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             TMAddress::random(PREFIX),
             voting_verifier,
             client,
@@ -354,7 +353,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             worker,
             voting_verifier,
             client,
@@ -388,7 +387,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             worker,
             voting_verifier,
             client,
@@ -404,7 +403,7 @@ mod tests {
             metric,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str("stacks").unwrap(),
+                chain_name: chain_name!("stacks"),
             }
         );
 
@@ -434,7 +433,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             worker,
             voting_verifier,
             client,
@@ -459,7 +458,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!("stacks"),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,
@@ -475,7 +474,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stacks".parse().unwrap(),
+                source_chain: chain_name!("stacks"),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),
@@ -493,8 +492,8 @@ mod tests {
                 tx_id: msg_id.tx_hash_as_hex(),
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
-                source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".parse().unwrap(),
-                destination_chain: "ethereum".parse().unwrap(),
+                source_address: address!("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"),
+                destination_chain: chain_name!("ethereum"),
                 destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                 payload_hash: [1; 32],
             }],
