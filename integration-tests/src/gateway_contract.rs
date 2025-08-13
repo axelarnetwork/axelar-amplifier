@@ -1,7 +1,7 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use gateway::contract::{execute, instantiate, query};
+use router_api::cosmos_addr;
 
 use crate::contract::Contract;
 use crate::protocol::AxelarApp;
@@ -24,7 +24,7 @@ impl GatewayContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &gateway::msg::InstantiateMsg {
                     router_address: router_address.to_string(),
                     verifier_address: verifier_address.to_string(),
@@ -45,7 +45,7 @@ impl GatewayContract {
 impl Default for GatewayContract {
     fn default() -> Self {
         GatewayContract {
-            contract_addr: MockApi::default().addr_make("gateway"),
+            contract_addr: cosmos_addr!("gateway"),
             code_id: 0,
         }
     }

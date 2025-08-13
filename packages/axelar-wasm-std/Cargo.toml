@@ -18,6 +18,7 @@ alloy-primitives = { workspace = true }
 axelar-wasm-std-derive = { workspace = true, optional = true }
 bech32 = { workspace = true }
 bs58 = { workspace = true }
+const-str = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
@@ -52,6 +53,7 @@ cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
+router-api = { workspace = true }
 
 [lints]
 workspace = true

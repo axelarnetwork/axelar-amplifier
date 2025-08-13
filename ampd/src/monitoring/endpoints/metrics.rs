@@ -399,12 +399,12 @@ impl Collector for SystemMetricsCollector {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use std::time::Duration;
 
     use axum::Router;
     use axum_test::TestServer;
     use itertools::Itertools;
+    use router_api::chain_name;
     use tokio::time;
     use tracing_test::traced_test;
 
@@ -450,11 +450,11 @@ mod tests {
         initial_metrics.assert_status_ok();
 
         let chain_names = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("solana").unwrap(),
-            ChainName::from_str("polygon").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
-            ChainName::from_str("stellar").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("solana"),
+            chain_name!("polygon"),
+            chain_name!("avalanche"),
+            chain_name!("stellar"),
         ];
 
         for chain_name in chain_names {
