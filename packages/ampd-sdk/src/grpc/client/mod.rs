@@ -208,7 +208,9 @@ impl Client for GrpcClient {
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
         let contracts_response = blockchain_client
-            .contracts(Request::new(ContractsRequest {}))
+            .contracts(Request::new(ContractsRequest {
+                chain: chain.into(),
+            }))
             .await
             .inspect_err(|status| self.handle_grpc_error(status))
             .into_report()?
