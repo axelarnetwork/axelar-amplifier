@@ -521,7 +521,7 @@ fn external_execute_msg_ident(execute_msg_ident: &Ident) -> Ident {
 ///
 /// proxy: Proxy contracts that are allowed to execute messages on this contract.
 /// direct: Addresses that are allowed to execute particular messages.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct ContractPermission(Vec<(Ident, Expr)>);
 
 impl IntoIterator for ContractPermission {
@@ -533,7 +533,7 @@ impl IntoIterator for ContractPermission {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct AllPermissions {
     relay_permissions: ContractPermission,
     specific_permissions: ContractPermission,
@@ -613,8 +613,8 @@ fn validate_external_contract_with_args(
     contract_names: Vec<Ident>,
     fs: Vec<Ident>,
     cs: Vec<Ident>,
-) -> TokenStream {
-    TokenStream::from(quote! {
+) -> proc_macro2::TokenStream {
+    quote! {
         // this function can be called with a lot of arguments, so we suppress the warning
         #[allow(clippy::too_many_arguments)]
         fn validate_external_contract<#(#fs),*, #(#cs),*>(
@@ -640,11 +640,11 @@ fn validate_external_contract_with_args(
 
             Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
         }
-    })
+    }
 }
 
-fn validate_external_contract_no_args() -> TokenStream {
-    TokenStream::from(quote! {
+fn validate_external_contract_no_args() -> proc_macro2::TokenStream {
+    quote! {
         fn validate_external_contract(
                 storage: &dyn cosmwasm_std::Storage,
                 contract_addr: Addr,
@@ -653,10 +653,10 @@ fn validate_external_contract_no_args() -> TokenStream {
             // permission to execute a message, this will always be an error.
             Err(error_stack::report!(axelar_wasm_std::permission_control::Error::Unauthorized))
         }
-    })
+    }
 }
 
-fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
+fn validate_external_contract_function(contracts: Vec<Ident>) -> proc_macro2::TokenStream {
     if !contracts.is_empty() {
         let fs: Vec<_> = (0..contracts.len())
             .map(|i| format_ident!("F{}", i))
@@ -742,7 +742,7 @@ fn ensure_permissions_impl(
     let new_msg_ident = replace_execute_message_type(&mut execute_fn)?;
 
     let validate_fn = validate_external_contract_function(contract_names.clone());
-    let validate_fn: ItemFn = syn::parse(validate_fn)?;
+    let validate_fn: ItemFn = syn::parse2(validate_fn)?;
 
     let validate_external_contract_call = if contract_permissions.is_empty() {
         quote!(validate_external_contract(
@@ -897,5 +897,132 @@ fn build_golden_test(
                 goldie::assert!(#permissions_json);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod ensure_permissions_impl_tests {
+    use super::*;
+    use syn::parse_quote;
+
+    fn create_test_execute_fn() -> ItemFn {
+        parse_quote! {
+            fn execute(
+                deps: cosmwasm_std::Deps,
+                env: cosmwasm_std::Env,
+                info: cosmwasm_std::MessageInfo,
+                msg: ExecuteMsg,
+            ) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
+                Ok(())
+            }
+        }
+    }
+
+    fn create_test_all_permissions(
+        relay_permissions: Vec<(Ident, Expr)>,
+        specific_permissions: Vec<(Ident, Expr)>,
+    ) -> AllPermissions {
+        AllPermissions {
+            relay_permissions: ContractPermission(relay_permissions),
+            specific_permissions: ContractPermission(specific_permissions),
+        }
+    }
+
+    #[test]
+    fn all_permissions_parse_works() {
+        // success case
+        let attr = parse_quote!(
+            proxy(coordinator = find_coordinator_address),
+            direct(sender = find_sender_address)
+        );
+        let permissions: AllPermissions = syn::parse2::<AllPermissions>(attr).unwrap();
+        assert_eq!(
+            permissions,
+            AllPermissions {
+                relay_permissions: ContractPermission(vec![(
+                    format_ident!("coordinator"),
+                    parse_quote! { find_coordinator_address }
+                ),]),
+                specific_permissions: ContractPermission(vec![(
+                    format_ident!("sender"),
+                    parse_quote! { find_sender_address }
+                ),]),
+            }
+        );
+
+        // error cases
+        let non_call_attr = parse_quote!(proxy(coordinator = find_coordinator_address), direct);
+        let result = syn::parse2::<AllPermissions>(non_call_attr);
+        assert!(result.is_err());
+
+        let duplicate_attr = parse_quote!(proxy(
+            coordinator = find_coordinator_address,
+            coordinator = find_another_coordinator_address
+        ));
+        let result = syn::parse2::<AllPermissions>(duplicate_attr);
+        assert!(result.is_err());
+
+        let missing_assign_attr = parse_quote!(proxy(find_sender_address),);
+        let result = syn::parse2::<AllPermissions>(missing_assign_attr);
+        assert!(result.is_err());
+
+        let invalid_contract_attr = parse_quote!(proxy(some::path = find_coordinator_address));
+        let result = syn::parse2::<AllPermissions>(invalid_contract_attr);
+        assert!(result.is_err());
+
+        let invalid_contract_attr2 = parse_quote!(direct(self.foo = find_coordinator_address));
+        let result = syn::parse2::<AllPermissions>(invalid_contract_attr2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn ensure_permissions_impl_error_missing_execute_function_parameters() {
+        let all_permissions = create_test_all_permissions(vec![], vec![]);
+        let mut execute_fn = create_test_execute_fn();
+
+        // Remove all parameters
+        execute_fn.sig.inputs.clear();
+
+        let result = ensure_permissions_impl(all_permissions, execute_fn);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn ensure_permissions_impl_error_missing_message_parameter() {
+        let all_permissions = create_test_all_permissions(vec![], vec![]);
+        let mut execute_fn = create_test_execute_fn();
+
+        // Remove the message parameter
+        execute_fn.sig.inputs.pop();
+
+        // fails because cosmwasm_std::MessageInfo uses path
+        let result = ensure_permissions_impl(all_permissions, execute_fn);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn ensure_permissions_impl_parse_validation_function_success() {
+        let all_permissions = create_test_all_permissions(vec![], vec![]);
+        let execute_fn = create_test_execute_fn();
+
+        let result = ensure_permissions_impl(all_permissions, execute_fn);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_permissions_impl_works_with_different_parameter_names() {
+        let all_permissions = create_test_all_permissions(vec![], vec![]);
+        let mut execute_fn = create_test_execute_fn();
+
+        // Change parameter names
+        execute_fn.sig.inputs = parse_quote! {
+            storage: cosmwasm_std::Deps,
+            environment: cosmwasm_std::Env,
+            message_info: cosmwasm_std::MessageInfo,
+            message: ExecuteMsg,
+        };
+
+        let result = ensure_permissions_impl(all_permissions, execute_fn);
+        assert!(result.is_ok());
     }
 }
