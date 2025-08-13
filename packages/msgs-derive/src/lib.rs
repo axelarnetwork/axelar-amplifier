@@ -902,8 +902,9 @@ fn build_golden_test(
 
 #[cfg(test)]
 mod ensure_permissions_impl_tests {
-    use super::*;
     use syn::parse_quote;
+
+    use super::*;
 
     fn create_test_execute_fn() -> ItemFn {
         parse_quote! {
