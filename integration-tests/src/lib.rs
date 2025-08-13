@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outside_tests))]
+
 pub mod address_generator;
 pub mod chain_codec_contract;
 pub mod contract;

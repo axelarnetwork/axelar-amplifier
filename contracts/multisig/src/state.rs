@@ -16,6 +16,7 @@ use crate::ContractError;
 pub struct Config {
     pub rewards_contract: Addr,
     pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
+    pub coordinator: Addr,
 }
 
 type VerifierSetId = str;
@@ -116,7 +117,8 @@ pub fn save_pub_key(
 #[cfg(test)]
 mod tests {
 
-    use cosmwasm_std::testing::{mock_dependencies, MockApi};
+    use cosmwasm_std::testing::mock_dependencies;
+    use router_api::cosmos_addr;
 
     use super::*;
     use crate::test::common::ecdsa_test_data;
@@ -132,7 +134,7 @@ mod tests {
         // 1. Store first key
         save_pub_key(
             deps.as_mut().storage,
-            MockApi::default().addr_make("1"),
+            cosmos_addr!("1"),
             (KeyType::Ecdsa, pub_key.clone()).try_into().unwrap(),
         )
         .unwrap();
@@ -141,7 +143,7 @@ mod tests {
         assert_eq!(
             save_pub_key(
                 deps.as_mut().storage,
-                MockApi::default().addr_make("2"),
+                cosmos_addr!("2"),
                 (KeyType::Ecdsa, pub_key).try_into().unwrap(),
             )
             .unwrap_err(),
@@ -151,7 +153,7 @@ mod tests {
         // 3. Storing a different key succeeds
         save_pub_key(
             deps.as_mut().storage,
-            MockApi::default().addr_make("4"),
+            cosmos_addr!("4"),
             (KeyType::Ecdsa, ecdsa_test_data::pub_key())
                 .try_into()
                 .unwrap(),

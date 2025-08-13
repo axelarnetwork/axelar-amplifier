@@ -2,7 +2,6 @@ use axelar_wasm_std::{FnExt, VerificationStatus};
 use cosmwasm_std::{CosmosMsg, Event, Response, Storage};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
-use router_api::client::Router;
 use router_api::Message;
 use voting_verifier::msg::MessageStatus;
 
@@ -21,7 +20,7 @@ pub fn verify_messages(
 
 pub fn route_incoming_messages(
     verifier: &voting_verifier::Client,
-    router: &Router,
+    router: &router_api::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {
@@ -103,7 +102,7 @@ fn verify(
 }
 
 fn route(
-    router: &Router,
+    router: &router_api::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
 ) -> (Option<CosmosMsg>, Vec<Event>) {
     msgs_by_status
@@ -181,7 +180,7 @@ fn messages_into_events(msgs: Vec<Message>, transform: fn(Message) -> GatewayEve
 mod tests {
     use axelar_wasm_std::err_contains;
     use cosmwasm_std::testing::mock_dependencies;
-    use router_api::{CrossChainId, Message};
+    use router_api::{address, chain_name, CrossChainId, Message};
 
     use crate::contract::execute::route_outgoing_messages;
     use crate::state;
@@ -190,9 +189,9 @@ mod tests {
     fn reject_reroute_outgoing_message_with_different_contents() {
         let mut msg = Message {
             cc_id: CrossChainId::new("source-chain", "0x1234-1").unwrap(),
-            source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
+            source_address: address!("source-address"),
+            destination_chain: chain_name!("destination-chain"),
+            destination_address: address!("destination-address"),
             payload_hash: [1; 32],
         };
 

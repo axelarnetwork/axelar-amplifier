@@ -40,6 +40,7 @@ pub fn instantiate(
 
     let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let coordinator = address::validate_cosmwasm_address(deps.api, &msg.coordinator_address)?;
 
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
@@ -49,6 +50,7 @@ pub fn instantiate(
     let config = Config {
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         block_expiry: msg.block_expiry,
+        coordinator,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -57,7 +59,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(direct(authorized = can_start_signing_session(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session(&info.sender)))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -137,6 +139,13 @@ fn can_start_signing_session(
     }
 }
 
+fn find_coordinator(storage: &dyn Storage) -> error_stack::Result<Addr, ContractError> {
+    Ok(CONFIG
+        .load(storage)
+        .map_err(|e| error_stack::report!(ContractError::from(e)))?
+        .coordinator)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
@@ -180,14 +189,16 @@ mod tests {
     use cosmwasm_std::{from_json, Addr, Empty, OwnedDeps, WasmMsg};
     use k256::elliptic_curve::rand_core;
     use permission_control::Permission;
-    use router_api::ChainName;
+    use router_api::{chain_name, cosmos_addr, ChainName};
     use serde_json::from_str;
 
     use super::*;
     use crate::key::{KeyType, PublicKey, Signature};
     use crate::multisig::Multisig;
     use crate::state::load_session_signatures;
-    use crate::test::common::{build_verifier_set, ecdsa_test_data, ed25519_test_data, TestSigner};
+    use crate::test::common::{
+        build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
+    };
     use crate::types::MultisigState;
     use crate::verifier_set::VerifierSet;
 
@@ -196,6 +207,7 @@ mod tests {
     const REWARDS_CONTRACT: &str = "rewards";
     const GOVERNANCE: &str = "governance";
     const ADMIN: &str = "admin";
+    const COORDINATOR: &str = "coordinator";
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
@@ -205,6 +217,7 @@ mod tests {
         let governance = api.addr_make(GOVERNANCE);
         let admin = api.addr_make(ADMIN);
         let rewards = api.addr_make(REWARDS_CONTRACT);
+        let coordinator = api.addr_make(COORDINATOR);
 
         let info = message_info(&instantiator, &[]);
         let env = mock_env();
@@ -214,6 +227,7 @@ mod tests {
             admin_address: admin.into_string(),
             rewards_address: rewards.into_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
+            coordinator_address: coordinator.to_string(),
         };
 
         instantiate(deps, env, info, msg)
@@ -399,27 +413,6 @@ mod tests {
             .map(|attribute| attribute.value.as_str())
     }
 
-    // Returns a list of (key_type, subkey, signers, session_id)
-    fn signature_test_data<'a>(
-        ecdsa_subkey: &'a String,
-        ed25519_subkey: &'a String,
-    ) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
-        vec![
-            (
-                KeyType::Ecdsa,
-                ecdsa_subkey,
-                ecdsa_test_data::signers(),
-                Uint64::from(1u64),
-            ),
-            (
-                KeyType::Ed25519,
-                ed25519_subkey,
-                ed25519_test_data::signers(),
-                Uint64::from(2u64),
-            ),
-        ]
-    }
-
     #[test]
     fn instantiation() {
         let mut deps = mock_dependencies();
@@ -484,10 +477,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn start_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -553,7 +547,7 @@ mod tests {
     fn start_signing_session_wrong_sender() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(MockApi::default().addr_make(PROVER), chain_name.clone())],
@@ -581,7 +575,7 @@ mod tests {
     fn submit_signature() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -658,7 +652,7 @@ mod tests {
     fn submit_signature_completes_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -719,10 +713,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -775,11 +770,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -824,7 +820,7 @@ mod tests {
     fn submit_signature_wrong_session_id() {
         let (mut deps, ecdsa_subkey, _) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -855,7 +851,7 @@ mod tests {
     fn query_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -869,7 +865,7 @@ mod tests {
                 deps.as_mut(),
                 api.addr_make(PROVER),
                 subkey,
-                "mock-chain".parse().unwrap(),
+                chain_name!("mock-chain"),
             )
             .unwrap();
 
@@ -1157,7 +1153,7 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
         let prover_address = api.addr_make(PROVER);
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
 
         // authorize
         do_authorize_callers(
@@ -1212,9 +1208,9 @@ mod tests {
         let (mut deps, _, _) = setup();
 
         let contracts = vec![
-            (deps.api.addr_make("addr1"), "chain1".parse().unwrap()),
-            (deps.api.addr_make("addr2"), "chain2".parse().unwrap()),
-            (deps.api.addr_make("addr3"), "chain3".parse().unwrap()),
+            (cosmos_addr!("addr1"), chain_name!("chain1")),
+            (cosmos_addr!("addr2"), chain_name!("chain2")),
+            (cosmos_addr!("addr3"), chain_name!("chain3")),
         ];
         do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
         assert!(contracts
@@ -1249,13 +1245,13 @@ mod tests {
     fn authorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
-        let info = message_info(&deps.api.addr_make("user"), &[]);
+        let info = message_info(&cosmos_addr!("user"), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
             contracts: HashMap::from([(
                 deps.api.addr_make(PROVER).to_string(),
-                "mock-chain".parse().unwrap(),
+                chain_name!("mock-chain"),
             )]),
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
@@ -1274,13 +1270,13 @@ mod tests {
     fn unauthorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
-        let info = message_info(&deps.api.addr_make("user"), &[]);
+        let info = message_info(&cosmos_addr!("user"), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
             contracts: HashMap::from([(
                 deps.api.addr_make(PROVER).to_string(),
-                "mock-chain".parse().unwrap(),
+                chain_name!("mock-chain"),
             )]),
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
@@ -1300,7 +1296,7 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
         let prover_address = api.addr_make(PROVER);
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
 
         // authorize
         do_authorize_callers(
@@ -1332,7 +1328,7 @@ mod tests {
                 deps.as_mut(),
                 api.addr_make(PROVER),
                 &verifier_set_id,
-                "mock-chain".parse().unwrap(),
+                chain_name!("mock-chain"),
             );
 
             assert!(res.is_ok());
@@ -1343,7 +1339,7 @@ mod tests {
     fn disable_signing_after_session_creation() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
@@ -1382,9 +1378,9 @@ mod tests {
         let mut deps = setup().0;
         let api = deps.api;
 
-        assert!(do_disable_signing(deps.as_mut(), api.addr_make("user1")).is_err());
+        assert!(do_disable_signing(deps.as_mut(), cosmos_addr!("user1")).is_err());
         assert!(do_disable_signing(deps.as_mut(), api.addr_make(ADMIN)).is_ok());
-        assert!(do_enable_signing(deps.as_mut(), api.addr_make("user")).is_err());
+        assert!(do_enable_signing(deps.as_mut(), cosmos_addr!("user")).is_err());
         assert!(do_enable_signing(deps.as_mut(), api.addr_make(ADMIN)).is_ok());
         assert!(do_disable_signing(deps.as_mut(), api.addr_make(GOVERNANCE)).is_ok());
         assert!(do_enable_signing(deps.as_mut(), api.addr_make(GOVERNANCE)).is_ok());
@@ -1395,14 +1391,14 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let api = deps.api;
 
-        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        let chain_name = chain_name!("mock-chain");
         do_authorize_callers(
             deps.as_mut(),
             vec![(api.addr_make(PROVER), chain_name.clone())],
         )
         .unwrap();
 
-        let wrong_chain_name: ChainName = "some-other-chain".parse().unwrap();
+        let wrong_chain_name = chain_name!("some-other-chain");
 
         for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(

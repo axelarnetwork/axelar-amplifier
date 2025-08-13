@@ -21,6 +21,8 @@ syn = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+client = { workspace = true }
+router-api = { workspace = true }
 
 [lints]
 workspace = true

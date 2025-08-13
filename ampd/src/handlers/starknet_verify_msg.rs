@@ -11,7 +11,8 @@ use events::try_from;
 use events::Error::EventTypeMismatch;
 use futures::future::join_all;
 use itertools::Itertools;
-use router_api::ChainName;
+use lazy_static::lazy_static;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use starknet_checked_felt::CheckedFelt;
 use tokio::sync::watch::Receiver;
@@ -21,9 +22,15 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_msg;
 use crate::types::{Hash, TMAddress};
+
+lazy_static! {
+    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
+}
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -57,6 +64,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -68,12 +76,14 @@ where
         voting_verifier: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -130,14 +140,23 @@ where
                 .iter()
                 .unique_by(|msg| msg.message_id.to_string())
                 .map(|msg| async {
-                    match self
+                    let vote = match self
                         .rpc_client
-                        .get_event_by_message_id_contract_call(msg.message_id.clone())
+                        .event_by_message_id_contract_call(msg.message_id.clone())
                         .await
                     {
                         Some(event) => verify_msg(&event, msg, &source_gateway_address),
                         None => Vote::NotFound,
-                    }
+                    };
+
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: STARKNET_CHAIN_NAME.clone(),
+                        },
+                    );
+
+                    vote
                 }),
         )
         .await;
@@ -153,11 +172,13 @@ where
 mod tests {
     use std::str::FromStr;
 
+    use axelar_wasm_std::voting::Vote;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use ethers_core::types::H256;
     use events::Event;
     use mockall::predicate::eq;
+    use router_api::address;
     use starknet_core::types::Felt;
     use tendermint::abci;
     use tokio::sync::watch;
@@ -165,6 +186,7 @@ mod tests {
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::*;
+    use crate::monitoring::{metrics, test_utils};
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::starknet::events::contract_call::ContractCallEvent;
     use crate::PREFIX;
@@ -180,7 +202,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .returning(|_| {
                 Some(ContractCallEvent {
                     from_contract_addr: String::from("source-gw-addr"),
@@ -214,7 +236,10 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
         let result = handler.handle(&event).await.unwrap();
 
         assert_eq!(result.len(), 1);
@@ -232,7 +257,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .returning(|_| {
                 Some(ContractCallEvent {
                     from_contract_addr: String::from("source-gw-addr"),
@@ -251,11 +276,54 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
         let result = handler.handle(&event).await.unwrap();
 
         assert_eq!(result.len(), 1);
         assert!(MsgExecuteContract::from_any(result.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockStarknetClient::new();
+        rpc_client
+            .expect_event_by_message_id_contract_call()
+            .returning(|_| None);
+
+        let event: Event = get_event(
+            get_poll_started_event_with_two_msgs(participants(5, Some(verifier.clone())), 100_u64),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(
+            verifier,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+        let _ = handler.handle(&event).await.unwrap();
+
+        for _ in 0..2 {
+            let msg = receiver.recv().await.unwrap();
+            assert_eq!(
+                msg,
+                metrics::Msg::VerificationVote {
+                    vote_decision: Vote::NotFound,
+                    chain_name: STARKNET_CHAIN_NAME.clone(),
+                }
+            );
+        }
+
+        assert!(receiver.try_recv().is_err());
     }
 
     #[async_test]
@@ -269,7 +337,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .once()
             .with(eq(FieldElementAndEventIndex {
                 tx_hash: CheckedFelt::from_str(
@@ -299,7 +367,10 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
         let result = handler.handle(&event).await.unwrap();
 
         assert_eq!(result.len(), 1);
@@ -317,7 +388,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .times(0);
 
         let event: Event = get_event(
@@ -328,7 +399,10 @@ mod tests {
             &TMAddress::random(PREFIX), // some other random address
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
 
         let result = handler.handle(&event).await.unwrap();
         assert_eq!(result, vec![]);
@@ -345,7 +419,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .times(0);
 
         let event: Event = get_event(
@@ -354,7 +428,10 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
 
         let result = handler.handle(&event).await.unwrap();
         assert_eq!(result, vec![]);
@@ -371,7 +448,7 @@ mod tests {
         // Prepare the rpc client, which fetches the event and the vote broadcaster
         let mut rpc_client = MockStarknetClient::new();
         rpc_client
-            .expect_get_event_by_message_id_contract_call()
+            .expect_event_by_message_id_contract_call()
             .times(0);
 
         let event: Event = get_event(
@@ -382,7 +459,10 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
 
         let result = handler.handle(&event).await.unwrap();
         assert_eq!(result, vec![]);
@@ -421,7 +501,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
+                source_chain: chain_name!("starknet"),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -445,8 +525,8 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: "destination-address".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
@@ -464,12 +544,11 @@ mod tests {
                             .parse()
                             .unwrap(),
                     event_index: 1,
-                    source_address:
+                    source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000002"
-                            .parse()
-                            .unwrap(),
-                    destination_chain: "ethereum-1".parse().unwrap(),
-                    destination_address: "destination-address-1".parse().unwrap(),
+                    ),
+                    destination_chain: chain_name!("ethereum-1"),
+                    destination_address: address!("destination-address-1"),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
@@ -488,7 +567,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
+                source_chain: chain_name!("starknet"),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -512,8 +591,8 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: "destination-address".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
@@ -535,8 +614,8 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: "destination-address".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
@@ -555,7 +634,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet".parse().unwrap(),
+                source_chain: chain_name!("starknet"),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -579,8 +658,8 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: "destination-address".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
@@ -602,8 +681,8 @@ mod tests {
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                             .parse()
                             .unwrap(),
-                    destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: "destination-address".parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("destination-address"),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,

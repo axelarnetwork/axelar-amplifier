@@ -16,7 +16,7 @@ pub enum Event {
 
 #[cfg(test)]
 mod tests {
-    use router_api::Message;
+    use router_api::{address, chain_name, Message};
 
     use super::*;
     use crate::Payload;
@@ -26,22 +26,22 @@ mod tests {
         let payload = Payload::Messages(vec![
             Message {
                 cc_id: CrossChainId::new("ethereum", "some-id").unwrap(),
-                source_address: "0x1234".parse().unwrap(),
-                destination_chain: "avalanche".parse().unwrap(),
-                destination_address: "0x5678".parse().unwrap(),
+                source_address: address!("0x1234"),
+                destination_chain: chain_name!("avalanche"),
+                destination_address: address!("0x5678"),
                 payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId::new("fantom", "some-other-id").unwrap(),
-                source_address: "0x1234".parse().unwrap(),
-                destination_chain: "avalanche".parse().unwrap(),
-                destination_address: "0x5678".parse().unwrap(),
+                source_address: address!("0x1234"),
+                destination_chain: chain_name!("avalanche"),
+                destination_address: address!("0x5678"),
                 payload_hash: [0; 32],
             },
         ]);
 
         let event = Event::ProofUnderConstruction {
-            destination_chain: "avalanche".parse().unwrap(),
+            destination_chain: chain_name!("avalanche"),
             payload_id: payload.id(),
             multisig_session_id: Uint64::new(2),
             msg_ids: payload.message_ids().unwrap(),
