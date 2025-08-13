@@ -43,6 +43,9 @@ axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
 bcs = "0.1.5"
 bech32 = "0.11.0"
 bs58 = "0.5.1"
+chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
+chain-codec-evm = { version = "^0.1.0", path = "contracts/chain-codec-evm" }
+chain-codec-sui = { version = "^0.1.0", path = "contracts/chain-codec-sui" }
 client = { version = "^1.0.0", path = "packages/client" }
 const-str = "0.6.2"
 coordinator = { version = "^2.0.0", path = "contracts/coordinator" }
@@ -50,9 +53,6 @@ cosmrs = "0.22.0"
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
 cosmwasm-std = "2.1.4"
-chain-codec-evm = { version = "^0.1.0", path = "contracts/chain-codec-evm" }
-chain-codec-sui = { version = "^0.1.0", path = "contracts/chain-codec-sui" }
-chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"

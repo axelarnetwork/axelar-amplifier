@@ -18,8 +18,8 @@ library = []
 anyhow = { workspace = true }
 axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
-chain-codec-evm = { workspace = true }
 chain-codec-api = { workspace = true }
+chain-codec-evm = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }

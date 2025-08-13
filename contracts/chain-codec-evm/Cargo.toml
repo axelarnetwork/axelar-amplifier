@@ -21,11 +21,11 @@ library = []
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+chain-codec-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-chain-codec-api = { workspace = true }
-cw2 = { workspace = true }
 cw-storage-plus = { workspace = true }
+cw2 = { workspace = true }
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
@@ -43,10 +43,10 @@ cw-multi-test = { workspace = true }
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
 goldie = { workspace = true }
+hex = { workspace = true }
 prost = "0.12.4"
 router-api = { workspace = true }
 service-registry-api = { workspace = true }
-hex = { workspace = true }
 
 [lints]
 workspace = true
