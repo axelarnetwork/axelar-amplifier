@@ -24,6 +24,8 @@ rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
 aleo-gateway = { path = "packages/aleo-gateway" }
+aleo-gmp-types = { path = "packages/aleo-gmp-types" }
+aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "dev" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
 ] }
@@ -44,6 +46,7 @@ axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
 bcs = "0.1.5"
 bech32 = "0.11.0"
 bs58 = "0.5.1"
+bytemuck = "1.10.1"
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
 const-str = "0.6.2"
@@ -79,6 +82,7 @@ interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
 its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
+its-aleo-translator = { path = "contracts/its-aleo-translator" }
 its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"

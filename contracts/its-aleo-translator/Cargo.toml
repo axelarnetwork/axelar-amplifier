@@ -1,0 +1,42 @@
+[package]
+name = "its-aleo-translator"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+aleo-gateway = { workspace = true }
+aleo-gmp-types = { workspace = true }
+aleo-string-encoder = { workspace = true }
+anyhow = "1"
+
+# Axelar dependencies
+axelar-wasm-std = { workspace = true }
+bytemuck = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-storage-plus = { workspace = true }
+cw2 = { workspace = true }
+error-stack = { workspace = true }
+hex = { workspace = true }
+indexmap = "2.7.1"
+interchain-token-service-std = { workspace = true }
+its-msg-translator-api = { workspace = true }
+once_cell = "1.19.0"                                                                             # required by snarkVM's `Plaintext` type (but not re-exported)
+router-api = { workspace = true }
+snarkvm-cosmwasm = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true }
+
+[lints]
+workspace = true

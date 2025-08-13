@@ -1,5 +1,5 @@
 [alias]
-wasm = "build --release --lib --target wasm32-unknown-unknown --locked --workspace --exclude ampd --exclude integration-tests"
+wasm = "build --release --lib --target wasm32-unknown-unknown --locked"
 unit-test = "test --lib"
 clippy-check = "clippy --all-targets -- -D warnings -A deprecated"
 fmt-check = "fmt --all --check"
@@ -7,3 +7,6 @@ sort-check = "sort --workspace --check --check-format"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]
+
+[net]
+git-fetch-with-cli = true

@@ -1,0 +1,15 @@
+[package]
+name = "aleo-gmp-types"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aleo-string-encoder = { workspace = true }
+error-stack = { workspace = true }
+router-api = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
