@@ -103,7 +103,7 @@ pub fn execute(
 fn find_prover_address(
     sender: Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, state::Error> {
-    move |storage, _| state::is_prover_registered(storage, sender.clone())
+    move |storage, _| state::registered_provers(storage, sender.clone())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

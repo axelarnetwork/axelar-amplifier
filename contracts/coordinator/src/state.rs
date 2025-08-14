@@ -228,7 +228,7 @@ pub fn deployed_contracts(
         .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
 }
 
-pub fn is_prover_registered(
+pub fn registered_provers(
     storage: &dyn Storage,
     prover_address: ProverAddress,
 ) -> Result<Vec<Addr>, Error> {

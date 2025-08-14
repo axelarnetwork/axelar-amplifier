@@ -59,7 +59,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session()))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = find_authorized_callers()))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -126,7 +126,7 @@ fn validate_contract_addresses(
         .try_collect()
 }
 
-fn can_start_signing_session(
+fn find_authorized_callers(
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, permission_control::Error>
 {
     |storage, msg| match msg {

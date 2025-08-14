@@ -1,4 +1,4 @@
-use axelar_wasm_std::Threshold;
+use axelar_wasm_std::{permission_control, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::testing::MockApi;
 use integration_tests::contract::Contract;
@@ -52,9 +52,16 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
 
     let response = multisig_prover.execute(
         &mut protocol.app,
-        multisig_prover_admin,
+        multisig_prover_admin.clone(),
         &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
     assert!(response.is_err());
+    assert!(response.unwrap_err().to_string().contains(
+        &permission_control::Error::AddressNotWhitelisted {
+            expected: vec![],
+            actual: multisig_prover.contract_addr
+        }
+        .to_string()
+    ));
 }

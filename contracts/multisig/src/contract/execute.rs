@@ -184,15 +184,9 @@ pub fn authorized_callers(
     Ok(AUTHORIZED_CALLERS
         .range(storage, None, None, cosmwasm_std::Order::Ascending)
         .filter_map(|entry| {
-            if let Ok((addr, chain)) = entry {
-                if chain.eq(chain_name) {
-                    Some(addr)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            entry
+                .ok()
+                .and_then(|(addr, chain)| chain.eq(chain_name).then_some(addr))
         })
         .collect::<Vec<_>>())
 }
