@@ -169,7 +169,7 @@ fn instantiate_prover(
         ctx.salt.clone(),
         ctx.prover_code_id,
         cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
-            admin_address: prover_msg.admin_address,
+            admin_address: prover_msg.admin_address.to_string(),
             governance_address: prover_msg.governance_address.to_string().clone(),
             coordinator_address: ctx.env.contract.address.to_string().clone(),
             gateway_address: gateway_address.to_string().clone(),

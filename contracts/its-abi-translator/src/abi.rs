@@ -306,15 +306,13 @@ fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Err
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use alloy_primitives::{FixedBytes, U256};
     use alloy_sol_types::SolValue;
     use assert_ok::assert_ok;
     use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::{HexBinary, Uint256};
     use interchain_token_service_std::HubMessage;
-    use router_api::{chain_name_raw, ChainNameRaw};
+    use router_api::{chain_name_raw};
 
     use super::{DeployInterchainToken, InterchainTransfer};
     use crate::abi::{

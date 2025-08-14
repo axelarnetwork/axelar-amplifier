@@ -8,7 +8,7 @@ use interchain_token_service::msg::{
     DEFAULT_PAGINATION_LIMIT,
 };
 use interchain_token_service_std::TokenId;
-use router_api::{address, chain_name_raw, cosmos_addr, Address, ChainNameRaw};
+use router_api::{address, chain_name_raw, cosmos_addr, Address};
 
 mod utils;
 
@@ -87,7 +87,7 @@ fn query_chain_config() {
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
-        "ethereum".parse().unwrap()
+        chain_name_raw!("ethereum")
     ));
     assert_eq!(chain_config, None);
 
@@ -123,7 +123,7 @@ fn query_all_its_contracts() {
 
     let its_contracts = vec![
         (
-            "ethereum".parse().unwrap(),
+            chain_name_raw!("ethereum"),
             address!("0x1234567890123456789012345678901234567890"),
         ),
         (
@@ -280,9 +280,9 @@ fn query_chains_pagination() {
         second_page.first().unwrap().chain
     );
 
-    utils::freeze_chain(test_config.deps.as_mut(), "Chain1".parse().unwrap()).unwrap();
-    utils::freeze_chain(test_config.deps.as_mut(), "Chain3".parse().unwrap()).unwrap();
-    utils::freeze_chain(test_config.deps.as_mut(), "Chain5".parse().unwrap()).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain1")).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain3")).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain5")).unwrap();
 
     let frozen_first_page = utils::query_its_chains(
         test_config.deps.as_ref(),

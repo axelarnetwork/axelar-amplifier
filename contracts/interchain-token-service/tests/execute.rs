@@ -13,7 +13,7 @@ use interchain_token_service_std::{
 };
 use its_abi_translator::abi::hub_message_abi_encode;
 use router_api::{
-    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, ChainNameRaw, CrossChainId,
+    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
 };
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
@@ -1026,7 +1026,7 @@ fn freeze_chain_when_not_admin_fails() {
         mock_env(),
         message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::FreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+            chain: chain_name_raw!("ethereum"),
         },
     );
     assert_err_contains!(
@@ -1047,7 +1047,7 @@ fn unfreeze_chain_when_not_admin_fails() {
         mock_env(),
         message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: ChainNameRaw::try_from("ethereum").unwrap(),
+            chain: chain_name_raw!("ethereum"),
         },
     );
     assert_err_contains!(
@@ -1267,7 +1267,7 @@ fn admin_or_governance_can_disable_execution() {
 
 #[test]
 fn set_chain_config_should_succeed() {
-    let chain = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let max_uint = 256;
     let decimals = 18;
 

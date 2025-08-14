@@ -113,7 +113,7 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, LinkToken, Message, TokenId,
     };
-    use router_api::{chain_name_raw, ChainNameRaw, CrossChainId};
+    use router_api::{chain_name_raw, CrossChainId};
 
     use crate::events::{make_message_event, Event};
 

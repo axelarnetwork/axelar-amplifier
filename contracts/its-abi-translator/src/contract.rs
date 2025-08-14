@@ -37,7 +37,7 @@ mod tests {
     use interchain_token_service_std::{
         DeployInterchainToken, HubMessage, InterchainTransfer, Message, TokenId,
     };
-    use router_api::{chain_name_raw, ChainNameRaw};
+    use router_api::{chain_name_raw};
 
     use super::*;
 
