@@ -3,7 +3,7 @@ use axelar_wasm_std::error::ContractError;
 use chain_codec_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 
 use crate::bcs;
 use crate::error::Error;
@@ -52,7 +52,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ValidateAddress { address } => {
             validate_address(&address, &AddressFormat::Sui)?;
 
-            to_json_binary(&true)?
+            to_json_binary(&Empty {})?
         }
     })
 }
