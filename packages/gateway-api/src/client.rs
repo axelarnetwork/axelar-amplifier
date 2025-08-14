@@ -68,7 +68,7 @@ mod tests {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
-            source_chain: chain_name_raw!("ethereum"),
+            source_chain: "ethereum".parse().unwrap(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
                 .parse()
                 .unwrap(),
@@ -85,7 +85,7 @@ mod tests {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
-            source_chain: chain_name_raw!("ethereum"),
+            source_chain: "ethereum".parse().unwrap(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
                 .parse()
                 .unwrap(),

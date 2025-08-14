@@ -113,7 +113,7 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, LinkToken, Message, TokenId,
     };
-    use router_api::{chain_name_raw, CrossChainId};
+    use router_api::{ChainNameRaw, CrossChainId};
 
     use crate::events::{make_message_event, Event};
 
@@ -143,7 +143,7 @@ mod test {
             .map(|message| {
                 let event = Event::MessageReceived {
                     cc_id: CrossChainId::new("source", "hash").unwrap(),
-                    destination_chain: chain_name_raw!("destination"),
+                    destination_chain: "destination".parse().unwrap(),
                     message,
                 };
 
@@ -196,7 +196,7 @@ mod test {
             .map(|message| {
                 let event = Event::MessageReceived {
                     cc_id: CrossChainId::new("source", "hash").unwrap(),
-                    destination_chain: chain_name_raw!("destination"),
+                    destination_chain: "destination".parse().unwrap(),
                     message,
                 };
 
@@ -209,7 +209,7 @@ mod test {
 
     #[test]
     fn interchain_transfer_events() {
-        let destination_chain = chain_name_raw!("ethereum");
+        let destination_chain: ChainNameRaw = "ethereum".parse().unwrap();
 
         let test_cases = vec![
             // Transfer with data
@@ -246,7 +246,7 @@ mod test {
 
     #[test]
     fn link_token_started_events() {
-        let destination_chain = chain_name_raw!("polygon");
+        let destination_chain: ChainNameRaw = "polygon".parse().unwrap();
 
         let test_cases = vec![
             // Link token with params
@@ -293,7 +293,7 @@ mod test {
 
     #[test]
     fn interchain_token_deployment_started_events() {
-        let destination_chain = chain_name_raw!("avalanche");
+        let destination_chain: ChainNameRaw = "avalanche".parse().unwrap();
 
         let test_cases = vec![
             // Deployment with minter
@@ -330,7 +330,7 @@ mod test {
 
     #[test]
     fn make_message_event_function_coverage() {
-        let destination_chain = chain_name_raw!("test-chain");
+        let destination_chain: ChainNameRaw = "test-chain".parse().unwrap();
 
         // Test all three message types to ensure make_message_event handles them correctly
         let messages = vec![

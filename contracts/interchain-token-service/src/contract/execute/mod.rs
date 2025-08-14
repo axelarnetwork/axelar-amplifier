@@ -1782,7 +1782,7 @@ mod tests {
             register_p2p_token_instance(
                 deps.as_mut(),
                 token_id(),
-                chain_name_raw!("bananas"),
+                ChainNameRaw::try_from("bananas").unwrap(),
                 ethereum(),
                 decimals,
                 supply.clone()
@@ -1796,7 +1796,7 @@ mod tests {
                 deps.as_mut(),
                 token_id(),
                 ethereum(),
-                chain_name_raw!("bananas"),
+                ChainNameRaw::try_from("bananas").unwrap(),
                 decimals,
                 supply.clone()
             ),

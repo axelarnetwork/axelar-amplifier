@@ -87,7 +87,7 @@ fn query_chain_config() {
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
-        chain_name_raw!("ethereum")
+        "ethereum".parse().unwrap()
     ));
     assert_eq!(chain_config, None);
 
@@ -108,7 +108,7 @@ fn query_chain_config() {
     ));
     assert_eq!(chain_config.unwrap().its_edge_contract, new_address);
 
-    let non_existent_chain = chain_name_raw!("non-existent-chain");
+    let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
         non_existent_chain
@@ -154,7 +154,7 @@ fn query_token_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain: ChainNameRaw = "ethereum".parse().unwrap();
     let token_id: TokenId = TokenId::new([1; 32]);
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
@@ -280,9 +280,9 @@ fn query_chains_pagination() {
         second_page.first().unwrap().chain
     );
 
-    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain1")).unwrap();
-    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain3")).unwrap();
-    utils::freeze_chain(test_config.deps.as_mut(), chain_name_raw!("Chain5")).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), "Chain1".parse().unwrap()).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), "Chain3".parse().unwrap()).unwrap();
+    utils::freeze_chain(test_config.deps.as_mut(), "Chain5".parse().unwrap()).unwrap();
 
     let frozen_first_page = utils::query_its_chains(
         test_config.deps.as_ref(),

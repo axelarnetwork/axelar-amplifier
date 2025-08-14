@@ -337,7 +337,11 @@ mod test {
     use interchain_token_service_std::{
         DeployInterchainToken, InterchainTransfer, RegisterTokenMetadata,
     };
+<<<<<<< HEAD
     use router_api::{address, chain_name_raw, cosmos_address};
+=======
+    use router_api::ChainNameRaw;
+>>>>>>> 100442c7 (Revert "Merge branch 'feat/coordinator-combine-one-click' into fix/coordinator-specifies-admin-addresses")
 
     use super::{register_custom_token, Error};
     use crate::contract::execute::interceptors;
@@ -348,7 +352,7 @@ mod test {
     #[test]
     fn register_custom_token_allows_reregistration() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("source-chain");
+        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
         let register_token_msg = RegisterTokenMetadata {
             decimals: 6,
             token_address: HexBinary::from([0; 32]).try_into().unwrap(),
@@ -368,7 +372,7 @@ mod test {
     #[test]
     fn register_custom_token_errors_on_decimals_mismatch() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("source-chain");
+        let source_chain = ChainNameRaw::try_from("source-chain").unwrap();
         let register_token_msg = RegisterTokenMetadata {
             decimals: 6,
             token_address: HexBinary::from([0; 32]).try_into().unwrap(),
@@ -395,8 +399,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_bigger() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -453,8 +457,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_smaller() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -511,8 +515,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_source_decimals_are_same() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -569,8 +573,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_result_overflows() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -627,8 +631,8 @@ mod test {
     #[test]
     fn apply_scaling_factor_to_amount_when_result_underflows() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
         let transfer = InterchainTransfer {
             token_id: [1u8; 32].into(),
             source_address: b"source_address".to_vec().try_into().unwrap(),
@@ -685,8 +689,8 @@ mod test {
     #[test]
     fn calculate_scaling_factor_when_source_max_uint_is_bigger() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
 
         state::save_chain_config(
             &mut storage,
@@ -759,8 +763,8 @@ mod test {
     #[test]
     fn calculate_scaling_factor_when_source_max_uint_is_smaller() {
         let mut storage = MockStorage::new();
-        let source_chain = chain_name_raw!("sourcechain");
-        let destination_chain = chain_name_raw!("destinationchain");
+        let source_chain: ChainNameRaw = "sourcechain".try_into().unwrap();
+        let destination_chain: ChainNameRaw = "destinationchain".try_into().unwrap();
 
         state::save_chain_config(
             &mut storage,

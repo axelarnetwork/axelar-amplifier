@@ -336,7 +336,7 @@ mod test {
         let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
         messages
             .iter_mut()
-            .for_each(|msg| msg.cc_id.source_chain = chain_name_raw!("Ethereum"));
+            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
 
         let result = execute(
             deps.as_mut(),
@@ -360,7 +360,7 @@ mod test {
         let mut messages = generate_messages(&eth, &polygon, &mut 0, 1);
         messages
             .iter_mut()
-            .for_each(|msg| msg.cc_id.source_chain = chain_name_raw!("Ethereum"));
+            .for_each(|msg| msg.cc_id.source_chain = "Ethereum".parse().unwrap());
 
         let result = execute(
             deps.as_mut(),

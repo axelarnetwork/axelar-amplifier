@@ -306,13 +306,15 @@ fn from_vec(value: std::vec::Vec<u8>) -> Result<Option<nonempty::HexBinary>, Err
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use alloy_primitives::{FixedBytes, U256};
     use alloy_sol_types::SolValue;
     use assert_ok::assert_ok;
     use axelar_wasm_std::{assert_err_contains, nonempty};
     use cosmwasm_std::{HexBinary, Uint256};
     use interchain_token_service_std::HubMessage;
-    use router_api::chain_name_raw;
+    use router_api::ChainNameRaw;
 
     use super::{DeployInterchainToken, InterchainTransfer};
     use crate::abi::{
@@ -325,7 +327,7 @@ mod tests {
 
     #[test]
     fn interchain_transfer_encode_decode() {
-        let remote_chain = chain_name_raw!("chain");
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
 
         let cases = vec![
             HubMessage::SendToHub {
@@ -453,7 +455,7 @@ mod tests {
 
     #[test]
     fn deploy_interchain_token_encode_decode() {
-        let remote_chain = chain_name_raw!("chain");
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
 
         let cases = vec![
             HubMessage::SendToHub {
@@ -540,7 +542,7 @@ mod tests {
 
     #[test]
     fn link_token_encode_decode() {
-        let remote_chain = chain_name_raw!("chain");
+        let remote_chain = ChainNameRaw::from_str("chain").unwrap();
 
         let cases = vec![
             HubMessage::SendToHub {
@@ -704,7 +706,7 @@ mod tests {
     fn encode_decode_large_data() {
         let large_data = vec![0u8; 1024 * 1024]; // 1MB of data
         let original = HubMessage::SendToHub {
-            destination_chain: chain_name_raw!("large-data-chain"),
+            destination_chain: ChainNameRaw::from_str("large-data-chain").unwrap(),
             message: interchain_token_service_std::InterchainTransfer {
                 token_id: [0u8; 32].into(),
                 source_address: from_hex("1234"),
@@ -723,7 +725,7 @@ mod tests {
     #[test]
     fn encode_decode_unicode_strings() {
         let original = HubMessage::SendToHub {
-            destination_chain: chain_name_raw!("chain"),
+            destination_chain: ChainNameRaw::from_str("chain").unwrap(),
             message: interchain_token_service_std::DeployInterchainToken {
                 token_id: [0u8; 32].into(),
                 name: "Unicode Token 🪙".try_into().unwrap(),
