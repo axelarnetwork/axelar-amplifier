@@ -117,6 +117,7 @@ where
             }
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
+                warn!("event stream timed out");
                 monitoring_client
                     .metrics()
                     .record_metric(Msg::EventStreamTimeout);
@@ -180,7 +181,6 @@ where
 fn should_task_continue(token: CancellationToken) -> impl Fn(&StreamStatus) -> future::Ready<bool> {
     move |event| match event {
         StreamStatus::Ok(Event::BlockBegin(_)) | StreamStatus::TimedOut => {
-            warn!("event stream timed out");
             future::ready(!token.is_cancelled())
         }
         _ => future::ready(true),
