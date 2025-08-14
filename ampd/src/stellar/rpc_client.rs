@@ -54,23 +54,20 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
 
         let contract_events = match response.result_meta.as_ref() {
             Some(TransactionMeta::V4(_)) => {
-                let contract_events = response.events.contract_events;
-                let operation_count = contract_events.len();
-
                 // Protocol V23: Soroban contract calls should have exactly one operation.
                 // This prevents potential security issues from processing multiple operations
                 // or malformed transactions that could lead to event ordering confusion.
-                if operation_count != EXPECTED_SOROBAN_OPERATION_COUNT {
-                    return Err(TxParseError::InvalidOperationCount {
-                        expected: EXPECTED_SOROBAN_OPERATION_COUNT,
-                        actual: operation_count,
-                    });
-                }
+                let contract_events = response.events.contract_events;
 
-                contract_events
-                    .first()
-                    .expect("soroban operation not found")
-                    .clone()
+                match contract_events.as_slice() {
+                    [events] => events.clone(),
+                    _ => {
+                        return Err(TxParseError::InvalidOperationCount {
+                            expected: EXPECTED_SOROBAN_OPERATION_COUNT,
+                            actual: contract_events.len(),
+                        });
+                    }
+                }
             }
             Some(TransactionMeta::V3(data)) => data
                 .soroban_meta
