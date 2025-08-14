@@ -118,7 +118,8 @@ mod test {
     use axelar_wasm_std::{Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{
-        from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
+        from_json, Addr, Binary, DepsMut, QuerierResult, QuerierWrapper, SystemError, Uint128,
+        Uint64, WasmQuery,
     };
     use multisig::verifier_set::VerifierSet;
     use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
@@ -289,8 +290,30 @@ mod test {
         (querier, addr_clone)
     }
 
+    fn chain_codec_handler(msg: &Binary) -> QuerierResult {
+        let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+
+        match msg {
+            chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                Ok(validate_address(&address, &AddressFormat::Eip55)
+                    .map(|_| cosmwasm_std::to_json_binary(&cosmwasm_std::Empty {}).unwrap())
+                    .into())
+                .into()
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        }
+    }
+
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
         let mut deps = mock_dependencies();
+        deps.querier.update_wasm(|q| match q {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == cosmos_addr!("chain-codec").as_str() =>
+            {
+                chain_codec_handler(msg)
+            }
+            _ => Err(SystemError::Unknown {}).into(),
+        });
         let addr = cosmos_addr!("voting-verifier");
         let addr_clone = addr.clone();
         let instantiate_msg = instantiate_contract(deps.as_mut());
@@ -302,19 +325,7 @@ mod test {
                     let msg = from_json::<QueryMsg>(msg).unwrap();
                     Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
                 } else if contract_addr == cosmos_addr!("chain-codec").as_str() {
-                    let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
-
-                    match msg {
-                        chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
-                            Ok(validate_address(&address, &AddressFormat::Eip55)
-                                .map(|_| {
-                                    cosmwasm_std::to_json_binary(&cosmwasm_std::Empty {}).unwrap()
-                                })
-                                .into())
-                            .into()
-                        }
-                        _ => panic!("unexpected query: {:?}", msg),
-                    }
+                    chain_codec_handler(msg)
                 } else {
                     Err(SystemError::Unknown {}).into()
                 }

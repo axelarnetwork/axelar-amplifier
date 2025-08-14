@@ -186,6 +186,44 @@ mod test {
         let api = deps.api;
         let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
 
+        let chain_codec_address = api.addr_make(CHAIN_CODEC);
+
+        let chain_codec_clone = chain_codec_address.clone();
+        let service_registry_clone = service_registry.clone();
+        deps.querier.update_wasm(move |q| match q {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == chain_codec_clone.as_str() =>
+            {
+                let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+                match msg {
+                    chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                        Ok(validate_address(&address, &AddressFormat::Eip55)
+                            .map(|_| cosmwasm_std::to_json_binary(&Empty {}).unwrap())
+                            .into())
+                        .into()
+                    }
+                    _ => panic!("unexpected query: {:?}", msg),
+                }
+            }
+            WasmQuery::Smart { contract_addr, .. }
+                if contract_addr == service_registry_clone.as_str() =>
+            {
+                Ok(to_json_binary(
+                    &verifiers
+                        .clone()
+                        .into_iter()
+                        .map(|v| WeightedVerifier {
+                            verifier_info: v,
+                            weight: nonempty::Uint128::one(),
+                        })
+                        .collect::<Vec<WeightedVerifier>>(),
+                )
+                .into())
+                .into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -203,30 +241,10 @@ mod test {
                 source_chain: source_chain(),
                 rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
                 msg_id_format: msg_id_format.clone(),
-                chain_codec_address: api.addr_make(CHAIN_CODEC).as_str().parse().unwrap(),
+                chain_codec_address: chain_codec_address.as_str().parse().unwrap(),
             },
         )
         .unwrap();
-
-        deps.querier.update_wasm(move |wq| match wq {
-            WasmQuery::Smart { contract_addr, .. }
-                if contract_addr == service_registry.as_str() =>
-            {
-                Ok(to_json_binary(
-                    &verifiers
-                        .clone()
-                        .into_iter()
-                        .map(|v| WeightedVerifier {
-                            verifier_info: v,
-                            weight: nonempty::Uint128::one(),
-                        })
-                        .collect::<Vec<WeightedVerifier>>(),
-                )
-                .into())
-                .into()
-            }
-            _ => panic!("no mock for this query"),
-        });
 
         deps
     }
