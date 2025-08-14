@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 aleo-string-encoder = { workspace = true }
+axelar-wasm-std = { workspace = true }
 error-stack = { workspace = true }
-router-api = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]

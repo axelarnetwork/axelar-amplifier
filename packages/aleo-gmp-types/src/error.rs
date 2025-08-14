@@ -5,7 +5,7 @@ pub enum Error {
     #[error(transparent)]
     StringEncoderError(#[from] aleo_string_encoder::Error),
     #[error(transparent)]
-    RouterApi(#[from] router_api::error::Error),
+    AxelarInvalidChainName(#[from] axelar_wasm_std::chain::Error),
     #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 }

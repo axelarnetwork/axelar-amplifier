@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use aleo_string_encoder::StringEncoder;
+use axelar_wasm_std::chain::ChainNameRaw;
 use error_stack::{ensure, Report};
-use router_api::ChainNameRaw;
 
 use super::GmpChainName;
 use crate::error::Error;
