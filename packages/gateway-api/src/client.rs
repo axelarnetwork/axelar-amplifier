@@ -56,7 +56,7 @@ impl Client<'_> {
 mod tests {
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
-    use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
+    use router_api::{address, chain_name, CrossChainId, Message};
 
     use crate::client::Client;
     use crate::msg::QueryMsg;
