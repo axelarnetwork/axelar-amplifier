@@ -58,7 +58,6 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
                 // This prevents potential security issues from processing multiple operations
                 // or malformed transactions that could lead to event ordering confusion.
                 let contract_events = response.events.contract_events;
-
                 match contract_events.as_slice() {
                     [events] => events.clone(),
                     _ => {
