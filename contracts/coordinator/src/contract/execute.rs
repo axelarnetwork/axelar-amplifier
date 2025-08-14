@@ -1,9 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{
-    Addr, Binary, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, Response, Storage, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -79,7 +77,7 @@ fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Re
 }
 
 fn launch_contract(
-    deps: &Deps,
+    deps: &DepsMut,
     env: &Env,
     salt: Binary,
     code_id: u64,
@@ -169,7 +167,7 @@ fn instantiate_prover(
         ctx.salt.clone(),
         ctx.prover_code_id,
         cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
-            admin_address: prover_msg.admin_address,
+            admin_address: prover_msg.admin_address.to_string(),
             governance_address: prover_msg.governance_address.to_string().clone(),
             coordinator_address: ctx.env.contract.address.to_string().clone(),
             gateway_address: gateway_address.to_string().clone(),
@@ -192,7 +190,6 @@ fn instantiate_prover(
 
 struct InstantiateContext<'a> {
     deps: DepsMut<'a>,
-    info: MessageInfo,
     env: Env,
     salt: Binary,
     gateway_code_id: u64,
@@ -206,7 +203,6 @@ struct InstantiateContext<'a> {
 pub fn instantiate_chain_contracts(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
@@ -244,7 +240,6 @@ pub fn instantiate_chain_contracts(
 
             let ctx = InstantiateContext {
                 deps,
-                info,
                 env,
                 salt,
                 gateway_code_id: params.gateway.code_id,
