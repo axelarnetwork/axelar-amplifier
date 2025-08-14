@@ -44,6 +44,7 @@ voting-verifier = { workspace = true, features = ["library"] }
 assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
+lazy_static = { workspace = true }
 rand = { workspace = true }
 
 [lints]

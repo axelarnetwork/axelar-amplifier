@@ -197,13 +197,12 @@ mod tests {
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use router_api::chain_name;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::{PollStartedEvent, STELLAR_CHAIN_NAME};
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
@@ -364,7 +363,7 @@ mod tests {
                 msg,
                 metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: STELLAR_CHAIN_NAME.clone(),
+                    chain_name: router_api::STELLAR_CHAIN_NAME.clone(),
                 }
             );
         }
@@ -376,7 +375,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("stellar"),
+                source_chain: router_api::STELLAR_CHAIN_NAME.clone(),
                 source_gateway_address: ScAddress::Contract(
                     stellar_xdr::curr::Hash::from([1; 32]).into(),
                 )
@@ -405,7 +404,7 @@ mod tests {
                         .to_string()
                         .try_into()
                         .unwrap(),
-                        destination_chain: chain_name!("ethereum"),
+                        destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                         destination_address: format!("0x{:x}", H160::repeat_byte(i))
                             .parse()
                             .unwrap(),

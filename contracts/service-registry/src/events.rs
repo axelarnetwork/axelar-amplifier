@@ -19,7 +19,6 @@ pub enum Event {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::{Addr, Event as CosmwasmEvent};
-    use router_api::chain_name;
 
     use super::Event;
 
@@ -28,7 +27,10 @@ mod test {
         let event = Event::ChainsSupportRegistered {
             verifier: Addr::unchecked("verifier"),
             service_name: "test_service".to_string(),
-            chains: vec![chain_name!("ethereum"), chain_name!("polygon")],
+            chains: vec![
+                router_api::ETHEREUM_CHAIN_NAME.clone(),
+                router_api::POLYGON_CHAIN_NAME.clone(),
+            ],
         };
         let cosmwasm_event: CosmwasmEvent = event.into();
         goldie::assert_json!(cosmwasm_event);
@@ -39,7 +41,10 @@ mod test {
         let event = Event::ChainsSupportDeregistered {
             verifier: Addr::unchecked("verifier"),
             service_name: "test_service".to_string(),
-            chains: vec![chain_name!("ethereum"), chain_name!("polygon")],
+            chains: vec![
+                router_api::ETHEREUM_CHAIN_NAME.clone(),
+                router_api::POLYGON_CHAIN_NAME.clone(),
+            ],
         };
         let cosmwasm_event: CosmwasmEvent = event.into();
         goldie::assert_json!(cosmwasm_event);

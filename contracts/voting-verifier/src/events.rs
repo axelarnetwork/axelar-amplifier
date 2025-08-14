@@ -366,9 +366,9 @@ mod test {
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
             cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
-            source_address: address!("source-address"),
-            destination_chain: chain_name!("destination-chain"),
-            destination_address: address!("destination-address"),
+            source_address: router_api::SOURCE_ADDRESS.clone(),
+            destination_chain: router_api::DESTINATION_CHAIN_NAME.clone(),
+            destination_address: router_api::DESTINATION_ADDRESS.clone(),
             payload_hash: [0; 32],
         }
     }

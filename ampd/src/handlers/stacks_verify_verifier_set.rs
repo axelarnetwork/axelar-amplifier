@@ -268,7 +268,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -290,7 +290,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -342,7 +342,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
@@ -380,7 +380,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             verifier,
             voting_verifier,
             client,
@@ -420,7 +420,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             client,
@@ -455,7 +455,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             client,
@@ -487,7 +487,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("stacks"),
+                source_chain: router_api::STACKS_CHAIN_NAME.clone(),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),

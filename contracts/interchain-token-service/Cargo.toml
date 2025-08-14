@@ -51,6 +51,7 @@ thiserror = { workspace = true }
 assert_ok = { workspace = true }
 goldie = { workspace = true }
 its-abi-translator = { workspace = true }
+lazy_static = { workspace = true }
 
 [lints]
 workspace = true

@@ -82,14 +82,23 @@ pub fn encode_execute_data(
 mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
+    use lazy_static::lazy_static;
     use multisig::key::KeyType::Ed25519;
     use multisig::key::Signature;
     use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
+    use router_api::{address, chain_name_raw, Address, ChainNameRaw, CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};
     use crate::Payload;
+
+    lazy_static! {
+        static ref SOURCE_ADDRESS: Address =
+            address!("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M");
+        static ref DESTINATION_ADDRESS: Address =
+            address!("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4");
+        static ref SOURCE_CHAIN_NAME_RAW: ChainNameRaw = chain_name_raw!("source");
+    }
 
     #[test]
     fn stellar_messages_payload_digest() {
@@ -129,14 +138,12 @@ mod tests {
 
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
-                source_chain: chain_name_raw!("source"),
+                source_chain: SOURCE_CHAIN_NAME_RAW.clone(),
                 message_id: "test".parse().unwrap(),
             },
-            source_address: address!("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"),
-            destination_chain: chain_name!("stellar"),
-            destination_address: address!(
-                "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-            ),
+            source_address: SOURCE_ADDRESS.clone(),
+            destination_chain: router_api::STELLAR_CHAIN_NAME.clone(),
+            destination_address: DESTINATION_ADDRESS.clone(),
             payload_hash: HexBinary::from_hex(
                 "65ad329dc342a82bd1daedc42e183e6e2c272b8e2e3fd7c8f81d089736d0bc3c",
             )
@@ -241,14 +248,12 @@ mod tests {
 
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
-                source_chain: chain_name_raw!("source"),
+                source_chain: SOURCE_CHAIN_NAME_RAW.clone(),
                 message_id: "test".parse().unwrap(),
             },
-            source_address: address!("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"),
-            destination_chain: chain_name!("stellar"),
-            destination_address: address!(
-                "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-            ),
+            source_address: SOURCE_ADDRESS.clone(),
+            destination_chain: router_api::STELLAR_CHAIN_NAME.clone(),
+            destination_address: DESTINATION_ADDRESS.clone(),
             payload_hash: HexBinary::from_hex(
                 "595c9108df17d1cc43e8268ec1516064299c1388bcc86fdd566bcdf400a0a1ed",
             )

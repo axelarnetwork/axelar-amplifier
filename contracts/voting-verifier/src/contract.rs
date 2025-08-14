@@ -140,7 +140,7 @@ mod test {
     const POLL_BLOCK_EXPIRY: u64 = 100;
 
     fn source_chain() -> ChainName {
-        chain_name!("source-chain")
+        router_api::SOURCE_CHAIN_NAME.clone()
     }
 
     fn initial_voting_threshold() -> MajorityThreshold {
@@ -180,9 +180,13 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("admin"), &[]),
+            message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
             InstantiateMsg {
-                governance_address: cosmos_addr!("governance").as_str().parse().unwrap(),
+                governance_address: router_api::GOVERNANCE_COSMOS_ADDR
+                    .clone()
+                    .as_str()
+                    .parse()
+                    .unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
                 source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
@@ -417,9 +421,13 @@ mod test {
             let result = instantiate(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&cosmos_addr!("admin"), &[]),
+                message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
                 InstantiateMsg {
-                    governance_address: cosmos_addr!("governance").as_str().parse().unwrap(),
+                    governance_address: router_api::GOVERNANCE_COSMOS_ADDR
+                        .clone()
+                        .as_str()
+                        .parse()
+                        .unwrap(),
                     service_registry_address: cosmos_addr!("service_registry_address")
                         .as_str()
                         .parse()
@@ -478,7 +486,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         )
         .unwrap_err();
@@ -499,7 +507,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         )
         .unwrap_err();
@@ -521,7 +529,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         )
         .unwrap_err();
@@ -543,7 +551,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         )
         .unwrap_err();
@@ -565,7 +573,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         )
         .unwrap_err();
@@ -587,7 +595,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyMessages(
                 messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
             ),
@@ -597,7 +605,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyMessages(
                 messages.clone(), // verify all messages including the ones from previous execution
             ),
@@ -647,7 +655,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg.clone(),
         )
         .unwrap();
@@ -671,7 +679,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         )
         .unwrap();
@@ -721,7 +729,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg_verify.clone(),
         );
         assert!(res.is_ok());
@@ -762,7 +770,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -798,7 +806,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg_verify,
         );
         assert!(res.is_ok());
@@ -861,7 +869,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -893,7 +901,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -943,7 +951,7 @@ mod test {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
                 ExecuteMsg::VerifyMessages(messages.clone()),
             )
             .unwrap();
@@ -967,7 +975,7 @@ mod test {
             execute(
                 deps.as_mut(),
                 mock_env_expired(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
                 ExecuteMsg::EndPoll {
                     poll_id: Uint64::one().into(),
                 },
@@ -1002,7 +1010,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -1033,7 +1041,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -1055,7 +1063,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1084,7 +1092,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1108,7 +1116,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1137,7 +1145,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1161,7 +1169,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1182,7 +1190,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1206,7 +1214,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 2u64.into(),
             },
@@ -1235,7 +1243,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1258,7 +1266,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1269,7 +1277,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1296,7 +1304,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -1325,7 +1333,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -1360,7 +1368,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -1370,7 +1378,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1415,7 +1423,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -1428,7 +1436,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -1457,7 +1465,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1503,7 +1511,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg_verify.clone(),
         );
         assert!(res.is_ok());
@@ -1627,7 +1635,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
                 msg,
             );
             assert!(res.is_err_and(|err| err_contains!(
@@ -1644,7 +1652,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
             msg,
         );
         assert!(res.is_ok());

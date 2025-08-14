@@ -318,7 +318,7 @@ mod tests {
                 msg,
                 metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: STARKNET_CHAIN_NAME.clone(),
+                    chain_name: router_api::STARKNET_CHAIN_NAME.clone(),
                 }
             );
         }
@@ -501,7 +501,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("starknet"),
+                source_chain: router_api::STARKNET_CHAIN_NAME.clone(),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -524,8 +524,8 @@ mod tests {
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
-                    destination_chain: chain_name!("ethereum"),
-                    destination_address: address!("destination-address"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
+                    destination_address: router_api::DESTINATION_ADDRESS.clone(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
@@ -566,7 +566,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("starknet"),
+                source_chain: router_api::STARKNET_CHAIN_NAME.clone(),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -589,8 +589,8 @@ mod tests {
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
-                    destination_chain: chain_name!("ethereum"),
-                    destination_address: address!("destination-address"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
+                    destination_address: router_api::DESTINATION_ADDRESS.clone(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123, 86,
@@ -611,8 +611,8 @@ mod tests {
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
-                    destination_chain: chain_name!("ethereum"),
-                    destination_address: address!("destination-address"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
+                    destination_address: router_api::DESTINATION_ADDRESS.clone(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
@@ -631,7 +631,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("starknet"),
+                source_chain: router_api::STARKNET_CHAIN_NAME.clone(),
                 source_gateway_address: "source-gw-addr".parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -654,8 +654,8 @@ mod tests {
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
-                    destination_chain: chain_name!("ethereum"),
-                    destination_address: address!("destination-address"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
+                    destination_address: router_api::DESTINATION_ADDRESS.clone(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,
@@ -676,8 +676,8 @@ mod tests {
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
-                    destination_chain: chain_name!("ethereum"),
-                    destination_address: address!("destination-address"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
+                    destination_address: router_api::DESTINATION_ADDRESS.clone(),
                     payload_hash: H256::from_slice(&[
                         // keccak256("hello")
                         28u8, 138, 255, 149, 6, 133, 194, 237, 75, 195, 23, 79, 52, 114, 40, 123,

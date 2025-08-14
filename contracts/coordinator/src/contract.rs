@@ -148,7 +148,7 @@ mod tests {
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::{Addr, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
-    use router_api::{chain_name, cosmos_addr, ChainName};
+    use router_api::{cosmos_addr, ChainName};
 
     use super::*;
     use crate::msg::ChainContractsKey;
@@ -167,8 +167,8 @@ mod tests {
     fn setup() -> TestSetup {
         let mut app = App::new(no_init);
 
-        let admin_addr = cosmos_addr!("admin");
-        let chain_name = chain_name!("Ethereum");
+        let admin_addr = router_api::ADMIN_COSMOS_ADDR.clone();
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let prover = cosmos_addr!("eth_prover");
         let gateway = cosmos_addr!("eth_gateway");
         let verifier = cosmos_addr!("eth_voting_verifier");
@@ -194,9 +194,11 @@ mod tests {
             admin_addr.clone(),
             coordinator_addr.clone(),
             &ExecuteMsg::RegisterProtocol {
-                service_registry_address: cosmos_addr!("service_registry").to_string(),
-                router_address: cosmos_addr!("router").to_string(),
-                multisig_address: cosmos_addr!("multisig").to_string(),
+                service_registry_address: router_api::SERVICE_REGISTRY_COSMOS_ADDR
+                    .clone()
+                    .to_string(),
+                router_address: router_api::ROUTER_COSMOS_ADDR.clone().to_string(),
+                multisig_address: router_api::MULTISIG_COSMOS_ADDR.clone().to_string(),
             },
             &[],
         )

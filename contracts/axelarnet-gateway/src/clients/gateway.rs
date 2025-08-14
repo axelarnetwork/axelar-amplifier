@@ -64,7 +64,7 @@ impl Client<'_> {
 mod test {
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
-    use router_api::{address, chain_name, cosmos_addr};
+    use router_api::cosmos_addr;
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -76,7 +76,10 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(client.chain_name().unwrap(), chain_name!("source-chain"));
+        assert_eq!(
+            client.chain_name().unwrap(),
+            router_api::SOURCE_CHAIN_NAME.clone()
+        );
     }
 
     #[test]
@@ -85,8 +88,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let destination_chain = chain_name!("destination-chain");
-        let destination_address = address!("destination-address");
+        let destination_chain = router_api::DESTINATION_CHAIN_NAME.clone();
+        let destination_address = router_api::DESTINATION_ADDRESS.clone();
         let payload = HexBinary::from(vec![1, 2, 3]);
 
         let msg = client.call_contract(
@@ -135,15 +138,15 @@ mod test {
 
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
         let mut deps = mock_dependencies();
-        let addr = cosmos_addr!("axelarnet-gateway");
+        let addr = router_api::AXELARNET_GATEWAY_COSMOS_ADDR.clone();
         let addr_clone = addr.clone();
         let env = mock_env();
         let info = message_info(&cosmos_addr!("deployer"), &[]);
 
         let instantiate_msg = InstantiateMsg {
-            chain_name: chain_name!("source-chain"),
-            router_address: cosmos_addr!("router").to_string(),
-            nexus: cosmos_addr!("nexus").to_string(),
+            chain_name: router_api::SOURCE_CHAIN_NAME.clone(),
+            router_address: router_api::ROUTER_COSMOS_ADDR.clone().to_string(),
+            nexus: router_api::NEXUS_COSMOS_ADDR.clone().to_string(),
         };
 
         instantiate(deps.as_mut(), env, info, instantiate_msg.clone()).unwrap();

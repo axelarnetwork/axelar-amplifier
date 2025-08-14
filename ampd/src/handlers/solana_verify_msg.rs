@@ -193,7 +193,7 @@ mod test {
 
     use axelar_wasm_std::voting::Vote;
     use cosmrs::AccountId;
-    use router_api::{address, chain_name};
+    use router_api::address;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
@@ -266,7 +266,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -288,7 +288,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -311,7 +311,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -334,7 +334,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -359,7 +359,7 @@ mod test {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -375,7 +375,7 @@ mod test {
                 msg,
                 metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: chain_name!("solana"),
+                    chain_name: router_api::SOLANA_CHAIN_NAME.clone(),
                 }
             );
         }
@@ -398,7 +398,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -431,7 +431,7 @@ mod test {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("solana"),
+                source_chain: router_api::SOLANA_CHAIN_NAME.clone(),
                 source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -453,7 +453,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_1.parse().unwrap(),
-                    destination_chain: chain_name!("ethereum"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                     destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"),
                     payload_hash: Hash::from_slice(&[1; 32]).to_fixed_bytes(),
                 },
@@ -468,7 +468,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_2.parse().unwrap(),
-                    destination_chain: chain_name!("ethereum"),
+                    destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                     destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"),
                     payload_hash: Hash::from_slice(&[2; 32]).to_fixed_bytes(),
                 },

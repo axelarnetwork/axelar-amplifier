@@ -60,6 +60,7 @@ cw-multi-test = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["digest", "rand_core"] }
 goldie = { workspace = true }
 hex = "0.4"
+lazy_static = { workspace = true }
 
 [lints]
 workspace = true

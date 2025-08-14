@@ -209,7 +209,7 @@ mod test {
 
     #[test]
     fn interchain_transfer_events() {
-        let destination_chain = chain_name_raw!("ethereum");
+        let destination_chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
 
         let test_cases = vec![
             // Transfer with data
@@ -246,7 +246,7 @@ mod test {
 
     #[test]
     fn link_token_started_events() {
-        let destination_chain = chain_name_raw!("polygon");
+        let destination_chain = router_api::POLYGON_CHAIN_NAME_RAW.clone();
 
         let test_cases = vec![
             // Link token with params
@@ -293,7 +293,7 @@ mod test {
 
     #[test]
     fn interchain_token_deployment_started_events() {
-        let destination_chain = chain_name_raw!("avalanche");
+        let destination_chain = router_api::AVALANCHE_CHAIN_NAME_RAW.clone();
 
         let test_cases = vec![
             // Deployment with minter

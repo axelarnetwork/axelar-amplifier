@@ -61,7 +61,7 @@ mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{Uint128, Uint64};
     use msg::Participation;
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::cosmos_addr;
 
     use super::*;
     use crate::msg::Params;
@@ -69,7 +69,7 @@ mod tests {
 
     fn setup(storage: &mut dyn Storage, initial_balance: Uint128) -> (ParamsSnapshot, PoolId) {
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: router_api::MOCK_CHAIN_NAME.clone(),
             contract: cosmos_addr!("contract"),
         };
 
@@ -206,7 +206,7 @@ mod tests {
     fn should_fail_when_pool_not_found() {
         let mut deps = mock_dependencies();
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: router_api::MOCK_CHAIN_NAME.clone(),
             contract: cosmos_addr!("contract"),
         };
         let block_height = 1000;

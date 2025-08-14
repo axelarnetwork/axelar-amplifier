@@ -404,7 +404,6 @@ mod tests {
     use axum::Router;
     use axum_test::TestServer;
     use itertools::Itertools;
-    use router_api::chain_name;
     use tokio::time;
     use tracing_test::traced_test;
 
@@ -450,11 +449,11 @@ mod tests {
         initial_metrics.assert_status_ok();
 
         let chain_names = vec![
-            chain_name!("ethereum"),
-            chain_name!("solana"),
-            chain_name!("polygon"),
-            chain_name!("avalanche"),
-            chain_name!("stellar"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
+            router_api::SOLANA_CHAIN_NAME.clone(),
+            router_api::POLYGON_CHAIN_NAME.clone(),
+            router_api::AVALANCHE_CHAIN_NAME.clone(),
+            router_api::STELLAR_CHAIN_NAME.clone(),
         ];
 
         for chain_name in chain_names {

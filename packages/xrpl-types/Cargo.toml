@@ -16,7 +16,7 @@ error-stack = { workspace = true }
 hex = { workspace = true }
 interchain-token-service = { workspace = true, features = ["library"] }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
-lazy_static = "1.5.0"
+lazy_static = { workspace = true }
 multisig = { workspace = true }
 regex = "1.11.1"
 ripemd = "0.1.3"

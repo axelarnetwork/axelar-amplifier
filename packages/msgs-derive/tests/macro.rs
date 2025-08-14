@@ -93,8 +93,8 @@ pub fn execute(
 #[test]
 fn test_general_ensure_permission() {
     let no_privilege = cosmos_addr!("regular user");
-    let admin = cosmos_addr!("admin");
-    let governance = cosmos_addr!("governance");
+    let admin = router_api::ADMIN_COSMOS_ADDR.clone();
+    let governance = router_api::GOVERNANCE_COSMOS_ADDR.clone();
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
@@ -192,8 +192,8 @@ fn test_general_ensure_permission() {
 #[test]
 fn ensure_specific_permissions() {
     let no_privilege = cosmos_addr!("regular user");
-    let admin = cosmos_addr!("admin");
-    let governance = cosmos_addr!("governance");
+    let admin = router_api::ADMIN_COSMOS_ADDR.clone();
+    let governance = router_api::GOVERNANCE_COSMOS_ADDR.clone();
 
     let gateway1_addr = cosmos_addr!("gateway1");
     let gateway2_addr = cosmos_addr!("gateway2");
@@ -367,8 +367,8 @@ fn ensure_specific_permissions() {
 #[test]
 fn ensure_proxy_permissions() {
     let no_privilege = cosmos_addr!("regular user");
-    let admin = cosmos_addr!("admin");
-    let governance = cosmos_addr!("governance");
+    let admin = router_api::ADMIN_COSMOS_ADDR.clone();
+    let governance = router_api::GOVERNANCE_COSMOS_ADDR.clone();
 
     let gateway1_addr = cosmos_addr!("gateway1");
     let gateway2_addr = cosmos_addr!("gateway2");

@@ -27,7 +27,6 @@ impl GetToken for MessageInfo {
 mod tests {
     use assert_ok::assert_ok;
     use cosmwasm_std::{coin, coins};
-    use router_api::cosmos_addr;
 
     use super::*;
     use crate::assert_err_contains;
@@ -35,7 +34,7 @@ mod tests {
     #[test]
     fn single_token() {
         let message_info = MessageInfo {
-            sender: cosmos_addr!("sender"),
+            sender: router_api::SENDER_COSMOS_ADDR.clone(),
             funds: coins(100, "token"),
         };
 
@@ -46,7 +45,7 @@ mod tests {
     #[test]
     fn no_token() {
         let message_info = MessageInfo {
-            sender: cosmos_addr!("sender"),
+            sender: router_api::SENDER_COSMOS_ADDR.clone(),
             funds: vec![],
         };
 
@@ -57,7 +56,7 @@ mod tests {
     #[test]
     fn multiple_tokens() {
         let message_info = MessageInfo {
-            sender: cosmos_addr!("sender"),
+            sender: router_api::SENDER_COSMOS_ADDR.clone(),
             funds: vec![coin(100, "token1"), coin(200, "token2")],
         };
 

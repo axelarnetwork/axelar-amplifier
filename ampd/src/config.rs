@@ -496,7 +496,7 @@ mod tests {
             handlers: vec![
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
-                        name: chain_name!("Ethereum"),
+                        name: router_api::ETHEREUM_CHAIN_NAME.clone(),
                         finalization: Finalization::RPCFinalizedBlock,
                         rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     },
@@ -520,7 +520,7 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    chain_name: chain_name!("Ethereum"),
+                    chain_name: router_api::ETHEREUM_CHAIN_NAME.clone(),
                 },
                 HandlerConfig::SuiMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
@@ -573,7 +573,7 @@ mod tests {
                     rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
-                    chain_name: chain_name!("solana"),
+                    chain_name: router_api::SOLANA_CHAIN_NAME.clone(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -581,7 +581,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
-                    chain_name: chain_name!("solana"),
+                    chain_name: router_api::SOLANA_CHAIN_NAME.clone(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -589,7 +589,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksMsgVerifier {
-                    chain_name: chain_name!("stacks"),
+                    chain_name: router_api::STACKS_CHAIN_NAME.clone(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -597,7 +597,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
-                    chain_name: chain_name!("stacks"),
+                    chain_name: router_api::STACKS_CHAIN_NAME.clone(),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

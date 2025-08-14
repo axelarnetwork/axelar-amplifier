@@ -60,7 +60,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// # struct Store;
 /// # impl Store {
 /// #     fn load(&self, storage: &dyn cosmwasm_std::Storage) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error> {
-/// #         Ok(cosmos_addr!("gateway"))
+/// #         Ok(router_api::GATEWAY_COSMOS_ADDR.clone())
 /// #     }
 /// # }
 /// # const GATEWAY: Store = Store;
@@ -71,7 +71,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// # let env = mock_env();
 /// // example how to call the execute function
 /// let info = MessageInfo{
-///    sender: cosmos_addr!("sender"),
+///    sender: router_api::SENDER_COSMOS_ADDR.clone(),
 ///    funds: vec![],
 /// };
 ///

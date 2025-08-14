@@ -241,14 +241,14 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("instantiator"), &[]),
+            message_info(&router_api::INSTANTIATOR_COSMOS_ADDR.clone(), &[]),
             InstantiateMsg {
-                governance_account: cosmos_addr!("governance").to_string(),
+                governance_account: router_api::GOVERNANCE_COSMOS_ADDR.clone().to_string(),
             },
         )
         .unwrap();
 
-        let coordinator_address = cosmos_addr!("coordinator");
+        let coordinator_address = router_api::COORDINATOR_COSMOS_ADDR.clone();
         deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. }
                 if contract_addr == coordinator_address.as_str() =>
@@ -292,7 +292,7 @@ mod test {
     fn execute_register_service(deps: DepsMut, service_name: String) -> Service {
         let service = Service {
             name: service_name,
-            coordinator_contract: cosmos_addr!("coordinator"),
+            coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone(),
             min_num_verifiers: 0,
             max_num_verifiers: Some(100),
             min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -303,7 +303,7 @@ mod test {
         let res = execute(
             deps,
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service.name.clone(),
                 coordinator_contract: service.coordinator_contract.to_string(),
@@ -335,7 +335,7 @@ mod test {
         let res = execute(
             deps,
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name,
                 chain_name: chain_name.clone(),
@@ -360,10 +360,10 @@ mod test {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(10),
                 min_verifier_bond: Uint128::new(100).try_into().unwrap(),
@@ -385,7 +385,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: verifiers.clone(),
                 service_name: service_name.into(),
@@ -405,7 +405,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
                 coordinator_contract: cosmos_addr!("nowhere").to_string(),
@@ -468,7 +468,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateService {
                 service_name: service_name.into(),
                 updated_service_params: updated_params.clone(),
@@ -517,7 +517,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateService {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
@@ -587,7 +587,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -601,7 +601,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
                 chain_name: chain_name.clone(),
@@ -637,7 +637,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -649,7 +649,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.into(),
                 chain_name,
@@ -671,7 +671,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -705,7 +705,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
 
         let service = execute_register_service(deps.as_mut(), service_name.into());
         execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
@@ -713,7 +713,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RemoveServiceParamsOverride {
                 service_name: service_name.into(),
                 chain_name: chain_name.clone(),
@@ -743,12 +743,12 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RemoveServiceParamsOverride {
                 service_name: service_name.into(),
                 chain_name: chain_name.clone(),
@@ -769,7 +769,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
 
         let res = execute(
             deps.as_mut(),
@@ -795,7 +795,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
 
         execute_register_service(deps.as_mut(), service_name.into());
         let params_override =
@@ -822,7 +822,7 @@ mod test {
         let deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = router_api::SOLANA_CHAIN_NAME.clone();
 
         let res: Option<ServiceParamsOverride> = from_json(
             query(
@@ -848,7 +848,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
                 coordinator_contract: cosmos_addr!("nowhere").to_string(),
@@ -865,9 +865,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").into()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().into()],
                 service_name: service_name.into(),
             },
         );
@@ -878,7 +878,7 @@ mod test {
             mock_env(),
             message_info(&cosmos_addr!("unauthorized"), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").into()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().into()],
                 service_name: service_name.into(),
             },
         )
@@ -899,7 +899,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
                 coordinator_contract: cosmos_addr!("nowhere").to_string(),
@@ -916,9 +916,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -928,7 +928,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -947,7 +947,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
                 coordinator_contract: cosmos_addr!("nowhere").to_string(),
@@ -964,9 +964,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -975,7 +975,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
             },
@@ -992,7 +992,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
                 coordinator_contract: cosmos_addr!("nowhere").to_string(),
@@ -1009,9 +1009,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1021,7 +1021,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1030,11 +1030,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1058,7 +1058,7 @@ mod test {
             verifiers,
             vec![WeightedVerifier {
                 verifier_info: Verifier {
-                    address: cosmos_addr!("verifier"),
+                    address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_verifier_bond.try_into().unwrap(),
                     },
@@ -1095,7 +1095,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
                 coordinator_contract: cosmos_addr!("nowhere").to_string(),
@@ -1112,9 +1112,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1124,7 +1124,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1133,11 +1133,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1149,7 +1149,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1182,10 +1182,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1199,9 +1199,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1211,7 +1211,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1221,15 +1221,15 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            chain_name!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             chain_name!("binance"),
-            chain_name!("avalanche"),
+            router_api::AVALANCHE_CHAIN_NAME.clone(),
         ];
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: chains.clone(),
@@ -1240,7 +1240,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: chains.clone(),
@@ -1276,10 +1276,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1293,9 +1293,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1305,7 +1305,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1315,15 +1315,15 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            chain_name!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             chain_name!("binance"),
-            chain_name!("avalanche"),
+            router_api::AVALANCHE_CHAIN_NAME.clone(),
         ];
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: chains.clone(),
@@ -1335,7 +1335,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chains[0].clone()],
@@ -1377,7 +1377,7 @@ mod test {
                 verifiers,
                 vec![WeightedVerifier {
                     verifier_info: Verifier {
-                        address: cosmos_addr!("verifier"),
+                        address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                         bonding_state: BondingState::Bonded {
                             amount: min_verifier_bond.try_into().unwrap(),
                         },
@@ -1401,10 +1401,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1418,9 +1418,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1430,7 +1430,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1439,11 +1439,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1451,12 +1451,12 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let second_chain_name = chain_name!("avalanche");
+        let second_chain_name = router_api::AVALANCHE_CHAIN_NAME.clone();
         // Deregister support for another chain
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![second_chain_name.clone()],
@@ -1480,7 +1480,7 @@ mod test {
             verifiers,
             vec![WeightedVerifier {
                 verifier_info: Verifier {
-                    address: cosmos_addr!("verifier"),
+                    address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_verifier_bond
                     },
@@ -1503,10 +1503,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1520,9 +1520,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1532,7 +1532,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1541,11 +1541,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1556,7 +1556,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1568,7 +1568,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1592,7 +1592,7 @@ mod test {
             verifiers,
             vec![WeightedVerifier {
                 verifier_info: Verifier {
-                    address: cosmos_addr!("verifier"),
+                    address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_verifier_bond
                     },
@@ -1615,10 +1615,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1632,9 +1632,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1644,7 +1644,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1653,11 +1653,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1691,10 +1691,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1708,19 +1708,19 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1731,7 +1731,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1761,11 +1761,11 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1787,11 +1787,11 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1817,10 +1817,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1831,11 +1831,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1861,10 +1861,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1875,11 +1875,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1917,10 +1917,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -1934,9 +1934,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -1946,7 +1946,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -1955,11 +1955,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -1970,7 +1970,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UnbondVerifier {
                 service_name: service_name.into(),
             },
@@ -2001,10 +2001,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2019,7 +2019,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), "funnydenom"),
             ),
             ExecuteMsg::BondVerifier {
@@ -2044,10 +2044,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2062,7 +2062,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -2071,11 +2071,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -2107,10 +2107,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2124,9 +2124,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -2136,7 +2136,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128() / 2, AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -2145,11 +2145,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -2181,10 +2181,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2199,7 +2199,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -2211,19 +2211,19 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -2247,7 +2247,7 @@ mod test {
             verifiers,
             vec![WeightedVerifier {
                 verifier_info: Verifier {
-                    address: cosmos_addr!("verifier"),
+                    address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_verifier_bond
                     },
@@ -2268,10 +2268,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2285,9 +2285,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -2297,7 +2297,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -2306,11 +2306,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -2321,7 +2321,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UnbondVerifier {
                 service_name: service_name.into(),
             },
@@ -2331,7 +2331,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::BondVerifier {
                 service_name: service_name.into(),
             },
@@ -2354,7 +2354,7 @@ mod test {
             verifiers,
             vec![WeightedVerifier {
                 verifier_info: Verifier {
-                    address: cosmos_addr!("verifier"),
+                    address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_verifier_bond
                     },
@@ -2377,10 +2377,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2394,9 +2394,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -2406,7 +2406,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -2415,11 +2415,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name],
@@ -2433,7 +2433,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             unbond_request_env.clone(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UnbondVerifier {
                 service_name: service_name.into(),
             },
@@ -2444,7 +2444,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::ClaimStake {
                 service_name: service_name.into(),
             },
@@ -2470,7 +2470,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             after_unbond_period_env,
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::ClaimStake {
                 service_name: service_name.into(),
             },
@@ -2480,7 +2480,7 @@ mod test {
         assert_eq!(
             res.messages[0].msg,
             CosmosMsg::Bank(BankMsg::Send {
-                to_address: cosmos_addr!("verifier").to_string(),
+                to_address: router_api::VERIFIER_COSMOS_ADDR.clone().to_string(),
                 amount: coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION)
             })
         )
@@ -2499,10 +2499,10 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2516,7 +2516,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: verifiers.iter().map(|w| w.into()).collect(),
                 service_name: service_name.into(),
@@ -2524,7 +2524,7 @@ mod test {
         )
         .unwrap();
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
 
         for verifier in &verifiers {
             // should return err until all verifiers are registered
@@ -2610,10 +2610,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2643,7 +2643,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::JailVerifiers {
                 verifiers: vec![verifier1.clone().into()],
                 service_name: service_name.into(),
@@ -2723,7 +2723,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::JailVerifiers {
                 verifiers: vec![verifier2.clone().into()],
                 service_name: service_name.into(),
@@ -2764,10 +2764,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond,
@@ -2781,9 +2781,9 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![cosmos_addr!("verifier").to_string()],
+                verifiers: vec![router_api::VERIFIER_COSMOS_ADDR.clone().to_string()],
                 service_name: service_name.into(),
             },
         );
@@ -2793,7 +2793,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(
-                &cosmos_addr!("verifier"),
+                &router_api::VERIFIER_COSMOS_ADDR.clone(),
                 &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
             ),
             ExecuteMsg::BondVerifier {
@@ -2803,14 +2803,14 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            chain_name!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             chain_name!("binance"),
-            chain_name!("avalanche"),
+            router_api::AVALANCHE_CHAIN_NAME.clone(),
         ];
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("verifier"), &[]),
+            message_info(&router_api::VERIFIER_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.into(),
                 chains: chains.clone(),
@@ -2824,7 +2824,7 @@ mod test {
                 mock_env(),
                 QueryMsg::Verifier {
                     service_name: service_name.into(),
-                    verifier: cosmos_addr!("verifier").to_string(),
+                    verifier: router_api::VERIFIER_COSMOS_ADDR.clone().to_string(),
                 },
             )
             .unwrap(),
@@ -2834,7 +2834,7 @@ mod test {
         assert_eq!(
             verifier_details.verifier,
             Verifier {
-                address: cosmos_addr!("verifier"),
+                address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                 bonding_state: BondingState::Bonded {
                     amount: min_verifier_bond
                 },
@@ -2861,10 +2861,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(max_verifiers),
                 min_verifier_bond,
@@ -2884,7 +2884,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: verifiers_1.clone(),
                 service_name: service_name.into(),
@@ -2900,7 +2900,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: verifiers_2.clone(),
                 service_name: service_name.into(),
@@ -2926,10 +2926,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(5),
                 min_verifier_bond,
@@ -2949,7 +2949,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: verifiers.clone(),
                 service_name: service_name.into(),
@@ -2960,7 +2960,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateService {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
@@ -2982,7 +2982,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UpdateService {
                 service_name: service_name.into(),
                 updated_service_params: UpdatedServiceParams {
@@ -3004,10 +3004,10 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: cosmos_addr!("coordinator").to_string(),
+                coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(10),
                 min_verifier_bond: Uint128::new(100).try_into().unwrap(),
@@ -3029,7 +3029,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: vec![
                     cosmos_addr!("verifier1").to_string(),
@@ -3049,7 +3049,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::UnauthorizeVerifiers {
                 verifiers: vec![
                     cosmos_addr!("verifier1").to_string(),
@@ -3069,7 +3069,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::JailVerifiers {
                 verifiers: vec![cosmos_addr!("verifier2").to_string()],
                 service_name: service_name.clone(),
@@ -3081,7 +3081,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: vec![cosmos_addr!("verifier2").to_string()],
                 service_name: service_name.clone(),
@@ -3099,7 +3099,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::JailVerifiers {
                 verifiers: vec![new_verifier],
                 service_name: service_name.clone(),
@@ -3117,7 +3117,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::JailVerifiers {
                 verifiers: vec![new_verifier],
                 service_name: service_name.clone(),
@@ -3131,7 +3131,7 @@ mod test {
     fn active_verifiers_respects_chain_max_override() {
         let (mut deps, api, service_name, original_verifiers) = setup_service_with_5_verifiers();
         let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
 
         // Bond and register all verifiers
         for verifier in &original_verifiers {
@@ -3164,7 +3164,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.clone(),
                 chain_name: chain_name.clone(),
@@ -3196,7 +3196,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
             ExecuteMsg::OverrideServiceParams {
                 service_name: service_name.clone(),
                 chain_name: chain_name.clone(),
@@ -3224,7 +3224,7 @@ mod test {
         assert_eq!(active_verifiers.len(), original_verifiers.len());
 
         // Test that without chain override, all 5 verifiers would be returned
-        let chain_name_no_override = chain_name!("polygon");
+        let chain_name_no_override = router_api::POLYGON_CHAIN_NAME.clone();
 
         // Register all verifiers for the chain without override
         for verifier in &original_verifiers {

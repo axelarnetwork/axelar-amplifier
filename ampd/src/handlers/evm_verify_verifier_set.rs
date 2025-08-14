@@ -221,7 +221,6 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -271,7 +270,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier,
-            chain_name!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,
@@ -314,7 +313,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier_contract,
-            chain_name!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -329,7 +328,7 @@ mod tests {
             metrics,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: chain_name!("ethereum"),
+                chain_name: router_api::ETHEREUM_CHAIN_NAME.clone(),
             }
         );
 
@@ -348,7 +347,7 @@ mod tests {
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("ethereum"),
+                source_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                 source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
                     .parse()
                     .unwrap(),

@@ -122,8 +122,8 @@ mod tests {
 
     #[test]
     fn sender_role_from_storage() {
-        let admin = cosmos_addr!("admin");
-        let governance = cosmos_addr!("governance");
+        let admin = router_api::ADMIN_COSMOS_ADDR.clone();
+        let governance = router_api::GOVERNANCE_COSMOS_ADDR.clone();
         let regular_user = cosmos_addr!("regular user");
 
         let mut storage = MockStorage::new();

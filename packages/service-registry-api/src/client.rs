@@ -143,7 +143,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -156,7 +156,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -169,7 +169,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let verifier = cosmos_addr!("verifier").to_string();
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone().to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -182,7 +182,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let verifier = cosmos_addr!("verifier").to_string();
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone().to_string();
         let res = client.verifier(service_name.clone(), verifier.clone());
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -219,7 +219,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -232,7 +232,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -245,7 +245,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.service_params_override(service_name, chain_name);
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -286,7 +286,7 @@ mod test {
     fn mock_service(service_name: String, chain_name: Option<ChainName>) -> Service {
         Service {
             name: service_name,
-            coordinator_contract: cosmos_addr!("coordinator"),
+            coordinator_contract: router_api::COORDINATOR_COSMOS_ADDR.clone(),
             min_num_verifiers: chain_name.map_or(1, |_| 2),
             max_num_verifiers: None,
             min_verifier_bond: Uint128::one(),
@@ -311,7 +311,7 @@ mod test {
                         chain_name: _,
                     } => Ok(to_json_binary(&vec![WeightedVerifier {
                         verifier_info: Verifier {
-                            address: cosmos_addr!("verifier"),
+                            address: router_api::VERIFIER_COSMOS_ADDR.clone(),
                             bonding_state: crate::BondingState::Bonded {
                                 amount: Uint128::one(),
                             },

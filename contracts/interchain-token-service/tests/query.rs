@@ -9,6 +9,7 @@ use interchain_token_service::msg::{
 };
 use interchain_token_service_std::TokenId;
 use router_api::{address, chain_name_raw, cosmos_addr};
+use utils::params;
 
 mod utils;
 
@@ -25,14 +26,14 @@ impl ChainConfigTest {
 
         let eth = utils::ChainData {
             chain: chain_name_raw!("Ethereum"),
-            address: address!("0x1234567890123456789012345678901234567890"),
+            address: params::MOCK_ADDRESS.clone(),
             max_uint_bits: 256.try_into().unwrap(),
             max_decimals: 18,
         };
 
         let polygon = utils::ChainData {
             chain: chain_name_raw!("Polygon"),
-            address: address!("0x1234567890123456789012345678901234567890"),
+            address: params::MOCK_ADDRESS.clone(),
             max_uint_bits: 256.try_into().unwrap(),
             max_decimals: 18,
         };
@@ -87,7 +88,7 @@ fn query_chain_config() {
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
-        chain_name_raw!("ethereum")
+        router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
     ));
     assert_eq!(chain_config, None);
 
@@ -121,8 +122,8 @@ fn query_all_its_contracts() {
 
     let its_contracts = vec![
         (
-            chain_name_raw!("ethereum"),
-            address!("0x1234567890123456789012345678901234567890"),
+            router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
+            params::MOCK_ADDRESS.clone(),
         ),
         (
             chain_name_raw!("Optimism"),
@@ -152,7 +153,7 @@ fn query_token_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
     let token_id: TokenId = TokenId::new([1; 32]);
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
@@ -246,10 +247,7 @@ fn query_chains_pagination() {
     let mut test_config = ChainConfigTest::setup();
 
     let chains = vec![
-        (
-            chain_name_raw!("Chain1"),
-            address!("0x1234567890123456789012345678901234567890"),
-        ),
+        (chain_name_raw!("Chain1"), params::MOCK_ADDRESS.clone()),
         (
             chain_name_raw!("Chain2"),
             address!("0x1234567890123456789012345678901234567891"),

@@ -311,7 +311,11 @@ mod test {
         let info = message_info(&cosmos_addr!("deployer"), &[]);
 
         let msg = InstantiateMsg {
-            governance_address: cosmos_addr!("governance").to_string().try_into().unwrap(),
+            governance_address: router_api::GOVERNANCE_COSMOS_ADDR
+                .clone()
+                .to_string()
+                .try_into()
+                .unwrap(),
             service_registry_address: cosmos_addr!("service-registry")
                 .to_string()
                 .try_into()
@@ -326,8 +330,12 @@ mod test {
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
             confirmation_height: 10,
-            source_chain: chain_name!("source-chain"),
-            rewards_address: cosmos_addr!("rewards").to_string().try_into().unwrap(),
+            source_chain: router_api::SOURCE_CHAIN_NAME.clone(),
+            rewards_address: router_api::REWARDS_COSMOS_ADDR
+                .clone()
+                .to_string()
+                .try_into()
+                .unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             address_format: axelar_wasm_std::address::AddressFormat::Eip55,
         };

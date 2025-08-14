@@ -191,14 +191,13 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
-    use router_api::chain_name;
+    use router_api::{self, chain_name};
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::STARKNET_CHAIN_NAME;
     use crate::event_processor::EventHandler;
     use crate::handlers::starknet_verify_verifier_set::PollStartedEvent;
     use crate::monitoring::{metrics, test_utils};
@@ -276,7 +275,7 @@ mod tests {
             receiver.try_recv().unwrap(),
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: STARKNET_CHAIN_NAME.clone(),
+                chain_name: router_api::STARKNET_CHAIN_NAME.clone(),
             }
         );
 

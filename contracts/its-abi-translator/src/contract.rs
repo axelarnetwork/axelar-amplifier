@@ -37,7 +37,6 @@ mod tests {
     use interchain_token_service_std::{
         DeployInterchainToken, HubMessage, InterchainTransfer, Message, TokenId,
     };
-    use router_api::chain_name_raw;
 
     use super::*;
 
@@ -62,7 +61,7 @@ mod tests {
         let env = mock_env();
 
         let hub_message = HubMessage::SendToHub {
-            destination_chain: chain_name_raw!("ethereum"),
+            destination_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             message: Message::InterchainTransfer(InterchainTransfer {
                 token_id: TokenId::new([1u8; 32]),
                 source_address: nonempty::HexBinary::try_from(vec![0x11, 0x22, 0x33]).unwrap(),
@@ -93,7 +92,7 @@ mod tests {
         let env = mock_env();
 
         let hub_message = HubMessage::ReceiveFromHub {
-            source_chain: chain_name_raw!("ethereum"),
+            source_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             message: Message::DeployInterchainToken(DeployInterchainToken {
                 token_id: TokenId::new([2u8; 32]),
                 name: nonempty::String::try_from("Test Token".to_string()).unwrap(),

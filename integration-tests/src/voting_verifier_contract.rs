@@ -68,7 +68,7 @@ impl VotingVerifierContract {
 impl Default for VotingVerifierContract {
     fn default() -> Self {
         VotingVerifierContract {
-            contract_addr: cosmos_addr!("verifier"),
+            contract_addr: router_api::VERIFIER_COSMOS_ADDR.clone(),
             code_id: 0,
         }
     }

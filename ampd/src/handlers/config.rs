@@ -260,7 +260,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use router_api::chain_name;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
@@ -390,7 +389,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaMsgVerifier {
-            chain_name: chain_name!("solana"),
+            chain_name: router_api::SOLANA_CHAIN_NAME.clone(),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -405,7 +404,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaVerifierSetVerifier {
-            chain_name: chain_name!("solana"),
+            chain_name: router_api::SOLANA_CHAIN_NAME.clone(),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -420,7 +419,7 @@ mod tests {
         );
 
         let sample_config = Config::StacksMsgVerifier {
-            chain_name: chain_name!("stacks"),
+            chain_name: router_api::STACKS_CHAIN_NAME.clone(),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -435,7 +434,7 @@ mod tests {
         );
 
         let sample_config = Config::StacksVerifierSetVerifier {
-            chain_name: chain_name!("stacks"),
+            chain_name: router_api::STACKS_CHAIN_NAME.clone(),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -452,7 +451,7 @@ mod tests {
     #[test]
     fn test_chain_struct_debug_redacts_url() {
         let chain = Chain {
-            name: chain_name!("ethereum"),
+            name: router_api::ETHEREUM_CHAIN_NAME.clone(),
             rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
             finalization: Finalization::RPCFinalizedBlock,
         };
