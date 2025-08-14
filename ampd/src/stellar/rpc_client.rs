@@ -122,9 +122,12 @@ impl Client {
         result: Result<GetTransactionResponse, stellar_rpc_client::Error>,
         hash: Hash,
     ) -> Option<TxResponse> {
-        let Ok(response) = result else {
-            warn!(error = ?result.unwrap_err(), tx_hash = ?hash, "failed to get transaction response");
-            return None;
+        let response = match result {
+            Ok(response) => response,
+            Err(err) => {
+                warn!(error = ?err, tx_hash = ?hash, "failed to get transaction response");
+                return None;
+            }
         };
 
         TxResponse::try_from((hash.clone(), response))
