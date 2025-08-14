@@ -6,6 +6,9 @@ license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+test-utils = []
+
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }

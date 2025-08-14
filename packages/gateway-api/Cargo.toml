@@ -18,6 +18,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 goldie = { workspace = true }
+router-api = { workspace = true, features = ["test-utils"] }
 
 [lints]
 workspace = true

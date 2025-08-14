@@ -22,7 +22,7 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 client = { workspace = true }
-router-api = { workspace = true }
+router-api = { workspace = true, features = ["test-utils"] }
 
 [lints]
 workspace = true

@@ -36,7 +36,7 @@ rand = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }
 router = { workspace = true }
-router-api = { workspace = true }
+router-api = { workspace = true, features = ["test-utils"] }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
