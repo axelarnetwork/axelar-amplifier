@@ -129,7 +129,7 @@ mod tests {
 
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
-                source_chain: "source".parse().unwrap(),
+                source_chain: chain_name_raw!("source"),
                 message_id: "test".parse().unwrap(),
             },
             source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -243,7 +243,7 @@ mod tests {
 
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
-                source_chain: "source".parse().unwrap(),
+                source_chain: chain_name_raw!("source"),
                 message_id: "test".parse().unwrap(),
             },
             source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"

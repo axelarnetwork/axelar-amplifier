@@ -8,7 +8,7 @@ use interchain_token_service::msg::{
     DEFAULT_PAGINATION_LIMIT,
 };
 use interchain_token_service_std::TokenId;
-use router_api::{address, chain_name_raw, cosmos_addr, Address};
+use router_api::{address, chain_name_raw, cosmos_addr, Address, ChainNameRaw};
 
 mod utils;
 
@@ -108,7 +108,7 @@ fn query_chain_config() {
     ));
     assert_eq!(chain_config.unwrap().its_edge_contract, new_address);
 
-    let non_existent_chain: ChainNameRaw = "non-existent-chain".parse().unwrap();
+    let non_existent_chain = chain_name_raw!("non-existent-chain");
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
         non_existent_chain
@@ -123,7 +123,7 @@ fn query_all_its_contracts() {
 
     let its_contracts = vec![
         (
-            chain_name_raw!("ethereum"),
+            "ethereum".parse().unwrap(),
             address!("0x1234567890123456789012345678901234567890"),
         ),
         (
@@ -154,7 +154,7 @@ fn query_token_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain: ChainNameRaw = "ethereum".parse().unwrap();
+    let chain = chain_name_raw!("ethereum");
     let token_id: TokenId = TokenId::new([1; 32]);
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();

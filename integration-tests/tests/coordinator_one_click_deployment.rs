@@ -16,7 +16,7 @@ use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
 use multisig_prover_api::encoding::Encoder;
-use router_api::{cosmos_addr, ChainName, CrossChainId, Message};
+use router_api::{chain_name_raw, cosmos_addr, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
@@ -93,7 +93,7 @@ fn instantiate_contracts(
                         voting_threshold: Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
                         block_expiry: 10.try_into().unwrap(),
                         confirmation_height: 5,
-                        source_chain: chain_name.parse().unwrap(),
+                        source_chain: chain_name_raw!("ethereum"),
                         rewards_address: protocol
                             .rewards
                             .contract_addr
@@ -123,7 +123,7 @@ fn instantiate_contracts(
                             .try_into()
                             .unwrap(),
                         service_name: protocol.service_name.parse().unwrap(),
-                        chain_name: chain_name.parse().unwrap(),
+                        chain_name: chain_name_raw!("ethereum"),
                         verifier_set_diff_threshold: 0,
                         encoder: Encoder::Abi,
                         key_type: KeyType::Ecdsa,
