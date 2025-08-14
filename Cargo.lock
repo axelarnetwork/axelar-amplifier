@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "ampd-proto",
  "assert_ok",
