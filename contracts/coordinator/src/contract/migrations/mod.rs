@@ -214,8 +214,7 @@ mod tests {
     use axelar_wasm_std::{address, nonempty, permission_control};
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-    use cosmwasm_std::Addr;
-    use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
     use lazy_static::lazy_static;
     use router_api::{chain_name, cosmos_addr, ChainName};
 
