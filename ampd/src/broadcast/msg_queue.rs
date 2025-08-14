@@ -297,7 +297,7 @@ impl Stream for MsgQueue {
                     // if the queue returns Some, it means we have a batch ready to send
                     if let Some(msgs) =
                         me.queue
-                            .push_or(msg, handle_queue_error, &me.monitoring_client)
+                            .push_or(msg, handle_queue_error, me.monitoring_client)
                     {
                         return Poll::Ready(Some(msgs));
                     }
