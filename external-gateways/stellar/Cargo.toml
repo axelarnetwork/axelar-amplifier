@@ -15,7 +15,7 @@ router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
-stellar-strkey = { version = "0.0.10" }
+stellar-strkey = { workspace = true }
 stellar-xdr = { workspace = true }
 thiserror = { workspace = true }
 
