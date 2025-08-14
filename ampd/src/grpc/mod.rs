@@ -20,10 +20,10 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::types::debug::REDACTED_VALUE;
+use crate::types::TMAddress;
 use crate::{broadcast, cosmos, event_sub, tofnd};
 
 mod blockchain_service;
-mod config;
 mod crypto_service;
 mod reqs;
 mod status;
@@ -53,6 +53,8 @@ pub struct Config {
     /// Uses humantime_serde for parsing human-readable duration formats in configuration files
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
+    /// Blockchain service configuration
+    pub blockchain_service: blockchain_service::Config,
 }
 
 impl Default for Config {
@@ -67,6 +69,7 @@ impl Default for Config {
                 .try_into()
                 .expect("default concurrency limit per connection must be valid"),
             request_timeout: Duration::from_secs(30),
+            blockchain_service: blockchain_service::Config::default(),
         }
     }
 }
@@ -108,6 +111,8 @@ pub struct Server {
     msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
     multisig_client: tofnd::MultisigClient,
+    service_registry: TMAddress,
+    rewards: TMAddress,
 }
 
 impl Server {
@@ -145,6 +150,9 @@ impl Server {
                     .event_sub(self.event_sub)
                     .msg_queue_client(self.msg_queue_client)
                     .cosmos_client(self.cosmos_grpc_client)
+                    .service_registry(self.service_registry)
+                    .rewards(self.rewards)
+                    .config(self.config.blockchain_service)
                     .build(),
             ))
             .add_service(CryptoServiceServer::new(crypto_service::Service::from(

@@ -9,8 +9,11 @@ use ampd_proto::{
     SubscribeResponse,
 };
 use async_trait::async_trait;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::FnExt;
+use cosmrs::AccountId;
 use futures::{Stream, TryFutureExt, TryStreamExt};
+use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
@@ -18,7 +21,36 @@ use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
 use crate::grpc::status;
-use crate::{broadcast, cosmos, event_sub};
+use crate::types::TMAddress;
+use crate::{broadcast, cosmos, event_sub, PREFIX};
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Config {
+    /// The coordinator contract address
+    pub coordinator: TMAddress,
+    /// Chain specific configurations
+    // TODO: remove this once we use the coordinator contract to query for contract addresses
+    pub chains: Vec<ChainConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct ChainConfig {
+    pub chain_name: ChainName,
+    pub voting_verifier: TMAddress,
+    pub multisig_prover: TMAddress,
+    pub multisig: TMAddress,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            coordinator: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
+            chains: vec![],
+        }
+    }
+}
 
 #[derive(Debug, TypedBuilder)]
 pub struct Service<E, C>
@@ -29,6 +61,9 @@ where
     event_sub: E,
     msg_queue_client: broadcast::MsgQueueClient<C>,
     cosmos_client: C,
+    service_registry: TMAddress,
+    rewards: TMAddress,
+    config: Config,
 }
 
 #[async_trait]
@@ -112,13 +147,31 @@ where
         }))
     }
 
+    #[instrument]
     async fn contracts(
         &self,
-        _req: Request<ContractsRequest>,
+        req: Request<ContractsRequest>,
     ) -> Result<Response<ContractsResponse>, Status> {
-        Err(Status::unimplemented(
-            "contracts method is not implemented yet",
-        ))
+        let chain = req
+            .validate()
+            .inspect_err(status::log("invalid contracts request"))
+            .map_err(status::StatusExt::into_status)?;
+
+        // TODO: use coordinator contract to query for contract addresses instead of using configurations
+        let chain_config = self
+            .config
+            .chains
+            .iter()
+            .find(|c| c.chain_name == chain)
+            .ok_or_else(|| Status::not_found("chain contracts not found"))?;
+
+        Ok(Response::new(ContractsResponse {
+            voting_verifier: chain_config.voting_verifier.to_string(),
+            multisig_prover: chain_config.multisig_prover.to_string(),
+            service_registry: self.service_registry.to_string(),
+            rewards: self.rewards.to_string(),
+            multisig: chain_config.multisig.to_string(),
+        }))
     }
 }
 
@@ -223,6 +276,9 @@ mod tests {
             .event_sub(mock_event_sub)
             .msg_queue_client(msg_queue_client)
             .cosmos_client(mock_cosmos_client)
+            .service_registry(TMAddress::random(PREFIX))
+            .rewards(TMAddress::random(PREFIX))
+            .config(Config::default())
             .build();
 
         (service, msg_queue)
@@ -944,6 +1000,9 @@ mod tests {
             .event_sub(MockEventSub::new())
             .msg_queue_client(msg_queue_client)
             .cosmos_client(MockCosmosClient::new())
+            .service_registry(TMAddress::random(PREFIX))
+            .rewards(TMAddress::random(PREFIX))
+            .config(Config::default())
             .build();
 
         let req = Request::new(AddressRequest {});
