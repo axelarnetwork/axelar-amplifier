@@ -2,7 +2,20 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.10.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.11.0..HEAD)
+
+## [v1.11.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.11.0) (2025-08-14)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.10.0..ampd-v1.11.0)
+
+- stellar protocol v23 update [#968](https://github.com/axelarnetwork/axelar-amplifier/pull/968)
+- use `address!` macro instead of string literal conversion [#996](https://github.com/axelarnetwork/axelar-amplifier/pull/996)
+- use `chain_name!` macro instead of string literal conversion [#992](https://github.com/axelarnetwork/axelar-amplifier/pull/992)
+- use `chain_name_raw!` macro instead of string literal conversion [#993](https://github.com/axelarnetwork/axelar-amplifier/pull/993)
+- reset sequence number before enqueuing message for broadcast [#994](https://github.com/axelarnetwork/axelar-amplifier/pull/994)
+- add ampd cpu and memory usage metrics tracking [#965](https://github.com/axelarnetwork/axelar-amplifier/pull/965)
+- track vote verification outcome in voting handler [#959](https://github.com/axelarnetwork/axelar-amplifier/pull/959)
+- unify Rust setup across workflows [#987](https://github.com/axelarnetwork/axelar-amplifier/pull/987)
 
 ## [v1.10.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.10.0) (2025-07-28)
 
@@ -29,7 +42,7 @@
 - expose derive macros via feature flag [#902](https://github.com/axelarnetwork/axelar-amplifier/pull/902)
 - add eol normalization [#907](https://github.com/axelarnetwork/axelar-amplifier/pull/907)
 
-## [v1.9.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.9.0)
+## [v1.9.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.9.0) (2025-06-04)
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.8.0..ampd-v1.9.0)
 
