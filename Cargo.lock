@@ -13632,6 +13632,7 @@ dependencies = [
  "assert_ok",
  "axelar-wasm-std",
  "bech32 0.11.0",
+ "chain-codec-api",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",

@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
 
-use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
@@ -104,7 +103,6 @@ pub struct VerifierMsg {
     pub source_chain: ChainName,
     pub rewards_address: nonempty::String,
     pub msg_id_format: MessageIdFormat,
-    pub address_format: AddressFormat,
 }
 
 /// Allows adding additional fields to a message's JSON that are not known at compile time.

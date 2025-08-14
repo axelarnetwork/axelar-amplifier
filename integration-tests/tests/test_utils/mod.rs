@@ -723,10 +723,22 @@ pub struct Chain {
 }
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+    let prover_address = protocol.app.init_modules(|_, api, storage| {
+        protocol
+            .address_generator
+            // order is: chain codec, voting verifier, gateway, multisig prover, so 4 addresses ahead should be the prover address
+            .future_address(api, storage, NonZeroU64::new(4).unwrap())
+            .unwrap()
+    });
+
+    let chain_codec =
+        ChainCodecContract::instantiate_contract(protocol, [0; 32], prover_address.clone());
+
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
+        &chain_codec.contract_addr,
     );
 
     let gateway = GatewayContract::instantiate_contract(
@@ -734,17 +746,6 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         protocol.router.contract_address().clone(),
         voting_verifier.contract_addr.clone(),
     );
-
-    // next is the chain codec, then the multisig prover, so 2 addresses ahead should be the prover address
-    let prover_address = protocol.app.init_modules(|_, api, storage| {
-        protocol
-            .address_generator
-            .future_address(api, storage, NonZeroU64::new(2).unwrap())
-            .unwrap()
-    });
-
-    let chain_codec =
-        ChainCodecContract::instantiate_contract(protocol, [0; 32], prover_address.clone());
 
     let multisig_prover_admin =
         MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());

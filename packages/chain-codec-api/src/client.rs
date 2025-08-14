@@ -1,4 +1,4 @@
-use cosmwasm_std::{CosmosMsg, HexBinary};
+use cosmwasm_std::{CosmosMsg, Empty, HexBinary};
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
@@ -39,7 +39,7 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    pub fn validate_address(&self, address: String) -> Result<bool, Error> {
+    pub fn validate_address(&self, address: String) -> Result<Empty, Error> {
         let msg = QueryMsg::ValidateAddress { address };
         self.client
             .query(&msg)

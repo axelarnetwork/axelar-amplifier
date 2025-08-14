@@ -113,6 +113,7 @@ impl Client<'_> {
 mod test {
     use std::collections::BTreeMap;
 
+    use axelar_wasm_std::address::{validate_address, AddressFormat};
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
@@ -296,9 +297,27 @@ mod test {
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr.as_str() => {
-                let msg = from_json::<QueryMsg>(msg).unwrap();
-                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+            WasmQuery::Smart { contract_addr, msg } => {
+                if contract_addr == addr.as_str() {
+                    let msg = from_json::<QueryMsg>(msg).unwrap();
+                    Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+                } else if contract_addr == cosmos_addr!("chain-codec").as_str() {
+                    let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+
+                    match msg {
+                        chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                            Ok(validate_address(&address, &AddressFormat::Eip55)
+                                .map(|_| {
+                                    cosmwasm_std::to_json_binary(&cosmwasm_std::Empty {}).unwrap()
+                                })
+                                .into())
+                            .into()
+                        }
+                        _ => panic!("unexpected query: {:?}", msg),
+                    }
+                } else {
+                    Err(SystemError::Unknown {}).into()
+                }
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
@@ -329,7 +348,7 @@ mod test {
             source_chain: chain_name!("source-chain"),
             rewards_address: cosmos_addr!("rewards").to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            address_format: axelar_wasm_std::address::AddressFormat::Eip55,
+            chain_codec_address: cosmos_addr!("chain-codec").to_string().try_into().unwrap(),
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();
