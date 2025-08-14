@@ -1,5 +1,5 @@
 mod primitives;
-#[cfg(feature = "test-utils")]
+#[cfg(any(test, feature = "test-utils"))]
 mod test_utils;
 
 mod client;
@@ -8,5 +8,5 @@ pub mod msg;
 
 pub use client::Client;
 pub use primitives::*;
-#[cfg(feature = "test-utils")]
+#[cfg(any(test, feature = "test-utils"))]
 pub use test_utils::*;

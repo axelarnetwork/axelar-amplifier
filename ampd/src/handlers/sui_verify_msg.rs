@@ -157,7 +157,7 @@ where
                     .metrics()
                     .record_metric(metrics::Msg::VerificationVote {
                         vote_decision: vote.clone(),
-                        chain_name: router_api::SUI_CHAIN_NAME.clone(),
+                        chain_name: SUI_CHAIN_NAME.clone(),
                     });
             })
             .collect();
