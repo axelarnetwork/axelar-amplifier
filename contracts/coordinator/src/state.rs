@@ -228,6 +228,16 @@ pub fn deployed_contracts(
         .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
 }
 
+pub fn deployments(storage: &dyn Storage) -> Result<Vec<ChainContracts>, Error> {
+    Ok(DEPLOYED_CHAINS
+        .range(storage, None, None, Order::Ascending)
+        .filter_map(|entry| match entry {
+            Ok((_, contracts)) => Some(contracts),
+            Err(..) => None,
+        })
+        .collect())
+}
+
 pub fn is_prover_registered(
     storage: &dyn Storage,
     prover_address: ProverAddress,

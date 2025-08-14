@@ -4,7 +4,7 @@ mod migrations;
 mod query;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::{address, nonempty, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -140,6 +140,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
             &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
+        QueryMsg::Deployments => Ok(to_json_binary(&query::deployments(deps)?)?),
+        QueryMsg::Deployment { deployment_name } => {
+            Ok(to_json_binary(&query::deployed_contracts(
+                deps,
+                nonempty::String::try_from(deployment_name)
+                    .change_context(Error::ParseDeploymentName)?,
+            )?)?)
+        }
     }
 }
 

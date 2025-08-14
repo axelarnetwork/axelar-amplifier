@@ -125,6 +125,12 @@ pub enum QueryMsg {
 
     #[returns(ChainContractsResponse)]
     ChainContractsInfo(ChainContractsKey),
+
+    #[returns(Vec<ChainContractsResponse>)]
+    Deployments,
+
+    #[returns(ChainContractsResponse)]
+    Deployment { deployment_name: String },
 }
 
 #[cw_serde]
