@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Deps, Order, StdError};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
@@ -93,4 +94,31 @@ pub fn chain_contracts_info(
     }
     .change_context(Error::ChainContractsInfo)
     .map(ChainContractsResponse::from)
+}
+
+pub fn deployments(deps: Deps) -> Result<Vec<ChainContractsResponse>, Error> {
+    Ok(state::deployments(deps.storage)
+        .change_context(Error::ChainContractsInfo)?
+        .into_iter()
+        .map(|chains| ChainContractsResponse {
+            chain_name: chains.chain_name,
+            prover_address: chains.multisig_prover,
+            verifier_address: chains.voting_verifier,
+            gateway_address: chains.gateway,
+        })
+        .collect())
+}
+
+pub fn deployed_contracts(
+    deps: Deps,
+    deployment_name: nonempty::String,
+) -> Result<ChainContractsResponse, Error> {
+    state::deployed_contracts(deps.storage, deployment_name)
+        .map(|chains| ChainContractsResponse {
+            chain_name: chains.chain_name,
+            prover_address: chains.multisig_prover,
+            verifier_address: chains.voting_verifier,
+            gateway_address: chains.gateway,
+        })
+        .change_context(Error::ChainContractsInfo)
 }

@@ -3,7 +3,8 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, nonempty_str, Threshold, VerificationStatus};
 use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
-    ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
+    ChainContractsResponse, ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams,
+    ProverMsg, VerifierMsg,
 };
 use cosmwasm_std::{Binary, HexBinary};
 use cw_multi_test::AppResponse;
@@ -633,4 +634,76 @@ fn coordinator_one_click_authorize_callers_succeeds() {
     );
     assert!(res.is_ok());
     assert!(res.unwrap());
+}
+
+#[test]
+fn coordinator_one_click_query_deployments_succeeds() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = instantiate_contracts(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+    );
+    assert!(res.is_ok());
+    let contracts = gather_contracts(&protocol, res.unwrap());
+
+    let res = protocol.coordinator.query::<Vec<ChainContractsResponse>>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Deployments {},
+    );
+    assert!(res.is_ok());
+
+    let res = res.unwrap();
+    assert_eq!(res.len(), 1);
+
+    assert!(res[0].eq(&ChainContractsResponse {
+        chain_name: ChainName::try_from(chain_name.clone()).unwrap(),
+        prover_address: contracts.multisig_prover.contract_addr,
+        gateway_address: contracts.gateway.contract_addr,
+        verifier_address: contracts.voting_verifier.contract_addr
+    }));
+}
+
+#[test]
+fn coordinator_one_click_query_single_deployment_succeeds() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = instantiate_contracts(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+    );
+    assert!(res.is_ok());
+    let contracts = gather_contracts(&protocol, res.unwrap());
+
+    let res = protocol.coordinator.query::<ChainContractsResponse>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Deployment { deployment_name },
+    );
+    assert!(res.is_ok());
+    assert!(res.unwrap().eq(&ChainContractsResponse {
+        chain_name: ChainName::try_from(chain_name.clone()).unwrap(),
+        prover_address: contracts.multisig_prover.contract_addr,
+        gateway_address: contracts.gateway.contract_addr,
+        verifier_address: contracts.voting_verifier.contract_addr
+    }));
 }
