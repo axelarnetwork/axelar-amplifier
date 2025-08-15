@@ -43,7 +43,17 @@
     "port": 9091,
     "global_concurrency_limit": 2048,
     "concurrency_limit_per_connection": 256,
-    "request_timeout": "30s"
+    "request_timeout": "30s",
+    "blockchain_service": {
+      "chains": [
+        {
+          "chain_name": "test-chain",
+          "voting_verifier": "axelar1t5qnmp37l4tt3s9aqv7rd0jgat7tjau0xffad5",
+          "multisig_prover": "axelar1f06r764ftadyduqryz74qg5yt6yxzpq4vyy0m3",
+          "multisig": "axelar1v8a4r5ru2rwx35yfpqvsc66ydahtqprd3xqz8n"
+        }
+      ]
+    }
   },
   "monitoring_server": {
     "enabled": false,
