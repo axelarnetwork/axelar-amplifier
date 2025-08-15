@@ -155,7 +155,7 @@ mod tests {
     use router_api::{chain_name, cosmos_addr, ChainName};
 
     use super::*;
-    use crate::msg::{ChainContractsKey, ChainContractsResponse};
+    use crate::msg::ChainContractsKey;
     use crate::state::{contracts_by_chain, ChainContractsRecord};
 
     struct TestSetup {
