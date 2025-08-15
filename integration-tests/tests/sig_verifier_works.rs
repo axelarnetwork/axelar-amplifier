@@ -1,4 +1,5 @@
-use std::{collections::HashMap, num::NonZeroU64};
+use std::collections::HashMap;
+use std::num::NonZeroU64;
 
 use axelar_wasm_std::Threshold;
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
