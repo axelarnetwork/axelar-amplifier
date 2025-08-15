@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroU64;
 
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -9,7 +10,9 @@ use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
-use cw_multi_test::{AppBuilder, AppResponse, Executor};
+use cw_multi_test::{AppBuilder, AppResponse, Executor, WasmKeeper};
+use integration_tests::address_generator::AddressGenerator;
+use integration_tests::chain_codec_contract::ChainCodecContract;
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
@@ -404,6 +407,8 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
 }
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
+    let address_generator = AddressGenerator::new();
+
     let genesis = cosmos_addr!("genesis");
     let mut app = AppBuilder::new_custom()
         .with_custom(AxelarModule {
@@ -414,6 +419,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
                 })?)
             }),
         })
+        .with_wasm(WasmKeeper::default().with_address_generator(address_generator.clone()))
         .build(|router, _, storage| {
             router
                 .bank
@@ -478,6 +484,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         service_name,
         rewards,
         rewards_params,
+        address_generator,
         app,
     }
 }
@@ -709,16 +716,29 @@ pub fn execute_verifier_set_poll(
 #[derive(Clone)]
 pub struct Chain {
     pub gateway: GatewayContract,
+    pub chain_codec: ChainCodecContract,
     pub voting_verifier: VotingVerifierContract,
     pub multisig_prover: MultisigProverContract,
     pub chain_name: ChainName,
 }
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+    let prover_address = protocol.app.init_modules(|_, api, storage| {
+        protocol
+            .address_generator
+            // order is: chain codec, voting verifier, gateway, multisig prover, so 4 addresses ahead should be the prover address
+            .future_address(api, storage, NonZeroU64::new(4).unwrap())
+            .unwrap()
+    });
+
+    let chain_codec =
+        ChainCodecContract::instantiate_contract(protocol, [0; 32], prover_address.clone());
+
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
+        &chain_codec.contract_addr,
     );
 
     let gateway = GatewayContract::instantiate_contract(
@@ -734,8 +754,13 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),
         voting_verifier.contract_addr.clone(),
+        chain_codec.contract_addr.clone(),
         chain_name.to_string(),
+        None,
     );
+
+    // sanity check
+    assert_eq!(multisig_prover.contract_addr, prover_address);
 
     let response = protocol.coordinator.execute(
         &mut protocol.app,
@@ -839,6 +864,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     Chain {
         gateway,
+        chain_codec,
         voting_verifier,
         multisig_prover,
         chain_name,
@@ -872,6 +898,7 @@ pub fn rotate_active_verifier_set(
         chain.multisig_prover.admin_addr.clone(),
         &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
+    println!("Response: {:?}", response);
     assert!(response.is_ok());
 
     let session_id = sign_proof(protocol, previous_verifiers, response.unwrap());

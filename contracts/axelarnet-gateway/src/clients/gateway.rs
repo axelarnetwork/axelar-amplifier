@@ -151,7 +151,7 @@ mod test {
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == addr.as_str() => {
-                let msg = from_json::<QueryMsg>(msg).unwrap();
+                let msg: QueryMsg = from_json::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),

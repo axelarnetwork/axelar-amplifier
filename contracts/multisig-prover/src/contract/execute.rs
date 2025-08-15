@@ -5,7 +5,7 @@ use axelar_wasm_std::snapshot::{Participant, Snapshot};
 use axelar_wasm_std::{
     address, nonempty, permission_control, FnExt, MajorityThreshold, VerificationStatus,
 };
-use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
+use cosmwasm_std::{Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
 use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
@@ -13,8 +13,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
-use crate::contract::START_MULTISIG_REPLY_ID;
-use crate::encoding::EncoderExt;
+use crate::contract::PAYLOAD_DIGEST_REPLY_ID;
 use crate::error::ContractError;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
@@ -64,21 +63,14 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    let digest = config
-        .encoder
-        .digest(&config.domain_separator, &verifier_set, &payload)?;
+    let chain_codec: chain_codec_api::Client =
+        client::ContractClient::new(deps.querier, &config.chain_codec).into();
+    let digest_msg = chain_codec.payload_digest(verifier_set, payload.clone());
 
-    let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        verifier_set_id: verifier_set.id(),
-        msg: digest.into(),
-        chain_name: config.chain_name,
-        sig_verifier: None,
-    };
-
-    let wasm_msg =
-        wasm_execute(config.multisig, &start_sig_msg, vec![]).map_err(ContractError::from)?;
-
-    Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
+    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+        digest_msg,
+        PAYLOAD_DIGEST_REPLY_ID,
+    )))
 }
 
 fn messages(
@@ -226,7 +218,7 @@ pub fn update_verifier_set(
     let multisig: multisig::Client =
         client::ContractClient::new(deps.querier, &config.multisig).into();
 
-    let cur_verifier_set = CURRENT_VERIFIER_SET
+    let cur_verifier_set: Option<VerifierSet> = CURRENT_VERIFIER_SET
         .may_load(deps.storage)
         .map_err(ContractError::from)?;
 
@@ -265,22 +257,21 @@ pub fn update_verifier_set(
                 .save(deps.storage, &payload_id)
                 .map_err(ContractError::from)?;
 
-            let digest =
-                config
-                    .encoder
-                    .digest(&config.domain_separator, &cur_verifier_set, &payload)?;
+            let chain_codec: chain_codec_api::Client =
+                client::ContractClient::new(deps.querier, &config.chain_codec).into();
+
+            let digest_msg = chain_codec.payload_digest(cur_verifier_set.clone(), payload.clone());
 
             let verifier_union_set = all_active_verifiers(deps.storage)?;
 
+            // the flow here is:
+            // 1. we send the payload digest msg to the chain codec contract
+            // 2. the chain codec contract replies with the payload digest and in the reply we start the multisig session
+            // 3. we update the coordinator's active verifiers
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
-                    multisig.start_signing_session(
-                        cur_verifier_set.id(),
-                        digest.into(),
-                        config.chain_name,
-                        None,
-                    ),
-                    START_MULTISIG_REPLY_ID,
+                    digest_msg,
+                    PAYLOAD_DIGEST_REPLY_ID,
                 ))
                 .add_message(coordinator.set_active_verifiers(
                     verifier_union_set.iter().map(|v| v.to_string()).collect(),
@@ -424,7 +415,6 @@ mod tests {
 
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use multisig_prover_api::encoding::Encoder;
     use router_api::{chain_name, cosmos_addr};
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
@@ -553,13 +543,13 @@ mod tests {
             coordinator: cosmos_addr!("doesn't matter"),
             service_registry: cosmos_addr!("doesn't matter"),
             voting_verifier: cosmos_addr!("doesn't matter"),
+            chain_codec: cosmos_addr!("doesn't matter"),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: chain_name!("ethereum"),
             verifier_set_diff_threshold: 0,
-            encoder: Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
-            domain_separator: [0; 32],
+            sig_verifier_address: None,
         }
     }
 }

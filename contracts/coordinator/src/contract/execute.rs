@@ -9,7 +9,7 @@ use router_api::ChainName;
 
 use crate::contract::errors::Error;
 use crate::events::{ContractInstantiation, Event};
-use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
+use crate::msg::{ChainCodecMsg, DeploymentParams, Extended, ProverMsg, VerifierMsg};
 use crate::state;
 use crate::state::{ChainContracts, ProtocolContracts};
 
@@ -69,13 +69,63 @@ fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Re
                 code_info.checksum.as_slice(),
                 &deps
                     .api
-                    .addr_canonicalize(&env.contract.address.to_string().clone())
+                    .addr_canonicalize(env.contract.address.as_ref())
                     .change_context(Error::Instantiate2Address)?,
                 salt,
             )
             .change_context(Error::Instantiate2Address)?,
         )
         .change_context(Error::Instantiate2Address)
+}
+
+type Instantiate2Data = (WasmMsg, Addr);
+
+/// Like `launch_contract`, but with multiple interdependent contracts that require each other's addresses
+/// to be instantiated correctly.
+fn launch_contracts<const N: usize>(
+    deps: &DepsMut,
+    info: &MessageInfo,
+    env: &Env,
+    salt: Binary,
+    contracts: [ContractLaunch<'_, N>; N],
+) -> Result<[Instantiate2Data; N], Error> {
+    let mut addresses: [Addr; N] = std::array::from_fn(|_| Addr::unchecked(""));
+    for (i, contract) in contracts.iter().enumerate() {
+        addresses[i] = instantiate2_addr(deps, env, contract.code_id, salt.as_slice())?;
+    }
+
+    // initialize with stubs
+    let mut data: [Instantiate2Data; N] = std::array::from_fn(|_| {
+        (
+            WasmMsg::ClearAdmin {
+                contract_addr: String::new(),
+            },
+            Addr::unchecked(""),
+        )
+    });
+
+    // fill in the actual instantiation messages
+    for (i, (contract, address)) in contracts.into_iter().zip(&addresses).enumerate() {
+        data[i] = (
+            WasmMsg::Instantiate2 {
+                admin: Some(info.sender.to_string()),
+                code_id: contract.code_id,
+                msg: (contract.instantiate_msg)(&addresses)?,
+                funds: vec![],
+                label: contract.label,
+                salt: salt.clone(),
+            },
+            address.clone(),
+        );
+    }
+
+    Ok(data)
+}
+
+struct ContractLaunch<'a, const N: usize> {
+    pub code_id: u64,
+    pub instantiate_msg: &'a mut dyn FnMut(&[Addr; N]) -> Result<Binary, Error>,
+    pub label: String,
 }
 
 fn launch_contract(
@@ -113,81 +163,100 @@ fn instantiate_gateway(
         ctx.salt.clone(),
         ctx.gateway_code_id,
         cosmwasm_std::to_json_binary(&gateway_api::msg::InstantiateMsg {
-            verifier_address: verifier_address.to_string().clone(),
-            router_address: router_address.to_string().clone(),
+            verifier_address: verifier_address.to_string(),
+            router_address: router_address.to_string(),
         })
         .change_context(Error::InstantiateGateway)?,
         label,
     )
 }
 
-fn instantiate_verifier(
+#[allow(clippy::too_many_arguments)]
+fn instantiate_prover_and_verifier_and_chain_codec(
     ctx: &InstantiateContext,
-    label: String,
-    service_registry_address: Addr,
-    verifier_msg: &VerifierMsg,
-) -> Result<(WasmMsg, Addr), Error> {
-    launch_contract(
-        &ctx.deps,
-        &ctx.info,
-        &ctx.env,
-        ctx.salt.clone(),
-        ctx.verifier_code_id,
-        cosmwasm_std::to_json_binary(&voting_verifier_api::msg::InstantiateMsg {
-            governance_address: verifier_msg.governance_address.clone(),
-            service_registry_address: axelar_wasm_std::nonempty::String::try_from(
-                service_registry_address.into_string(),
-            )
-            .change_context(Error::InstantiateVerifier)?,
-            service_name: verifier_msg.service_name.clone(),
-            source_gateway_address: verifier_msg.source_gateway_address.clone(),
-            voting_threshold: verifier_msg.voting_threshold,
-            block_expiry: verifier_msg.block_expiry,
-            confirmation_height: verifier_msg.confirmation_height,
-            source_chain: verifier_msg.source_chain.clone(),
-            rewards_address: verifier_msg.rewards_address.clone(),
-            msg_id_format: verifier_msg.msg_id_format.clone(),
-            address_format: verifier_msg.address_format.clone(),
-        })
-        .change_context(Error::InstantiateVerifier)?,
-        label,
-    )
-}
-
-fn instantiate_prover(
-    ctx: &InstantiateContext,
-    label: String,
+    prover_label: String,
+    verifier_label: String,
+    chain_codec_label: String,
     gateway_address: Addr,
     service_registry_address: Addr,
     multisig_address: Addr,
-    verifier_address: Addr,
     prover_msg: &ProverMsg,
-) -> Result<(WasmMsg, Addr), Error> {
-    launch_contract(
+    verifier_msg: &VerifierMsg,
+    chain_codec_msg: &Extended<ChainCodecMsg>,
+) -> Result<(Instantiate2Data, Instantiate2Data, Instantiate2Data), Error> {
+    let [prover, verifier, chain_codec] = launch_contracts(
         &ctx.deps,
         &ctx.info,
         &ctx.env,
         ctx.salt.clone(),
-        ctx.prover_code_id,
-        cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
-            admin_address: ctx.info.sender.to_string().clone(),
-            governance_address: prover_msg.governance_address.to_string().clone(),
-            coordinator_address: ctx.env.contract.address.to_string().clone(),
-            gateway_address: gateway_address.to_string().clone(),
-            multisig_address: multisig_address.to_string().clone(),
-            service_registry_address: service_registry_address.to_string().clone(),
-            voting_verifier_address: verifier_address.to_string().clone(),
-            signing_threshold: prover_msg.signing_threshold,
-            service_name: prover_msg.service_name.to_string(),
-            chain_name: prover_msg.chain_name.to_string(),
-            verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
-            encoder: prover_msg.encoder,
-            key_type: prover_msg.key_type,
-            domain_separator: prover_msg.domain_separator,
-        })
-        .change_context(Error::InstantiateProver)?,
-        label,
-    )
+        [
+            ContractLaunch {
+                code_id: ctx.prover_code_id,
+                instantiate_msg: &mut |[_, verifier_addr, chain_codec_addr]| {
+                    cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
+                        admin_address: ctx.info.sender.to_string(),
+                        governance_address: prover_msg.governance_address.to_string(),
+                        coordinator_address: ctx.env.contract.address.to_string(),
+                        gateway_address: gateway_address.to_string(),
+                        multisig_address: multisig_address.to_string(),
+                        service_registry_address: service_registry_address.to_string(),
+                        voting_verifier_address: verifier_addr.to_string(),
+                        chain_codec_address: chain_codec_addr.to_string(),
+                        signing_threshold: prover_msg.signing_threshold,
+                        service_name: prover_msg.service_name.to_string(),
+                        chain_name: prover_msg.chain_name.to_string(),
+                        verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
+                        key_type: prover_msg.key_type,
+                        sig_verifier_address: prover_msg.sig_verifier_address.clone(),
+                    })
+                    .change_context(Error::InstantiateProver)
+                },
+                label: prover_label,
+            },
+            ContractLaunch {
+                code_id: ctx.verifier_code_id,
+                instantiate_msg: &mut |[_, _, chain_codec_addr]| {
+                    cosmwasm_std::to_json_binary(&voting_verifier_api::msg::InstantiateMsg {
+                        governance_address: verifier_msg.governance_address.clone(),
+                        service_registry_address: nonempty::String::try_from(
+                            service_registry_address.to_string(),
+                        )
+                        .unwrap(),
+                        service_name: verifier_msg.service_name.clone(),
+                        source_gateway_address: verifier_msg.source_gateway_address.clone(),
+                        voting_threshold: verifier_msg.voting_threshold,
+                        block_expiry: verifier_msg.block_expiry,
+                        confirmation_height: verifier_msg.confirmation_height,
+                        source_chain: verifier_msg.source_chain.clone(),
+                        rewards_address: verifier_msg.rewards_address.clone(),
+                        msg_id_format: verifier_msg.msg_id_format.clone(),
+                        chain_codec_address: nonempty::String::try_from(
+                            chain_codec_addr.to_string(),
+                        )
+                        .unwrap(),
+                    })
+                    .change_context(Error::InstantiateVerifier)
+                },
+                label: verifier_label,
+            },
+            ContractLaunch {
+                code_id: ctx.chain_codec_id,
+                instantiate_msg: &mut |[prover_addr, _, _]| {
+                    cosmwasm_std::to_json_binary(&Extended {
+                        inner: chain_codec_api::msg::InstantiateMsg {
+                            multisig_prover: prover_addr.to_string(),
+                            domain_separator: chain_codec_msg.inner.domain_separator,
+                        },
+                        additional: chain_codec_msg.additional.clone(), // pass additional fields on to the contract
+                    })
+                    .change_context(Error::InstantiateChainCodec)
+                },
+                label: chain_codec_label,
+            },
+        ],
+    )?;
+
+    Ok((prover, verifier, chain_codec))
 }
 
 struct InstantiateContext<'a> {
@@ -196,6 +265,7 @@ struct InstantiateContext<'a> {
     env: Env,
     salt: Binary,
     gateway_code_id: u64,
+    chain_codec_id: u64,
     verifier_code_id: u64,
     prover_code_id: u64,
 }
@@ -227,6 +297,7 @@ pub fn instantiate_chain_contracts(
                 env,
                 salt,
                 gateway_code_id: params.gateway.code_id,
+                chain_codec_id: params.chain_codec.code_id,
                 verifier_code_id: params.verifier.code_id,
                 prover_code_id: params.prover.code_id,
             };
@@ -241,27 +312,27 @@ pub fn instantiate_chain_contracts(
 
             response = response.add_message(msg);
 
-            let (msg, voting_verifier_address) = instantiate_verifier(
-                &ctx,
-                params.verifier.label.clone(),
-                protocol.service_registry.clone(),
-                &params.verifier.msg,
-            )?;
-
-            response = response.add_message(msg);
-
-            let (msg, multisig_prover_address) = instantiate_prover(
+            let (
+                (prover_msg, multisig_prover_address),
+                (verifier_msg, voting_verifier_address),
+                (chain_codec_msg, chain_codec_address),
+            ) = instantiate_prover_and_verifier_and_chain_codec(
                 &ctx,
                 params.prover.label.clone(),
+                params.verifier.label.clone(),
+                params.chain_codec.label.clone(),
                 gateway_address.clone(),
                 protocol.service_registry.clone(),
                 protocol.multisig.clone(),
-                voting_verifier_address.clone(),
                 &params.prover.msg,
+                &params.verifier.msg,
+                &params.chain_codec.msg,
             )?;
 
             response = response
-                .add_message(msg)
+                .add_message(prover_msg)
+                .add_message(chain_codec_msg)
+                .add_message(verifier_msg)
                 .add_event(Event::ContractsInstantiated {
                     gateway: ContractInstantiation {
                         address: gateway_address.clone(),
@@ -274,6 +345,10 @@ pub fn instantiate_chain_contracts(
                     multisig_prover: ContractInstantiation {
                         address: multisig_prover_address.clone(),
                         code_id: params.prover.code_id,
+                    },
+                    chain_codec: ContractInstantiation {
+                        address: chain_codec_address.clone(),
+                        code_id: params.chain_codec.code_id,
                     },
                     chain_name: params.prover.msg.chain_name.clone(),
                     deployment_name: deployment_name.clone(),

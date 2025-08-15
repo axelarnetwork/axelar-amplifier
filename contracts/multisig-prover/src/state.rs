@@ -1,14 +1,11 @@
-use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
-use multisig_prover_api::encoding::Encoder;
+use multisig_prover_api::payload::{Payload, PayloadId};
 use router_api::ChainName;
-
-use crate::payload::{Payload, PayloadId};
 
 #[cw_serde]
 pub struct Config {
@@ -17,13 +14,14 @@ pub struct Config {
     pub coordinator: Addr,
     pub service_registry: Addr,
     pub voting_verifier: Addr,
+    pub chain_codec: Addr,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub encoder: Encoder,
     pub key_type: KeyType,
-    pub domain_separator: Hash,
+    #[serde(default)]
+    pub sig_verifier_address: Option<Addr>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
