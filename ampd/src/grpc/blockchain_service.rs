@@ -23,7 +23,7 @@ use crate::grpc::status;
 use crate::types::TMAddress;
 use crate::{broadcast, cosmos, event_sub};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     /// Chain specific configurations
     // TODO: remove this once we use the coordinator contract to query for contract addresses
@@ -36,12 +36,6 @@ pub struct ChainConfig {
     pub voting_verifier: TMAddress,
     pub multisig_prover: TMAddress,
     pub multisig: TMAddress,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { chains: vec![] }
-    }
 }
 
 #[derive(Debug, TypedBuilder)]
@@ -172,7 +166,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use axelar_wasm_std::nonempty;
+    use axelar_wasm_std::{chain_name, nonempty};
     use cosmos_sdk_proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
@@ -270,7 +264,14 @@ mod tests {
             .cosmos_client(mock_cosmos_client)
             .service_registry(TMAddress::random(PREFIX))
             .rewards(TMAddress::random(PREFIX))
-            .config(Config::default())
+            .config(Config {
+                chains: vec![ChainConfig {
+                    chain_name: chain_name!("test-chain"),
+                    voting_verifier: TMAddress::random(PREFIX),
+                    multisig_prover: TMAddress::random(PREFIX),
+                    multisig: TMAddress::random(PREFIX),
+                }],
+            })
             .build();
 
         (service, msg_queue)
@@ -1001,6 +1002,68 @@ mod tests {
         let res = service.address(req).await.unwrap().into_inner();
 
         assert_eq!(res.address, expected_address.to_string());
+    }
+
+    #[tokio::test]
+    async fn contracts_should_return_contracts_addresses_successfully() {
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
+        let chain_config = service.config.chains.first().unwrap();
+
+        let req = Request::new(ContractsRequest {
+            chain: "test-chain".to_string(),
+        });
+        let res = service.contracts(req).await.unwrap().into_inner();
+
+        assert_eq!(
+            res.voting_verifier,
+            chain_config.voting_verifier.to_string()
+        );
+        assert_eq!(
+            res.multisig_prover,
+            chain_config.multisig_prover.to_string()
+        );
+        assert_eq!(res.service_registry, service.service_registry.to_string());
+        assert_eq!(res.rewards, service.rewards.to_string());
+        assert_eq!(res.multisig, chain_config.multisig.to_string());
+    }
+
+    #[tokio::test]
+    async fn contracts_should_return_error_if_request_is_invalid() {
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
+
+        let req = Request::new(ContractsRequest {
+            chain: "invalid_chain_name".to_string(),
+        });
+        let res = service.contracts(req).await;
+
+        assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
+    }
+
+    #[tokio::test]
+    async fn contracts_should_return_error_if_chain_not_found() {
+        let (service, _) = setup(
+            MockEventSub::new(),
+            MockCosmosClient::new(),
+            MockCosmosClient::new(),
+        )
+        .await;
+
+        let req = Request::new(ContractsRequest {
+            chain: "unexisting-chain".to_string(),
+        });
+        let res = service.contracts(req).await;
+
+        assert!(res.is_err_and(|status| status.code() == Code::NotFound));
     }
 
     fn subscribe_req(
