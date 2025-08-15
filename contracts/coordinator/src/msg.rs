@@ -50,6 +50,7 @@ pub enum ExecuteMsg {
         // Make params a Box to avoid having a large discrepancy in variant sizes
         // Such an error will be flagged by "cargo clippy..."
         params: Box<DeploymentParams>,
+        deploy_contracts: bool,
     },
 
     /// `RegisterDeployment` calls the router using `ExecuteMsgFromProxy`.
