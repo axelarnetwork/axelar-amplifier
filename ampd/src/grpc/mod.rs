@@ -6,6 +6,10 @@ use std::time::Duration;
 use ampd_proto::blockchain_service_server::BlockchainServiceServer;
 use ampd_proto::crypto_service_server::CryptoServiceServer;
 use axelar_wasm_std::nonempty;
+#[cfg(test)]
+pub use blockchain_service::ChainConfig as BlockchainServiceChainConfig;
+#[cfg(test)]
+pub use blockchain_service::Config as BlockchainServiceConfig;
 use error_stack::Result;
 use report::{ErrorExt, LoggableError};
 use serde::de::{self, Deserializer};
