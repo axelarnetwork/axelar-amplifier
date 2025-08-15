@@ -130,7 +130,7 @@ pub enum QueryMsg {
     Deployments,
 
     #[returns(ChainContractsResponse)]
-    Deployment { deployment_name: String },
+    Deployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]
