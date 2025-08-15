@@ -17,50 +17,80 @@ This document outlines the step-by-step process for releasing a new version of `
 2. Run the workflow with the following:
    - Use workflow from: `main` branch
    - Enter `ampd` as the package input
-   - **IMPORTANT**: Enable "Dry run" to verify everything works correctly and make a note of the updated tag.
+   - **Important**: Enable "Dry run" to verify everything works correctly and make a note of the updated tag.
 
+**Note**: To make a minor version update, at least one of your PRs should have a minor prefix in the commit message. For example, having `feat(minor-ampd)` in the commit message will bump up the minor version from 1.10.0 to 1.11.0.
+
+**Important**: Major and minor releases are only allowed from the main branch.
 
 ### 2. Ensure the Changelog is updated
 
-In general, Changelog should be kept up-to-date in every PR that makes changes to `ampd`.
-1. Create a PR to update the root level `CHANGELOG.md` file based on the new tag from step 1 (dry-run).
-2. Update the changelog header section with the new version information.
+In general, the Changelog should be kept up-to-date in every PR that makes changes to `ampd`.
+
+1. Create a PR to update the root-level `CHANGELOG.md` file based on the new tag from step 1 (dry-run).
+2. Use this script to retrieve all changes for the release. Note that the `git log ampd-v1.10.0..HEAD` part needs to be updated accordingly:
+
+```bash
+git log ampd-v1.10.0..HEAD --pretty=format:"%h %s" --name-only |
+awk '
+  /^[a-f0-9]{7,}/ { hash=$1; msg=substr($0, index($0, $2)); next }
+  /^ampd\// {
+    if (msg ~ /\(#/ && !seen[msg]) {
+      pr_num = msg
+      gsub(/^.*\(#/, "", pr_num)
+      gsub(/\).*/, "", pr_num)
+      clean_msg = msg
+      gsub(/ \(#.*\)/, "", clean_msg)
+      gsub(/^[^:]+: /, "", clean_msg)  # remove type(scope):
+      seen[msg] = 1
+      printf "- %s [#%s](https://github.com/axelarnetwork/axelar-amplifier/pull/%s)\n", clean_msg, pr_num, pr_num
+    }
+  }
+'
+```
+
+3. Update the changelog header section with the new version information.
 
 Example changes:
 
 ```diff
-- [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..HEAD)
-+ [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.1..HEAD)
-+ 
-+ ## [v1.5.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.5.1) (2025-03-26)
-+ 
-+ [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.5.0..ampd-v1.5.1)
-+ 
-+ - Fix arithmetic operations with XRPLTokenAmount [#780](https://github.com/axelarnetwork/axelar-amplifier/pull/780)
+- [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.10.0..HEAD)
++ [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.11.0..HEAD)
++
++ ## [v1.11.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.11.0) (2025-08-14)
++
++ - stellar protocol v23 update [#968](https://github.com/axelarnetwork/axelar-amplifier/pull/968)
++ - use `address!` macro instead of string literal conversion [#996](https://github.com/axelarnetwork/axelar-amplifier/pull/996)
 ```
 
-3. Merge these changes into the `main` branch.
+4. Merge these changes into the `main` branch.
 
-
-### 3. Create a release document 
+### 3. Create a release document
 
 1. Create and merge a PR to publish a release document on [axelar-contract-deployments](https://github.com/axelarnetwork/axelar-contract-deployments) repository. You can use the provided [template](https://github.com/axelarnetwork/axelar-contract-deployments/blob/main/releases/TEMPLATE.md). Make sure your document is added to `releases/ampd` directory of the contract deployments repository.
 
-
-### 4. Update and Tag Release Version (Dry run)
+### 4. Update and Tag Release Version (Release)
 
 1. Again, run the [Update and tag release version](https://github.com/axelarnetwork/axelar-amplifier/actions/workflows/release.yaml) GitHub Action with `ampd` as package and `main` as branch. For this round, disable the "Dry run" option to create the actual release tag.
-
+2. Double-check that the tag was created successfully by visiting `https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v{VERSION}` (replace `{VERSION}` with the actual version number, e.g., `ampd-v1.11.0`).
 
 ### 5. Build the `ampd` Release
 
 1. Navigate to the [Build and release binary and image](https://github.com/axelarnetwork/axelar-amplifier/actions/workflows/build-ampd-release.yaml) GitHub Action.
-2. Run workflow using the newly created tag as input.
+2. Run workflow using the newly created tag as input (e.g., `ampd-v1.11.0`).
 3. Verify that a new release appears under the Releases section of the amplifier repository.
-
 
 ### 6. Deploy to Network
 
-Follow this [document](https://www.notion.so/bright-ambert-2bd/How-to-deploy-ampd-release-to-live-networks-1c8c53fccb77806ba035fd2ade6b98e8?pvs=4) to update our `ampd` instance.
-
-Furthermore, coordinate with the DevX team to announce the release to external verifiers for testnet/mainnet.
+1. Follow this [document](https://www.notion.so/bright-ambert-2bd/How-to-deploy-ampd-release-to-live-networks-1c8c53fccb77806ba035fd2ade6b98e8?pvs=4) to update our `ampd` instance.
+2. Mention the deployment in the network-specific channel regarding the rollout.
+3. After deployment, verify the network version by running:
+   ```bash
+   ampd --version
+   ```
+   Expected output:
+   ```
+   ampd 1.11.0
+   ```
+4. Test the deployment with a GMP call to ensure the new version is functioning correctly.
+5. Furthermore, coordinate with the DevX team to announce the release to external verifiers for testnet/mainnet.
