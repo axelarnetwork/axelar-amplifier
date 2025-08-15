@@ -32,6 +32,17 @@ pub(crate) fn parse_addr(addr: &str) -> Result<AccountId, Error> {
 use crate::grpc::connection_pool::{ClientConnectionState, ConnectionHandle};
 use crate::grpc::error::{AppError, Error};
 
+fn is_transport_error(status: &Status) -> bool {
+    match status.code() {
+        Code::Unavailable => true,       // Service unavailable, connection issues
+        Code::DeadlineExceeded => true,  // Timeout, connection hanging
+        Code::ResourceExhausted => true, // Connection pool exhausted
+        Code::Aborted => true,           // Connection aborted
+        Code::Cancelled => true,         // Request cancelled, connection interrupted
+        _ => false,
+    }
+}
+
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
 pub trait Client {
@@ -86,23 +97,16 @@ impl GrpcClient {
 
     /// Called from inspect_err callbacks throughout gRPC client methods to trigger reconnection
     /// when transport/connection errors occur without blocking the main execution flow.
-    fn handle_grpc_error(&self, status: &Status) {
-        if Self::is_transport_error(status) {
+    ///
+    /// Uses `tokio::spawn` because `inspect_err` requires a synchronous closure, but
+    /// `request_reconnect()` is async. We want non-blocking fire-and-forget behavior.
+    /// Alternative approaches (making callers async or using try_send) add more complexity.
+    fn ensure_healthy_connection(&self, status: &Status) {
+        if is_transport_error(status) {
             let handle = self.connection_handle.clone();
             tokio::spawn(async move {
                 let _ = handle.request_reconnect().await;
             });
-        }
-    }
-
-    fn is_transport_error(status: &Status) -> bool {
-        match status.code() {
-            Code::Unavailable => true,       // Service unavailable, connection issues
-            Code::DeadlineExceeded => true,  // Timeout, connection hanging
-            Code::ResourceExhausted => true, // Connection pool exhausted
-            Code::Aborted => true,           // Connection aborted
-            Code::Cancelled => true,         // Request cancelled, connection interrupted
-            _ => false,
         }
     }
 }
@@ -132,7 +136,7 @@ impl Client for GrpcClient {
         let streaming_response = blockchain_client
             .subscribe(request)
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?;
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
@@ -155,7 +159,7 @@ impl Client for GrpcClient {
         let broadcaster_address = blockchain_client
             .address(Request::new(AddressRequest {}))
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?
             .into_inner()
             .address;
@@ -172,7 +176,7 @@ impl Client for GrpcClient {
         let broadcast_response = blockchain_client
             .broadcast(request)
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?
             .into_inner();
 
@@ -193,7 +197,7 @@ impl Client for GrpcClient {
                 query: query.into(),
             })
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()
             .map(|response| response.into_inner().result)
             .and_then(|result| {
@@ -212,7 +216,7 @@ impl Client for GrpcClient {
                 chain: chain.into(),
             }))
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?
             .into_inner();
 
@@ -235,7 +239,7 @@ impl Client for GrpcClient {
                 msg: message.into(),
             }))
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().signature)
@@ -252,7 +256,7 @@ impl Client for GrpcClient {
                 key_id: key.map(|k| k.into()),
             }))
             .await
-            .inspect_err(|status| self.handle_grpc_error(status))
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().pub_key)
@@ -405,8 +409,7 @@ mod tests {
 
         mock_blockchain
             .expect_address()
-            .times(1)
-            .returning(|_request| Err(Status::unavailable("service unavailable")));
+            .return_once(|_request| Err(Status::unavailable("service unavailable")));
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
@@ -423,7 +426,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_address()
-            .returning(|_request| Err(Status::invalid_argument("invalid request")));
+            .return_once(|_request| Err(Status::invalid_argument("invalid request")));
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.address().await;
@@ -486,7 +489,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_broadcast()
-            .returning(|_request| Err(Status::internal("gas estimation failed")));
+            .return_once(|_request| Err(Status::internal("gas estimation failed")));
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let result = client.broadcast(any_msg()).await;
@@ -589,7 +592,7 @@ mod tests {
         let mut mock_blockchain = MockBlockchainService::new();
         mock_blockchain
             .expect_contract_state()
-            .returning(|_request| Err(Status::unknown("contract execution failed")));
+            .return_once(|_request| Err(Status::unknown("contract execution failed")));
 
         let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
         let (contract, query) = contract_state_input_args();
@@ -709,7 +712,7 @@ mod tests {
 
         mock_crypto
             .expect_sign()
-            .returning(|_request| Err(Status::internal("signing service unavailable")));
+            .return_once(|_request| Err(Status::internal("signing service unavailable")));
 
         let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client
@@ -771,7 +774,7 @@ mod tests {
 
         mock_crypto
             .expect_key()
-            .returning(|_request| Err(Status::data_loss("connection lost during key retrieval")));
+            .return_once(|_request| Err(Status::data_loss("connection lost during key retrieval")));
 
         let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
@@ -793,7 +796,7 @@ mod tests {
 
         mock_crypto
             .expect_key()
-            .returning(|_request| Err(Status::invalid_argument("key not found")));
+            .return_once(|_request| Err(Status::invalid_argument("key not found")));
 
         let (mut client, _) = test_setup(MockBlockchainService::new(), mock_crypto).await;
         let result = client.key(Some(generate_key(KeyAlgorithm::Ecdsa))).await;
