@@ -76,9 +76,9 @@ pub fn specific_permission(
 ) -> impl FnOnce(
     &dyn Storage,
     &TestMsg3,
-) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error>
+) -> error_stack::Result<Vec<Addr>, axelar_wasm_std::permission_control::Error>
        + '_ {
-    move |_, _| error_stack::Result::Ok(MockApi::default().addr_make(specific_name))
+    move |_, _| error_stack::Result::Ok(vec![MockApi::default().addr_make(specific_name)])
 }
 
 #[ensure_permissions(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1"), gateway2 = specific_permission("gateway2")))]
@@ -199,12 +199,15 @@ fn ensure_specific_permissions() {
     let gateway2_addr = cosmos_addr!("gateway2");
     let gateway3_addr = cosmos_addr!("gateway3");
 
-    let gateway1 =
-        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(cosmos_addr!("gateway1"));
-    let gateway2 =
-        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(cosmos_addr!("gateway2"));
-    let gateway3 =
-        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(cosmos_addr!("gateway3"));
+    let gateway1 = |_: &dyn Storage, _: &TestMsg2| {
+        Ok::<Vec<Addr>, Report<Error>>(vec![cosmos_addr!("gateway1")])
+    };
+    let gateway2 = |_: &dyn Storage, _: &TestMsg2| {
+        Ok::<Vec<Addr>, Report<Error>>(vec![cosmos_addr!("gateway2")])
+    };
+    let gateway3 = |_: &dyn Storage, _: &TestMsg2| {
+        Ok::<Vec<Addr>, Report<Error>>(vec![cosmos_addr!("gateway3")])
+    };
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();

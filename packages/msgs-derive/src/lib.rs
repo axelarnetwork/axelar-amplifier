@@ -48,7 +48,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 ///
 /// fn execute(deps: Deps, env: Env, info: MessageInfo, msg: ExecuteMsg) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
 ///     // check permissions before handling the message
-///     match msg.ensure_permissions(deps.storage, &info.sender, |storage, message | GATEWAY.load(storage))? {
+///     match msg.ensure_permissions(deps.storage, &info.sender, |storage, message | GATEWAY.load(storage).map(|addr| vec![addr]))? {
 ///         ExecuteMsg::AnyoneButGovernanceCanCallThis => Ok(()),
 ///         ExecuteMsg::OnlyGovernanceCanCallThis => Ok(()),
 ///         ExecuteMsg::AdminOrGatewayCanCallThis => Ok(()),
@@ -279,10 +279,10 @@ fn build_specific_permissions_check(
                     let stored_addr = error_stack::ResultExt::change_context(
                         #specific_permissions(storage, &self).map_err(|err| error_stack::Report::from(err)),
                         axelar_wasm_std::permission_control::Error::WhitelistNotFound{sender: sender.clone()})?;
-                    if sender == stored_addr {
+                    if stored_addr.contains(sender) {
                         return Ok(self);
                     }
-                    whitelisted.push(stored_addr);
+                    whitelisted.extend(stored_addr);
                 )*
             }
         }
@@ -461,7 +461,7 @@ fn build_full_check_function(
                 #(#unique_specific_permissions: #fs),*)
                 -> error_stack::Result<Self,axelar_wasm_std::permission_control::Error>
                     where
-                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &Self) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &Self) -> error_stack::Result<Vec<cosmwasm_std::Addr>, #cs>),*,
                         #(#cs: error_stack::Context),*
                     {
                 #specific_permission_body
@@ -669,15 +669,24 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 ///
 /// 'proxy' handles case 1, and 'direct' handles
 /// case 2. In both scenarios, the left hand side of the assignment is the identifier for the
-/// contract and original sender, respectively. The right hand side is a function with the signature:
+/// contract and original sender, respectively. The right hand sides are functions with the following
+/// signatures.
+///
+/// Proxy:
 ///
 /// FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
 ///
-/// for contracts, and
+/// The `find_contract_address` function must return the address of the corresponding contract on success,
+/// and an error on failure. This function should fail if no such contract address has been set, or if there
+/// is another internal error (such as an error parsing state).
 ///
-/// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
+/// Direct:
 ///
-/// for addresses. The right hand side can be an expression that returns a function with that signature.
+/// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<Vec<cosmwasm_std::Addr>, impl error_stack::Context>
+///
+/// The `find_sender_address` function must return the addresses of all auithorized senders on success,
+/// and an error on failure. If there are no authorized sender addresses, `find_sender_address` must
+/// return an empty vector. This function should return an error if there is an internal error.
 #[proc_macro_attribute]
 pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);

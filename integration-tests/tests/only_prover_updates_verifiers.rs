@@ -52,14 +52,15 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
 
     let response = multisig_prover.execute(
         &mut protocol.app,
-        multisig_prover_admin,
+        multisig_prover_admin.clone(),
         &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
     assert!(response.is_err());
     assert!(response.unwrap_err().to_string().contains(
-        &permission_control::Error::WhitelistNotFound {
-            sender: multisig_prover.contract_addr.clone()
+        &permission_control::Error::AddressNotWhitelisted {
+            expected: vec![],
+            actual: multisig_prover.contract_addr
         }
         .to_string()
     ));

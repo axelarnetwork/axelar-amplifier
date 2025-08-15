@@ -101,16 +101,16 @@ pub fn execute(
 
 fn find_gateway_address(
     sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, Error> + '_ {
     move |storage, _| {
         let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
         if axelarnet_gateway == sender {
-            Ok(axelarnet_gateway)
+            Ok(vec![axelarnet_gateway])
         } else {
             load_chain_by_gateway(storage, sender)?
                 .gateway
                 .address
-                .then(Ok)
+                .then(|addr| Ok(vec![addr]))
         }
     }
 }

@@ -152,7 +152,7 @@ pub fn execute(
 
 fn match_verifier(
     sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> Result<Addr, Report<permission_control::Error>> + '_
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> Result<Vec<Addr>, Report<permission_control::Error>> + '_
 {
     |storage: &dyn Storage, msg: &ExecuteMsg| {
         let service_name = match msg {
@@ -171,7 +171,7 @@ fn match_verifier(
             state::service(storage, service_name, None)
                 .change_context(permission_control::Error::Unauthorized)?;
         }
-        res
+        res.map(|addr| vec![addr])
     }
 }
 
