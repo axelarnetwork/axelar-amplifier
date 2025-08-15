@@ -135,7 +135,7 @@ jobs:
         run: cargo clippy-check # alias
 
       - name: Run custom lints
-        run: cargo dylint --all
+        run: cargo +nightly dylint --all
         env:
           DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
