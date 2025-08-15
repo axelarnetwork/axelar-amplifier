@@ -11,7 +11,6 @@ use ampd_proto::{
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::FnExt;
-use cosmrs::AccountId;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
@@ -22,12 +21,10 @@ use typed_builder::TypedBuilder;
 use crate::grpc::reqs::Validate;
 use crate::grpc::status;
 use crate::types::TMAddress;
-use crate::{broadcast, cosmos, event_sub, PREFIX};
+use crate::{broadcast, cosmos, event_sub};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Config {
-    /// The coordinator contract address
-    pub coordinator: TMAddress,
     /// Chain specific configurations
     // TODO: remove this once we use the coordinator contract to query for contract addresses
     pub chains: Vec<ChainConfig>,
@@ -43,12 +40,7 @@ pub struct ChainConfig {
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
-            coordinator: AccountId::new(PREFIX, &[0; 32])
-                .expect("AccountId should be created validly")
-                .into(),
-            chains: vec![],
-        }
+        Self { chains: vec![] }
     }
 }
 
