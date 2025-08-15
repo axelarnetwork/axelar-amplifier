@@ -11,7 +11,7 @@ runs:
   steps:
     - name: Setup Rust toolchain
       id: rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
       with:
         # Use Blacksmith cache instead of default Swatinem
         cache: false
@@ -19,7 +19,7 @@ runs:
         rustflags: ""
 
     - name: Cache Rust dependencies
-      uses: useblacksmith/rust-cache@v3.0.1
+      uses: useblacksmith/rust-cache@f53e7f127245d2a269b3d90879ccf259876842d5 # v3.0.1
       id: cache
       with:
         # Automatic toolchain-based separation

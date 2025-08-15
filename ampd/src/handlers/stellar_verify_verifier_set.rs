@@ -356,7 +356,9 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!("stellar"),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([2; 32]))
+                source_gateway_address: ScAddress::Contract(
+                    stellar_xdr::curr::Hash::from([2; 32]).into(),
+                )
                 .to_string()
                 .try_into()
                 .unwrap(),

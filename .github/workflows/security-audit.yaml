@@ -28,7 +28,7 @@ jobs:
     runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
       - name: Checkout repository including submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
@@ -37,7 +37,7 @@ jobs:
 
       # Install cargo-audit explicitly because available github actions don't support Cargo.lock v4 yet
       - name: Install cargo-audit
-        uses: baptiste0928/cargo-install@v3
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
         with:
           crate: cargo-audit
           version: 0.21.2
