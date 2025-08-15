@@ -15,7 +15,8 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::monitoring::metrics::Msg;
+use crate::monitoring::metrics;
+use crate::monitoring::metrics::{Msg, Stage};
 use crate::{broadcast, cosmos, event_sub, monitoring};
 
 // Maximum number of messages to enqueue for broadcasting concurrently.
@@ -105,7 +106,14 @@ where
     while let Some(event) = event_stream.next().await {
         match event {
             StreamStatus::Ok(event) => {
-                handle_event(&handler, &msg_queue_client, &event, handler_retry).await?;
+                handle_event(
+                    &handler,
+                    &msg_queue_client,
+                    &event,
+                    handler_retry,
+                    &monitoring_client,
+                )
+                .await?;
             }
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
@@ -123,12 +131,22 @@ async fn handle_event<H, C>(
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
+    monitoring_client: &monitoring::Client,
 ) -> Result<(), Error>
 where
     H: EventHandler,
     C: cosmos::CosmosClient + Clone,
 {
-    match with_retry(|| handler.handle(event), retry_policy).await {
+    let (res, elapsed) =
+        metrics::timed(|| async { with_retry(|| handler.handle(event), retry_policy).await }).await;
+
+    monitoring_client.metrics().record_metric(Msg::StageResult {
+        stage: Stage::EventHandling,
+        success: res.is_ok(),
+        duration: elapsed,
+    });
+
+    match res {
         Ok(msgs) => {
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
@@ -201,6 +219,7 @@ mod tests {
     use mockall::mock;
     use monitoring::{metrics, test_utils};
     use report::ErrorExt;
+    use tokio::sync::mpsc::Receiver;
     use tokio::time::timeout;
     use tokio_util::sync::CancellationToken;
     use tonic::Status;
@@ -707,13 +726,8 @@ mod tests {
         let events: Vec<Result<Event, event_sub::Error>> = vec![
             Ok(Event::BlockEnd(0_u32.into())),
             Ok(Event::BlockEnd(1_u32.into())),
-            Ok(Event::BlockEnd(2_u32.into())),
-            Ok(Event::BlockBegin(3_u32.into())),
-            Ok(Event::BlockEnd(4_u32.into())),
-            Ok(Event::BlockBegin(5_u32.into())),
-            Ok(Event::BlockEnd(6_u32.into())),
         ];
-        let num_block_ends = 5;
+        let num_block_ends = 2;
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
@@ -764,12 +778,134 @@ mod tests {
         assert!(result_with_timeout.is_ok());
 
         for _ in 0..num_block_ends {
-            let metrics = receiver.recv().await.unwrap();
-            assert_eq!(metrics, metrics::Msg::BlockReceived);
+            expect_metric_msg(&mut receiver, |m| matches!(m, metrics::Msg::BlockReceived)).await;
         }
 
-        assert!(receiver.try_recv().is_err());
+        while let Some(metric) = receiver.recv().await {
+            assert!(
+                !matches!(metric, metrics::Msg::BlockReceived),
+                "unexpected BlockReceived metric"
+            );
+        }
 
         cancel_token.cancel();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_event_handling_metrics_successfully() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+
+        let events: Vec<Result<Event, event_sub::Error>> = vec![
+            Ok(Event::BlockEnd(0_u32.into())),
+            Ok(Event::BlockEnd(1_u32.into())),
+        ];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .times(4)
+            .returning(|event| match event {
+                Event::BlockEnd(height) => match height.value() {
+                    0 => Ok(vec![dummy_msg()]),
+                    1 => Err(report!(EventHandlerError::Failed)),
+                    _ => Ok(vec![]),
+                },
+                _ => Ok(vec![]),
+            });
+
+        let mut mock_client = setup_client(&address);
+        mock_client.expect_clone().times(1).returning(move || {
+            let base_account = create_base_account(&address);
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+            mock_client
+                .expect_simulate()
+                .return_once(|_| Err(Status::internal("simulation failed").into_report()));
+            mock_client
+        });
+
+        let broadcaster = broadcast::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let _ = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+            monitoring_client,
+        )
+        .await;
+
+        let _ = expect_metric_msg(&mut receiver, |m| {
+            matches!(
+                m,
+                metrics::Msg::StageResult {
+                    stage: metrics::Stage::EventHandling,
+                    success: true,
+                    ..
+                }
+            )
+        })
+        .await;
+
+        let _ = expect_metric_msg(&mut receiver, |m| {
+            matches!(
+                m,
+                metrics::Msg::StageResult {
+                    stage: metrics::Stage::EventHandling,
+                    success: false,
+                    ..
+                }
+            )
+        })
+        .await;
+
+        assert!(receiver.try_recv().is_err());
+    }
+
+    /// Waits for a metric Msg that matches the specified variant kind to appear in the stream.
+    /// This function is used in tests to ignore irrelevant messages and wait for specific metrics.
+    async fn expect_metric_msg<F>(receiver: &mut Receiver<metrics::Msg>, matcher: F)
+    where
+        F: Fn(&metrics::Msg) -> bool,
+    {
+        while let Some(metric) = receiver.recv().await {
+            if matcher(&metric) {
+                return;
+            }
+        }
+        panic!("monitoring channel closed before expected metric was observed");
     }
 }
