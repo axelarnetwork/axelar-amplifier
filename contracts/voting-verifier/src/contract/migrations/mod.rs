@@ -10,6 +10,7 @@ use router_api::ChainName;
 
 use crate::state::{Config, CONFIG};
 
+#[cw_serde]
 pub struct MigrateMsg {
     /// Address to the chain codec contract to use for this migration
     pub chain_codec_address: String,
