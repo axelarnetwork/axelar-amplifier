@@ -8,6 +8,7 @@ use snarkvm_cosmwasm::prelude::{CanaryV0, MainnetV0, Network, TestnetV0};
 /// To reduce the dependencies on Aleo crates we will define our own type here for representing
 /// Aleo Network
 #[cw_serde]
+#[derive(Copy)]
 pub enum NetworkConfig {
     #[serde(rename = "testnet")]
     TestnetV0,

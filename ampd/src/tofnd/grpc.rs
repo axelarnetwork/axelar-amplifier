@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use error_stack::{report, ResultExt};
 use mockall::automock;
 use report::{ErrorExt, LoggableError};
+use snarkvm::prelude::{FromBytes as _, ToBytes};
 use tonic::transport::Channel;
 use tracing::{error, instrument};
 use valuable::Valuable;
@@ -88,6 +89,7 @@ impl Multisig for MultisigClient {
                 KeygenResponse::PubKey(pub_key) => match algorithm {
                     Algorithm::Ecdsa => PublicKey::new_secp256k1(pub_key),
                     Algorithm::Ed25519 => PublicKey::new_ed25519(pub_key),
+                    Algorithm::AleoSchnorr => PublicKey::new_aleo_schnorr(pub_key),
                 }
                 .change_context(Error::InvalidKeygenResponse)
                 .inspect_err(|err| {
@@ -143,6 +145,12 @@ impl Multisig for MultisigClient {
                     }
                     Algorithm::Ed25519 => {
                         ed25519_dalek::Signature::from_slice(signature).map(|sig| sig.to_vec())
+                    }
+                    Algorithm::AleoSchnorr => {
+                        let res = snarkvm::prelude::Signature::<snarkvm::prelude::TestnetV0>::from_bytes_le(signature)
+                            .map(|sig| sig.to_bytes_le()).unwrap().unwrap();
+
+                        Ok(res)
                     }
                 }
                 .change_context(Error::InvalidSignResponse)

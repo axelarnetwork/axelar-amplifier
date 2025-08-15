@@ -1,4 +1,4 @@
-use aleo_gateway::network::NetworkConfig;
+use aleo_network_config::network::NetworkConfig;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]

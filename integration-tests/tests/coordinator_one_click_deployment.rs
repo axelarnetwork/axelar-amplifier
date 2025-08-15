@@ -111,6 +111,7 @@ fn instantiate_contracts(
                     },
                     contract_admin: protocol.governance_address.clone(),
                 },
+                signature_verifier_address: None,
             })),
         },
     )

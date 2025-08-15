@@ -63,6 +63,7 @@ impl TryFrom<VerifierSet> for WeightedSigners {
                     weight: signer.weight.into(),
                 }),
                 PublicKey::Ed25519(_) => Err(Report::new(Error::UnsupportedPublicKey)),
+                PublicKey::AleoSchnorr(_) => Err(Report::new(Error::UnsupportedPublicKey)),
             })
             .collect::<Result<Vec<_>, _>>()?;
         signers.sort_by(|signer1, signer2| signer1.pub_key.cmp(&signer2.pub_key));

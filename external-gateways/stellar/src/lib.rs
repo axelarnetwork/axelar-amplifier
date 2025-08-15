@@ -214,7 +214,9 @@ impl TryFrom<&VerifierSet> for WeightedSigners {
                         .attach_printable(key.to_hex())?,
                     weight: signer.weight.into(),
                 }),
-                PublicKey::Ecdsa(_) => Err(Report::new(Error::UnsupportedPublicKey)),
+                PublicKey::Ecdsa(_) | PublicKey::AleoSchnorr(_) => {
+                    Err(Report::new(Error::UnsupportedPublicKey))
+                }
             })
             .collect::<Result<Vec<_>, _>>()?;
 

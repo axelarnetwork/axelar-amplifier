@@ -135,6 +135,76 @@ pub mod ed25519_test_data {
     }
 }
 
+pub mod aleo_schnorr_test_data {
+    // APrivateKey1zkpEjXSofaQtApqm33wYLmHiGNLb99VZqLeRW19xWKHQWZW
+    // AViewKey1gmHkeDm2NEvJSWUTRf9SCwaEU6uSjdYnaSXa7dsn67QW
+    // aleo1et20lkz4f4a849mmnpz4670gpaekp030prm69eymaep8jppglsyslhyf9n
+
+    use std::str::FromStr;
+
+    use cosmwasm_std::testing::MockApi;
+    use rand_chacha::rand_core::SeedableRng;
+    use snarkvm_cosmwasm::console::account::PrivateKey;
+    use snarkvm_cosmwasm::prelude::ToBytes as _;
+
+    use super::*;
+
+    pub fn new(
+        address: Addr,
+        private_key: PrivateKey<snarkvm_cosmwasm::console::network::TestnetV0>,
+    ) -> TestSigner {
+        let verifying_key =
+            snarkvm_cosmwasm::console::account::Address::try_from(&private_key).unwrap();
+        let signature = snarkvm_cosmwasm::console::account::signature::Signature::sign_bytes(
+            &private_key,
+            message().as_slice(),
+            &mut rand_chacha::ChaChaRng::from_entropy(),
+        )
+        .unwrap();
+
+        TestSigner {
+            address,
+            pub_key: verifying_key.to_bytes_le().unwrap().into(),
+            signature: signature.to_bytes_le().unwrap().into(),
+            signed_address: HexBinary::default(),
+        }
+    }
+
+    pub fn pub_key() -> HexBinary {
+        HexBinary::from(
+            "aleo1et20lkz4f4a849mmnpz4670gpaekp030prm69eymaep8jppglsyslhyf9n".as_bytes(),
+        )
+    }
+
+    pub fn signature() -> HexBinary {
+        HexBinary::from("sign156wgsta9htrmyav5a6lrex6qu0eherjgvthkheelv3gkdxgtksq2ndv3547e7gq0xnwallk5tc407cyxkexnhvv3qqtfmyhqs095sqg5hht9cgrfl42000szdz9kg0wkvut6ff5czfgj6ctr7j7k7dxlqyz483xpxr5c70wjwh6a233d2puds04vfy9plrgzsz2vpqlypc0qqca3azj".as_bytes())
+    }
+
+    pub fn message() -> HexBinary {
+        HexBinary::from_hex("fa0609efd1dfeedfdcc8ba51520fae2d5176b7621d2560f071e801b0817e1537")
+            .unwrap()
+    }
+
+    pub fn signers() -> Vec<TestSigner> {
+        let api = MockApi::default();
+        let addresses = vec!["signer1", "signer2", "signer3"]
+            .into_iter()
+            .map(|name| api.addr_make(name));
+        let signing_keys = vec![
+            "APrivateKey1zkpEjXSofaQtApqm33wYLmHiGNLb99VZqLeRW19xWKHQWZW",
+            "APrivateKey1zkp84oDcibJzwhyf2qNKCV6niZKg1ti619fbLZwUpnSW181",
+            "APrivateKey1zkp6tvsgBKfPfsZVG5mBxU8sVMk8y7vxBjn6DFW5bogvVmg",
+        ]
+        .into_iter()
+        .map(|key| PrivateKey::from_str(key).unwrap());
+
+        addresses
+            .zip(signing_keys)
+            .map(|(address, signing_key)| new(address, signing_key))
+            .collect()
+    }
+}
+
 #[allow(clippy::arithmetic_side_effects)]
 pub fn build_verifier_set(key_type: KeyType, signers: &[TestSigner]) -> VerifierSet {
     let mut total_weight = Uint128::zero();
@@ -159,6 +229,7 @@ pub fn build_verifier_set(key_type: KeyType, signers: &[TestSigner]) -> Verifier
 pub fn signature_test_data<'a>(
     ecdsa_subkey: &'a String,
     ed25519_subkey: &'a String,
+    aleo_schnorr_subkey: &'a String,
 ) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
     vec![
         (
@@ -172,6 +243,12 @@ pub fn signature_test_data<'a>(
             ed25519_subkey,
             ed25519_test_data::signers(),
             Uint64::from(2u64),
+        ),
+        (
+            KeyType::AleoSchnorr,
+            aleo_schnorr_subkey,
+            aleo_schnorr_test_data::signers(),
+            Uint64::from(3u64),
         ),
     ]
 }

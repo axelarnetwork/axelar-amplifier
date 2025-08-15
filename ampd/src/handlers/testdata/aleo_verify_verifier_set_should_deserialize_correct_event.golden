@@ -1,0 +1,84 @@
+PollStartedEvent {
+    verifier_set: VerifierSetConfirmation {
+        message_id: AleoLocator { hrp: "au", data: 3058253399590234963903798362663653273855001895174901329285094325762184420085field },
+        verifier_set: VerifierSet {
+            signers: {
+                "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey": Signer {
+                    address: Addr(
+                        "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: AleoSchnorr(
+                        HexBinary(74985cd3fab1e3f6dc04168d6cce1eea36f38fd3b689c53e948d21598367240c),
+                    ),
+                },
+                "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3": Signer {
+                    address: Addr(
+                        "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: AleoSchnorr(
+                        HexBinary(eca695174ce577a7feb3ffe4f73814847da0087d3b65f9101f21b7cbbc92d702),
+                    ),
+                },
+                "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz": Signer {
+                    address: Addr(
+                        "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: AleoSchnorr(
+                        HexBinary(cad4ffd8554d7a7a977b98455d79e80f7360be2f08f7a2e49bee42790428fc09),
+                    ),
+                },
+            },
+            threshold: Uint128(
+                2,
+            ),
+            created_at: 0,
+        },
+    },
+    poll_id: PollId(
+        Uint64(
+            100,
+        ),
+    ),
+    source_chain: ChainName(
+        "aleo-2",
+    ),
+    source_gateway_address: "mygateway.aleo",
+    expires_at: 100,
+    confirmation_height: 15,
+    participants: [
+        TMAddress(
+            AccountId(
+                "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq87nk3s",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpuxy7hs",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszg9nw3w",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrnayxhw",
+            ),
+        ),
+        TMAddress(
+            AccountId(
+                "axelar1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyz29mj8",
+            ),
+        ),
+    ],
+}

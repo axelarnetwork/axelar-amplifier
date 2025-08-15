@@ -1,4 +1,4 @@
-use aleo_gateway::network::NetworkConfig;
+use aleo_network_config::network::NetworkConfig;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};

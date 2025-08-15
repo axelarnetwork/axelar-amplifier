@@ -41,6 +41,7 @@ pub fn instantiate(
             deps.api,
             &msg.voting_verifier_address,
         )?,
+        sig_verifier: msg.sig_verifier_address,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg.chain_name.parse()?,
@@ -118,6 +119,7 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
+    use aleo_network_config::network::NetworkConfig;
     use axelar_wasm_std::permission_control::Permission;
     use axelar_wasm_std::{permission_control, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{
@@ -135,6 +137,7 @@ mod tests {
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
+    use crate::test::aleo_test_data;
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{
         mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
@@ -164,6 +167,7 @@ mod tests {
                 coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
                 service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS).to_string(),
                 voting_verifier_address: cosmos_addr!(VOTING_VERIFIER_ADDRESS).to_string(),
+                sig_verifier_address: None,
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
@@ -176,6 +180,54 @@ mod tests {
         .unwrap();
 
         deps
+    }
+
+    pub fn aleo_setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+
+        deps.querier.update_wasm(mock_querier_handler(
+            aleo_test_data::operators(),
+            VerificationStatus::SucceededOnSourceChain,
+        ));
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(ADMIN), &[]),
+            InstantiateMsg {
+                admin_address: api.addr_make(ADMIN).to_string(),
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                gateway_address: api.addr_make(GATEWAY_ADDRESS).to_string(),
+                multisig_address: api.addr_make(MULTISIG_ADDRESS).to_string(),
+                coordinator_address: api.addr_make(COORDINATOR_ADDRESS).to_string(),
+                service_registry_address: api.addr_make(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: api.addr_make(VOTING_VERIFIER_ADDRESS).to_string(),
+                sig_verifier_address: None,
+                signing_threshold: test_data::threshold(),
+                service_name: SERVICE_NAME.to_string(),
+                chain_name: "ganache-0".to_string(),
+                verifier_set_diff_threshold: 0,
+                encoder: Encoder::Aleo(NetworkConfig::TestnetV0),
+                key_type: multisig::key::KeyType::AleoSchnorr,
+                domain_separator: [0; 32],
+            },
+        )
+        .unwrap();
+
+        deps
+    }
+
+    fn aleo_execute_update_verifier_set(
+        deps: DepsMut,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+        let msg = ExecuteMsg::UpdateVerifierSet {};
+        execute(
+            deps,
+            mock_env(),
+            message_info(&MockApi::default().addr_make(ADMIN), &[]),
+            msg,
+        )
     }
 
     fn execute_update_verifier_set(
@@ -334,8 +386,9 @@ mod tests {
                 gateway_address: gateway_address.to_string(),
                 multisig_address: multisig_address.to_string(),
                 coordinator_address: coordinator_address.to_string(),
-                voting_verifier_address: voting_verifier_address.to_string(),
                 service_registry_address: service_registry_address.to_string(),
+                voting_verifier_address: voting_verifier_address.to_string(),
+                sig_verifier_address: None,
                 signing_threshold,
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
@@ -419,6 +472,28 @@ mod tests {
     }
 
     #[test]
+    fn aleo_test_update_verifier_set_fresh() {
+        let mut deps = aleo_setup_test_case();
+        let verifier_set = query_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
+        assert!(verifier_set.unwrap().is_none());
+
+        let res = aleo_execute_update_verifier_set(deps.as_mut());
+
+        assert!(res.is_ok());
+
+        let verifier_set = query_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
+
+        let verifier_set = verifier_set.unwrap().unwrap();
+
+        let expected_verifier_set =
+            test_operators_to_verifier_set(aleo_test_data::operators(), mock_env().block.height);
+
+        assert_eq!(verifier_set, expected_verifier_set.into());
+    }
+
+    #[test]
     fn test_update_verifier_set_from_non_admin_or_governance_should_fail() {
         let mut deps = setup_test_case();
         let res = execute(
@@ -490,6 +565,36 @@ mod tests {
 
         let expected_verifier_set =
             test_operators_to_verifier_set(test_data::operators(), mock_env().block.height);
+
+        assert_eq!(verifier_set, expected_verifier_set.into());
+    }
+
+    #[test]
+    fn aleo_test_update_verifier_set_remove_one() {
+        let mut deps = aleo_setup_test_case();
+        let res = execute_update_verifier_set(deps.as_mut());
+
+        assert!(res.is_ok());
+
+        let mut new_verifier_set = aleo_test_data::operators();
+        new_verifier_set.pop();
+
+        deps.querier.update_wasm(mock_querier_handler(
+            new_verifier_set,
+            VerificationStatus::SucceededOnSourceChain,
+        ));
+
+        let res = execute_update_verifier_set(deps.as_mut());
+
+        assert!(res.is_ok());
+
+        let verifier_set = query_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
+
+        let verifier_set = verifier_set.unwrap().unwrap();
+
+        let expected_verifier_set =
+            test_operators_to_verifier_set(aleo_test_data::operators(), mock_env().block.height);
 
         assert_eq!(verifier_set, expected_verifier_set.into());
     }

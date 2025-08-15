@@ -68,11 +68,16 @@ pub fn construct_proof(
         .encoder
         .digest(&config.domain_separator, &verifier_set, &payload)?;
 
+    // This is not needed because we know that we will always use the sig_verifier.
+    // It is placed here because is needed to pass the unit tests.
+    // To be handle appropriately in the future, the sig verifier should be configured in contract
+    // and it should be passed as a parameter to the contract initialized.
+
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         verifier_set_id: verifier_set.id(),
         msg: digest.into(),
         chain_name: config.chain_name,
-        sig_verifier: None,
+        sig_verifier: config.sig_verifier,
     };
 
     let wasm_msg =
@@ -554,6 +559,7 @@ mod tests {
             coordinator: cosmos_addr!(DUMMY),
             service_registry: cosmos_addr!(DUMMY),
             voting_verifier: cosmos_addr!(DUMMY),
+            sig_verifier: None,
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: chain_name!("ethereum"),

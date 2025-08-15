@@ -17,6 +17,7 @@ pub struct Config {
     pub coordinator: Addr,
     pub service_registry: Addr,
     pub voting_verifier: Addr,
+    pub sig_verifier: Option<String>,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: ChainName,

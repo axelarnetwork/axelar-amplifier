@@ -133,13 +133,18 @@ fn instantiate_verifier(
     )
 }
 
-fn instantiate_prover(
-    ctx: &InstantiateContext,
-    label: String,
+struct ContractAddresses {
     gateway_address: Addr,
     service_registry_address: Addr,
     multisig_address: Addr,
     verifier_address: Addr,
+    sig_verifier_address: Option<String>,
+}
+
+fn instantiate_prover(
+    ctx: &InstantiateContext,
+    label: String,
+    contract_addresses: ContractAddresses,
     prover_msg: &ProverMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
@@ -151,10 +156,14 @@ fn instantiate_prover(
             admin_address: prover_msg.admin_address.to_string(),
             governance_address: prover_msg.governance_address.to_string().clone(),
             coordinator_address: ctx.env.contract.address.to_string().clone(),
-            gateway_address: gateway_address.to_string().clone(),
-            multisig_address: multisig_address.to_string().clone(),
-            service_registry_address: service_registry_address.to_string().clone(),
-            voting_verifier_address: verifier_address.to_string().clone(),
+            gateway_address: contract_addresses.gateway_address.to_string().clone(),
+            multisig_address: contract_addresses.multisig_address.to_string().clone(),
+            service_registry_address: contract_addresses
+                .service_registry_address
+                .to_string()
+                .clone(),
+            voting_verifier_address: contract_addresses.verifier_address.to_string().clone(),
+            sig_verifier_address: contract_addresses.sig_verifier_address,
             signing_threshold: prover_msg.signing_threshold,
             service_name: prover_msg.service_name.to_string(),
             chain_name: prover_msg.chain_name.to_string(),
@@ -250,13 +259,18 @@ pub fn instantiate_chain_contracts(
 
             response = response.add_message(msg);
 
+            let contract_addresses = ContractAddresses {
+                gateway_address: gateway_address.clone(),
+                service_registry_address: protocol.service_registry.clone(),
+                multisig_address: protocol.multisig.clone(),
+                verifier_address: voting_verifier_address.clone(),
+                sig_verifier_address: params.signature_verifier_address,
+            };
+
             let (msg, multisig_prover_address) = instantiate_prover(
                 &ctx,
                 params.prover.label.clone(),
-                gateway_address.clone(),
-                protocol.service_registry.clone(),
-                protocol.multisig.clone(),
-                voting_verifier_address.clone(),
+                contract_addresses,
                 &params.prover.msg,
             )?;
 

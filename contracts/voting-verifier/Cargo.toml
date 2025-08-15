@@ -42,7 +42,7 @@ thiserror = { workspace = true }
 voting-verifier-api = { workspace = true }
 
 [dev-dependencies]
-aleo-gateway = { workspace = true }
+aleo-network-config = { workspace = true }
 alloy-primitives = { version = "0.7.7", features = ["getrandom"] }
 assert_ok = { workspace = true }
 bech32 = { workspace = true }

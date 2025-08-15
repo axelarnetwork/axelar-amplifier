@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use aleo_gateway::network::NetworkConfig;
-use aleo_gateway::utils::{
+use aleo_network_config::network::NetworkConfig;
+use aleo_network_config::utils::{
     validate_address as validate_aleo_address, validate_program_name as validate_aleo_program_name,
 };
 use alloy_primitives::Address;

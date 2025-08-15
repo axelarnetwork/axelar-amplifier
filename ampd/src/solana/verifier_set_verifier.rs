@@ -74,6 +74,10 @@ fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::P
         PublicKey::Ed25519(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Ed25519(
             hb.to_array::<ED25519_PUBKEY_LEN>().ok()?,
         ),
+        PublicKey::AleoSchnorr(_) => {
+            error!("Aleo Schnorr public keys are not supported");
+            return None;
+        }
     })
 }
 

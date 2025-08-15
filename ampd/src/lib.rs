@@ -1,3 +1,4 @@
+mod aleo;
 mod asyncutil;
 mod block_height_monitor;
 mod broadcast;
@@ -47,6 +48,7 @@ use evm::json_rpc::EthereumClient;
 use lazy_static::lazy_static;
 use multiversx_sdk::gateway::GatewayProxy;
 use router_api::{chain_name, ChainName};
+use snarkvm::prelude::{CanaryV0, MainnetV0, Network, TestnetV0};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
@@ -307,6 +309,109 @@ impl App {
         default_rpc_timeout: Duration,
     ) -> Result<CancellableTask<Result<(), event_processor::Error>>, Error> {
         match config {
+            handlers::config::Config::AleoMsgVerifier {
+                cosmwasm_contract,
+                chain,
+                timeout,
+                base_url,
+                network,
+                gateway_contract,
+                network_id,
+            } => {
+                let rest_client = reqwest::ClientBuilder::new()
+                    .connect_timeout(timeout.unwrap_or(default_rpc_timeout))
+                    .timeout(timeout.unwrap_or(default_rpc_timeout))
+                    .build()
+                    .change_context(Error::Connection)?;
+
+                let client = aleo::http_client::Client::new(
+                    rest_client,
+                    base_url.clone(),
+                    network.to_string(),
+                );
+
+                let label = format!("{}-msg-verifier", chain.name);
+
+                macro_rules! create_handler_for_aleo_network {
+                    ($network:ty) => {{
+                        let handler = handlers::aleo_verify_msg::Handler::<$network, _>::new(
+                            verifier.clone(),
+                            cosmwasm_contract.clone(),
+                            chain.name.clone(),
+                            client,
+                            self.block_height_monitor.latest_block_height(),
+                            gateway_contract,
+                        )
+                        .change_context(Error::AleoNetworkHandler)?;
+
+                        Ok(self.create_handler_task(
+                            label,
+                            handler,
+                            event_processor_config.clone(),
+                            self.monitoring_client.clone(),
+                        ))
+                    }};
+                }
+
+                match *network_id {
+                    MainnetV0::ID => create_handler_for_aleo_network!(MainnetV0),
+                    TestnetV0::ID => create_handler_for_aleo_network!(TestnetV0),
+                    CanaryV0::ID => create_handler_for_aleo_network!(CanaryV0),
+                    _ => Err(Error::AleoNetworkId.into()),
+                }
+            }
+            handlers::config::Config::AleoVerifierSetVerifier {
+                cosmwasm_contract,
+                chain,
+                timeout,
+                base_url,
+                network,
+                verifier_contract,
+                network_id,
+            } => {
+                let rest_client = reqwest::ClientBuilder::new()
+                    .connect_timeout(timeout.unwrap_or(default_rpc_timeout))
+                    .timeout(timeout.unwrap_or(default_rpc_timeout))
+                    .build()
+                    .change_context(Error::Connection)?;
+
+                let client = aleo::http_client::Client::new(
+                    rest_client,
+                    base_url.clone(),
+                    network.to_string(),
+                );
+
+                let label = format!("{}-verifier-set-verifier", chain.name);
+
+                macro_rules! create_handler_for_aleo_network {
+                    ($network:ty) => {{
+                        let handler =
+                            handlers::aleo_verify_verifier_set::Handler::<$network, _>::new(
+                                verifier.clone(),
+                                cosmwasm_contract.clone(),
+                                chain.name.clone(),
+                                client,
+                                self.block_height_monitor.latest_block_height(),
+                                verifier_contract.to_string(),
+                            )
+                            .change_context(Error::AleoNetworkHandler)?;
+
+                        Ok(self.create_handler_task(
+                            label,
+                            handler,
+                            event_processor_config.clone(),
+                            self.monitoring_client.clone(),
+                        ))
+                    }};
+                }
+
+                match *network_id {
+                    MainnetV0::ID => create_handler_for_aleo_network!(MainnetV0),
+                    TestnetV0::ID => create_handler_for_aleo_network!(TestnetV0),
+                    CanaryV0::ID => create_handler_for_aleo_network!(CanaryV0),
+                    _ => Err(Error::AleoNetworkId.into()),
+                }
+            }
             handlers::config::Config::EvmMsgVerifier {
                 chain,
                 cosmwasm_contract,
@@ -837,6 +942,10 @@ pub enum Error {
     Monitor,
     #[error("gRPC server failed")]
     GrpcServer,
+    #[error("failed to find aleo network ID")]
+    AleoNetworkId,
+    #[error("failed to create Aleo network handler")]
+    AleoNetworkHandler,
 }
 
 #[cfg(test)]

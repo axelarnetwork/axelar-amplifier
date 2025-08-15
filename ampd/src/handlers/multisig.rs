@@ -150,6 +150,7 @@ where
                 let key_type = match pub_key {
                     PublicKey::Secp256k1(_) => tofnd::Algorithm::Ecdsa,
                     PublicKey::Ed25519(_) => tofnd::Algorithm::Ed25519,
+                    PublicKey::AleoSchnorr(_) => tofnd::Algorithm::AleoSchnorr,
                 };
 
                 let data = <[u8; 32]>::try_from(msg.as_ref()).change_context(MessageToSign)?;

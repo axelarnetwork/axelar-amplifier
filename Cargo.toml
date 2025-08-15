@@ -1,17 +1,17 @@
 [workspace]
 members = [
-    "ampd",
-    "ampd-handlers",
-    "contracts/*",
-    "external-gateways/*",
-    "integration-tests",
-    "packages/*",
-    "tools/*",
+  "ampd",
+  "ampd-handlers",
+  "contracts/*",
+  "external-gateways/*",
+  "integration-tests",
+  "packages/*",
+  "tools/*",
 ]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.86.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.86.0"       # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -23,9 +23,10 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
-aleo-gateway = { path = "packages/aleo-gateway" }
+aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "dev" }
+aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "dev" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
 ] }
@@ -88,6 +89,7 @@ k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^2.3.1", path = "contracts/multisig" }
+multisig-aleo = { path = "contracts/multisig-aleo" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
@@ -106,6 +108,8 @@ service-registry = { version = "^1.2.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
+snarkos-account = "3.8.0"
+snarkvm = "3.8.0"
 snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM", tag = "snarkvm-with-cosmwasm" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-core = "0.12.0"
@@ -121,7 +125,7 @@ sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
-tofn = { version = "1.1" }
+tofn = { path = "../tofn" }
 tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
@@ -156,3 +160,7 @@ debug-assertions = false
 codegen-units = 1
 incremental = false
 overflow-checks = true
+
+[patch.crates-io]
+# Use our fork of snarkVM so we use the same snarkVM code in axelar-aleo and axelar-amplifier.
+snarkvm = { git = "https://github.com/eigerco/snarkVM", tag = "snarkvm-with-cosmwasm" }

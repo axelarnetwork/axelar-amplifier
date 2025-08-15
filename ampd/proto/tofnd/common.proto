@@ -7,6 +7,7 @@ package tofnd;
 enum Algorithm {
   ALGORITHM_ECDSA = 0;
   ALGORITHM_ED25519 = 1;
+  ALGORITHM_ALEO_SCHNORR = 2;
 }
 
 // Key presence check types

@@ -14,7 +14,11 @@ url = []
 dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
 
 [dependencies]
+aleo-gmp-types = { workspace = true }
+aleo-string-encoder = { workspace = true }
+aleo-utils = { workspace = true }
 ampd-proto = { workspace = true }
+anyhow = "1.0.99"
 async-trait = { workspace = true }
 axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }
@@ -44,7 +48,9 @@ futures = { workspace = true }
 gateway-event-stack = { workspace = true }
 hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
+indexmap = "2.10.0"
 itertools = { workspace = true }
+its-aleo-translator = { workspace = true, features = ["library"] }
 k256 = { workspace = true }
 lazy_static = "1.5.0"
 mockall = "0.11.3"
@@ -52,6 +58,7 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
+once_cell = "1.21.3"
 openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
@@ -70,6 +77,7 @@ serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
+snarkvm = { workspace = true }
 solana-client = "=2.1.21"
 solana-sdk = "=2.1.21"
 solana-transaction-status = "=2.1.21"

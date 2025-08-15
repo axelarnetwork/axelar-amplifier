@@ -338,20 +338,22 @@ mod test {
             TestCase {
                 source_gateway_address: "gateway.aleo".to_string(),
                 address_format: AddressFormat::Aleo(
-                    aleo_gateway::network::NetworkConfig::TestnetV0,
+                    aleo_network_config::network::NetworkConfig::TestnetV0,
                 ),
                 should_fail: false,
             },
             TestCase {
                 source_gateway_address: "gateway.aleo".to_string(),
                 address_format: AddressFormat::Aleo(
-                    aleo_gateway::network::NetworkConfig::MainnetV0,
+                    aleo_network_config::network::NetworkConfig::MainnetV0,
                 ),
                 should_fail: false,
             },
             TestCase {
                 source_gateway_address: "gateway.aleo".to_string(),
-                address_format: AddressFormat::Aleo(aleo_gateway::network::NetworkConfig::CanaryV0),
+                address_format: AddressFormat::Aleo(
+                    aleo_network_config::network::NetworkConfig::CanaryV0,
+                ),
                 should_fail: false,
             },
             TestCase {
@@ -433,7 +435,7 @@ mod test {
                 source_gateway_address:
                     "aleo1q3t7cjwk9ncxcdxfm8r5ax83mzudd923gffncv5egfjyevfevuyscvcvz".to_string(),
                 address_format: AddressFormat::Aleo(
-                    aleo_gateway::network::NetworkConfig::TestnetV0,
+                    aleo_network_config::network::NetworkConfig::TestnetV0,
                 ),
                 should_fail: true,
             },
@@ -441,14 +443,16 @@ mod test {
                 source_gateway_address:
                     "aleo1q3t7cjwk9ncxcdxfm8r5ax83mzudd923gffncv5egfjyevfevuyscvcvz".to_string(),
                 address_format: AddressFormat::Aleo(
-                    aleo_gateway::network::NetworkConfig::MainnetV0,
+                    aleo_network_config::network::NetworkConfig::MainnetV0,
                 ),
                 should_fail: true,
             },
             TestCase {
                 source_gateway_address:
                     "aleo1q3t7cjwk9ncxcdxfm8r5ax83mzudd923gffncv5egfjyevfevuyscvcvz".to_string(),
-                address_format: AddressFormat::Aleo(aleo_gateway::network::NetworkConfig::CanaryV0),
+                address_format: AddressFormat::Aleo(
+                    aleo_network_config::network::NetworkConfig::CanaryV0,
+                ),
                 should_fail: true,
             },
         ];

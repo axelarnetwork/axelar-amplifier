@@ -77,4 +77,7 @@ pub enum ContractError {
 
     #[error("prover not found for chain {0}")]
     ProverNotFound(ChainName),
+
+    #[error("Unsupported signatures type: {signature_type:?}")]
+    UnsupportedSignatureType { signature_type: crate::key::KeyType },
 }

@@ -12,7 +12,6 @@ bs58 = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
-error-stack = { workspace = true }
 hex = { workspace = true }
 interchain-token-service = { workspace = true, features = ["library"] }
 k256 = { version = "0.13.1", features = ["ecdsa"] }

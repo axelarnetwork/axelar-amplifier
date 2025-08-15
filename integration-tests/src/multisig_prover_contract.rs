@@ -42,6 +42,7 @@ impl MultisigProverContract {
                     coordinator_address: protocol.coordinator.contract_addr.to_string(),
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
+                    sig_verifier_address: None,
                     signing_threshold: Threshold::try_from((2u64, 3u64))
                         .unwrap()
                         .try_into()

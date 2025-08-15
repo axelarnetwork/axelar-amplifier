@@ -85,6 +85,9 @@ pub enum ContractError {
     #[error("failed to get outgoing messages from gateway")]
     FailedToGetMessages,
 
+    #[error("Aleo error: {0}")]
+    AleoError(String),
+
     #[error("failed to build verifier set")]
     FailedToBuildVerifierSet,
 

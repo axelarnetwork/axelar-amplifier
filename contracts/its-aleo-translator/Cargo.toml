@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-aleo-gateway = { workspace = true }
+aleo-network-config = { workspace = true }
 aleo-gmp-types = { workspace = true }
 aleo-string-encoder = { workspace = true }
 anyhow = "1"

@@ -7,8 +7,14 @@ license.workspace = true
 
 [dependencies]
 aleo-string-encoder = { workspace = true }
+anyhow = "1.0.99"
 axelar-wasm-std = { workspace = true }
 error-stack = { workspace = true }
+indexmap = "2.10.0"
+multisig = { workspace = true, features = ["library"] }
+once_cell = "1.21.3"
+router-api = { workspace = true }
+snarkvm-cosmwasm = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]

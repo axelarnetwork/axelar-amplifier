@@ -26,6 +26,10 @@ pub struct InstantiateMsg {
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
     /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
     pub voting_verifier_address: String,
+    /// Address of the signature verifier contract on axelar associated with the destination chain. For example, if this prover is creating
+    /// proofs to be relayed to a chain that does not support ECDSA or Ed25519 signatures, this is the address of the signature verifier for that chain.
+    /// This contract is used to verify signatures for the multisig contract on Axelar.
+    pub sig_verifier_address: Option<String>,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.

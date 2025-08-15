@@ -191,7 +191,7 @@ mod tests {
 
             let source_chain = SafeGmpChainName::try_from(&self.external_chain)
                 .expect("Failed to convert external chain to SafeGmpChainName")
-                .chain_name();
+                .aleo_chain_name();
 
             let aleo_message = format!(
                 r#"{{
@@ -214,7 +214,7 @@ mod tests {
             let source_address = &self.source_address;
             let destination_chain = SafeGmpChainName::try_from(&self.external_chain)
                 .expect("Failed to convert external chain to SafeGmpChainName")
-                .chain_name();
+                .aleo_chain_name();
 
             let destination_address = {
                 let destination_address = StringEncoder::encode_string(&self.destination_address)
@@ -335,7 +335,7 @@ mod tests {
 
             let destination_chain = SafeGmpChainName::try_from(&self.destination_chain)
                 .expect("Failed to convert destination chain to SafeGmpChainName")
-                .chain_name();
+                .aleo_chain_name();
 
             format!(
                 r#"{{
@@ -364,7 +364,7 @@ mod tests {
 
             let source_chain = SafeGmpChainName::try_from(&self.destination_chain)
                 .expect("Failed to convert destination chain to SafeGmpChainName")
-                .chain_name();
+                .aleo_chain_name();
 
             let aleo_token_name = StringEncoder::encode_string(&self.token_name)
                 .expect("Failed to encode token name")

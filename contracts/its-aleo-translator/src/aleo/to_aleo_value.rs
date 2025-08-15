@@ -48,7 +48,7 @@ impl<N: Network> ToAleoValue<N> for interchain_token_service_std::DeployIntercha
 
         let message = ItsMessageDeployInterchainToken {
             inner_message: deploy_interchain_token,
-            source_chain: source_chain.chain_name(),
+            source_chain: source_chain.aleo_chain_name(),
         };
 
         let aleo_plaintext = Plaintext::try_from(&message)?;
@@ -82,7 +82,7 @@ impl<N: Network> ToAleoValue<N> for InterchainTransferItsHub {
 
         let message = ItsIncomingInterchainTransfer {
             inner_message: interchain_transfer,
-            source_chain: source_chain.chain_name(),
+            source_chain: source_chain.aleo_chain_name(),
         };
 
         let aleo_plaintext = Plaintext::try_from(&message)?;

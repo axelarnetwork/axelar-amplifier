@@ -1,4 +1,5 @@
 mod abi;
+mod aleo;
 mod bcs;
 mod stellar_xdr;
 
@@ -42,6 +43,9 @@ impl EncoderExt for Encoder {
             Encoder::StellarXdr => {
                 stellar_xdr::payload_digest(domain_separator, verifier_set, payload)
             }
+            Encoder::Aleo(network) => {
+                aleo::payload_digest(network, domain_separator, verifier_set, payload)
+            }
         }
     }
 
@@ -56,6 +60,9 @@ impl EncoderExt for Encoder {
             Encoder::Abi => abi::encode_execute_data(domain_separator, verifier_set, sigs, payload),
             Encoder::Bcs => bcs::encode_execute_data(domain_separator, verifier_set, sigs, payload),
             Encoder::StellarXdr => stellar_xdr::encode_execute_data(verifier_set, sigs, payload),
+            Encoder::Aleo(network) => {
+                aleo::encode_execute_data(network, verifier_set, sigs, payload)
+            }
         }
     }
 }

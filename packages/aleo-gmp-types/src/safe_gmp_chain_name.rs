@@ -29,7 +29,7 @@ impl SafeGmpChainName {
         Ok(Self { chain_name })
     }
 
-    pub fn chain_name(self) -> GmpChainName {
+    pub fn aleo_chain_name(self) -> GmpChainName {
         self.chain_name
     }
 }

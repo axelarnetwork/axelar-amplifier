@@ -6,6 +6,7 @@ license = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
+aleo-network-config = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
