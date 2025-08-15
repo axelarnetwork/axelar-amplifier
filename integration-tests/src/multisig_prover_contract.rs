@@ -24,6 +24,7 @@ impl MultisigProverContract {
         voting_verifier_address: Addr,
         chain_codec_address: Addr,
         chain_name: String,
+        sig_verifier: Option<Addr>,
     ) -> Self {
         let code =
             ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(custom_reply);
@@ -51,7 +52,7 @@ impl MultisigProverContract {
                     chain_name: chain_name.to_string(),
                     verifier_set_diff_threshold: 0,
                     key_type: KeyType::Ecdsa,
-                    sig_verifier_address: None, // TODO: test with address set
+                    sig_verifier_address: sig_verifier.map(|addr| addr.to_string()),
                 },
                 &[],
                 "multisig_prover",

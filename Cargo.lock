@@ -5275,6 +5275,7 @@ dependencies = [
  "service-registry",
  "service-registry-api",
  "sha3",
+ "signature-verifier-api",
  "tofn",
  "voting-verifier",
 ]

@@ -104,6 +104,7 @@ fn launch_contracts<const N: usize>(
         )
     });
 
+    // fill in the actual instantiation messages
     for (i, (contract, address)) in contracts.into_iter().zip(&addresses).enumerate() {
         data[i] = (
             WasmMsg::Instantiate2 {
