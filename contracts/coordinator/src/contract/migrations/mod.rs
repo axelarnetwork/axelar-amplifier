@@ -1,5 +1,4 @@
-use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError};
 use cosmwasm_schema::cw_serde;
@@ -23,8 +22,6 @@ enum MigrationError {
     OldConfigNotFound,
     #[error("missing contracts to register for chain {0}")]
     MissingContracts(ChainName),
-    #[error("too few contracts provided")]
-    TooFewContracts,
     #[error("expected prover address {0} but saw {1}")]
     IncorrectProver(Addr, Addr),
     #[error("extra or duplicate chains provided in message")]
@@ -146,20 +143,17 @@ fn migrate_chain_contracts(
         .range(storage, None, None, Order::Ascending)
         .try_collect()?;
 
-    // We can check for duplicates like this because provers_by_chain will have only one prover
-    // per chain (enforced in smart contract). Since we enforce that a chain be present in provers_by_chain
-    // if and only if it is present in contracts_map, duplicate entries in contracts_map must mean
-    // they have different lengths.
-    match provers_by_chain.len().cmp(&chain_contracts.len()) {
-        Ordering::Less => return Err(MigrationError::ExtraChainProvided.into()),
-        Ordering::Greater => return Err(MigrationError::TooFewContracts.into()),
-        _ => {}
-    }
-
+    let mut chain_names_seen: HashSet<ChainName> = HashSet::new();
     let mut contracts_map: HashMap<_, _> = chain_contracts
         .into_iter()
-        .map(|contracts| (contracts.chain_name.clone(), contracts))
-        .collect();
+        .map(|contracts| {
+            if !chain_names_seen.insert(contracts.chain_name.clone()) {
+                Err(MigrationError::ExtraChainProvided)
+            } else {
+                Ok((contracts.chain_name.clone(), contracts))
+            }
+        })
+        .collect::<Result<HashMap<ChainName, ChainContractsRecord>, MigrationError>>()?;
 
     for (chain_name, prover_addr) in provers_by_chain {
         let contracts =
@@ -398,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn migrate_fails_to_migrate_all_registered_provers() {
+    fn migrate_fails_when_duplicate_chains_provided() {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
@@ -464,11 +458,11 @@ mod tests {
         assert!(res
             .unwrap_err()
             .to_string()
-            .contains(&MigrationError::MissingContracts(chain_name2).to_string()));
+            .contains(&MigrationError::ExtraChainProvided.to_string()));
     }
 
     #[test]
-    fn migrate_fails_with_too_few_contracts() {
+    fn migrate_fails_when_missing_a_registered_chain() {
         let mut deps = mock_dependencies();
         let api = deps.api;
         let env = mock_env();
@@ -521,79 +515,7 @@ mod tests {
         assert!(res
             .unwrap_err()
             .to_string()
-            .contains(&MigrationError::TooFewContracts.to_string()));
-    }
-
-    #[test]
-    fn migrate_fails_with_extra_prover_in_migration_msg() {
-        let mut deps = mock_dependencies();
-        let api = deps.api;
-        let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
-
-        assert!(old_instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
-            },
-        )
-        .is_ok());
-
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
-
-        let extra_chain_name = ChainName::try_from(CHAIN_2).unwrap();
-        let extra_prover_addr = api.addr_make(PROVER_2);
-        let extra_gateway_addr = cosmos_addr!("extra_gateway");
-        let extra_verifier_addr = cosmos_addr!("extra_verifier");
-
-        assert!(add_old_prover_registration(
-            deps.as_mut(),
-            vec![(chain_name.clone(), prover_addr.clone())]
-        )
-        .is_ok());
-
-        let res = migrate(
-            deps.as_mut(),
-            env,
-            MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
-                chain_contracts: vec![
-                    ChainContracts {
-                        chain_name: chain_name.clone(),
-                        prover_address: nonempty::String::try_from(prover_addr.to_string())
-                            .unwrap(),
-                        gateway_address: nonempty::String::try_from(gateway_addr.to_string())
-                            .unwrap(),
-                        verifier_address: nonempty::String::try_from(verifier_addr.to_string())
-                            .unwrap(),
-                    },
-                    ChainContracts {
-                        chain_name: extra_chain_name.clone(),
-                        prover_address: nonempty::String::try_from(extra_prover_addr.to_string())
-                            .unwrap(),
-                        gateway_address: nonempty::String::try_from(extra_gateway_addr.to_string())
-                            .unwrap(),
-                        verifier_address: nonempty::String::try_from(
-                            extra_verifier_addr.to_string(),
-                        )
-                        .unwrap(),
-                    },
-                ],
-            },
-        );
-
-        assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains(&MigrationError::ExtraChainProvided.to_string()));
+            .contains(&MigrationError::MissingContracts(chain_name2).to_string()));
     }
 
     #[test]
