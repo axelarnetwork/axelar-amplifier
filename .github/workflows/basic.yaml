@@ -98,8 +98,8 @@ jobs:
         with:
           cache-key: "cache-lints"
 
-      # - name: Uninstall stable & nightly rust versions
-      #   run: rustup uninstall stable && rustup uninstall nightly
+      - name: Uninstall stable & nightly rust versions
+        run: rustup uninstall stable && rustup uninstall nightly
 
       # Install nightly toolchain for formatting (as per justfile)
       - name: Install nightly for rustfmt
@@ -135,7 +135,7 @@ jobs:
         run: cargo clippy-check # alias
 
       - name: Run custom lints
-        run: cargo +nightly dylint --all
+        run: cargo dylint --all
         env:
           DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
