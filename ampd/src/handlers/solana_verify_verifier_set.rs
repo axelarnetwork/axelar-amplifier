@@ -193,7 +193,6 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::chain_name;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
@@ -267,7 +266,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -289,7 +288,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -312,7 +311,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -342,7 +341,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             verifier,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -374,7 +373,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -401,7 +400,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            router_api::SOLANA_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -417,7 +416,7 @@ mod tests {
             metrics,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: chain_name!("solana"),
+                chain_name: router_api::SOLANA_CHAIN_NAME.clone(),
             }
         );
 
@@ -434,7 +433,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("solana"),
+                source_chain: router_api::SOLANA_CHAIN_NAME.clone(),
                 source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,

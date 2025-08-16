@@ -198,7 +198,7 @@ pub fn query(
 mod tests {
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::{cosmos_addr, cosmos_address};
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
@@ -210,9 +210,9 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_flow() {
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = router_api::MOCK_CHAIN_NAME.clone();
         let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone();
         let pool_contract = cosmos_addr!("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
@@ -225,7 +225,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = router_api::GOVERNANCE_COSMOS_ADDR.clone();
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -234,7 +234,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                router_api::ROUTER_COSMOS_ADDR.clone(),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -362,9 +362,9 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_with_proxy() {
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = router_api::MOCK_CHAIN_NAME.clone();
         let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone();
         let pool_contract = cosmos_addr!("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
@@ -377,7 +377,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = router_api::GOVERNANCE_COSMOS_ADDR.clone();
         let params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -386,7 +386,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                router_api::ROUTER_COSMOS_ADDR.clone(),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -419,7 +419,7 @@ mod tests {
             verifier.clone(),
             contract_address.clone(),
             &ExecuteMsg::SetVerifierProxy {
-                proxy_address: proxy.to_string().parse().unwrap(),
+                proxy_address: cosmos_address!("proxy"),
             },
             &[],
         )
@@ -431,7 +431,7 @@ mod tests {
             .query_wasm_smart(
                 contract_address.clone(),
                 &QueryMsg::VerifierProxy {
-                    verifier: verifier.to_string().parse().unwrap(),
+                    verifier: cosmos_address!("verifier"),
                 },
             )
             .unwrap();
@@ -500,7 +500,7 @@ mod tests {
             .query_wasm_smart(
                 contract_address.clone(),
                 &QueryMsg::VerifierProxy {
-                    verifier: verifier.to_string().parse().unwrap(),
+                    verifier: cosmos_address!("verifier"),
                 },
             )
             .unwrap();
@@ -552,9 +552,9 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_existing_tallies() {
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = router_api::MOCK_CHAIN_NAME.clone();
         let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone();
         let pool_contract = cosmos_addr!("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
@@ -567,7 +567,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = router_api::GOVERNANCE_COSMOS_ADDR.clone();
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -576,7 +576,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                router_api::ROUTER_COSMOS_ADDR.clone(),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -707,9 +707,9 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_with_no_existing_tallies() {
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = router_api::MOCK_CHAIN_NAME.clone();
         let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone();
         let pool_contract = cosmos_addr!("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
@@ -722,7 +722,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = router_api::GOVERNANCE_COSMOS_ADDR.clone();
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -731,7 +731,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                router_api::ROUTER_COSMOS_ADDR.clone(),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -869,9 +869,9 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_shortening_epoch() {
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = router_api::MOCK_CHAIN_NAME.clone();
         let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
+        let verifier = router_api::VERIFIER_COSMOS_ADDR.clone();
         let pool_contract = cosmos_addr!("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
@@ -884,7 +884,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = router_api::GOVERNANCE_COSMOS_ADDR.clone();
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -893,7 +893,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                router_api::ROUTER_COSMOS_ADDR.clone(),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),

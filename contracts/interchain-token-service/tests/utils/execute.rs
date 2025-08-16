@@ -15,10 +15,9 @@ use interchain_token_service::shared::NumBits;
 use interchain_token_service_std::{HubMessage, TokenId};
 use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
-use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
+use router_api::{cosmos_addr, Address, ChainNameRaw, CrossChainId};
 
 use super::{instantiate_contract, TestMessage};
-use crate::utils::params;
 
 pub fn execute(
     deps: DepsMut,
@@ -29,7 +28,7 @@ pub fn execute(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GATEWAY), &[]),
+        message_info(&router_api::GATEWAY_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id,
             source_address,
@@ -48,7 +47,7 @@ pub fn execute_hub_message(
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
-    let addr = MockApi::default().addr_make(params::GATEWAY);
+    let addr = router_api::GATEWAY_COSMOS_ADDR.clone();
     let translation_contract_addr = cosmos_addr!("translation_contract").to_string();
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
@@ -63,7 +62,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
             let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
             match msg {
                 axelarnet_gateway::msg::QueryMsg::ChainName => {
-                    Ok(to_json_binary(&chain_name!("axelar")).into()).into()
+                    Ok(to_json_binary(&router_api::AXELAR_CHAIN_NAME.clone()).into()).into()
                 }
                 _ => panic!("unsupported query"),
             }
@@ -124,7 +123,7 @@ pub fn register_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: router_api::TRANSLATION_CONTRACT_COSMOS_ADDRESS.clone(),
         }],
     )
 }
@@ -136,7 +135,7 @@ pub fn register_chains(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::RegisterChains { chains },
     )
 }
@@ -180,7 +179,7 @@ pub fn update_chain(
                 max_uint_bits,
                 max_decimals_when_truncating,
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: router_api::TRANSLATION_CONTRACT_COSMOS_ADDRESS.clone(),
         }],
     )
 }
@@ -192,7 +191,7 @@ pub fn update_chains(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::UpdateChains { chains },
     )
 }
@@ -201,7 +200,7 @@ pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Cont
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::FreezeChain { chain },
     )
 }
@@ -210,7 +209,7 @@ pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractErr
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::DisableExecution,
     )
 }

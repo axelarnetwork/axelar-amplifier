@@ -417,7 +417,7 @@ mod test {
                 "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
             )
             .unwrap(),
-            destination_chain: chain_name_raw!("ethereum"),
+            destination_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             payload_hash: None,
             transfer_amount: XRPLPaymentAmount::Drops(100000),
             gas_fee_amount: XRPLPaymentAmount::Drops(50000),

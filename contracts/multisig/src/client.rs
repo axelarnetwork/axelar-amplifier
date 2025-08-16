@@ -178,12 +178,12 @@ impl Client<'_> {
 mod test {
     use std::collections::HashMap;
 
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{
         from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmMsg,
         WasmQuery,
     };
-    use router_api::{chain_name, cosmos_addr, ChainName};
+    use router_api::ChainName;
 
     use crate::client::Client;
     use crate::key::{KeyType, PublicKey, Signature};
@@ -248,7 +248,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = cosmos_addr!("verifier").to_string();
+        let verifier_address = router_api::VERIFIER_COSMOS_ADDR.clone().to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_err());
@@ -261,7 +261,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = cosmos_addr!("verifier").to_string();
+        let verifier_address = router_api::VERIFIER_COSMOS_ADDR.clone().to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_ok());
@@ -274,8 +274,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = cosmos_addr!("prover").to_string();
-        let chain_name = chain_name!("ethereum");
+        let contract_address = router_api::PROVER_COSMOS_ADDR.clone().to_string();
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -287,37 +287,33 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = cosmos_addr!("prover").to_string();
-        let chain_name = chain_name!("ethereum");
+        let contract_address = router_api::PROVER_COSMOS_ADDR.clone().to_string();
+        let chain_name = router_api::ETHEREUM_CHAIN_NAME.clone();
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "multisig";
-
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
+            } if contract_addr == router_api::MULTISIG_COSMOS_ADDR.clone().as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, router_api::MULTISIG_COSMOS_ADDR.clone())
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = "multisig";
-
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+                if contract_addr == router_api::MULTISIG_COSMOS_ADDR.clone().as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
@@ -363,7 +359,7 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, router_api::MULTISIG_COSMOS_ADDR.clone())
     }
 
     fn signing_keys() -> (String, String) {
@@ -452,8 +448,10 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
+        let contracts: HashMap<String, ChainName> = HashMap::from([(
+            router_api::PROVER_COSMOS_ADDR.clone().to_string(),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
+        )]);
 
         match client.authorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
@@ -467,8 +465,10 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
+        let contracts: HashMap<String, ChainName> = HashMap::from([(
+            router_api::PROVER_COSMOS_ADDR.clone().to_string(),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
+        )]);
 
         match client.unauthorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),

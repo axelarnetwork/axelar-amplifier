@@ -8,11 +8,9 @@ use cosmwasm_std::testing::{message_info, mock_dependencies};
 use cosmwasm_std::HexBinary;
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
+use router_api::{address, chain_name, CrossChainId, Message};
 
-use crate::utils::{
-    axelar_query_handler, messages, mock_axelar_dependencies, params, OwnedDepsExt,
-};
+use crate::utils::{axelar_query_handler, messages, mock_axelar_dependencies, OwnedDepsExt};
 
 mod utils;
 
@@ -265,14 +263,14 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = router_api::DESTINATION_CHAIN_NAME.clone();
+    let destination_address = router_api::DESTINATION_ADDRESS.clone();
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -306,14 +304,14 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = router_api::DESTINATION_CHAIN_NAME.clone();
+    let destination_address = router_api::DESTINATION_ADDRESS.clone();
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -346,14 +344,14 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = router_api::DESTINATION_CHAIN_NAME.clone();
+    let destination_address = router_api::DESTINATION_ADDRESS.clone();
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -388,15 +386,15 @@ fn contract_call_returns_correct_message() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = router_api::DESTINATION_CHAIN_NAME.clone();
+    let destination_address = router_api::DESTINATION_ADDRESS.clone();
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -420,14 +418,14 @@ fn contract_call_returns_correct_events() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = router_api::DESTINATION_CHAIN_NAME.clone();
+    let destination_address = router_api::DESTINATION_ADDRESS.clone();
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -464,14 +462,14 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = params::AXELARNET.parse().unwrap();
-    let destination_address = address!("destination-address");
+    let destination_chain = router_api::AXELARNET_CHAIN_NAME.clone();
+    let destination_address = router_api::DESTINATION_ADDRESS.clone();
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         destination_chain,
         destination_address,
         payload,

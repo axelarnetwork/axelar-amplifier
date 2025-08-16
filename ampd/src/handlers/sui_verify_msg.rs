@@ -183,13 +183,12 @@ mod tests {
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
     use events::Event;
-    use router_api::chain_name;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::{PollStartedEvent, SUI_CHAIN_NAME};
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
     use crate::handlers::tests::{into_structured_event, participants};
@@ -370,7 +369,7 @@ mod tests {
             metric,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: SUI_CHAIN_NAME.clone(),
+                chain_name: router_api::SUI_CHAIN_NAME.clone(),
             }
         );
 
@@ -418,7 +417,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("sui"),
+                source_chain: router_api::SUI_CHAIN_NAME.clone(),
                 source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
                     .unwrap()
                     .to_string()
@@ -441,7 +440,7 @@ mod tests {
                     .to_string()
                     .parse()
                     .unwrap(),
-                destination_chain: chain_name!("ethereum"),
+                destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                 destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                 payload_hash: [2; 32],
             }],

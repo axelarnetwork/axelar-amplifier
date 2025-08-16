@@ -45,7 +45,7 @@ impl GatewayContract {
 impl Default for GatewayContract {
     fn default() -> Self {
         GatewayContract {
-            contract_addr: cosmos_addr!("gateway"),
+            contract_addr: router_api::GATEWAY_COSMOS_ADDR.clone(),
             code_id: 0,
         }
     }

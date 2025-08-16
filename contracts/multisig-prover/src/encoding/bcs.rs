@@ -111,7 +111,7 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name, chain_name_raw, cosmos_addr, CrossChainId, Message};
+    use router_api::{address, cosmos_addr, CrossChainId, Message};
 
     use super::payload_digest;
     use crate::Payload;
@@ -270,38 +270,32 @@ mod tests {
         let payload = Payload::Messages(vec![
             Message {
                 cc_id: CrossChainId {
-                    source_chain: chain_name_raw!("ethereum"),
+                    source_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
                     message_id:
                         "0xbb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1:0"
                             .parse()
                             .unwrap(),
                 },
-                source_address: "0x1a68E002efa42CF3bDEF81d66bB41f9d677420bE"
-                    .parse()
-                    .unwrap(),
-                destination_chain: chain_name!("sui"),
-                destination_address:
+                source_address: address!("0x1a68E002efa42CF3bDEF81d66bB41f9d677420bE"),
+                destination_chain: router_api::SUI_CHAIN_NAME.clone(),
+                destination_address: address!(
                     "0xdf4dd40feff3c09bb5c559d0cfd7d1c5025fa802bba275453e48af7d2b437727"
-                        .parse()
-                        .unwrap(),
+                ),
                 payload_hash: [2; 32],
             },
             Message {
                 cc_id: CrossChainId {
-                    source_chain: chain_name_raw!("ethereum"),
+                    source_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
                     message_id:
                         "0xd695e1ee9d73aeee677d4cec13d17351c1e86a0ce49b7fd3de94350e9cd0b3a9:1"
                             .parse()
                             .unwrap(),
                 },
-                source_address: "0x876EabF441B2EE5B5b0554Fd502a8E0600950cFa"
-                    .parse()
-                    .unwrap(),
-                destination_chain: chain_name!("sui"),
-                destination_address:
+                source_address: address!("0x876EabF441B2EE5B5b0554Fd502a8E0600950cFa"),
+                destination_chain: router_api::SUI_CHAIN_NAME.clone(),
+                destination_address: address!(
                     "0x7bcef829e138fb8fff88671514597313153b9f5501a282bee68a2d9b66aa66e8"
-                        .parse()
-                        .unwrap(),
+                ),
                 payload_hash: [3; 32],
             },
         ]);

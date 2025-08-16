@@ -105,7 +105,6 @@ mod test {
     use assert_ok::assert_ok;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::Empty;
-    use router_api::cosmos_addr;
 
     use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
@@ -114,10 +113,10 @@ mod test {
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
         let env = mock_env();
-        let info = message_info(&cosmos_addr!("sender"), &[]);
+        let info = message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]);
         let instantiate_msg = InstantiateMsg {
-            verifier_address: cosmos_addr!("verifier").to_string(),
-            router_address: cosmos_addr!("router").to_string(),
+            verifier_address: router_api::VERIFIER_COSMOS_ADDR.clone().to_string(),
+            router_address: router_api::ROUTER_COSMOS_ADDR.clone().to_string(),
         };
 
         assert_ok!(instantiate(

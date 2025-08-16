@@ -70,8 +70,8 @@ impl MultisigProverContract {
 impl Default for MultisigProverContract {
     fn default() -> Self {
         MultisigProverContract {
-            contract_addr: cosmos_addr!("prover"),
-            admin_addr: cosmos_addr!("admin"),
+            contract_addr: router_api::PROVER_COSMOS_ADDR.clone(),
+            admin_addr: router_api::ADMIN_COSMOS_ADDR.clone(),
             code_id: 0,
         }
     }

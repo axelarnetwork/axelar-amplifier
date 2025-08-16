@@ -178,13 +178,12 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::chain_name;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::{PollStartedEvent, SUI_CHAIN_NAME};
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
@@ -273,7 +272,7 @@ mod tests {
             msg,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: SUI_CHAIN_NAME.clone(),
+                chain_name: router_api::SUI_CHAIN_NAME.clone(),
             }
         );
 
@@ -288,7 +287,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("sui"),
+                source_chain: router_api::SUI_CHAIN_NAME.clone(),
                 source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
                     .unwrap()
                     .to_string()

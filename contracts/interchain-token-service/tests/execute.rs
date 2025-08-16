@@ -12,9 +12,7 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{
-    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
-};
+use router_api::{address, chain_name_raw, cosmos_addr, ChainName, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -27,11 +25,9 @@ fn register_update_its_contract_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-    let translation_contract: Address = cosmos_address!("translation_contract");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
+    let address = params::MOCK_ADDRESS.clone();
+    let translation_contract = router_api::TRANSLATION_CONTRACT_COSMOS_ADDRESS.clone();
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -45,9 +41,7 @@ fn register_update_its_contract_succeeds() {
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(chain_config.unwrap().its_edge_contract, address);
 
-    let new_address: Address = "0x9999999990123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let new_address = address!("0x9999999990123456789012345678901234567890");
     assert_ok!(utils::update_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
@@ -64,11 +58,9 @@ fn register_update_its_contract_succeeds() {
 fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let chain = chain_name_raw!("ethereum");
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-    let translation_contract: Address = cosmos_address!("translation_contract");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
+    let address = params::MOCK_ADDRESS.clone();
+    let translation_contract = router_api::TRANSLATION_CONTRACT_COSMOS_ADDRESS.clone();
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -98,15 +90,13 @@ fn update_unknown_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
 
     assert_err_contains!(
         utils::update_chain(
             deps.as_mut(),
             chain,
-            "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            params::MOCK_ADDRESS.clone(),
             256.try_into().unwrap(),
             u8::MAX
         ),
@@ -127,7 +117,7 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: router_api::TRANSLATION_CONTRACT_COSMOS_ADDRESS.clone(),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains.clone()));
@@ -150,7 +140,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: router_api::TRANSLATION_CONTRACT_COSMOS_ADDRESS.clone(),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -466,18 +456,23 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
     } = TestMessage::dummy();
     let configs = vec![
         (
-            chain_name_raw!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             source_its_contract.clone(),
             256,
             u8::MAX,
         ),
         (
-            chain_name_raw!("stellar"),
+            router_api::STELLAR_CHAIN_NAME_RAW.clone(),
             source_its_contract.clone(),
             128,
             12,
         ),
-        (chain_name_raw!("sui"), source_its_contract.clone(), 64, 6),
+        (
+            router_api::SUI_CHAIN_NAME_RAW.clone(),
+            source_its_contract.clone(),
+            64,
+            6,
+        ),
     ];
 
     let (mut deps, TestMessage { router_message, .. }) =
@@ -614,18 +609,23 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
     } = TestMessage::dummy();
     let configs = vec![
         (
-            chain_name_raw!("ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             source_its_contract.clone(),
             256,
             u8::MAX,
         ),
         (
-            chain_name_raw!("stellar"),
+            router_api::STELLAR_CHAIN_NAME_RAW.clone(),
             source_its_contract.clone(),
             128,
             12,
         ),
-        (chain_name_raw!("sui"), source_its_contract.clone(), 64, 6),
+        (
+            router_api::SUI_CHAIN_NAME_RAW.clone(),
+            source_its_contract.clone(),
+            64,
+            6,
+        ),
     ];
 
     let (mut deps, TestMessage { router_message, .. }) =
@@ -1026,7 +1026,7 @@ fn freeze_chain_when_not_admin_fails() {
         mock_env(),
         message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum"),
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
         },
     );
     assert_err_contains!(
@@ -1047,7 +1047,7 @@ fn unfreeze_chain_when_not_admin_fails() {
         mock_env(),
         message_info(&cosmos_addr!("not-admin"), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum"),
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
         },
     );
     assert_err_contains!(
@@ -1060,17 +1060,14 @@ fn unfreeze_chain_when_not_admin_fails() {
 #[test]
 fn admin_or_governance_can_freeze_chain() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = params::MOCK_ADDRESS.clone();
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1083,18 +1080,18 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
         }
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
         }
     ));
 }
@@ -1102,17 +1099,14 @@ fn admin_or_governance_can_freeze_chain() {
 #[test]
 fn admin_or_governance_can_unfreeze_chain() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = params::MOCK_ADDRESS.clone();
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1125,18 +1119,18 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
         }
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
         }
     ));
 }
@@ -1144,17 +1138,14 @@ fn admin_or_governance_can_unfreeze_chain() {
 #[test]
 fn admin_or_governance_can_modify_supply() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = params::MOCK_ADDRESS.clone();
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1167,18 +1158,18 @@ fn admin_or_governance_can_modify_supply() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
         }
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone()
         }
     ));
 }
@@ -1224,21 +1215,20 @@ fn enable_execution_when_not_admin_fails() {
 #[test]
 fn admin_or_governance_can_enable_execution() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::EnableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::EnableExecution
     ));
 }
@@ -1246,34 +1236,31 @@ fn admin_or_governance_can_enable_execution() {
 #[test]
 fn admin_or_governance_can_disable_execution() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&router_api::ADMIN_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::DisableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&router_api::GOVERNANCE_COSMOS_ADDR.clone(), &[]),
         ExecuteMsg::DisableExecution
     ));
 }
 
 #[test]
 fn set_chain_config_should_succeed() {
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = params::MOCK_ADDRESS.clone();
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
@@ -1289,13 +1276,11 @@ fn set_chain_config_should_succeed() {
 
 #[test]
 fn set_chain_config_should_fail_if_chain_config_is_already_set() {
-    let chain = chain_name_raw!("ethereum");
+    let chain = router_api::ETHEREUM_CHAIN_NAME_RAW.clone();
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = params::MOCK_ADDRESS.clone();
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();

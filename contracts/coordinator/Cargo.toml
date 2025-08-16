@@ -45,6 +45,7 @@ voting-verifier-api = { workspace = true }
 cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }
 goldie = { workspace = true }
 integration-tests = { workspace = true }
+lazy_static = { workspace = true }
 tofn = { workspace = true }
 
 [lints]

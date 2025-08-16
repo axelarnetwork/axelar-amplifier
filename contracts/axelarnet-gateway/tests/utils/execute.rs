@@ -3,11 +3,9 @@ use axelar_wasm_std::error::ContractError;
 use axelarnet_gateway::msg::ExecuteMsg as GatewayExecuteMsg;
 use axelarnet_gateway::{contract, AxelarExecutableMsg};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::testing::{message_info, mock_env, MockApi};
+use cosmwasm_std::testing::{message_info, mock_env};
 use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
-use router_api::{cosmos_addr, Address, ChainName, CrossChainId, Message};
-
-use crate::utils::params;
+use router_api::{Address, ChainName, CrossChainId, Message};
 
 #[cw_serde]
 /// simulating a contract's implementation of the `Execute` variant of `ExecuteMsg` from `axelarnet-gateway`
@@ -41,7 +39,7 @@ pub fn route_from_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::ROUTER), &[]),
+        message_info(&router_api::ROUTER_COSMOS_ADDR.clone(), &[]),
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }
@@ -54,7 +52,7 @@ pub fn execute_payload(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
     )
 }
@@ -66,7 +64,7 @@ pub fn route_to_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }
@@ -78,7 +76,7 @@ pub fn route_from_nexus(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::NEXUS), &[]),
+        message_info(&router_api::NEXUS_COSMOS_ADDR.clone(), &[]),
         GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
     )
 }

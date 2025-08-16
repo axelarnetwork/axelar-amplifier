@@ -222,7 +222,7 @@ mod test {
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: chain_name!("Ethereum"),
+            chain_name: router_api::ETHEREUM_CHAIN_NAME.clone(),
             expires_at: 100u64,
         };
 
@@ -253,7 +253,7 @@ mod test {
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: chain_name!("Ethereum"),
+            chain_name: router_api::ETHEREUM_CHAIN_NAME.clone(),
             expires_at: 100u64,
         };
 
@@ -348,7 +348,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            chain_name!("Ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             client,
             100u64,
         );
@@ -371,7 +371,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            chain_name!("Ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             client,
             100u64,
         );
@@ -389,7 +389,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
-            chain_name!("Ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             client,
             100u64,
         );
@@ -410,7 +410,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            chain_name!("Ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             client,
             100u64,
         );
@@ -434,7 +434,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            chain_name!("Ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             client,
             99u64,
         );
@@ -458,7 +458,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            chain_name!("Ethereum"),
+            router_api::ETHEREUM_CHAIN_NAME.clone(),
             client,
             101u64,
         );

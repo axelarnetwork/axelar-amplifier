@@ -47,28 +47,20 @@ mod tests {
     use crate::contract::{migrate, MigrateMsg};
     use crate::state::CONFIG;
 
-    const REWARDS: &str = "rewards";
-
-    const GOVERNANCE: &str = "governance";
-    const ADMIN: &str = "admin";
-    const COORDINATOR: &str = "coordinator";
-    const SENDER: &str = "sender";
-
     #[test]
     fn migrate_properly_registers_coordinator() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]);
 
         assert!(legacy_state::test::instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             legacy_state::InstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                admin_address: api.addr_make(ADMIN).to_string(),
-                rewards_address: api.addr_make(REWARDS).to_string(),
+                governance_address: router_api::GOVERNANCE_COSMOS_ADDR.clone().to_string(),
+                admin_address: router_api::ADMIN_COSMOS_ADDR.clone().to_string(),
+                rewards_address: router_api::REWARDS_COSMOS_ADDR.clone().to_string(),
                 block_expiry: Uint64::try_from(100).unwrap(),
             },
         )
@@ -78,15 +70,17 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                coordinator: api.addr_make(COORDINATOR).to_string(),
+                coordinator: router_api::COORDINATOR_COSMOS_ADDR.clone().to_string(),
             },
         )
         .is_ok());
 
         let res = CONFIG.load(&deps.storage);
         assert!(res.is_ok());
-        let coord_addr =
-            address::validate_cosmwasm_address(&deps.api, api.addr_make(COORDINATOR).as_ref());
+        let coord_addr = address::validate_cosmwasm_address(
+            &deps.api,
+            router_api::COORDINATOR_COSMOS_ADDR.clone().as_ref(),
+        );
         assert!(coord_addr.is_ok());
         assert_eq!(res.unwrap().coordinator, coord_addr.unwrap());
     }

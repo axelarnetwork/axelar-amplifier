@@ -537,7 +537,7 @@ mod test {
                 participation_threshold: (1, 2).try_into().unwrap(),
             },
             pool_id: PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: router_api::MOCK_CHAIN_NAME.clone(),
                 contract: cosmos_addr!("pool_contract"),
             },
             event_count: 101u64,
@@ -603,7 +603,7 @@ mod test {
         };
         let pool = RewardsPool {
             id: PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: router_api::MOCK_CHAIN_NAME.clone(),
                 contract: cosmos_addr!("pool_contract"),
             },
             balance: Uint128::from(100u128),
@@ -628,7 +628,7 @@ mod test {
             block_height_started: 1000,
         };
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: router_api::MOCK_CHAIN_NAME.clone(),
             contract: cosmos_addr!("some contract"),
         };
 
@@ -662,7 +662,7 @@ mod test {
 
         // check different contract
         let diff_pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: router_api::MOCK_CHAIN_NAME.clone(),
             contract: cosmos_addr!("some other contract"),
         };
         // should be empty at first
@@ -690,7 +690,7 @@ mod test {
 
         let event = Event {
             pool_id: PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: router_api::MOCK_CHAIN_NAME.clone(),
                 contract: cosmos_addr!("some contract"),
             },
             event_id: "some event".try_into().unwrap(),
@@ -712,7 +712,7 @@ mod test {
 
         // different event id and contract address should return none
         let diff_pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: router_api::MOCK_CHAIN_NAME.clone(),
             contract: cosmos_addr!("different contract"),
         };
         let loaded = load_event(
@@ -753,7 +753,7 @@ mod test {
             block_height_started: 1,
         };
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: router_api::MOCK_CHAIN_NAME.clone(),
             contract: cosmos_addr!("some contract"),
         };
         let mut tally = EpochTally::new(
@@ -766,7 +766,7 @@ mod test {
             },
         );
 
-        tally = tally.record_participation(cosmos_addr!("verifier"));
+        tally = tally.record_participation(router_api::VERIFIER_COSMOS_ADDR.clone());
 
         let res = save_epoch_tally(mock_deps.as_mut().storage, &tally);
         assert!(res.is_ok());
@@ -781,7 +781,7 @@ mod test {
         let loaded = load_epoch_tally(
             mock_deps.as_ref().storage,
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: router_api::MOCK_CHAIN_NAME.clone(),
                 contract: cosmos_addr!("different contract"),
             },
             epoch_num,
@@ -815,7 +815,7 @@ mod test {
         };
         let mut mock_deps = mock_dependencies();
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = router_api::MOCK_CHAIN_NAME.clone();
         let pool = RewardsPool {
             id: PoolId::new(chain_name.clone(), cosmos_addr!("some contract")),
             params,

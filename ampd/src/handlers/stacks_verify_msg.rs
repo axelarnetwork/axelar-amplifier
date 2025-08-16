@@ -321,7 +321,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             voting_verifier,
             client,
@@ -353,7 +353,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             client,
@@ -387,7 +387,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             client,
@@ -403,7 +403,7 @@ mod tests {
             metric,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: chain_name!("stacks"),
+                chain_name: router_api::STACKS_CHAIN_NAME.clone(),
             }
         );
 
@@ -433,7 +433,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             worker,
             voting_verifier,
             client,
@@ -458,7 +458,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         Handler::new(
-            chain_name!("stacks"),
+            router_api::STACKS_CHAIN_NAME.clone(),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,
@@ -474,7 +474,7 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("stacks"),
+                source_chain: router_api::STACKS_CHAIN_NAME.clone(),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),
@@ -493,7 +493,7 @@ mod tests {
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: address!("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"),
-                destination_chain: chain_name!("ethereum"),
+                destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                 destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                 payload_hash: [1; 32],
             }],

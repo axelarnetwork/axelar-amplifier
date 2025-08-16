@@ -14,8 +14,8 @@ pub struct TestSigner {
 }
 
 pub mod ecdsa_test_data {
-    use cosmwasm_std::testing::MockApi;
     use k256::ecdsa::{Signature, SigningKey};
+    use router_api::cosmos_addr;
     use sha3::{Digest, Keccak256};
 
     use super::*;
@@ -50,10 +50,12 @@ pub mod ecdsa_test_data {
     }
 
     pub fn signers() -> Vec<TestSigner> {
-        let api = MockApi::default();
-        let addresses = vec!["signer1", "signer2", "signer3"]
-            .into_iter()
-            .map(|name| api.addr_make(name));
+        let addresses = vec![
+            cosmos_addr!("signer1"),
+            cosmos_addr!("signer2"),
+            cosmos_addr!("signer3"),
+        ]
+        .into_iter();
         let signing_keys = vec![
             "0002735b006b54c6f73c23f3bb0331ce930baed3afe7a56629129efc54652101",
             "1f33707db21df35e138c071766c0bbdd5430869980f97ec9a90afbf0d8700d11",
@@ -73,8 +75,8 @@ pub mod ecdsa_test_data {
 }
 
 pub mod ed25519_test_data {
-    use cosmwasm_std::testing::MockApi;
     use k256::ecdsa::signature::SignerMut;
+    use router_api::cosmos_addr;
     use sha3::{Digest, Keccak256};
 
     use super::*;
@@ -109,10 +111,12 @@ pub mod ed25519_test_data {
     }
 
     pub fn signers() -> Vec<TestSigner> {
-        let api = MockApi::default();
-        let addresses = vec!["signer1", "signer2", "signer3"]
-            .into_iter()
-            .map(|name| api.addr_make(name));
+        let addresses = vec![
+            cosmos_addr!("signer1"),
+            cosmos_addr!("signer2"),
+            cosmos_addr!("signer3"),
+        ]
+        .into_iter();
         let signing_keys = vec![
             "0002735b006b54c6f73c23f3bb0331ce930baed3afe7a56629129efc54652101",
             "1f33707db21df35e138c071766c0bbdd5430869980f97ec9a90afbf0d8700d11",

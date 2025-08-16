@@ -182,12 +182,11 @@ mod tests {
     use hex::ToHex;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
-    use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::{PollStartedEvent, MULTIVERSX_CHAIN_NAME};
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
@@ -379,7 +378,7 @@ mod tests {
             metrics,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: MULTIVERSX_CHAIN_NAME.clone(),
+                chain_name: router_api::MULTIVERSX_CHAIN_NAME.clone(),
             }
         );
 
@@ -393,7 +392,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("multiversx"),
+                source_chain: router_api::MULTIVERSX_CHAIN_NAME.clone(),
                 source_gateway_address:
                     "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx"
                         .parse()

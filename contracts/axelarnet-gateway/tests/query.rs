@@ -11,7 +11,7 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::{from_json, ContractResult, Deps, OwnedDeps, SystemResult};
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{address, cosmos_addr, cosmos_address, ChainName, CrossChainId, Message};
+use router_api::{cosmos_address, ChainName, CrossChainId, Message};
 use serde_json::json;
 use sha3::{Digest, Keccak256};
 
@@ -95,7 +95,7 @@ fn populate_routable_messages(
         .map(|i| {
             let response = utils::call_contract(
                 deps.as_default_mut(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&router_api::SENDER_COSMOS_ADDR.clone(), &[]),
                 format!("destination-chain-{}", i).parse().unwrap(),
                 format!("destination-address-{}", i).parse().unwrap(),
                 vec![i].into(),
@@ -118,8 +118,8 @@ fn populate_executable_messages(
     let msgs: Vec<_> = (0..10)
         .map(|i| Message {
             cc_id: CrossChainId::new("source-chain", format!("hash-index-{}", i)).unwrap(),
-            source_address: address!("source-address"),
-            destination_chain: params::AXELARNET.parse().unwrap(),
+            source_address: router_api::SOURCE_ADDRESS.clone(),
+            destination_chain: router_api::AXELARNET_CHAIN_NAME.clone(),
             destination_address: cosmos_address!("destination-address"),
             payload_hash: Keccak256::digest(vec![i]).into(),
         })

@@ -54,9 +54,9 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
-    use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
+    use router_api::{address, CrossChainId, Message};
 
     use crate::client::Client;
     use crate::msg::QueryMsg;
@@ -68,7 +68,7 @@ mod tests {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
-            source_chain: chain_name_raw!("ethereum"),
+            source_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
                 .parse()
                 .unwrap(),
@@ -85,7 +85,7 @@ mod tests {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let cc_id = CrossChainId {
-            source_chain: chain_name_raw!("ethereum"),
+            source_chain: router_api::ETHEREUM_CHAIN_NAME_RAW.clone(),
             message_id: "0x13548ac28fe95805ad2b8b824472d08e3b45cbc023a5a45a912f11ea98f81e97-0"
                 .parse()
                 .unwrap(),
@@ -96,29 +96,25 @@ mod tests {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "gateway";
-
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
+            } if contract_addr == router_api::GATEWAY_COSMOS_ADDR.clone().as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, router_api::GATEWAY_COSMOS_ADDR.clone())
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = "gateway";
-
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+                if contract_addr == router_api::GATEWAY_COSMOS_ADDR.clone().as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
@@ -128,7 +124,7 @@ mod tests {
                             .map(|cc_id| Message {
                                 cc_id,
                                 source_address: address!("foobar"),
-                                destination_chain: chain_name!("ethereum"),
+                                destination_chain: router_api::ETHEREUM_CHAIN_NAME.clone(),
                                 destination_address: address!("foobar"),
                                 payload_hash: [0u8; 32],
                             })
@@ -141,6 +137,6 @@ mod tests {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, router_api::GATEWAY_COSMOS_ADDR.clone())
     }
 }

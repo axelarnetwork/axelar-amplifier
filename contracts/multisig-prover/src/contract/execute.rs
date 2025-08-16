@@ -425,7 +425,7 @@ mod tests {
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use multisig_prover_api::encoding::Encoder;
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::cosmos_addr;
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
     use crate::state::{Config, NEXT_VERIFIER_SET};
@@ -555,7 +555,7 @@ mod tests {
             voting_verifier: cosmos_addr!("doesn't matter"),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
-            chain_name: chain_name!("ethereum"),
+            chain_name: router_api::ETHEREUM_CHAIN_NAME.clone(),
             verifier_set_diff_threshold: 0,
             encoder: Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,

@@ -177,13 +177,12 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
-    use router_api::chain_name;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::{PollStartedEvent, STELLAR_CHAIN_NAME};
+    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::tests::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
@@ -343,7 +342,7 @@ mod tests {
             metric,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: STELLAR_CHAIN_NAME.clone(),
+                chain_name: router_api::STELLAR_CHAIN_NAME.clone(),
             }
         );
 
@@ -355,7 +354,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("stellar"),
+                source_chain: router_api::STELLAR_CHAIN_NAME.clone(),
                 source_gateway_address: ScAddress::Contract(
                     stellar_xdr::curr::Hash::from([2; 32]).into(),
                 )
