@@ -19,7 +19,7 @@ This document outlines the step-by-step process for releasing a new version of `
    - Enter `ampd` as the package input
    - **Important**: Enable "Dry run" to verify everything works correctly and make a note of the updated tag.
 
-**Note**: To make a minor version update, at least one of your PRs should have a minor prefix in the commit message. For example, having `feat(minor-ampd)` in the commit message will bump up the minor version from 1.10.0 to 1.11.0.
+**Note**: To make a minor version update, at least one of your PRs should have a minor prefix in the commit message. For example, having `feat(minor-ampd)` in the commit message will bump up the minor version from 1.10.0 to 1.11.0. Similarly, for a major version update, use `feat(major-ampd)` which will bump the major version from 1.11.0 to 2.0.0.
 
 **Important**: Major and minor releases are only allowed from the main branch.
 
