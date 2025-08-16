@@ -84,7 +84,7 @@ Example changes:
 
 1. Follow this [document](https://www.notion.so/bright-ambert-2bd/How-to-deploy-ampd-release-to-live-networks-1c8c53fccb77806ba035fd2ade6b98e8?pvs=4) to update our `ampd` instance.
 2. Mention the deployment in the network-specific channel regarding the rollout.
-3. After deployment, verify the network version by running:
+3. After deployment, verify the ampd version by running:
    ```bash
    ampd --version
    ```
