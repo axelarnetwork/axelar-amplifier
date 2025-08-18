@@ -25,6 +25,10 @@ runs:
         echo "cargo --version: $(cargo --version)"
         echo "rustup --version: $(rustup --version)"
         echo "cachekey=$(rustc --version | sed -E 's/[^0-9]+([0-9]+)\.([0-9]+)\.([0-9]+).*/\1\2\3a/' )" >> $GITHUB_OUTPUT
+        echo "all installed toolchains:"
+        echo "---------------------"
+        rustup show
+        echo "---------------------"
       shell: bash
 
     - name: Cache Rust dependencies
