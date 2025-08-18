@@ -9,6 +9,20 @@ inputs:
 runs:
   using: 'composite'
   steps:
+
+    - name: Show installed versions
+      id: versions
+      run: |
+        echo "rustc --version: $(rustc --version)"
+        echo "cargo --version: $(cargo --version)"
+        echo "rustup --version: $(rustup --version)"
+        echo "cachekey=$(rustc --version | sed -E 's/[^0-9]+([0-9]+)\.([0-9]+)\.([0-9]+).*/\1\2\3a/' )" >> $GITHUB_OUTPUT
+        echo "all installed toolchains:"
+        echo "---------------------"
+        rustup show
+        echo "---------------------"
+      shell: bash
+
     - name: Setup Rust toolchain
       id: rust
       uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
@@ -19,9 +33,9 @@ runs:
         rustflags: ""
 
     # The default fallback is "stable", independent of the rust-toolchain.toml, and could be outdated.
-    - name: Set active toolchain as default fallback
+    - name: Remove
       shell: bash
-      run: rustup default "$(rustup show active-toolchain | cut -d' ' -f1)"
+      run: rustup toolchain uninstall "$(rustup show active-toolchain | cut -d' ' -f1)"
 
     - name: Show installed versions
       id: versions
