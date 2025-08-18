@@ -10,39 +10,41 @@ upgrade its gateway.
 
 ```Rust
 pub enum ExecuteMsg {
-    /*
-     * Governance Methods
-     * All of the below messages can only be called by governance
-     */
     // Registers a new chain with the router
+    // can only be called by governance or coordinator contract
     RegisterChain {
         chain: ChainName,
-        gateway_address: String,
+        gateway_address: Address,
+        msg_id_format: MessageIdFormat,
     },
+
     // Changes the gateway address associated with a particular chain
+    // can only be called by governance
     UpgradeGateway {
         chain: ChainName,
-        contract_address: String,
+        contract_address: Address,
     },
 
     /*
-     * Router Admin Methods
-     * All of the below messages can only be called by the router admin
+     * Router Admin or Governance Methods
+     * All of the below messages can only be called by the router admin or governance
      */
-    // Freezes a chain, in the specified direction.
-    FreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+    /// Freezes the specified chains in the specified directions
+    FreezeChains {
+        chains: HashMap<ChainName, GatewayDirection>
     },
-    // Unfreezes a chain, in the specified direction.
-    UnfreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+    /// Unfreezes the specified chains in the specified directions
+    UnfreezeChains {
+        chains: HashMap<ChainName, GatewayDirection>
     },
+     /// Emergency command to stop all amplifier routing.
+    DisableRouting,
+    /// Resumes routing after an emergency shutdown.
+    EnableRouting,
 
     /*
      * Gateway Messages
-     * The below messages can only be called by registered gateways
+     * The below message can only be called by registered gateways
      */
     // Routes each message to the gateway registered to the destination chain.
     // Called by a registered gateway
@@ -52,7 +54,8 @@ pub enum ExecuteMsg {
 pub struct RouterInstantiated {
     pub admin: Addr,
     pub governance: Addr,
-    pub nexus_gateway: Addr,
+    pub axelarnet_gateway: Addr,
+    pub coordinator: Addr,
 }
 
 pub struct ChainRegistered {
@@ -69,13 +72,9 @@ pub struct GatewayUpgraded {
     pub gateway: GatewayInfo,
 }
 
-pub struct GatewayFrozen {
-    pub gateway: GatewayInfo,
-}
+pub struct RoutingDisabled;
 
-pub struct GatewayUnfrozen {
-    pub gateway: GatewayInfo,
-}
+pub struct RoutingEnabled;
 
 pub struct ChainFrozen {
     pub name: ChainName,
@@ -107,14 +106,16 @@ m[Multisig Prover]
 end
 rb[Relayer B]
 eb[External Gateway B]
+rc[Relayer C]
 
 ea--emit event-->ra
 ra--RouteMessages-->ta
 ta--RouteMessages-->c
-c--RouteMessages-->tb
+c--emit event-->rb
+rb--RouteMessages-->tb
 tb--get messages-->m
-m--construct proof-->rb
-rb--send proof-->eb
+m--construct proof-->rc
+rc--send proof-->eb
 
 ```
 
@@ -133,20 +134,21 @@ participant Multisig Prover
 end
 participant Relayer B
 participant External Gateway B
+participant Relayer C
 
 External Gateway A->>+Relayer A: event emitted
 Relayer A->>+Gateway A: gateway::ExecuteMsg::RouteMessages
 Gateway A->>+Router: router::ExecuteMsg::RouteMessages
-Router->>+Gateway B: gateway::ExecuteMsg::RouteMessages
-Multisig Prover->>+Relayer B: constructs proof
-Relayer B->>+External Gateway B: sends proof 
+Router-->>Relayer B: emit MessageRouted event
+Relayer B->>+Gateway B: gateway::ExecuteMsg::RouteMessages
+Multisig Prover->>+Relayer C: constructs proof
+Relayer C->>+External Gateway C: sends proof 
 ```
 
 1. The External Gateway emits an event that is picked up by the Relayer.
 2. Relayer relays the event to the Gateway as a message.
 3. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Router.
-4. Router sends the outgoing messages from Gateway A to Gateway B, which is the representation of destination chain on
-   Axelar chain.
+4. The Router emits a `MessageRouted` event, which is picked up by Relayer B. The relayer then calls `RouteMessages` on Gateway B to forward the message.
 5. The Multisig Prover takes the messages stored in the destination Gateway and constructs a proof.
 6. The Relayer sends the proof, which also contains messages, to the destination's External Gateway.
 

@@ -4,12 +4,13 @@ This module provides access control for contract execute messages. An execute me
 - Only by governance
 - Only by the contract admin
 - Either governance or the contract admin
+- Either governance or coordinator contract
 
 Only contracts that have at least one execute message with restricted access are included in this module.
 
 ## Router
 
-### Governance-Only
+### Governance or Coordinator Contract
 ```rust
 RegisterChain {
     chain: ChainName,
@@ -17,6 +18,9 @@ RegisterChain {
     msg_id_format: MessageIdFormat,
 },
 
+```
+### Governance-Only
+```rust
 UpgradeGateway {
     chain: ChainName,
     contract_address: Address,
@@ -33,7 +37,11 @@ FreezeChain {
 UnfreezeChain {
     chain: ChainName,
     direction: GatewayDirection,
-}
+},
+
+DisableRouting,
+
+EnableRouting
 ```
 
 
@@ -68,15 +76,20 @@ UpdateVerifierSet
 
 ## Multisig
 
-### Governance-Only
+### Governance or Coordinator Contract
 ```rust
-AuthorizeCaller {
-    contract_address: Addr,
+AuthorizeCallers {
+        contracts: HashMap<String, ChainName>,
 },
+```
+### Governance or Admin
 
-UnauthorizeCaller {
-    contract_address: Addr,
-}
+```rust
+UnauthorizeCallers {
+        contracts: HashMap<String, ChainName>,
+},
+DisableSigning,
+EnableSigning
 ```
 
 ### Authorized Caller Only
@@ -105,6 +118,21 @@ RegisterService {
     unbonding_period_days: u16, 
     description: String,
 },
+UpdateService {
+        service_name: String,
+        updated_service_params: UpdatedServiceParams,
+},
+
+OverrideServiceParams {
+        service_name: String,
+        chain_name: ChainName,
+        service_params_override: ServiceParamsOverride,
+},
+
+RemoveServiceParamsOverride {
+        service_name: String,
+        chain_name: ChainName,
+},
 
 AuthorizeVerifiers {
     verifiers: Vec<String>,
@@ -127,8 +155,27 @@ JailVerifiers {
 
 ### Governance-Only
 ```rust
-RegisterProverContract {
-    chain_name: ChainName,
-    new_prover_addr: Addr,
-}
+RegisterProtocol {
+        service_registry_address: String,
+        router_address: String,
+        multisig_address: String,
+},
+RegisterChain {
+        chain_name: ChainName,
+        prover_address: String,
+        gateway_address: String,
+        voting_verifier_address: String,
+},
+InstantiateChainContracts {
+        deployment_name: nonempty::String,
+        salt: Binary,
+        params: Box<DeploymentParams>,
+},
+RegisterDeployment { deployment_name: nonempty::String },
+```
+
+### Registered Prover Only 
+A registered prover is a contract address that was previously registered by governance for a specific chain via the `RegisterChain` message.
+```rust
+SetActiveVerifiers { verifiers: HashSet<String> },
 ```

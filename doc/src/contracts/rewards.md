@@ -14,7 +14,7 @@ V--RecordParticipation-->R
 M--RecordParticipation-->R
 E--DistributeRewards-->R
 U--AddRewards-->R
-G--UpdateParams-->R
+G--UpdatePoolParams-->R
 R--Send rewards-->W
 ```
 
