@@ -17,9 +17,8 @@ use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
 use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
 
-use crate::utils::params;
-
 use super::{instantiate_contract, TestMessage};
+use crate::utils::params;
 
 pub fn execute(
     deps: DepsMut,
