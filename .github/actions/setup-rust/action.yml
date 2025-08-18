@@ -18,6 +18,15 @@ runs:
         # Preserve RUSTFLAGS from .cargo/config.toml
         rustflags: ""
 
+    - name: Show installed versions
+      id: versions
+      run: |
+        echo "rustc --version: $(rustc --version)"
+        echo "cargo --version: $(cargo --version)"
+        echo "rustup --version: $(rustup --version)"
+        echo "cachekey=$(rustc --version | sed -E 's/[^0-9]+([0-9]+)\.([0-9]+)\.([0-9]+).*/\1\2\3a/' )" >> $GITHUB_OUTPUT
+      shell: bash
+
     - name: Cache Rust dependencies
       uses: useblacksmith/rust-cache@f53e7f127245d2a269b3d90879ccf259876842d5 # v3.0.1
       id: cache
