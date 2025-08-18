@@ -23,6 +23,7 @@ use crate::Payload;
 pub fn construct_proof(
     deps: DepsMut,
     message_ids: Vec<CrossChainId>,
+    #[cfg(feature = "receive-payload")] payload_bytes: cosmwasm_std::HexBinary,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
@@ -65,6 +66,10 @@ pub fn construct_proof(
 
     let chain_codec: chain_codec_api::Client =
         client::ContractClient::new(deps.querier, &config.chain_codec).into();
+
+    #[cfg(feature = "receive-payload")]
+    let digest_msg = chain_codec.payload_digest(verifier_set, payload.clone(), payload_bytes);
+    #[cfg(not(feature = "receive-payload"))]
     let digest_msg = chain_codec.payload_digest(verifier_set, payload.clone());
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
@@ -260,6 +265,13 @@ pub fn update_verifier_set(
             let chain_codec: chain_codec_api::Client =
                 client::ContractClient::new(deps.querier, &config.chain_codec).into();
 
+            #[cfg(feature = "receive-payload")]
+            let digest_msg = chain_codec.payload_digest(
+                cur_verifier_set.clone(),
+                payload.clone(),
+                cosmwasm_std::HexBinary::default(),
+            );
+            #[cfg(not(feature = "receive-payload"))]
             let digest_msg = chain_codec.payload_digest(cur_verifier_set.clone(), payload.clone());
 
             let verifier_union_set = all_active_verifiers(deps.storage)?;

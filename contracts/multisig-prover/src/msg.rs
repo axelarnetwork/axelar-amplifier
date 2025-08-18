@@ -14,7 +14,15 @@ pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
     #[permission(Any)]
+    #[cfg(not(feature = "receive-payload"))]
     ConstructProof(Vec<CrossChainId>),
+    #[permission(Any)]
+    #[cfg(feature = "receive-payload")]
+    ConstructProof {
+        message_ids: Vec<CrossChainId>,
+        payload_bytes: HexBinary,
+    },
+
     #[permission(Elevated)]
     UpdateVerifierSet,
 

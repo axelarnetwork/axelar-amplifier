@@ -1968,28 +1968,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "chain-codec-api"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "client",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "error-stack",
- "msgs-derive",
- "multisig",
- "multisig-prover-api",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "chain-codec-evm"
+name = "chain-codec"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_ok",
  "axelar-wasm-std",
+ "bcs",
  "chain-codec-api",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -2011,36 +1996,23 @@ dependencies = [
  "router-api",
  "service-registry-api",
  "sha3",
+ "sui-gateway",
  "thiserror 1.0.69",
 ]
 
 [[package]]
-name = "chain-codec-sui"
+name = "chain-codec-api"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "assert_ok",
  "axelar-wasm-std",
- "bcs",
- "chain-codec-api",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test",
  "cw-storage-plus",
- "cw2",
- "elliptic-curve",
  "error-stack",
- "generic-array",
- "goldie",
- "hex",
- "itertools 0.14.0",
- "k256",
+ "msgs-derive",
  "multisig",
- "prost 0.12.6",
- "router-api",
- "service-registry-api",
- "sha3",
- "sui-gateway",
+ "multisig-prover-api",
  "thiserror 1.0.69",
 ]
 
@@ -5243,8 +5215,8 @@ dependencies = [
  "anyhow",
  "axelar-core-std",
  "axelar-wasm-std",
+ "chain-codec",
  "chain-codec-api",
- "chain-codec-evm",
  "coordinator",
  "cosmwasm-std",
  "cw-multi-test",

@@ -5,7 +5,6 @@ use chain_codec_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 
-use crate::bcs;
 use crate::error::Error;
 use crate::state::{Config, CONFIG};
 
@@ -40,9 +39,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             signers,
             payload,
         } => {
-            let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
+            let config = CONFIG.load(deps.storage)?;
 
-            to_json_binary(&bcs::encode_execute_data(
+            #[cfg(not(feature = "sui"))]
+            use crate::abi as encoding;
+            #[cfg(feature = "sui")]
+            use crate::bcs as encoding;
+
+            to_json_binary(&encoding::encode_execute_data(
                 &config.domain_separator,
                 &verifier_set,
                 signers,
@@ -50,6 +54,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             )?)?
         }
         QueryMsg::ValidateAddress { address } => {
+            #[cfg(not(feature = "sui"))]
+            validate_address(&address, &AddressFormat::Eip55)?;
+            #[cfg(feature = "sui")]
             validate_address(&address, &AddressFormat::Sui)?;
 
             to_json_binary(&Empty {})?
@@ -72,7 +79,12 @@ pub fn execute(
         |_, _| -> error_stack::Result<_, ContractError> { Ok(config.multisig_prover.clone()) },
     )? {
         ExecuteMsg::PayloadDigest { signer, payload } => {
-            let digest = bcs::payload_digest(&config.domain_separator, &signer, &payload)?;
+            #[cfg(not(feature = "sui"))]
+            use crate::abi as encoding;
+            #[cfg(feature = "sui")]
+            use crate::bcs as encoding;
+
+            let digest = encoding::payload_digest(&config.domain_separator, &signer, &payload)?;
             Ok(Response::new().set_data(digest))
         }
     }

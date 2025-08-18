@@ -18,9 +18,24 @@ pub struct Client<'a> {
 }
 
 impl Client<'_> {
+    #[cfg(not(feature = "receive-payload"))]
     pub fn payload_digest(&self, signer: VerifierSet, payload: Payload) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::PayloadDigest { signer, payload })
+    }
+
+    #[cfg(feature = "receive-payload")]
+    pub fn payload_digest(
+        &self,
+        signer: VerifierSet,
+        payload: Payload,
+        payload_bytes: HexBinary,
+    ) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::PayloadDigest {
+            signer,
+            payload,
+            payload_bytes,
+        })
     }
 
     pub fn encode_exec_data(

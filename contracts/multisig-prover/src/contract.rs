@@ -75,7 +75,13 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
+        #[cfg(not(feature = "receive-payload"))]
         ExecuteMsg::ConstructProof(message_ids) => Ok(execute::construct_proof(deps, message_ids)?),
+        #[cfg(feature = "receive-payload")]
+        ExecuteMsg::ConstructProof {
+            message_ids,
+            payload_bytes,
+        } => Ok(execute::construct_proof(deps, message_ids, payload_bytes)?),
         ExecuteMsg::UpdateVerifierSet => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {
@@ -225,6 +231,7 @@ mod tests {
         execute(deps, mock_env(), message_info(&sender, &[]), msg)
     }
 
+    #[cfg(not(feature = "receive-payload"))]
     fn execute_construct_proof(
         deps: DepsMut,
         message_ids: Option<Vec<CrossChainId>>,
@@ -658,6 +665,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "receive-payload"))]
     fn test_construct_proof() {
         let mut deps = setup_test_case();
         execute_update_verifier_set(deps.as_mut()).unwrap();
@@ -684,6 +692,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "receive-payload"))]
     fn test_query_proof() {
         let mut deps = setup_test_case();
         execute_update_verifier_set(deps.as_mut()).unwrap();
@@ -707,6 +716,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "receive-payload"))]
     fn test_construct_proof_no_verifier_set() {
         let mut deps = setup_test_case();
         let res = execute_construct_proof(deps.as_mut(), None);

@@ -19,6 +19,7 @@ path = "src/bin/schema.rs"
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+receive-payload = ["chain-codec-api/receive-payload"]
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
