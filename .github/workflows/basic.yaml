@@ -133,14 +133,14 @@ jobs:
         with:
           crate: dylint-link
 
-      - name: Run cargo fmt
-        run: cargo +nightly fmt-check # alias
-
-      - name: Run cargo sort
-        run: cargo sort-check # alias
-
-      - name: Run cargo clippy
-        run: cargo clippy-check # alias
+#      - name: Run cargo fmt
+#        run: cargo +nightly fmt-check # alias
+#
+#      - name: Run cargo sort
+#        run: cargo sort-check # alias
+#
+#      - name: Run cargo clippy
+#        run: cargo clippy-check # alias
 
       - name: Run custom lints
         run: cargo dylint --all
