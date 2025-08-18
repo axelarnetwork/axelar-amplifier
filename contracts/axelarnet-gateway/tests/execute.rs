@@ -265,14 +265,14 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -306,14 +306,14 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -346,14 +346,14 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -388,15 +388,15 @@ fn contract_call_returns_correct_message() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -420,14 +420,14 @@ fn contract_call_returns_correct_events() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("destination-chain");
-    let destination_address = address!("destination-address");
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -465,13 +465,13 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
     let destination_chain = chain_name!(params::AXELARNET);
-    let destination_address = address!("destination-address");
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,

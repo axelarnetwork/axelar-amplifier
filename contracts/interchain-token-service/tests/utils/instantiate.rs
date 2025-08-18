@@ -11,7 +11,7 @@ pub fn instantiate_contract(deps: DepsMut) -> Result<Response, ContractError> {
     contract::instantiate(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         InstantiateMsg {
             governance_address: cosmos_addr!(params::GOVERNANCE).to_string(),
             admin_address: cosmos_addr!(params::ADMIN).to_string(),

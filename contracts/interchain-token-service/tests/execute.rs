@@ -20,14 +20,17 @@ mod utils;
 
 use crate::contract::Error;
 
+const TRANSLATION_CONTRACT: &str = "translation_contract";
+const DUMMY_ADDRESS: &str = "0x1234567890123456789012345678901234567890";
+
 #[test]
 fn register_update_its_contract_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
-    let address = address!("0x1234567890123456789012345678901234567890");
-    let translation_contract = cosmos_address!("translation_contract");
+    let chain = chain_name_raw!(params::ETHEREUM);
+    let address = address!(DUMMY_ADDRESS);
+    let translation_contract = cosmos_address!(TRANSLATION_CONTRACT);
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -58,9 +61,9 @@ fn register_update_its_contract_succeeds() {
 fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let chain = chain_name_raw!("ethereum");
-    let address = address!("0x1234567890123456789012345678901234567890");
-    let translation_contract = cosmos_address!("translation_contract");
+    let chain = chain_name_raw!(params::ETHEREUM);
+    let address = address!(DUMMY_ADDRESS);
+    let translation_contract = cosmos_address!(TRANSLATION_CONTRACT);
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -90,13 +93,13 @@ fn update_unknown_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
 
     assert_err_contains!(
         utils::update_chain(
             deps.as_mut(),
             chain,
-            address!("0x1234567890123456789012345678901234567890"),
+            address!(DUMMY_ADDRESS),
             256.try_into().unwrap(),
             u8::MAX
         ),
@@ -117,7 +120,7 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: cosmos_address!(TRANSLATION_CONTRACT),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains.clone()));
@@ -140,7 +143,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: cosmos_address!(TRANSLATION_CONTRACT),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -456,7 +459,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
     } = TestMessage::dummy();
     let configs = vec![
         (
-            chain_name_raw!("ethereum"),
+            chain_name_raw!(params::ETHEREUM),
             source_its_contract.clone(),
             256,
             u8::MAX,
@@ -604,7 +607,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
     } = TestMessage::dummy();
     let configs = vec![
         (
-            chain_name_raw!("ethereum"),
+            chain_name_raw!(params::ETHEREUM),
             source_its_contract.clone(),
             256,
             u8::MAX,
@@ -1014,9 +1017,9 @@ fn freeze_chain_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum"),
+            chain: chain_name_raw!(params::ETHEREUM),
         },
     );
     assert_err_contains!(
@@ -1035,9 +1038,9 @@ fn unfreeze_chain_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum"),
+            chain: chain_name_raw!(params::ETHEREUM),
         },
     );
     assert_err_contains!(
@@ -1053,11 +1056,11 @@ fn admin_or_governance_can_freeze_chain() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address = address!("0x1234567890123456789012345678901234567890");
+    let address = address!(DUMMY_ADDRESS);
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1072,7 +1075,7 @@ fn admin_or_governance_can_freeze_chain() {
         mock_env(),
         message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 
@@ -1081,7 +1084,7 @@ fn admin_or_governance_can_freeze_chain() {
         mock_env(),
         message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 }
@@ -1092,11 +1095,11 @@ fn admin_or_governance_can_unfreeze_chain() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address = address!("0x1234567890123456789012345678901234567890");
+    let address = address!(DUMMY_ADDRESS);
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1111,7 +1114,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         mock_env(),
         message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 
@@ -1120,7 +1123,7 @@ fn admin_or_governance_can_unfreeze_chain() {
         mock_env(),
         message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 }
@@ -1131,11 +1134,11 @@ fn admin_or_governance_can_modify_supply() {
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address = address!("0x1234567890123456789012345678901234567890");
+    let address = address!(DUMMY_ADDRESS);
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1150,7 +1153,7 @@ fn admin_or_governance_can_modify_supply() {
         mock_env(),
         message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 
@@ -1159,7 +1162,7 @@ fn admin_or_governance_can_modify_supply() {
         mock_env(),
         message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 }
@@ -1173,7 +1176,7 @@ fn disable_execution_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::DisableExecution,
     );
     assert_err_contains!(
@@ -1192,7 +1195,7 @@ fn enable_execution_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::EnableExecution,
     );
     assert_err_contains!(
@@ -1246,11 +1249,11 @@ fn admin_or_governance_can_disable_execution() {
 
 #[test]
 fn set_chain_config_should_succeed() {
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address = address!("0x1234567890123456789012345678901234567890");
+    let address = address!(DUMMY_ADDRESS);
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
@@ -1266,11 +1269,11 @@ fn set_chain_config_should_succeed() {
 
 #[test]
 fn set_chain_config_should_fail_if_chain_config_is_already_set() {
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address = address!("0x1234567890123456789012345678901234567890");
+    let address = address!(DUMMY_ADDRESS);
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();

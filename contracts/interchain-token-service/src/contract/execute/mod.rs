@@ -603,6 +603,8 @@ mod tests {
     const GOVERNANCE: &str = "governance";
     const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
 
+    const TRANSLATION_ADDRESS: &str = "translation";
+
     #[test]
     fn should_be_able_to_transfer() {
         let mut deps = mock_dependencies();
@@ -1090,7 +1092,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 },
-                msg_translator: cosmos_address!("translation")
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS)
             }
         ));
         assert_err_contains!(
@@ -1103,7 +1105,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     },
-                    msg_translator: cosmos_address!("translation"),
+                    msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
                 }
             ),
             Error,
@@ -1122,7 +1124,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             },
             msg::ChainConfig {
                 chain: xrpl(),
@@ -1131,7 +1133,7 @@ mod tests {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             },
         ];
         assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -1155,7 +1157,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8,
                     },
-                    msg_translator: cosmos_address!("translation"),
+                    msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
                 }]
             ),
             Error,
@@ -1183,7 +1185,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: new_decimals,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             }]
         ));
 
@@ -1292,7 +1294,7 @@ mod tests {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6u8,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             }]
         ));
 
@@ -2117,7 +2119,7 @@ mod tests {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
                     },
-                    msg_translator: cosmos_address!("translation"),
+                    msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
                 }
             ));
         }
@@ -2132,7 +2134,7 @@ mod tests {
                 }
             }
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == cosmos_addr!("translation").as_str() =>
+                if contract_addr == cosmos_addr!(TRANSLATION_ADDRESS).as_str() =>
             {
                 let msg = from_json::<its_msg_translator_api::QueryMsg>(msg).unwrap();
                 match msg {

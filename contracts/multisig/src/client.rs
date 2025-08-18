@@ -194,6 +194,10 @@ mod test {
     };
     use crate::types::MultisigState;
 
+    const ETHEREUM: &str = "ethereum";
+    const VERIFIER: &str = "verifier";
+    const PROVER: &str = "prover";
+
     #[test]
     fn query_multisig_session_returns_error_when_query_errors() {
         let (querier, addr) = setup_queries_to_fail();
@@ -248,7 +252,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = cosmos_addr!("verifier").to_string();
+        let verifier_address = cosmos_addr!(VERIFIER).to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_err());
@@ -261,7 +265,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = cosmos_addr!("verifier").to_string();
+        let verifier_address = cosmos_addr!(VERIFIER).to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_ok());
@@ -274,8 +278,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = cosmos_addr!("prover").to_string();
-        let chain_name = chain_name!("ethereum");
+        let contract_address = cosmos_addr!(PROVER).to_string();
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -287,8 +291,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = cosmos_addr!("prover").to_string();
-        let chain_name = chain_name!("ethereum");
+        let contract_address = cosmos_addr!(PROVER).to_string();
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -453,7 +457,7 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
+            HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(ETHEREUM))]);
 
         match client.authorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
@@ -468,7 +472,7 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
+            HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(ETHEREUM))]);
 
         match client.unauthorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),

@@ -10,6 +10,8 @@ use interchain_token_service::msg::{
 use interchain_token_service_std::TokenId;
 use router_api::{address, chain_name_raw, cosmos_addr};
 
+use crate::utils::params;
+
 mod utils;
 
 struct ChainConfigTest {
@@ -75,7 +77,7 @@ fn query_chain_config() {
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
-        msg_translator: cosmos_addr!("translation_contract"),
+        msg_translator: cosmos_addr!(params::TRANSLATION_CONTRACT),
     };
 
     let eth_chain_config = assert_ok!(utils::query_its_chain(
@@ -87,7 +89,7 @@ fn query_chain_config() {
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
-        chain_name_raw!("ethereum")
+        chain_name_raw!(params::ETHEREUM)
     ));
     assert_eq!(chain_config, None);
 
@@ -121,7 +123,7 @@ fn query_all_its_contracts() {
 
     let its_contracts = vec![
         (
-            chain_name_raw!("ethereum"),
+            chain_name_raw!(params::ETHEREUM),
             address!("0x1234567890123456789012345678901234567890"),
         ),
         (
@@ -152,7 +154,7 @@ fn query_token_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let token_id: TokenId = TokenId::new([1; 32]);
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();

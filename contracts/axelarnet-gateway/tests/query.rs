@@ -97,7 +97,7 @@ fn populate_routable_messages(
         .map(|i| {
             let response = utils::call_contract(
                 deps.as_default_mut(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&cosmos_addr!(params::SENDER), &[]),
                 format!("destination-chain-{}", i).parse().unwrap(),
                 format!("destination-address-{}", i).parse().unwrap(),
                 vec![i].into(),
@@ -122,7 +122,7 @@ fn populate_executable_messages(
             cc_id: CrossChainId::new("source-chain", format!("hash-index-{}", i)).unwrap(),
             source_address: address!("source-address"),
             destination_chain: chain_name!(params::AXELARNET),
-            destination_address: cosmos_address!("destination-address"),
+            destination_address: cosmos_address!(params::DESTINATION_ADDRESS),
             payload_hash: Keccak256::digest(vec![i]).into(),
         })
         .collect();

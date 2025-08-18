@@ -29,7 +29,7 @@ fn invalid_router_address() {
         contract::instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&cosmos_addr!(params::SENDER), &[]),
             msg
         ),
         axelar_wasm_std::address::Error,
@@ -51,7 +51,7 @@ fn invalid_nexus_module_address() {
         contract::instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&cosmos_addr!(params::SENDER), &[]),
             msg
         ),
         axelar_wasm_std::address::Error,

@@ -165,6 +165,8 @@ mod test {
     const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet_gateway";
     const COORDINATOR_ADDRESS: &str = "coordinator";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
+    const ETHEREUM: &str = "ethereum";
+    const POLYGON: &str = "polygon";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -270,8 +272,8 @@ mod test {
     #[test]
     fn successful_routing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -304,8 +306,8 @@ mod test {
     #[test]
     fn wrong_source_chain() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -326,8 +328,8 @@ mod test {
     #[test]
     fn amplifier_messages_must_have_lower_case() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -350,8 +352,8 @@ mod test {
     #[test]
     fn nexus_messages_can_have_upper_case() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &polygon);
 
@@ -374,8 +376,8 @@ mod test {
     fn multi_chain_route() {
         let mut deps = setup();
         let chains = vec![
-            make_chain("ethereum"),
-            make_chain("polygon"),
+            make_chain(ETHEREUM),
+            make_chain(POLYGON),
             make_chain("osmosis"),
             make_chain("avalanche"),
             make_chain("moonbeam"),
@@ -438,7 +440,7 @@ mod test {
     #[test]
     fn authorization() {
         let mut deps = setup();
-        let chain = make_chain("ethereum");
+        let chain = make_chain(ETHEREUM);
 
         let err = execute(
             deps.as_mut(),
@@ -637,8 +639,8 @@ mod test {
     #[test]
     fn upgrade_gateway_outgoing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -672,8 +674,8 @@ mod test {
     #[test]
     fn upgrade_gateway_incoming() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -716,8 +718,8 @@ mod test {
     #[test]
     fn register_chain_test() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         let message = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
         let err = execute(
@@ -749,7 +751,7 @@ mod test {
     #[test]
     fn chain_already_registered() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
+        let eth = make_chain(ETHEREUM);
         register_chain(deps.as_mut(), &eth);
 
         let err = execute(
@@ -798,8 +800,8 @@ mod test {
     #[test]
     fn gateway_already_registered() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
 
         let err = execute(
@@ -835,8 +837,8 @@ mod test {
     #[test]
     fn freeze_incoming() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -908,8 +910,8 @@ mod test {
     #[test]
     fn freeze_outgoing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -967,8 +969,8 @@ mod test {
     #[test]
     fn freeze_chain() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1068,8 +1070,8 @@ mod test {
 
     #[test]
     fn freeze_and_unfreeze_all_chains() {
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         let test_case = HashMap::from([
             (eth.chain_name.clone(), GatewayDirection::Bidirectional),
             (polygon.chain_name.clone(), GatewayDirection::Bidirectional),
@@ -1179,8 +1181,8 @@ mod test {
     #[test]
     fn unfreeze_incoming() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1242,8 +1244,8 @@ mod test {
     #[test]
     fn unfreeze_outgoing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1305,8 +1307,8 @@ mod test {
     #[test]
     fn freeze_incoming_then_outgoing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1369,8 +1371,8 @@ mod test {
     #[test]
     fn freeze_outgoing_then_incoming() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1433,8 +1435,8 @@ mod test {
     #[test]
     fn unfreeze_incoming_then_outgoing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1501,8 +1503,8 @@ mod test {
     #[test]
     fn unfreeze_outgoing_then_incoming() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1569,8 +1571,8 @@ mod test {
     #[test]
     fn unfreeze_nothing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1636,8 +1638,8 @@ mod test {
     #[test]
     fn disable_enable_router() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1803,8 +1805,8 @@ mod test {
     #[test]
     fn nexus_can_route_messages() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -1836,8 +1838,8 @@ mod test {
     #[test]
     fn direct_msgs_succeeds_nexus_routing_check() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -1857,7 +1859,7 @@ mod test {
     fn only_coordinator_executes_coordinator_endpoint_succeeds() {
         let mut deps = setup();
 
-        let polygon = make_chain("polygon");
+        let polygon = make_chain(POLYGON);
 
         assert!(execute(
             deps.as_mut(),
@@ -1879,7 +1881,7 @@ mod test {
     fn only_coordinator_executes_coordinator_endpoint_fails() {
         let mut deps = setup();
 
-        let polygon = make_chain("polygon");
+        let polygon = make_chain(POLYGON);
 
         let res = execute(
             deps.as_mut(),

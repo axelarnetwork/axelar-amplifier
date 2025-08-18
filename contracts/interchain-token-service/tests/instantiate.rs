@@ -28,7 +28,7 @@ fn instantiate_with_args_succeeds() {
     let mut response = assert_ok!(contract::instantiate(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         InstantiateMsg {
             governance_address: governance_address.to_string(),
             admin_address: admin_address.to_string(),
@@ -78,7 +78,7 @@ fn invalid_gateway_address() {
         contract::instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&cosmos_addr!(params::SENDER), &[]),
             msg
         ),
         axelar_wasm_std::address::Error,

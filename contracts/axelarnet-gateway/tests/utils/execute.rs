@@ -54,7 +54,7 @@ pub fn execute_payload(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
     )
 }
@@ -66,7 +66,7 @@ pub fn route_to_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }

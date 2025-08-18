@@ -11,7 +11,7 @@ pub fn instantiate_contract(deps: DepsMut) -> Result<Response, ContractError> {
     contract::instantiate(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         InstantiateMsg {
             chain_name: chain_name!(params::AXELARNET),
             router_address: cosmos_addr!(params::ROUTER).to_string(),

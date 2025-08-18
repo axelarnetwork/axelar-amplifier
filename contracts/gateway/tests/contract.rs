@@ -21,6 +21,7 @@ use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
 const ROUTER: &str = "router";
+const SENDER: &str = "sender";
 const VERIFIER: &str = "verifier";
 
 #[test]
@@ -32,7 +33,7 @@ fn instantiate_works() {
     let result = instantiate(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(SENDER), &[]),
         InstantiateMsg {
             verifier_address: verifier_address.into_string(),
             router_address: router_address.into_string(),
@@ -56,7 +57,7 @@ fn successful_verify() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&cosmos_addr!(SENDER), &[]),
                 ExecuteMsg::VerifyMessages(msgs.clone()),
             )
             .unwrap(),
@@ -87,7 +88,7 @@ fn successful_route_incoming() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&cosmos_addr!("sender"), &[]),
+                message_info(&cosmos_addr!(SENDER), &[]),
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -166,7 +167,7 @@ fn verify_with_faulty_verifier_fails() {
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(SENDER), &[]),
         ExecuteMsg::VerifyMessages(generate_msgs("verifier in unreachable", 10)),
     );
 
@@ -181,7 +182,7 @@ fn route_incoming_with_faulty_verifier_fails() {
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(SENDER), &[]),
         ExecuteMsg::RouteMessages(generate_msgs("verifier in unreachable", 10)),
     );
 
@@ -199,7 +200,7 @@ fn calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -207,7 +208,7 @@ fn calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::RouteMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -232,7 +233,7 @@ fn route_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("sender"), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
 
@@ -436,7 +437,7 @@ fn instantiate_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let response = instantiate(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
+        message_info(&cosmos_addr!(SENDER), &[]),
         InstantiateMsg {
             verifier_address: verifier_address.into_string(),
             router_address: router_address.into_string(),

@@ -238,6 +238,11 @@ mod test {
     const COORDINATOR_ADDRESS: &str = "coordinator";
     const VERIFIER_ADDRESS: &str = "verifier";
     const AXL_DENOMINATION: &str = "uaxl";
+    const SOLANA: &str = "solana";
+    const ETHEREUM: &str = "ethereum";
+    const BINANCE: &str = "binance";
+    const AVALANCHE: &str = "avalanche";
+    const POLYGON: &str = "polygon";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -591,7 +596,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -641,7 +646,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -675,7 +680,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -709,7 +714,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let service = execute_register_service(deps.as_mut(), service_name.into());
         execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
@@ -747,7 +752,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let res = execute(
             deps.as_mut(),
@@ -773,7 +778,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let res = execute(
             deps.as_mut(),
@@ -799,7 +804,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         execute_register_service(deps.as_mut(), service_name.into());
         let params_override =
@@ -826,7 +831,7 @@ mod test {
         let deps = setup();
 
         let service_name = "verifiers";
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let res: Option<ServiceParamsOverride> = from_json(
             query(
@@ -1034,7 +1039,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1137,7 +1142,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1225,9 +1230,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            chain_name!("ethereum"),
-            chain_name!("binance"),
-            chain_name!("avalanche"),
+            chain_name!(ETHEREUM),
+            chain_name!(BINANCE),
+            chain_name!(AVALANCHE),
         ];
 
         let res = execute(
@@ -1319,9 +1324,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            chain_name!("ethereum"),
-            chain_name!("binance"),
-            chain_name!("avalanche"),
+            chain_name!(ETHEREUM),
+            chain_name!(BINANCE),
+            chain_name!(AVALANCHE),
         ];
 
         let res = execute(
@@ -1443,7 +1448,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1455,7 +1460,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let second_chain_name = chain_name!("avalanche");
+        let second_chain_name = chain_name!(AVALANCHE);
         // Deregister support for another chain
         let res = execute(
             deps.as_mut(),
@@ -1545,7 +1550,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1657,7 +1662,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1720,7 +1725,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1765,7 +1770,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1791,7 +1796,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1835,7 +1840,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1879,7 +1884,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1959,7 +1964,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2075,7 +2080,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2149,7 +2154,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2223,7 +2228,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2310,7 +2315,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2419,7 +2424,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2528,7 +2533,7 @@ mod test {
         )
         .unwrap();
 
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
 
         for verifier in &verifiers {
             // should return err until all verifiers are registered
@@ -2807,9 +2812,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            chain_name!("ethereum"),
-            chain_name!("binance"),
-            chain_name!("avalanche"),
+            chain_name!(ETHEREUM),
+            chain_name!(BINANCE),
+            chain_name!(AVALANCHE),
         ];
         let res = execute(
             deps.as_mut(),
@@ -3135,7 +3140,7 @@ mod test {
     fn active_verifiers_respects_chain_max_override() {
         let (mut deps, api, service_name, original_verifiers) = setup_service_with_5_verifiers();
         let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
 
         // Bond and register all verifiers
         for verifier in &original_verifiers {
@@ -3228,7 +3233,7 @@ mod test {
         assert_eq!(active_verifiers.len(), original_verifiers.len());
 
         // Test that without chain override, all 5 verifiers would be returned
-        let chain_name_no_override = chain_name!("polygon");
+        let chain_name_no_override = chain_name!(POLYGON);
 
         // Register all verifiers for the chain without override
         for verifier in &original_verifiers {

@@ -208,6 +208,7 @@ mod tests {
     const GOVERNANCE: &str = "governance";
     const ADMIN: &str = "admin";
     const COORDINATOR: &str = "coordinator";
+    const MOCK_CHAIN: &str = "mock-chain";
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
@@ -472,7 +473,7 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn start_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -537,7 +538,7 @@ mod tests {
     #[test]
     fn start_signing_session_wrong_sender() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -562,7 +563,7 @@ mod tests {
     #[test]
     fn submit_signature() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -638,7 +639,7 @@ mod tests {
     #[test]
     fn submit_signature_completes_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -702,7 +703,7 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -759,7 +760,7 @@ mod tests {
     fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -803,7 +804,7 @@ mod tests {
     #[test]
     fn submit_signature_wrong_session_id() {
         let (mut deps, ecdsa_subkey, _) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -833,7 +834,7 @@ mod tests {
     #[test]
     fn query_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -847,7 +848,7 @@ mod tests {
                 deps.as_mut(),
                 cosmos_addr!(PROVER),
                 subkey,
-                chain_name!("mock-chain"),
+                chain_name!(MOCK_CHAIN),
             )
             .unwrap();
 
@@ -1134,7 +1135,7 @@ mod tests {
     fn authorize_and_unauthorize_callers() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let prover_address = cosmos_addr!(PROVER);
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
 
         // authorize
         do_authorize_callers(
@@ -1230,10 +1231,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
-            contracts: HashMap::from([(
-                cosmos_addr!(PROVER).to_string(),
-                chain_name!("mock-chain"),
-            )]),
+            contracts: HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(MOCK_CHAIN))]),
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
 
@@ -1255,10 +1253,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
-            contracts: HashMap::from([(
-                cosmos_addr!(PROVER).to_string(),
-                chain_name!("mock-chain"),
-            )]),
+            contracts: HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(MOCK_CHAIN))]),
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
 
@@ -1276,7 +1271,7 @@ mod tests {
     fn disable_enable_signing() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let prover_address = cosmos_addr!(PROVER);
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
 
         // authorize
         do_authorize_callers(
@@ -1308,7 +1303,7 @@ mod tests {
                 deps.as_mut(),
                 cosmos_addr!(PROVER),
                 &verifier_set_id,
-                chain_name!("mock-chain"),
+                chain_name!(MOCK_CHAIN),
             );
 
             assert!(res.is_ok());
@@ -1318,7 +1313,7 @@ mod tests {
     #[test]
     fn disable_signing_after_session_creation() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],
@@ -1368,7 +1363,7 @@ mod tests {
     fn start_signing_session_wrong_chain() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
             vec![(cosmos_addr!(PROVER), chain_name.clone())],

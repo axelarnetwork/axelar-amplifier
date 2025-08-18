@@ -355,6 +355,8 @@ mod test {
     use crate::events::{PollEnded, PollMetadata, PollStarted, QuorumReached, Voted};
     use crate::state::Config;
 
+    const SOURCE_CHAIN: &str = "sourceChain";
+
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
         for b in &mut bytes {
@@ -542,7 +544,7 @@ mod test {
             voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             block_expiry: 10u64.try_into().unwrap(),
             confirmation_height: 1,
-            source_chain: chain_name!("sourceChain"),
+            source_chain: chain_name!(SOURCE_CHAIN),
             rewards_contract: cosmos_addr!("rewardsContract"),
             msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
             address_format: AddressFormat::Eip55,
@@ -573,7 +575,7 @@ mod test {
             ],
             metadata: PollMetadata {
                 poll_id: 1.into(),
-                source_chain: chain_name!("sourceChain"),
+                source_chain: chain_name!(SOURCE_CHAIN),
                 source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
                 confirmation_height: 1,
                 expires_at: 1,
@@ -595,7 +597,7 @@ mod test {
             },
             metadata: PollMetadata {
                 poll_id: 2.into(),
-                source_chain: chain_name!("sourceChain"),
+                source_chain: chain_name!(SOURCE_CHAIN),
                 source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
                 confirmation_height: 1,
                 expires_at: 1,
@@ -624,7 +626,7 @@ mod test {
 
         let event_poll_ended: cosmwasm_std::Event = PollEnded {
             poll_id: 1.into(),
-            source_chain: chain_name!("sourceChain"),
+            source_chain: chain_name!(SOURCE_CHAIN),
             results: vec![
                 Some(Vote::SucceededOnChain),
                 Some(Vote::FailedOnChain),

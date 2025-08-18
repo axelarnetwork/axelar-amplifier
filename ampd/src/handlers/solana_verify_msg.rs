@@ -205,6 +205,9 @@ mod test {
     use crate::types::TMAddress;
     use crate::PREFIX;
 
+    const SOLANA: &str = "solana";
+    const ETHEREUM: &str = "ethereum";
+
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
@@ -266,7 +269,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -288,7 +291,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -311,7 +314,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -334,7 +337,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -359,7 +362,7 @@ mod test {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -375,7 +378,7 @@ mod test {
                 msg,
                 metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
-                    chain_name: chain_name!("solana"),
+                    chain_name: chain_name!(SOLANA),
                 }
             );
         }
@@ -398,7 +401,7 @@ mod test {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -431,7 +434,7 @@ mod test {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("solana"),
+                source_chain: chain_name!(SOLANA),
                 source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
@@ -453,7 +456,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_1.parse().unwrap(),
-                    destination_chain: chain_name!("ethereum"),
+                    destination_chain: chain_name!(ETHEREUM),
                     destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"),
                     payload_hash: Hash::from_slice(&[1; 32]).to_fixed_bytes(),
                 },
@@ -468,7 +471,7 @@ mod test {
                     .parse()
                     .unwrap(),
                     message_id: message_id_2.parse().unwrap(),
-                    destination_chain: chain_name!("ethereum"),
+                    destination_chain: chain_name!(ETHEREUM),
                     destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"),
                     payload_hash: Hash::from_slice(&[2; 32]).to_fixed_bytes(),
                 },
