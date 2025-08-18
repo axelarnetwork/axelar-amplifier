@@ -98,12 +98,6 @@ jobs:
         with:
           cache-key: "cache-lints"
 
-      - name: show installed toolchains
-        run: |
-          rustup show
-          rustup toolchain list
-
-
       # Install nightly toolchain for formatting (as per justfile)
       - name: Install nightly for rustfmt
         run: rustup toolchain install nightly --component rustfmt --profile minimal
@@ -118,12 +112,6 @@ jobs:
         with:
           crate: cargo-sort
 
-      - name: show installed toolchains
-        run: |
-          rustup show
-          rustup toolchain list
-
-
       - name: Install cargo-dylint
         uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
         with:
@@ -134,14 +122,14 @@ jobs:
         with:
           crate: dylint-link
 
-#      - name: Run cargo fmt
-#        run: cargo +nightly fmt-check # alias
-#
-#      - name: Run cargo sort
-#        run: cargo sort-check # alias
-#
-#      - name: Run cargo clippy
-#        run: cargo clippy-check # alias
+      - name: Run cargo fmt
+        run: cargo +nightly fmt-check # alias
+
+      - name: Run cargo sort
+        run: cargo sort-check # alias
+
+      - name: Run cargo clippy
+        run: cargo clippy-check # alias
 
       - name: Run custom lints
         run: cargo dylint --all
