@@ -17,6 +17,7 @@ runs:
         cache: false
         # Preserve RUSTFLAGS from .cargo/config.toml
         rustflags: ""
+        override: 'true'
 
     - name: Show installed versions
       id: versions
