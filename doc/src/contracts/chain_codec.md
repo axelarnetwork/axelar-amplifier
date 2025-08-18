@@ -48,6 +48,7 @@ pub enum ExecuteMsg {
         payload: Payload,
         /// This field is only available if the multisig-prover contract was compiled with the `receive-payload` feature flag.
         /// Therefore, it is also feature-gated in this crate.
+        /// This is only filled if the digest is for proof construction. For a verifier set update, it is empty.
         /// Please note that you should validate this in some way.
         #[cfg(feature = "receive-payload")]
         payload_bytes: HexBinary,
