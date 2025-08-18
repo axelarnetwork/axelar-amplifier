@@ -8,6 +8,12 @@ blocks_received_total 0
 # TYPE rpc_calls counter
 # HELP rpc_calls_failed number of failed RPC calls per chain.
 # TYPE rpc_calls_failed counter
+# HELP stage_processed total number of processed items per stage.
+# TYPE stage_processed counter
+# HELP stage_failed number of failed items per stage.
+# TYPE stage_failed counter
+# HELP stage_duration duration of processing items per stage in milliseconds.
+# TYPE stage_duration counter
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
@@ -29,6 +35,12 @@ blocks_received_total 3
 # TYPE rpc_calls counter
 # HELP rpc_calls_failed number of failed RPC calls per chain.
 # TYPE rpc_calls_failed counter
+# HELP stage_processed total number of processed items per stage.
+# TYPE stage_processed counter
+# HELP stage_failed number of failed items per stage.
+# TYPE stage_failed counter
+# HELP stage_duration duration of processing items per stage in milliseconds.
+# TYPE stage_duration counter
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
