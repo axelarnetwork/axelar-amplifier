@@ -103,6 +103,9 @@ jobs:
       - name: Uninstall stable & nightly rust versions
         run: rustup uninstall stable && rustup uninstall nightly
 
+      - name: show installed toolchains
+        run: rustup show
+
       # Install nightly toolchain for formatting (as per justfile)
       - name: Install nightly for rustfmt
         run: rustup toolchain install nightly --component rustfmt --profile minimal
