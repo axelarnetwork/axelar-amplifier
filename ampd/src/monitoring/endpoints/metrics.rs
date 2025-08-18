@@ -439,9 +439,10 @@ impl EventStageMetrics {
         if !success {
             self.failed.get_or_create(&label).inc();
         }
-        self.duration
-            .get_or_create(&label)
-            .inc_by(u64::try_from(duration.as_millis()).unwrap());
+        self.duration.get_or_create(&label).inc_by(
+            u64::try_from(duration.as_millis())
+                .expect("duration should not exceed u64 milliseconds"),
+        );
     }
 }
 
