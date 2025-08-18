@@ -22,6 +22,7 @@ use sysinfo::{get_current_pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKin
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tokio::time::{Duration, Instant};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -33,6 +34,12 @@ const CHANNEL_SIZE: usize = 1000;
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+pub enum Stage {
+    EventHandling,
+    TransactionBroadcast,
+    TransactionConfirmation,
+}
 /// Messages for metrics collection
 ///
 /// These messages are sent to the metrics processor to update various counters
@@ -50,6 +57,12 @@ pub enum Msg {
     RpcCall {
         chain_name: ChainName,
         success: bool,
+    },
+    /// Record result and duration of a processing stage operation
+    StageResult {
+        stage: Stage,
+        success: bool,
+        duration: Duration,
     },
 }
 
@@ -212,6 +225,7 @@ struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
     rpc_call: RpcCallMetrics,
+    stage_result: EventStageMetrics,
 }
 
 impl Metrics {
@@ -219,15 +233,18 @@ impl Metrics {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
         let rpc_call = RpcCallMetrics::new();
+        let stage_result = EventStageMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
         rpc_call.register(registry);
+        stage_result.register(registry);
 
         Self {
             block_received,
             verification_vote,
             rpc_call,
+            stage_result,
         }
     }
 
@@ -236,7 +253,6 @@ impl Metrics {
             Msg::BlockReceived => {
                 self.block_received.increment();
             }
-
             Msg::VerificationVote {
                 vote_decision,
                 chain_name,
@@ -250,6 +266,13 @@ impl Metrics {
                 success,
             } => {
                 self.rpc_call.record_rpc_call(chain_name, success);
+            }
+            Msg::StageResult {
+                stage,
+                success,
+                duration,
+            } => {
+                self.stage_result.record(success, duration, stage);
             }
         }
     }
@@ -367,6 +390,72 @@ impl RpcCallMetrics {
             self.failed.get_or_create(&label).inc();
         }
     }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct StageLabel {
+    stage: Stage,
+}
+
+struct EventStageMetrics {
+    total: Family<StageLabel, Counter>,
+    failed: Family<StageLabel, Counter>,
+    duration: Family<StageLabel, Counter>,
+}
+
+impl EventStageMetrics {
+    fn new() -> Self {
+        let total = Family::<StageLabel, Counter>::default();
+        let failed = Family::<StageLabel, Counter>::default();
+        let duration = Family::<StageLabel, Counter>::default();
+        Self {
+            total,
+            failed,
+            duration,
+        }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "stage_processed",
+            "total number of processed items per stage",
+            self.total.clone(),
+        );
+        registry.register(
+            "stage_failed",
+            "number of failed items per stage",
+            self.failed.clone(),
+        );
+        registry.register(
+            "stage_duration",
+            "duration of processing items per stage in milliseconds",
+            self.duration.clone(),
+        );
+    }
+
+    fn record(&self, success: bool, duration: Duration, stage: Stage) {
+        let label = StageLabel { stage };
+        self.total.get_or_create(&label).inc();
+        if !success {
+            self.failed.get_or_create(&label).inc();
+        }
+        self.duration
+            .get_or_create(&label)
+            .inc_by(u64::try_from(duration.as_millis()).unwrap());
+    }
+}
+
+/// Generic function to time an async operation and return both result and duration.
+/// Used when recording EventFlow metrics.
+pub async fn timed<F, Fut, T>(f: F) -> (T, Duration)
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = T>,
+{
+    let start = Instant::now();
+    let result = f().await;
+    let elapsed = start.elapsed();
+    (result, elapsed)
 }
 
 /// System metrics collector that provides real-time CPU and memory usage for the AMPD process.
@@ -504,6 +593,39 @@ mod tests {
             });
         }
 
+        // EventFlow Metrics
+        client.record_metric(Msg::StageResult {
+            stage: Stage::EventHandling,
+            success: true,
+            duration: Duration::from_millis(100),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::EventHandling,
+            success: false,
+            duration: Duration::from_millis(200),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionBroadcast,
+            success: true,
+            duration: Duration::from_millis(300),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionBroadcast,
+            success: false,
+            duration: Duration::from_millis(400),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionConfirmation,
+            success: true,
+            duration: Duration::from_millis(500),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionConfirmation,
+            success: false,
+            duration: Duration::from_millis(600),
+        });
+
+        // Wait for the metrics to be updated
         // rpc calls
         client.record_metric(Msg::RpcCall {
             chain_name: ChainName::from_str("ethereum").unwrap(),
@@ -559,6 +681,18 @@ mod tests {
 
         assert_eq!(sorted_data1, sorted_data2);
         goldie::assert!(sorted_data1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn timed_function_should_return_correct_result_and_duration() {
+        let (result, duration) = timed(|| async {
+            tokio::time::advance(Duration::from_millis(100)).await;
+            true
+        })
+        .await;
+
+        assert!(result);
+        assert_eq!(duration, Duration::from_millis(100));
     }
 
     /// Extracts the numeric value of a Prometheus metric from text output

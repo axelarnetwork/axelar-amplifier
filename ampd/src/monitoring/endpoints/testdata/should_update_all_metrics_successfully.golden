@@ -25,6 +25,21 @@ rpc_calls_total{chain_name="polygon"} 1
 # HELP rpc_calls_failed number of failed RPC calls per chain.
 # TYPE rpc_calls_failed counter
 rpc_calls_failed_total{chain_name="polygon"} 1
+# HELP stage_processed total number of processed items per stage.
+# TYPE stage_processed counter
+stage_processed_total{stage="EventHandling"} 2
+stage_processed_total{stage="TransactionBroadcast"} 2
+stage_processed_total{stage="TransactionConfirmation"} 2
+# HELP stage_failed number of failed items per stage.
+# TYPE stage_failed counter
+stage_failed_total{stage="EventHandling"} 1
+stage_failed_total{stage="TransactionBroadcast"} 1
+stage_failed_total{stage="TransactionConfirmation"} 1
+# HELP stage_duration duration of processing items per stage in milliseconds.
+# TYPE stage_duration counter
+stage_duration_total{stage="EventHandling"} 300
+stage_duration_total{stage="TransactionBroadcast"} 700
+stage_duration_total{stage="TransactionConfirmation"} 1100
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
