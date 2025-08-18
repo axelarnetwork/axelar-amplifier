@@ -139,7 +139,7 @@ impl From<cosmwasm_std::Addr> for Address {
 /// it will NOT pass validation. In that case, use cosmos_address!() instead.
 #[macro_export]
 macro_rules! address {
-    ($s:literal) => {{
+    ($s:expr) => {{
         use std::str::FromStr as _;
 
         const _: () = {
@@ -166,7 +166,7 @@ macro_rules! address {
 #[macro_export]
 macro_rules! cosmos_addr {
     // Addr
-    ($s:literal) => {{
+    ($s:expr) => {{
         use cosmwasm_std::testing::MockApi;
 
         const _: () = {
@@ -194,7 +194,7 @@ macro_rules! cosmos_addr {
 #[macro_export]
 macro_rules! cosmos_address {
     // Address
-    ($s:literal) => {{
+    ($s:expr) => {{
         use std::str::FromStr as _;
 
         use cosmwasm_std::testing::MockApi;
