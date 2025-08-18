@@ -104,7 +104,10 @@ jobs:
         run: rustup uninstall stable
 
       - name: show installed toolchains
-        run: rustup show
+        run: |
+          rustup show
+          rustup toolchain list
+
 
       # Install nightly toolchain for formatting (as per justfile)
       - name: Install nightly for rustfmt
@@ -121,7 +124,10 @@ jobs:
           crate: cargo-sort
 
       - name: show installed toolchains
-        run: rustup show
+        run: |
+          rustup show
+          rustup toolchain list
+
 
       - name: Install cargo-dylint
         uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3

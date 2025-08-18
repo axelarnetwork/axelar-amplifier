@@ -12,7 +12,10 @@ runs:
 
     - name: show installed toolchains
       shell: bash
-      run: rustup show
+      run: |
+        rustup show
+        rustup toolchain list
+
 
     - name: Setup Rust toolchain
       id: rust
@@ -30,7 +33,10 @@ runs:
 
     - name: show installed toolchains
       shell: bash
-      run: rustup show
+      run: |
+        rustup show
+        rustup toolchain list
+
 
     - name: Cache Rust dependencies
       uses: useblacksmith/rust-cache@f53e7f127245d2a269b3d90879ccf259876842d5 # v3.0.1
