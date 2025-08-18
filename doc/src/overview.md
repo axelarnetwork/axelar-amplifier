@@ -182,7 +182,7 @@ messages from the gateway, and interacts with the multisig contract to conduct t
 
 ### Chain-Codec
 
-The [chain-codec](contracts/chain_codec.md) contract abstracts away chain-specific functionality for a chain.
+The [chain-codec](contracts/chain_codec.md) contract abstracts away chain-specific encoding/decoding functionality for a chain, such as encoding proofs, validating addresses, etc.
 It is used internally by the multisig-prover and voting-verifier contracts.
 
 ### Multisig Contract
