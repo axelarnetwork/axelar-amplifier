@@ -17,7 +17,11 @@ runs:
         cache: false
         # Preserve RUSTFLAGS from .cargo/config.toml
         rustflags: ""
-        override: 'true'
+
+    # The default fallback is "stable", independent of the rust-toolchain.toml, and could be outdated.
+    - name: Set active toolchain as default fallback
+      shell: bash
+      run: rustup default "$(rustup show active-toolchain | cut -d' ' -f1)"
 
     - name: Show installed versions
       id: versions
