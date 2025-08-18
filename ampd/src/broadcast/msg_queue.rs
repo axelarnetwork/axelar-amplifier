@@ -1073,12 +1073,8 @@ mod tests {
             .await
             .unwrap();
 
-        let handle = tokio::spawn(async move {
-            assert!(msg_queue.next().await.is_none());
-        });
-
         drop(msg_queue_client);
-        handle.await.unwrap();
+        assert!(msg_queue.next().await.is_none());
 
         let metric = receiver.recv().await.unwrap();
         assert_eq!(metric, Msg::MessageEnqueueError);

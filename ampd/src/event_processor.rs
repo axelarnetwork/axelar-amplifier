@@ -928,7 +928,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn should_record_event_timeout_metric() {
+    async fn should_record_event_timeout_metric_successfully() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
         let chain_id: chain::Id = "test-chain-id".parse().unwrap();
@@ -972,15 +972,13 @@ mod tests {
             monitoring_client,
         ));
 
-        tokio::task::yield_now().await;
         tokio::time::advance(Duration::from_secs(2)).await;
-        tokio::task::yield_now().await;
-
-        token.cancel();
-        let _ = task.await.unwrap();
 
         let metric = receiver.recv().await.unwrap();
         assert_eq!(metric, metrics::Msg::EventStreamTimeout);
+
+        token.cancel();
+        let _ = task.await.unwrap();
     }
 
     #[tokio::test(start_paused = true)]

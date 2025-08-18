@@ -48,6 +48,7 @@ where
                 self.monitoring_client
                     .metrics()
                     .record_metric(Msg::GrpcServiceError);
+
                 status::log("querying the public key of the signer failed")(err)
             })
             .map_err(status::StatusExt::into_status)?;
@@ -61,6 +62,7 @@ where
                 self.monitoring_client
                     .metrics()
                     .record_metric(Msg::GrpcServiceError);
+
                 status::log("signing failed")(err)
             })
             .map_err(status::StatusExt::into_status)

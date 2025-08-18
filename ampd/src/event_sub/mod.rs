@@ -120,6 +120,7 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
                     self.monitoring_client
                         .metrics()
                         .record_metric(Msg::EventPublisherError);
+
                     error!(
                         err = LoggableError::from(err).as_value(),
                         "failed to retrieve to events"
@@ -131,6 +132,7 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
                 self.monitoring_client
                     .metrics()
                     .record_metric(Msg::EventPublisherError);
+
                 error!(
                     err = LoggableError::from(err).as_value(),
                     "failed to send event to subscribers"
@@ -383,6 +385,9 @@ mod tests {
         assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
         tokio::time::advance(Duration::from_secs(1)).await;
 
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(metric, Msg::EventPublisherError);
+
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::BlockBegin(_))
@@ -392,8 +397,6 @@ mod tests {
         token.cancel();
         handle.await.unwrap().unwrap();
 
-        let metric = receiver.recv().await.unwrap();
-        assert_eq!(metric, Msg::EventPublisherError);
         assert!(receiver.try_recv().is_err());
     }
 }
