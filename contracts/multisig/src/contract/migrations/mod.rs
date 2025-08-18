@@ -48,20 +48,27 @@ mod tests {
     use crate::contract::{migrate, MigrateMsg};
     use crate::state::CONFIG;
 
+    const REWARDS: &str = "rewards";
+
+    const GOVERNANCE: &str = "governance";
+    const ADMIN: &str = "admin";
+    const COORDINATOR: &str = "coordinator";
+    const SENDER: &str = "sender";
+
     #[test]
     fn migrate_properly_registers_coordinator() {
         let mut deps = mock_dependencies();
         let env = mock_env();
-        let info = message_info(&cosmos_addr!("sender"), &[]);
+        let info = message_info(&cosmos_addr!(SENDER), &[]);
 
         assert!(legacy_state::test::instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             legacy_state::InstantiateMsg {
-                governance_address: cosmos_addr!("governance").to_string(),
-                admin_address: cosmos_addr!("admin").to_string(),
-                rewards_address: cosmos_addr!("rewards").to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                admin_address: cosmos_addr!(ADMIN).to_string(),
+                rewards_address: cosmos_addr!(REWARDS).to_string(),
                 block_expiry: Uint64::try_from(100).unwrap(),
             },
         )
@@ -71,7 +78,7 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                coordinator: cosmos_addr!("coordinator").to_string(),
+                coordinator: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .is_ok());
@@ -79,7 +86,7 @@ mod tests {
         let res = CONFIG.load(&deps.storage);
         assert!(res.is_ok());
         let coord_addr =
-            address::validate_cosmwasm_address(&deps.api, cosmos_addr!("coordinator").as_ref());
+            address::validate_cosmwasm_address(&deps.api, cosmos_addr!(COORDINATOR).as_ref());
         assert!(coord_addr.is_ok());
         assert_eq!(res.unwrap().coordinator, coord_addr.unwrap());
     }

@@ -1070,7 +1070,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("admin"), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::FreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1079,7 +1079,7 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1109,7 +1109,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("admin"), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1118,7 +1118,7 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1148,7 +1148,7 @@ fn admin_or_governance_can_modify_supply() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("admin"), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1157,7 +1157,7 @@ fn admin_or_governance_can_modify_supply() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
             chain: chain_name_raw!("ethereum")
         }
@@ -1211,14 +1211,14 @@ fn admin_or_governance_can_enable_execution() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("admin"), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::EnableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::EnableExecution
     ));
 }
@@ -1232,14 +1232,14 @@ fn admin_or_governance_can_disable_execution() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("admin"), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::DisableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::DisableExecution
     ));
 }

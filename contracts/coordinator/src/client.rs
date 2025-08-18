@@ -212,25 +212,29 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
+        const ADDR: &str = "coordinator";
+
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == cosmos_addr!("coordinator").as_str() => {
+            } if contract_addr == cosmos_addr!(ADDR).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, cosmos_addr!("coordinator"))
+        (querier, cosmos_addr!(ADDR))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
+        const ADDR: &str = "coordinator";
+
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == cosmos_addr!("coordinator").as_str() =>
+                if contract_addr == cosmos_addr!(ADDR).as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
@@ -256,6 +260,6 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, cosmos_addr!("coordinator"))
+        (querier, cosmos_addr!(ADDR))
     }
 }

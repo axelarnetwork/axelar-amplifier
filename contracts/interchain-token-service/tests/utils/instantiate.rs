@@ -5,16 +5,18 @@ use interchain_token_service::contract;
 use interchain_token_service::msg::InstantiateMsg;
 use router_api::cosmos_addr;
 
+use crate::utils::params;
+
 pub fn instantiate_contract(deps: DepsMut) -> Result<Response, ContractError> {
     contract::instantiate(
         deps,
         mock_env(),
         message_info(&cosmos_addr!("sender"), &[]),
         InstantiateMsg {
-            governance_address: cosmos_addr!("governance").to_string(),
-            admin_address: cosmos_addr!("admin").to_string(),
-            axelarnet_gateway_address: cosmos_addr!("gateway").to_string(),
-            operator_address: cosmos_addr!("operator").to_string(),
+            governance_address: cosmos_addr!(params::GOVERNANCE).to_string(),
+            admin_address: cosmos_addr!(params::ADMIN).to_string(),
+            axelarnet_gateway_address: cosmos_addr!(params::GATEWAY).to_string(),
+            operator_address: cosmos_addr!(params::OPERATOR).to_string(),
         },
     )
 }

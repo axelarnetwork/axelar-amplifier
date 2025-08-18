@@ -136,8 +136,12 @@ mod tests {
     use crate::contract::execute::should_update_verifier_set;
     use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
-    use crate::test::test_utils::{mock_querier_handler, SERVICE_NAME};
+    use crate::test::test_utils::{
+        mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
+        MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
+    };
 
+    const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();
 
     pub fn setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
@@ -151,15 +155,15 @@ mod tests {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("admin"), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             InstantiateMsg {
-                admin_address: cosmos_addr!("admin").to_string(),
-                governance_address: cosmos_addr!("governance").to_string(),
-                gateway_address: cosmos_addr!("gateway").to_string(),
-                multisig_address: cosmos_addr!("multisig").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
-                service_registry_address: cosmos_addr!("service_registry").to_string(),
-                voting_verifier_address: cosmos_addr!("voting_verifier").to_string(),
+                admin_address: cosmos_addr!(ADMIN).to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                gateway_address: cosmos_addr!(GATEWAY_ADDRESS).to_string(),
+                multisig_address: cosmos_addr!(MULTISIG_ADDRESS).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
+                service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: cosmos_addr!(VOTING_VERIFIER_ADDRESS).to_string(),
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
@@ -181,7 +185,7 @@ mod tests {
         execute(
             deps,
             mock_env(),
-            message_info(&cosmos_addr!("admin"), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             msg,
         )
     }
@@ -229,7 +233,7 @@ mod tests {
         execute(
             deps,
             mock_env(),
-            message_info(&cosmos_addr!("relayer"), &[]),
+            message_info(&cosmos_addr!(RELAYER), &[]),
             msg,
         )
     }
@@ -304,13 +308,13 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
         let instantiator = cosmos_addr!("instantiator");
-        let admin = cosmos_addr!("admin");
-        let governance = cosmos_addr!("governance");
+        let admin = cosmos_addr!(ADMIN);
+        let governance = cosmos_addr!(GOVERNANCE);
         let gateway_address = cosmos_addr!("gateway_address");
         let multisig_address = cosmos_addr!("multisig_address");
         let coordinator_address = cosmos_addr!("coordinator_address");
         let service_registry_address = cosmos_addr!("service_registry_address");
-        let voting_verifier_address = cosmos_addr!("voting_verifier");
+        let voting_verifier_address = cosmos_addr!(VOTING_VERIFIER_ADDRESS);
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -442,7 +446,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("governance"), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
@@ -454,7 +458,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&cosmos_addr!("admin"), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
@@ -592,7 +596,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -622,7 +626,7 @@ mod tests {
             VerificationStatus::Unknown,
         ));
 
-        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -635,7 +639,7 @@ mod tests {
     fn confirm_verifier_no_update_in_progress_should_fail() {
         let mut deps = setup_test_case();
 
-        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -714,7 +718,7 @@ mod tests {
     #[test]
     fn governance_should_be_able_to_call_update_signing_threshold() {
         let mut deps = setup_test_case();
-        let governance = cosmos_addr!("governance");
+        let governance = cosmos_addr!(GOVERNANCE);
         let res = execute_update_signing_threshold(
             deps.as_mut(),
             governance,
@@ -739,7 +743,7 @@ mod tests {
             });
         let new_threshold = initial_threshold.checked_add(Uint128::one()).unwrap();
 
-        let governance = cosmos_addr!("governance");
+        let governance = cosmos_addr!(GOVERNANCE);
         execute_update_signing_threshold(
             deps,
             governance.clone(),
@@ -783,7 +787,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let governance = cosmos_addr!("governance");
+        let governance = cosmos_addr!(GOVERNANCE);
         confirm_verifier_set(deps.as_mut(), governance).unwrap();
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -805,7 +809,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_ok());
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -902,7 +906,7 @@ mod tests {
 
         let res = execute_update_admin(
             deps.as_mut(),
-            cosmos_addr!("governance"),
+            cosmos_addr!(GOVERNANCE),
             new_admin.to_string(),
         );
         assert!(res.is_ok(), "{:?}", res);
@@ -913,7 +917,7 @@ mod tests {
         );
 
         assert_eq!(
-            permission_control::sender_role(deps.as_ref().storage, &cosmos_addr!("admin")).unwrap(),
+            permission_control::sender_role(deps.as_ref().storage, &cosmos_addr!(ADMIN)).unwrap(),
             Permission::NoPrivilege.into()
         );
     }

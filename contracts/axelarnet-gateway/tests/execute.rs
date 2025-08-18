@@ -10,7 +10,9 @@ use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
 use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 
-use crate::utils::{axelar_query_handler, messages, mock_axelar_dependencies, OwnedDepsExt};
+use crate::utils::{
+    axelar_query_handler, messages, mock_axelar_dependencies, params, OwnedDepsExt,
+};
 
 mod utils;
 
@@ -462,7 +464,7 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = chain_name!("axelarnet");
+    let destination_chain = chain_name!(params::AXELARNET);
     let destination_address = address!("destination-address");
     let payload = vec![1, 2, 3].into();
 

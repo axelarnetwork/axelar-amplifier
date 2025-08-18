@@ -17,6 +17,8 @@ use its_abi_translator::abi::{hub_message_abi_decode, hub_message_abi_encode};
 use its_msg_translator_api::QueryMsg;
 use router_api::{chain_name, cosmos_addr, cosmos_address, Address, ChainNameRaw, CrossChainId};
 
+use crate::utils::params;
+
 use super::{instantiate_contract, TestMessage};
 
 pub fn execute(
@@ -28,7 +30,7 @@ pub fn execute(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("gateway"), &[]),
+        message_info(&cosmos_addr!(params::GATEWAY), &[]),
         ExecuteMsg::Execute(axelarnet_gateway::AxelarExecutableMsg {
             cc_id,
             source_address,
@@ -47,7 +49,7 @@ pub fn execute_hub_message(
 }
 
 pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryMsg>> {
-    let addr = cosmos_addr!("gateway");
+    let addr = cosmos_addr!(params::GATEWAY);
     let translation_contract_addr = cosmos_addr!("translation_contract").to_string();
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
@@ -135,7 +137,7 @@ pub fn register_chains(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::RegisterChains { chains },
     )
 }
@@ -191,7 +193,7 @@ pub fn update_chains(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UpdateChains { chains },
     )
 }
@@ -200,7 +202,7 @@ pub fn freeze_chain(deps: DepsMut, chain: ChainNameRaw) -> Result<Response, Cont
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain { chain },
     )
 }
@@ -209,7 +211,7 @@ pub fn disable_contract_execution(deps: DepsMut) -> Result<Response, ContractErr
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("governance"), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::DisableExecution,
     )
 }

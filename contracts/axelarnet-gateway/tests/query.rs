@@ -121,7 +121,7 @@ fn populate_executable_messages(
         .map(|i| Message {
             cc_id: CrossChainId::new("source-chain", format!("hash-index-{}", i)).unwrap(),
             source_address: address!("source-address"),
-            destination_chain: chain_name!("axelarnet"),
+            destination_chain: chain_name!(params::AXELARNET),
             destination_address: cosmos_address!("destination-address"),
             payload_hash: Keccak256::digest(vec![i]).into(),
         })

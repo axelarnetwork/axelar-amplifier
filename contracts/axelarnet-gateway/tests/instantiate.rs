@@ -20,7 +20,7 @@ fn invalid_router_address() {
     let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
-        chain_name: chain_name!("axelarnet"),
+        chain_name: chain_name!(params::AXELARNET),
         router_address: "".to_string(),
         nexus: params::NEXUS.parse().unwrap(),
     };
@@ -42,7 +42,7 @@ fn invalid_nexus_module_address() {
     let mut deps = mock_dependencies();
 
     let msg = InstantiateMsg {
-        chain_name: chain_name!("axelarnet"),
+        chain_name: chain_name!(params::AXELARNET),
         router_address: params::ROUTER.parse().unwrap(),
         nexus: "".to_string(),
     };

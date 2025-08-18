@@ -285,6 +285,9 @@ mod test {
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
 
+    const AXELARNET_GATEWAY: &str = "axelarnet_gateway";
+    const COORDINATOR: &str = "coordinator";
+
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
@@ -329,8 +332,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -358,8 +361,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -401,8 +404,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -442,8 +445,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -498,8 +501,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -537,7 +540,7 @@ mod test {
     #[test]
     fn route_messages_from_nexus_with_invalid_message_id() {
         let mut deps = mock_dependencies();
-        let sender = cosmos_addr!("axelarnet_gateway");
+        let sender = cosmos_addr!(AXELARNET_GATEWAY);
         let source_chain = chain_name!("ethereum");
         let destination_chain = chain_name!("bitcoin");
 
@@ -548,8 +551,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -582,8 +585,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -643,8 +646,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -712,7 +715,7 @@ mod test {
     #[test]
     fn route_messages_from_nexus_to_registered_chains() {
         let mut deps = mock_dependencies();
-        let sender = cosmos_addr!("axelarnet_gateway");
+        let sender = cosmos_addr!(AXELARNET_GATEWAY);
         let source_chain = chain_name!("ethereum");
         let destination_chain_1 = chain_name!("bitcoin");
         let destination_chain_2 = chain_name!("polygon");
@@ -724,8 +727,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -782,7 +785,7 @@ mod test {
             .querier
             .with_custom_handler(reply_with_is_chain_registered(false));
 
-        let sender = cosmos_addr!("axelarnet_gateway");
+        let sender = cosmos_addr!(AXELARNET_GATEWAY);
         let source_chain = chain_name!("ethereum");
         let destination_chain = chain_name!("bitcoin");
 
@@ -793,8 +796,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();
@@ -828,8 +831,8 @@ mod test {
             InstantiateMsg {
                 admin_address: cosmos_addr!("admin").to_string(),
                 governance_address: cosmos_addr!("governance").to_string(),
-                axelarnet_gateway: cosmos_addr!("axelarnet_gateway").to_string(),
-                coordinator_address: cosmos_addr!("coordinator").to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR).to_string(),
             },
         )
         .unwrap();

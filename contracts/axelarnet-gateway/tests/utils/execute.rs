@@ -7,6 +7,8 @@ use cosmwasm_std::testing::{message_info, mock_env};
 use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
 use router_api::{cosmos_addr, Address, ChainName, CrossChainId, Message};
 
+use crate::utils::params;
+
 #[cw_serde]
 /// simulating a contract's implementation of the `Execute` variant of `ExecuteMsg` from `axelarnet-gateway`
 pub enum ExecuteMsg {
@@ -39,7 +41,7 @@ pub fn route_from_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("router"), &[]),
+        message_info(&cosmos_addr!(params::ROUTER), &[]),
         GatewayExecuteMsg::RouteMessages(msgs),
     )
 }
@@ -76,7 +78,7 @@ pub fn route_from_nexus(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("nexus"), &[]),
+        message_info(&cosmos_addr!(params::NEXUS), &[]),
         GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
     )
 }
