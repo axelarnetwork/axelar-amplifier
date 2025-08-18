@@ -18,7 +18,9 @@ Execute:
     --evm-rpc https://ethereum-sepolia-rpc/ \
     --chain-name Ethereum \
     --tx 0xabc... \
-    --indexes 0,2
+    --indexes 0,2 \
+    [--gas-price 0.025uamplifier] \
+    [--fee auto|<number>|'{"gas":"200000","amount":[{"denom":"uamplifier","amount":"5000"}]}' ]
 
 Query only:
   node verify_events.js \
@@ -90,6 +92,23 @@ function toChecksumAddress(address) {
     ret += /[a-f]/.test(ch) ? (hashNibble >= 8 ? ch.toUpperCase() : ch) : ch;
   }
   return ret;
+}
+
+function parseFeeArg(arg) {
+  if (!arg || String(arg).toLowerCase() === "auto") return "auto";
+  const s = String(arg).trim();
+  if (s.startsWith("{") || s.startsWith("[")) {
+    try {
+      return JSON.parse(s);
+    } catch (e) {
+      throw new Error(`invalid --fee JSON: ${e.message}`);
+    }
+  }
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0) return n; // gas limit
+  throw new Error(
+    "--fee must be 'auto', a positive number (gas), or a JSON StdFee"
+  );
 }
 
 // HexBinary in CosmWasm expects hex string encoding (no 0x prefix)
@@ -216,7 +235,7 @@ async function main() {
     { gasPrice: GasPrice.fromString(gasPriceStr) }
   );
 
-  const fee = args.fee === "auto" || !args.fee ? "auto" : args.fee;
+  const fee = parseFeeArg(args.fee);
   const result = await client.execute(sender, String(args.contract), execMsg, fee);
   console.log(JSON.stringify({ txHash: result.transactionHash }, null, 2));
 }
