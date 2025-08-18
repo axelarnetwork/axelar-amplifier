@@ -27,16 +27,14 @@ UpgradeGateway {
 },
 ```
 
-### Admin-Only
+### Admin or Governance
 ```rust
-FreezeChain {
-    chain: ChainName,
-    direction: GatewayDirection,
+FreezeChains {
+    chains: HashMap<ChainName, GatewayDirection>
 },
 
-UnfreezeChain {
-    chain: ChainName,
-    direction: GatewayDirection,
+UnfreezeChains {
+    chains: HashMap<ChainName, GatewayDirection>
 },
 
 DisableRouting,
@@ -45,7 +43,7 @@ EnableRouting
 ```
 
 
-## Verifier
+## Voting Verifier
 
 ### Governance-Only
 ```rust
@@ -110,12 +108,12 @@ StartSigningSession { // Can only be called by an authorized contract
 ```rust
 RegisterService {
     service_name: String,
-    coordinator_contract: Addr,
+    coordinator_contract: String,
     min_num_verifiers: u16,
     max_num_verifiers: Option<u16>,
-    min_verifier_bond: Uint128,
+    min_verifier_bond: nonempty::Uint128,
     bond_denom: String,
-    unbonding_period_days: u16, 
+    unbonding_period_days: u16,
     description: String,
 },
 UpdateService {

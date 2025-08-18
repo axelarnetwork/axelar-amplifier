@@ -62,3 +62,5 @@ opt After poll has ended
     Gateway->>Voting Verifier: query MessagesStatus([M,M',M''])
     Voting Verifier-->>Gateway: return [MessageStatus, ...]
 end
+
+```

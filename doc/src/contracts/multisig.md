@@ -97,8 +97,8 @@ deactivate Multisig
 ## Authorization
 
 Prior to calling `StartSigningSession`, the prover contract must first be _authorized_.
-For a contract to become authorized, a governance or coordinator contract account needs to call `AuthorizeCallers`, and specify the contract addresses together with their corresponding chain names to authorize.
-Similarly, the governance or coordinator contract account can revoke authorization of a particular contract by calling `UnauthorizeCallers`.
+For a contract to become authorized, the governance or coordinator contract needs to call `AuthorizeCallers`, and specify the contract addresses together with their corresponding chain names.
+Similarly, the governance or admin can revoke authorization of a particular contract by calling `UnauthorizeCallers`.
 
 ## Interface
 
@@ -121,7 +121,7 @@ pub enum ExecuteMsg {
         public_key: PublicKey,
         signed_sender_address: HexBinary,
     },
-    // callable only by governance or admin
+    // callable only by governance or coordinator contract
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,
     },
@@ -175,7 +175,7 @@ pub enum MultisigState {
 
 ```Rust
 pub enum Event {
-    // Emitted when a new signing session is open
+    // Emitted when a new signing session is open.
     SigningStarted {
         session_id: Uint64,
         verifier_set_id: String,
@@ -184,27 +184,27 @@ pub enum Event {
         chain_name: ChainName,
         expires_at: u64,
     },
-    // Emitted when a participant submits a signature
+    // Emitted when a participant submits a signature.
     SignatureSubmitted {
         session_id: Uint64,
         participant: Addr,
         signature: Signature,
     },
-    // Emitted when a signing session was completed
+    // Emitted when a signing session was completed.
     SigningCompleted {
         session_id: Uint64,
         completed_at: u64,
     },
-    // Emitted when a PublicKey is registered
+    // Emitted when a PublicKey is registered.
     PublicKeyRegistered {
         verifier: Addr,
         public_key: PublicKey,
     },
-    // Emitted when a contract is authorized by governance to create signing sessions
+    // Emitted when a contract is authorized by governance to create signing sessions.
     CallerAuthorized {
         contract_address: Addr,
     },
-    // Emitted when a contract is unauthorized by governance to create signing sessions
+    // Emitted when a contract is unauthorized by governance to create signing sessions.
     CallerUnauthorized {
         contract_address: Addr,
     },

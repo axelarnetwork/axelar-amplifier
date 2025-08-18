@@ -10,15 +10,13 @@ data and proof so that relayers can take it and send it to the destination chain
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
-    ConstructProof {
-        message_ids: Vec<CrossChainId>,
-    },
+    ConstructProof(Vec<CrossChainId>),
     // can only be called by Governance or Admin
     UpdateVerifierSet,
     ConfirmVerifierSet,
     // Updates the signing threshold. The threshold currently in use does not change.
-    // The verifier set must be updated and confirmed for the change to take effect.  
-    // can only be called by Governance
+    // The verifier set must be updated and confirmed for the change to take effect.
+    // Callable only by governance.
     UpdateSigningThreshold {
         new_signing_threshold: MajorityThreshold,
     },
@@ -33,11 +31,16 @@ pub enum QueryMsg {
     #[returns(ProofResponse)]
     Proof { multisig_session_id: Uint64 },
 
-    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    #[returns(Option<VerifierSetResponse>)]
     CurrentVerifierSet,
 
     #[returns(Option<VerifierSetResponse>)]
     NextVerifierSet,
+}
+
+pub struct VerifierSetResponse {
+    pub id: String,
+    pub verifier_set: multisig::verifier_set::VerifierSet,
 }
 
 pub enum ProofStatus {

@@ -63,7 +63,7 @@ participant Verifier
 participant Multisig Prover
 
 Multisig Prover ->> Multisig: StartSigningSession
-Verifier ->> Multisig: Sign
+Verifier ->> Multisig: SubmitSignature
 opt If signed within grace period
 Multisig ->> Rewards: RecordParticipation
 end

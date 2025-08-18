@@ -28,15 +28,15 @@ pub enum ExecuteMsg {
     // Can only be called by governance account.
     RegisterService {
         service_name: String,
-        coordinator_contract: Addr,
+        coordinator_contract: String,
         min_num_verifiers: u16,
         max_num_verifiers: Option<u16>,
-        min_verifier_bond: Uint128,
+        min_verifier_bond: nonempty::Uint128,
         bond_denom: String,
         unbonding_period_days: u16,
         description: String,
     },
-    /// Updates modifiable fields of the service. Can only be called by governance account Note, not all fields are modifiable.
+    /// Updates modifiable fields of the service. Can only be called by governance account. Note, not all fields are modifiable.
     UpdateService {
         service_name: String,
         updated_service_params: UpdatedServiceParams,
