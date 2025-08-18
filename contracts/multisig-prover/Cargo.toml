@@ -9,6 +9,10 @@ description = "Multisig prover contract"
 exclude = ["contract.wasm", "hash.txt"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.optimizer]
+standard-build = true
+builds = [{ name = "rp", features = ["receive-payload"] }]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
