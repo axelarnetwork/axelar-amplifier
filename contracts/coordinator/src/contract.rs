@@ -90,7 +90,7 @@ pub fn execute(
             deployment_name,
             salt,
             params,
-        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params)
+        } => execute::instantiate_chain_contracts(deps, env, deployment_name, salt, *params)
             .change_context(Error::InstantiateChainContracts),
         ExecuteMsg::RegisterDeployment { deployment_name } => {
             execute::register_deployment(deps, info.sender, deployment_name.clone())

@@ -6,7 +6,7 @@ on:
       - main
   create:
     tags:
-      - '*-v[0-9]+.[0-9]+.[0-9]+'
+      - "*-v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
     inputs:
       ref:
@@ -14,7 +14,6 @@ on:
         required: true
         default: main
         type: string
-
 
 jobs:
   compile-and-upload:
@@ -46,7 +45,6 @@ jobs:
             echo "tag=" >> $GITHUB_OUTPUT
           fi
 
-
       - name: Check for release information from tag
         id: check-release
         run: |
@@ -57,7 +55,7 @@ jobs:
             is_release="true"
             crate_name="${BASH_REMATCH[1]}"
             crate_version="${BASH_REMATCH[2]}"
-          
+
             if [[ $crate_name == "ampd" ]]; then
               echo "Ampd release. Ignoring the wasm build and upload."
               exit 1
@@ -76,7 +74,6 @@ jobs:
             echo "is-release=$is_release" >> $GITHUB_OUTPUT
           fi
 
-
       - name: Determine checkout ref
         id: get-checkout-ref
         run: |
@@ -88,7 +85,6 @@ jobs:
             echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
           fi
 
-
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
         with:
@@ -98,14 +94,12 @@ jobs:
           ref: ${{ steps.get-checkout-ref.outputs.ref }}
           token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
 
-
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@e00cb83a68c1158b29afc5217dd0582cada6d172 # v4
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
-
 
       - name: Compile all amplifier contracts
         id: compile-contracts
@@ -121,7 +115,6 @@ jobs:
           mkdir -p ./$commit_hash/
           cp -R axelar-amplifier/artifacts/* ./$commit_hash/
           echo "wasm-directory=./$commit_hash" >> $GITHUB_OUTPUT
-
 
       - name: Prepare and sign release artifacts
         if: steps.check-release.outputs.is-release == 'true'
@@ -148,7 +141,6 @@ jobs:
           echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT
           echo "r2-destination-dir=./releases/cosmwasm/${crate_name}" >> $GITHUB_OUTPUT
 
-
       - uses: ryand56/r2-upload-action@31453780fdaaf43c8eff7231dd521f8669b48621 # v1.3.2
         if: steps.check-release.outputs.is-release == 'true'
         with:
@@ -158,7 +150,6 @@ jobs:
           r2-bucket: ${{ secrets.R2_BUCKET }}
           source-dir: ${{ steps.prepare-release.outputs.release-artifacts-dir }}
           destination-dir: ${{ steps.prepare-release.outputs.r2-destination-dir }}
-
 
       - uses: ryand56/r2-upload-action@31453780fdaaf43c8eff7231dd521f8669b48621 # v1.3.2
         if: steps.check-release.outputs.is-release != 'true'
