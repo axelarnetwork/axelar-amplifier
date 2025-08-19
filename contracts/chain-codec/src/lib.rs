@@ -1,3 +1,5 @@
+// these are only used if the respective feature is enabled, so we silence the warnings
+// we could also feature-gate them, but that makes editing them a big pain
 #[allow(unused)]
 mod abi;
 #[allow(unused)]
