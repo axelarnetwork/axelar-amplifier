@@ -23,8 +23,8 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
-aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
+aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "dev" }
 aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "dev" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
@@ -111,7 +111,6 @@ signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifi
 snarkos-account = "3.8.0"
 snarkvm = "3.8.0"
 snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM", tag = "snarkvm-with-cosmwasm" }
-snarkos-account = { version = "3.8.0" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"

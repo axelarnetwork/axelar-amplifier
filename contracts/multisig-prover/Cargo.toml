@@ -21,8 +21,8 @@ path = "src/bin/schema.rs"
 library = []
 
 [dependencies]
-aleo-network-config = { workspace = true }
 aleo-gmp-types = { workspace = true }
+aleo-network-config = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 bcs = "0.1.5"
 client = { workspace = true }
@@ -66,9 +66,9 @@ elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
 goldie = { workspace = true }
 prost = "0.12.4"
-snarkvm = { workspace = true }
-snarkos-account = { workspace = true }
 rand = { workspace = true }
+snarkos-account = { workspace = true }
+snarkvm = { workspace = true }
 
 [lints]
 workspace = true

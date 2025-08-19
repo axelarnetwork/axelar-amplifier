@@ -174,9 +174,6 @@ where
             })
             .ok_or(Error::CallContractNotFound)?;
 
-        let plain_text = snarkvm::prelude::Plaintext::<N>::from_str(&payload)
-            .map_err(|_| Report::new(Error::PayloadHash(payload.to_string())))?;
-
         let chain_name = StringEncoder::from_slice(&call_contract.destination_chain)
             .decode()
             .change_context(Error::InvalidChainName)?;
