@@ -226,17 +226,11 @@ pub fn deployed_contracts(
         Some(l) => DEPLOYED_CHAINS
             .range(storage, start, None, Order::Ascending)
             .take(usize::try_from(l).change_context(Error::StateParseFailed)?)
-            .filter_map(|entry| match entry {
-                Ok((_, contracts)) => Some(contracts),
-                Err(..) => None,
-            })
+            .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
             .collect(),
         None => DEPLOYED_CHAINS
             .range(storage, start, None, Order::Ascending)
-            .filter_map(|entry| match entry {
-                Ok((_, contracts)) => Some(contracts),
-                Err(..) => None,
-            })
+            .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
             .collect(),
     })
 }
