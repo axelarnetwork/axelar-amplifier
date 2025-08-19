@@ -1,5 +1,8 @@
+#[allow(unused)]
 mod abi;
+#[allow(unused)]
 mod bcs;
+#[allow(unused)]
 mod stellar_xdr;
 
 #[cfg(not(any(feature = "evm", feature = "sui", feature = "stellar_xdr")))]
