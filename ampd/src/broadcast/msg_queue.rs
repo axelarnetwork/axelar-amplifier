@@ -293,12 +293,17 @@ impl Stream for MsgQueue {
                         me.deadline.set(time::sleep(*me.duration));
                     }
 
+                    let monitoring_client = me.monitoring_client.clone();
+                    let handle_queue_error = move |msg: QueueMsg, err: Error| {
+                        handle_queue_error(msg, err);
+                        monitoring_client
+                            .metrics()
+                            .record_metric(Msg::MessageEnqueueError);
+                    };
+
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
-                    if let Some(msgs) =
-                        me.queue
-                            .push_or(msg, handle_queue_error, me.monitoring_client)
-                    {
+                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
                         return Poll::Ready(Some(msgs));
                     }
                 }
@@ -321,7 +326,7 @@ impl Stream for MsgQueue {
     }
 }
 
-fn handle_queue_error(msg: QueueMsg, err: Error, monitoring_client: &monitoring::Client) {
+fn handle_queue_error(msg: QueueMsg, err: Error) {
     let QueueMsg {
         tx_res_callback, ..
     } = msg;
@@ -331,10 +336,6 @@ fn handle_queue_error(msg: QueueMsg, err: Error, monitoring_client: &monitoring:
         error = LoggableError::from(&report).as_value(),
         "message dropped"
     );
-
-    monitoring_client
-        .metrics()
-        .record_metric(Msg::MessageEnqueueError);
 
     let _ = tx_res_callback.send(Err(Arc::new(report)));
 }
@@ -356,14 +357,9 @@ impl Queue {
     }
 
     #[instrument(skip(handle_error))]
-    pub fn push_or<F>(
-        &mut self,
-        msg: QueueMsg,
-        handle_error: F,
-        monitoring_client: &monitoring::Client,
-    ) -> Option<nonempty::Vec<QueueMsg>>
+    pub fn push_or<F>(&mut self, msg: QueueMsg, handle_error: F) -> Option<nonempty::Vec<QueueMsg>>
     where
-        F: FnOnce(QueueMsg, Error, &monitoring::Client),
+        F: FnOnce(QueueMsg, Error),
     {
         if msg.gas > self.gas_cap {
             let err = Error::GasExceedsGasCap {
@@ -372,7 +368,7 @@ impl Queue {
                 gas_cap: self.gas_cap,
             };
 
-            handle_error(msg, err, monitoring_client);
+            handle_error(msg, err);
 
             return None;
         }
