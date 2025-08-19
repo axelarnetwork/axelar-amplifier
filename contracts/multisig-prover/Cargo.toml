@@ -67,7 +67,8 @@ generic-array = "0.14.7"
 goldie = { workspace = true }
 prost = "0.12.4"
 snarkvm = { workspace = true }
-tofn = { workspace = true, features = ["aleo-schnorr"] }
+snarkos-account = { workspace = true }
+rand = { workspace = true }
 
 [lints]
 workspace = true

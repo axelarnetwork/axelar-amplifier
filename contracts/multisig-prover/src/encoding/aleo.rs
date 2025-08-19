@@ -211,6 +211,7 @@ mod tests {
     use multisig::key::PublicKey;
     use multisig::msg::Signer;
     use router_api::ChainNameRaw;
+    use snarkos_account::Account;
     use snarkvm::prelude::{Address, ToBytes};
 
     use super::*;
@@ -236,36 +237,34 @@ mod tests {
         }
     }
 
-    type Curr = snarkvm::prelude::TestnetV0;
-
-    use tofn::aleo_schnorr::keygen;
-    use tofn::sdk::api::SecretRecoveryKey;
+    type CurrentNetwork = snarkvm::prelude::TestnetV0;
 
     // The bellow comments represent the public and private keys of the signer.
     // They are useful for manually verifying the function.
     // APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo
     // aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss
     fn aleo_sig(digest: [u8; 32]) -> SignerWithSig {
-        let arr = [0; 64];
-        let k = SecretRecoveryKey::try_from(&arr[..]).unwrap();
-        let key_pair = keygen::<Curr>(&k, b"tofn nonce").unwrap();
-        let msg = tofn::sdk::api::MessageDigest::from(digest);
-        let signature = tofn::aleo_schnorr::sign(&key_pair, &msg).unwrap();
+        let aleo_account =
+            Account::new(&mut rand::thread_rng()).expect("Failed to create Aleo account");
+        let encoded_signature = aleo_account
+            .sign_bytes(&digest, &mut rand::thread_rng())
+            .and_then(|signature| signature.to_bytes_le())
+            .unwrap()
+            .into();
 
-        let verify_key = key_pair.encoded_verifying_key().unwrap();
+        let verify_key: Address<CurrentNetwork> = aleo_account.address();
+        let verify_key_encoded = verify_key.to_bytes_le().unwrap().into();
 
         let signer = Signer {
             address: Addr::unchecked("aleo-validator".to_string()),
             weight: 1u128.into(),
-            pub_key: PublicKey::AleoSchnorr(HexBinary::from(&verify_key)),
+            pub_key: PublicKey::AleoSchnorr(verify_key_encoded),
         };
 
-        let signature = multisig::key::Signature::AleoSchnorr(HexBinary::from(&signature[..]));
+        let signature = multisig::key::Signature::AleoSchnorr(encoded_signature);
 
         SignerWithSig { signer, signature }
     }
-
-    use std::convert::TryFrom;
 
     #[test]
     fn aleo_execute_data() {
@@ -275,7 +274,7 @@ mod tests {
             120u8, 83u8, 146u8, 201u8, 251u8, 159u8,
         ];
 
-        let aleo_address: Address<Curr> =
+        let aleo_address: Address<CurrentNetwork> =
             Address::from_str("aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss")
                 .unwrap();
 
