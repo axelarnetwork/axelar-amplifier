@@ -294,8 +294,9 @@ impl Stream for MsgQueue {
                     }
 
                     let monitoring_client = me.monitoring_client.clone();
-                    let handle_queue_error = move |msg: QueueMsg, err: Error| {
+                    let handle_queue_err = move |msg: QueueMsg, err: Error| {
                         handle_queue_error(msg, err);
+
                         monitoring_client
                             .metrics()
                             .record_metric(Msg::MessageEnqueueError);
@@ -303,7 +304,7 @@ impl Stream for MsgQueue {
 
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
-                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
+                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_err) {
                         return Poll::Ready(Some(msgs));
                     }
                 }
