@@ -98,6 +98,11 @@ jobs:
         with:
           cache-key: "cache-lints"
 
+      # Currently a workaround for running custom lints.
+      # For some reason, the custom lints seem to use cargo version 1.80.0, causing that step to fail.
+      - name: Uninstall stable & nightly rust versions
+        run: rustup uninstall stable && rustup uninstall nightly
+
       # Install nightly toolchain for formatting (as per justfile)
       - name: Install nightly for rustfmt
         run: rustup toolchain install nightly --component rustfmt --profile minimal
@@ -112,6 +117,16 @@ jobs:
         with:
           crate: cargo-sort
 
+      - name: Install cargo-dylint
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
+        with:
+          crate: cargo-dylint
+
+      - name: Install dylint-link
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
+        with:
+          crate: dylint-link
+
       - name: Run cargo fmt
         run: cargo +nightly fmt-check # alias
 
@@ -120,6 +135,11 @@ jobs:
 
       - name: Run cargo clippy
         run: cargo clippy-check # alias
+
+      - name: Run custom lints
+        run: cargo dylint --all
+        env:
+          DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
       - name: Check Diff
         # fails if any changes not committed

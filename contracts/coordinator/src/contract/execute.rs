@@ -1,9 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{
-    Addr, Binary, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{Addr, Binary, DepsMut, Env, Response, Storage, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
@@ -84,7 +82,6 @@ type Instantiate2Data = (WasmMsg, Addr);
 /// to be instantiated correctly.
 fn launch_contracts<const N: usize>(
     deps: &DepsMut,
-    info: &MessageInfo,
     env: &Env,
     salt: Binary,
     contracts: [ContractLaunch<'_, N>; N],
@@ -108,7 +105,7 @@ fn launch_contracts<const N: usize>(
     for (i, (contract, address)) in contracts.into_iter().zip(&addresses).enumerate() {
         data[i] = (
             WasmMsg::Instantiate2 {
-                admin: Some(info.sender.to_string()),
+                admin: Some(contract.admin),
                 code_id: contract.code_id,
                 msg: (contract.instantiate_msg)(&addresses)?,
                 funds: vec![],
@@ -126,23 +123,24 @@ struct ContractLaunch<'a, const N: usize> {
     pub code_id: u64,
     pub instantiate_msg: &'a mut dyn FnMut(&[Addr; N]) -> Result<Binary, Error>,
     pub label: String,
+    pub admin: String,
 }
 
 fn launch_contract(
     deps: &DepsMut,
-    info: &MessageInfo,
     env: &Env,
     salt: Binary,
     code_id: u64,
     instantiate_msg: Binary,
     label: String,
+    admin: String,
 ) -> Result<(WasmMsg, Addr), Error> {
     Ok((
         WasmMsg::Instantiate2 {
-            admin: Some(info.sender.to_string()),
+            admin: Some(admin),
             code_id,
             msg: instantiate_msg,
-            funds: info.funds.clone(),
+            funds: vec![],
             label,
             salt: salt.clone(),
         },
@@ -158,7 +156,6 @@ fn instantiate_gateway(
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
         &ctx.deps,
-        &ctx.info,
         &ctx.env,
         ctx.salt.clone(),
         ctx.gateway_code_id,
@@ -168,6 +165,7 @@ fn instantiate_gateway(
         })
         .change_context(Error::InstantiateGateway)?,
         label,
+        ctx.gateway_contract_admin.clone(),
     )
 }
 
@@ -186,7 +184,6 @@ fn instantiate_prover_and_verifier_and_chain_codec(
 ) -> Result<(Instantiate2Data, Instantiate2Data, Instantiate2Data), Error> {
     let [prover, verifier, chain_codec] = launch_contracts(
         &ctx.deps,
-        &ctx.info,
         &ctx.env,
         ctx.salt.clone(),
         [
@@ -194,7 +191,7 @@ fn instantiate_prover_and_verifier_and_chain_codec(
                 code_id: ctx.prover_code_id,
                 instantiate_msg: &mut |[_, verifier_addr, chain_codec_addr]| {
                     cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
-                        admin_address: ctx.info.sender.to_string(),
+                        admin_address: prover_msg.admin_address.to_string(),
                         governance_address: prover_msg.governance_address.to_string(),
                         coordinator_address: ctx.env.contract.address.to_string(),
                         gateway_address: gateway_address.to_string(),
@@ -212,6 +209,7 @@ fn instantiate_prover_and_verifier_and_chain_codec(
                     .change_context(Error::InstantiateProver)
                 },
                 label: prover_label,
+                admin: ctx.prover_contract_admin.clone(),
             },
             ContractLaunch {
                 code_id: ctx.verifier_code_id,
@@ -238,6 +236,7 @@ fn instantiate_prover_and_verifier_and_chain_codec(
                     .change_context(Error::InstantiateVerifier)
                 },
                 label: verifier_label,
+                admin: ctx.verifier_contract_admin.clone(),
             },
             ContractLaunch {
                 code_id: ctx.chain_codec_id,
@@ -252,6 +251,7 @@ fn instantiate_prover_and_verifier_and_chain_codec(
                     .change_context(Error::InstantiateChainCodec)
                 },
                 label: chain_codec_label,
+                admin: ctx.chain_codec_contract_admin.clone(),
             },
         ],
     )?;
@@ -261,19 +261,21 @@ fn instantiate_prover_and_verifier_and_chain_codec(
 
 struct InstantiateContext<'a> {
     deps: DepsMut<'a>,
-    info: MessageInfo,
     env: Env,
     salt: Binary,
     gateway_code_id: u64,
+    gateway_contract_admin: String,
     chain_codec_id: u64,
+    chain_codec_contract_admin: String,
     verifier_code_id: u64,
+    verifier_contract_admin: String,
     prover_code_id: u64,
+    prover_contract_admin: String,
 }
 
 pub fn instantiate_chain_contracts(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
@@ -291,15 +293,42 @@ pub fn instantiate_chain_contracts(
                 instantiate2_addr(&deps, &env, params.verifier.code_id, salt.as_ref())
                     .change_context(Error::InstantiateContracts)?;
 
+            let gateway_contract_admin = deps
+                .api
+                .addr_validate(params.gateway.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.gateway.contract_admin.to_string()))?
+                .to_string();
+
+            let verifier_contract_admin = deps
+                .api
+                .addr_validate(params.verifier.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.verifier.contract_admin.to_string()))?
+                .to_string();
+
+            let prover_contract_admin = deps
+                .api
+                .addr_validate(params.prover.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.prover.contract_admin.to_string()))?
+                .to_string();
+
+            let chain_codec_contract_admin = deps
+                .api
+                .addr_validate(params.chain_codec.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.chain_codec.contract_admin.to_string()))?
+                .to_string();
+
             let ctx = InstantiateContext {
                 deps,
-                info,
                 env,
                 salt,
                 gateway_code_id: params.gateway.code_id,
+                gateway_contract_admin,
                 chain_codec_id: params.chain_codec.code_id,
+                chain_codec_contract_admin,
                 verifier_code_id: params.verifier.code_id,
+                verifier_contract_admin,
                 prover_code_id: params.prover.code_id,
+                prover_contract_admin,
             };
 
             let (msg, gateway_address) = instantiate_gateway(

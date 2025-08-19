@@ -62,6 +62,7 @@ pub enum ExecuteMsg {
 pub struct ContractDeploymentInfo<T> {
     pub code_id: u64,
     pub label: String,
+    pub contract_admin: Addr,
     pub msg: T,
 }
 
@@ -82,10 +83,11 @@ pub enum DeploymentParams {
 
 #[cw_serde]
 pub struct ProverMsg {
-    pub governance_address: String,
-    pub multisig_address: String,
+    pub governance_address: nonempty::String,
+    pub admin_address: nonempty::String,
+    pub multisig_address: nonempty::String,
     pub signing_threshold: MajorityThreshold,
-    pub service_name: String,
+    pub service_name: nonempty::String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub key_type: KeyType,

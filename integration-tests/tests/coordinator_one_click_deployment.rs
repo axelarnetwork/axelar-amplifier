@@ -74,6 +74,7 @@ fn instantiate_contracts(
                     code_id: chain.gateway.code_id,
                     label: "Gateway1.0.0".to_string(),
                     msg: (),
+                    contract_admin: protocol.governance_address.clone(),
                 },
                 chain_codec: ContractDeploymentInfo {
                     code_id: chain.chain_codec.code_id,
@@ -82,6 +83,7 @@ fn instantiate_contracts(
                         domain_separator: [0; 32],
                     }
                     .into(),
+                    contract_admin: protocol.governance_address.clone(),
                 },
                 verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
@@ -109,13 +111,20 @@ fn instantiate_contracts(
                         msg_id_format:
                             axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                     },
+                    contract_admin: protocol.governance_address.clone(),
                 },
                 prover: ContractDeploymentInfo {
                     code_id: chain.multisig_prover.code_id,
                     label: "Prover1.0.0".to_string(),
                     msg: ProverMsg {
-                        governance_address: protocol.governance_address.to_string(),
-                        multisig_address: protocol.multisig.contract_addr.to_string(),
+                        governance_address: nonempty::String::try_from(
+                            protocol.governance_address.to_string(),
+                        )
+                        .expect("expected non-empty address"),
+                        multisig_address: nonempty::String::try_from(
+                            protocol.multisig.contract_addr.to_string(),
+                        )
+                        .expect("expected non-empty address"),
                         signing_threshold: Threshold::try_from((2u64, 3u64))
                             .unwrap()
                             .try_into()
@@ -125,7 +134,12 @@ fn instantiate_contracts(
                         verifier_set_diff_threshold: 0,
                         key_type: KeyType::Ecdsa,
                         sig_verifier_address: None,
+                        admin_address: nonempty::String::try_from(
+                            protocol.governance_address.to_string(),
+                        )
+                        .expect("expected non-empty address"),
                     },
+                    contract_admin: protocol.governance_address.clone(),
                 },
             })),
         },
