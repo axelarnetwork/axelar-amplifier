@@ -10,9 +10,9 @@ receive-payload = []
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-client = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 msgs-derive = { workspace = true }
