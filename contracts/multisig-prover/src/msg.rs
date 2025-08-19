@@ -20,7 +20,7 @@ pub enum ExecuteMsg {
     #[cfg(feature = "receive-payload")]
     ConstructProof {
         message_ids: Vec<CrossChainId>,
-        payload_bytes: HexBinary,
+        payload_bytes: Vec<HexBinary>,
     },
 
     #[permission(Elevated)]

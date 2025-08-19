@@ -29,7 +29,7 @@ impl Client<'_> {
         &self,
         signer: VerifierSet,
         payload: Payload,
-        payload_bytes: HexBinary,
+        payload_bytes: Vec<HexBinary>,
     ) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::PayloadDigest {
             signer,

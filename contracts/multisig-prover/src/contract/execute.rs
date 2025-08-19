@@ -23,7 +23,7 @@ use crate::Payload;
 pub fn construct_proof(
     deps: DepsMut,
     message_ids: Vec<CrossChainId>,
-    #[cfg(feature = "receive-payload")] payload_bytes: cosmwasm_std::HexBinary,
+    #[cfg(feature = "receive-payload")] payload_bytes: Vec<cosmwasm_std::HexBinary>,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
@@ -269,7 +269,7 @@ pub fn update_verifier_set(
             let digest_msg = chain_codec.payload_digest(
                 cur_verifier_set.clone(),
                 payload.clone(),
-                cosmwasm_std::HexBinary::default(),
+                vec![], // empty because we don't have payload bytes here and only fill this field for proof construction
             );
             #[cfg(not(feature = "receive-payload"))]
             let digest_msg = chain_codec.payload_digest(cur_verifier_set.clone(), payload.clone());
