@@ -236,7 +236,7 @@ mod tests {
     use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract;
     use prost::Message as _;
 
-    fn poll_started_event2() -> Event {
+    fn poll_started_event() -> Event {
         let expires_at: u64 = 10;
         let participants: Vec<TMAddress> = vec![AccountId::from_str(
             "axelar1a9d3a3hcykzfa8rn3y7d47ns55x3wdlykchydd8x3f95dtz9qh0q3vnrg0",
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn aleo_verify_msg2() {
+    async fn aleo_verify_msg() {
         let transaction_id = "at188kfg7uxqc0rpzlq66y7mp293a5vauqr5jdlg3a7v9tk9wpsavgqe7ww5l";
         let mock_client = crate::aleo::http_client::tests::mock_client(
             transaction_id,
@@ -311,7 +311,7 @@ mod tests {
                 "../tests/at188kfg7uxqc0rpzlq66y7mp293a5vauqr5jdlg3a7v9tk9wpsavgqe7ww5l.json"
             ),
         );
-        let event = poll_started_event2();
+        let event = poll_started_event();
 
         let handler = Handler::<CurrentNetwork, _>::new(
             TMAddress::from(
@@ -347,7 +347,6 @@ mod tests {
                 ExecuteMsg::Vote { poll_id, votes } => {
                     assert_eq!(poll_id, PollId::from(100));
                     assert_eq!(votes.len(), 1);
-                    println!("votes: {:?}", votes);
                     assert!(matches!(votes[0], Vote::SucceededOnChain));
                 }
                 _ => panic!("Unexpected message type: {:?}", decode),

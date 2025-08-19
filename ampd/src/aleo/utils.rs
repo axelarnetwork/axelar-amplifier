@@ -29,9 +29,8 @@ pub fn find_call_contract_in_outputs<N: Network>(
 ) -> Option<String> {
     outputs.iter().find_map(|output| {
         let output_hash = output.value.as_ref().and_then(|value| {
-            let value = snarkvm::prelude::Plaintext::<N>::from_str(value)
-                .ok()?
-                .to_bits_le();
+            // The Plaintext is used here because we know that the CallContract payload is of Plaintext type
+            let value = Plaintext::<N>::from_str(value).ok()?.to_bits_le();
             let group_hash = N::hash_to_group_bhp256(&value).ok()?;
             let literal = Literal::Group(group_hash);
             let literal = literal.cast_lossy(LiteralType::Field).ok()?;

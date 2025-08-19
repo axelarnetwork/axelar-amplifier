@@ -1,7 +1,7 @@
 use aleo_gmp_types::utils::AleoBitsToBytesExt as _;
 use router_api::ChainName;
 use sha3::Digest;
-use snarkvm::prelude::{Address, FromBytes, Network};
+use snarkvm::prelude::{Address, FromBytes, Network, Value};
 use tracing::info;
 
 use crate::types::Hash;
@@ -19,7 +19,7 @@ impl<N: Network> PartialEq<crate::handlers::aleo_verify_msg::Message<N>>
     for CallContractReceipt<N>
 {
     fn eq(&self, message: &crate::handlers::aleo_verify_msg::Message<N>) -> bool {
-        let Ok(aleo_payload) = snarkvm::console::program::Value::<N>::from_bytes_le(&self.payload)
+        let Ok(aleo_payload) = Value::<N>::from_bytes_le(&self.payload)
         else {
             return false;
         };

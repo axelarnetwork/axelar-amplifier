@@ -3,7 +3,7 @@ use std::str::FromStr;
 use aleo_gmp_types::aleo_struct::generated_structs::SignersRotated;
 use aleo_string_encoder::StringEncoder;
 use error_stack::{ensure, Report, Result, ResultExt};
-use snarkvm::prelude::{Network, ProgramID, ToBytes};
+use snarkvm::prelude::{Network, ProgramID, ToBytes, Value};
 
 use crate::aleo::error::Error;
 use crate::aleo::generated_structs::ContractCall;
@@ -174,7 +174,7 @@ where
             })
             .ok_or(Error::CallContractNotFound)?;
 
-        let payload_plaintext_bytes = snarkvm::prelude::Plaintext::<N>::from_str(&payload)
+        let payload_plaintext_bytes = Value::<N>::from_str(&payload)
             .and_then(|p| p.to_bytes_le())
             .map_err(|_| Report::new(Error::PayloadHash(payload.to_string())))?;
 
