@@ -14,7 +14,7 @@ use crate::state::{Config, CONFIG};
 #[cw_serde]
 pub struct MigrateMsg {
     /// Address to the chain codec contract to use for this migration
-    chain_codec_address: String,
+    pub chain_codec_address: String,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -66,6 +66,7 @@ pub struct OldConfig {
     // we are dropping this with the migration anyway and the type does not exist anymore,
     // so we just comment it out
     // pub encoder: Encoder,
+    // this is also dropped and causes a test failure, so we comment it out too
+    // pub domain_separator: Hash,
     pub key_type: KeyType,
-    pub domain_separator: Hash,
 }
