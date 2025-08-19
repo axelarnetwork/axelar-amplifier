@@ -22,6 +22,8 @@ pub enum Error {
     InvalidChainName,
     #[error("Invalid destination address")]
     InvalidDestinationAddress,
+    #[error("Failed to create hash payload: {0}")]
+    PayloadHash(String),
     #[error("Failed to find transition '{0}' in transaction")]
     TransitionNotFoundInTransaction(String),
     // #[error("Failed to create CallContract receipt: {0}")]
