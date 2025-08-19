@@ -360,6 +360,9 @@ impl App {
                         .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                         .build()
                         .change_context(Error::Connection)?,
+
+                    self.monitoring_client.clone(),
+                    chain.name.clone(),
                 );
 
                 check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
