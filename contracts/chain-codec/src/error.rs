@@ -18,4 +18,7 @@ pub enum Error {
 
     #[error("message is invalid")]
     InvalidMessage,
+
+    #[error("failed to serialize data for the external gateway")]
+    SerializeData,
 }

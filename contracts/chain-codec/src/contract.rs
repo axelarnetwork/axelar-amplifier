@@ -41,10 +41,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         } => {
             let config = CONFIG.load(deps.storage)?;
 
-            #[cfg(not(feature = "sui"))]
+            #[cfg(feature = "evm")]
             use crate::abi as encoding;
             #[cfg(feature = "sui")]
             use crate::bcs as encoding;
+            #[cfg(feature = "stellar_xdr")]
+            use crate::stellar_xdr as encoding;
 
             to_json_binary(&encoding::encode_execute_data(
                 &config.domain_separator,
@@ -54,10 +56,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             )?)?
         }
         QueryMsg::ValidateAddress { address } => {
-            #[cfg(not(feature = "sui"))]
+            #[cfg(feature = "evm")]
             validate_address(&address, &AddressFormat::Eip55)?;
             #[cfg(feature = "sui")]
             validate_address(&address, &AddressFormat::Sui)?;
+            #[cfg(feature = "stellar_xdr")]
+            validate_address(&address, &AddressFormat::Stellar)?;
 
             to_json_binary(&Empty {})?
         }
@@ -79,10 +83,12 @@ pub fn execute(
         |_, _| -> error_stack::Result<_, ContractError> { Ok(config.multisig_prover.clone()) },
     )? {
         ExecuteMsg::PayloadDigest { signer, payload } => {
-            #[cfg(not(feature = "sui"))]
+            #[cfg(feature = "evm")]
             use crate::abi as encoding;
             #[cfg(feature = "sui")]
             use crate::bcs as encoding;
+            #[cfg(feature = "stellar_xdr")]
+            use crate::stellar_xdr as encoding;
 
             let digest = encoding::payload_digest(&config.domain_separator, &signer, &payload)?;
             Ok(Response::new().set_data(digest))

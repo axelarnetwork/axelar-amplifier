@@ -4,11 +4,21 @@ version = "0.1.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
-description = "Chain codec contract for EVM / Sui chains, using ABI encoding and EIP55 addresses or BCS encoding and Sui addresses depending on the feature flags"
+description = "Chain codec contract for EVM / Sui / Stellar chains, using their respective encodings and address formats"
 
 [package.metadata.optimizer]
 standard-build = false
-builds = [{ name = "sui", features = ["sui"] }, { name = "evm", features = [] }]
+builds = [
+    { name = "sui", features = [
+        "sui",
+    ], default-features = false },
+    { name = "evm", features = [
+        "evm",
+    ], default-features = false },
+    { name = "stellar", features = [
+        "stellar_xdr",
+    ], default-features = false },
+]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -20,13 +30,20 @@ path = "src/bin/schema.rs"
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+
+default = ["evm"]
+
+# one of the following needs to be enabled:
 # enable this to build the Sui contract with BCS encoding and Sui addresses
-# if this is not enabled, the EVM contract is built, i.e. ABI encoding and EIP55 addresses
-sui = ["bcs", "sui-gateway"]
+sui = []
+# enable this to build the EVM contract with ABI encoding and EIP55 addresses
+evm = []
+# enable this to build the Stellar contract with XDR encoding and Stellar addresses
+stellar_xdr = []
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
-bcs = { version = "0.1.5", optional = true }
+bcs = { version = "0.1.5" }
 chain-codec-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -40,7 +57,9 @@ itertools = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 sha3 = { workspace = true }
-sui-gateway = { workspace = true, optional = true }
+stellar = { workspace = true }
+stellar-xdr = { workspace = true }
+sui-gateway = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

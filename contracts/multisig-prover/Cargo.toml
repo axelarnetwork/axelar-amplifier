@@ -51,8 +51,6 @@ serde_json = { workspace = true }
 service-registry = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
-stellar = { workspace = true }
-stellar-xdr = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 

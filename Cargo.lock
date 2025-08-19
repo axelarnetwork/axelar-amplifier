@@ -1996,6 +1996,8 @@ dependencies = [
  "router-api",
  "service-registry-api",
  "sha3",
+ "stellar",
+ "stellar-xdr",
  "sui-gateway",
  "thiserror 1.0.69",
 ]
@@ -6613,8 +6615,6 @@ dependencies = [
  "service-registry",
  "service-registry-api",
  "sha3",
- "stellar",
- "stellar-xdr",
  "thiserror 1.0.69",
  "voting-verifier",
 ]
