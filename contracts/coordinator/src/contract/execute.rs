@@ -219,7 +219,7 @@ fn instantiate_prover_and_verifier_and_chain_codec(
                         service_registry_address: nonempty::String::try_from(
                             service_registry_address.to_string(),
                         )
-                        .unwrap(),
+                        .change_context(Error::InstantiateVerifier)?,
                         service_name: verifier_msg.service_name.clone(),
                         source_gateway_address: verifier_msg.source_gateway_address.clone(),
                         voting_threshold: verifier_msg.voting_threshold,
@@ -231,7 +231,7 @@ fn instantiate_prover_and_verifier_and_chain_codec(
                         chain_codec_address: nonempty::String::try_from(
                             chain_codec_addr.to_string(),
                         )
-                        .unwrap(),
+                        .change_context(Error::InstantiateVerifier)?,
                     })
                     .change_context(Error::InstantiateVerifier)
                 },
