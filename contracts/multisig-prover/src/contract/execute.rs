@@ -10,6 +10,7 @@ use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
+use multisig_prover_api::payload::Payload;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
@@ -18,7 +19,6 @@ use crate::error::ContractError;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
-use multisig_prover_api::payload::Payload;
 
 pub fn construct_proof(
     deps: DepsMut,

@@ -3,10 +3,10 @@ use axelar_wasm_std::{address, permission_control};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
+use multisig_prover_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
-use multisig_prover_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 mod execute;
 mod migrations;
@@ -140,6 +140,7 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
+    use multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use prost::Message;
     use router_api::{cosmos_addr, CrossChainId};
 
@@ -151,7 +152,6 @@ mod tests {
         GOVERNANCE, MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS,
         VOTING_VERIFIER_ADDRESS,
     };
-    use multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();

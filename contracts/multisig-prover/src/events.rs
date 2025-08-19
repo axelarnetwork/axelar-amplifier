@@ -15,10 +15,10 @@ pub enum Event {
 
 #[cfg(test)]
 mod tests {
+    use multisig_prover_api::payload::Payload;
     use router_api::{address, chain_name, Message};
 
     use super::*;
-    use multisig_prover_api::payload::Payload;
 
     #[test]
     fn proof_under_construction_is_serializable() {
