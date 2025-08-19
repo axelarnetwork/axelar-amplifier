@@ -344,7 +344,10 @@ mod test {
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::signature::Signature;
 
-    use super::{event_comes_from_gateway, Client, SolanaRpcClientProxy};
+    use super::{
+        event_comes_from_gateway, handle_completion_log, handle_invoke_log, parse_completion_log,
+        parse_invoke_log, Client, SolanaRpcClientProxy,
+    };
     use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
 
@@ -401,28 +404,17 @@ mod test {
         ];
 
         let result_legitimate = event_comes_from_gateway(&malicious_logs, 3);
-        assert!(
-            result_legitimate.is_ok(),
-            "Legitimate event should be accepted"
-        );
+        assert!(result_legitimate.is_ok(),);
         assert_eq!(
             result_legitimate.unwrap(),
             "Program data: Y2FsbCBjb250cmFjdF9fXw== zz8lrJgsyTRqLrotzeb8viPM8JKO26TBWYArn/oewmk= Dv0Zw9e54rFy7Nfr2FlYwtKjsnR4Ae57XO5ZVXiqjCA= ZXRoZXJldW0= MHgxMjNhYmM= TXkgY3Jvc3MtY2hhaW4gbWVzc2FnZQ=="
         );
 
         let result_malicious = event_comes_from_gateway(&malicious_logs, 6);
-
-        match result_malicious {
-            Ok(data) => {
-                println!("Function returned malicious data: {}", data);
-                panic!("Vulnerability exists! The function incorrectly accepted malicious log data at index 6");
-            }
-            Err(e) => {
-                assert!(e
-                    .to_string()
-                    .contains("Log was emitted by a different program"));
-            }
-        }
+        let error = result_malicious.unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Log was emitted by a different program"));
     }
 
     #[test]
@@ -438,11 +430,7 @@ mod test {
         ];
 
         let result = event_comes_from_gateway(&logs_with_cpi_boundary, 4);
-
-        assert!(
-            result.is_err(),
-            "Should reject data outside gateway execution frame"
-        );
+        assert!(result.is_err(),);
         assert!(result
             .unwrap_err()
             .to_string()
@@ -462,7 +450,7 @@ mod test {
         ];
 
         let result = event_comes_from_gateway(&legitimate_logs, 2);
-        assert!(result.is_ok(), "Legitimate gateway call should succeed");
+        assert!(result.is_ok());
         assert_eq!(
             result.unwrap(),
             "Program data: Y2FsbCBjb250cmFjdF9fXw== validdata=="
@@ -489,26 +477,17 @@ mod test {
 
         // Access data from nested call (index 4) - should succeed
         let result_inner = event_comes_from_gateway(&nested_logs, 4);
-        assert!(
-            result_inner.is_ok(),
-            "Should accept legitimate nested gateway data"
-        );
+        assert!(result_inner.is_ok(),);
         assert_eq!(result_inner.unwrap(), "Program data: inner_call_data");
 
         // Access data from outer call (index 6) - should succeed
         let result_outer = event_comes_from_gateway(&nested_logs, 6);
-        assert!(
-            result_outer.is_ok(),
-            "Should accept legitimate outer gateway data"
-        );
+        assert!(result_outer.is_ok(),);
         assert_eq!(result_outer.unwrap(), "Program data: outer_call_data");
 
         // Try to access data outside all frames (index 9) - should fail
         let result_malicious = event_comes_from_gateway(&nested_logs, 9);
-        assert!(
-            result_malicious.is_err(),
-            "Should reject data from outside all gateway execution frames"
-        );
+        assert!(result_malicious.is_err(),);
         assert!(result_malicious
             .unwrap_err()
             .to_string()
@@ -538,10 +517,7 @@ mod test {
 
         // Test deepest gateway data (index 4) - should succeed
         let result_deepest = event_comes_from_gateway(&complex_logs, 4);
-        assert!(
-            result_deepest.is_ok(),
-            "Should accept data from deepest gateway call"
-        );
+        assert!(result_deepest.is_ok(),);
         assert_eq!(
             result_deepest.unwrap(),
             "Program data: deepest_gateway_data"
@@ -549,18 +525,12 @@ mod test {
 
         // Test middle gateway data (index 7) - should succeed
         let result_middle = event_comes_from_gateway(&complex_logs, 7);
-        assert!(
-            result_middle.is_ok(),
-            "Should accept data from middle gateway call"
-        );
+        assert!(result_middle.is_ok(),);
         assert_eq!(result_middle.unwrap(), "Program data: middle_gateway_data");
 
         // Test data outside all calls (index 10) - should fail
         let result_outside = event_comes_from_gateway(&complex_logs, 10);
-        assert!(
-            result_outside.is_err(),
-            "Should reject data outside all gateway calls"
-        );
+        assert!(result_outside.is_err(),);
     }
 
     #[test]
@@ -597,10 +567,7 @@ mod test {
 
         // Test deepest gateway data (index 8) - should succeed
         let result_deepest = event_comes_from_gateway(&complex_logs, 8);
-        assert!(
-            result_deepest.is_ok(),
-            "Should accept data from deepest gateway call"
-        );
+        assert!(result_deepest.is_ok(),);
         assert_eq!(
             result_deepest.unwrap(),
             "Program data: deepest_gateway_data"
@@ -608,17 +575,80 @@ mod test {
 
         // Test middle gateway data (index 14) - should succeed
         let result_middle = event_comes_from_gateway(&complex_logs, 14);
-        assert!(
-            result_middle.is_ok(),
-            "Should accept data from middle gateway call"
-        );
+        assert!(result_middle.is_ok(),);
         assert_eq!(result_middle.unwrap(), "Program data: middle_gateway_data");
 
         // Test data outside all calls (index 10) - should fail
         let result_outside = event_comes_from_gateway(&complex_logs, 20);
-        assert!(
-            result_outside.is_err(),
-            "Should reject data outside all gateway calls"
-        );
+        assert!(result_outside.is_err(),);
+    }
+
+    #[test]
+    fn test_parse_invoke_log_invalid_format() {
+        assert!(parse_invoke_log("Invalid log format").is_err());
+        assert!(parse_invoke_log("Program").is_err());
+        assert!(parse_invoke_log("Program ProgramId").is_err());
+        assert!(parse_invoke_log("Program ProgramId wrong [1]").is_err());
+        assert!(parse_invoke_log("Wrong ProgramId invoke [1]").is_err());
+    }
+
+    #[test]
+    fn test_parse_invoke_log_invalid_depth_format() {
+        assert!(parse_invoke_log("Program ProgramId invoke 1").is_err());
+        assert!(parse_invoke_log("Program ProgramId invoke [").is_err());
+        assert!(parse_invoke_log("Program ProgramId invoke ]").is_err());
+        assert!(parse_invoke_log("Program ProgramId invoke [abc]").is_err());
+    }
+
+    #[test]
+    fn test_parse_completion_log_invalid_format() {
+        assert!(parse_completion_log("Invalid log").is_err());
+        assert!(parse_completion_log("Program").is_err());
+        assert!(parse_completion_log("Program ProgramId").is_err());
+        assert!(parse_completion_log("Program ProgramId invalid").is_err());
+        assert!(parse_completion_log("Wrong ProgramId success").is_err());
+    }
+
+    #[test]
+    fn test_handle_invoke_log_depth_mismatch() {
+        let mut execution_stack = vec!["Program1".to_string()];
+
+        let result = handle_invoke_log("Program Program2 invoke [1]", &mut execution_stack);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Call stack depth mismatch"));
+
+        let result = handle_invoke_log("Program Program2 invoke [3]", &mut execution_stack);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Call stack depth mismatch"));
+    }
+
+    #[test]
+    fn test_handle_completion_log_wrong_program() {
+        let mut execution_stack = vec!["Program1".to_string(), "Program2".to_string()];
+
+        let result = handle_completion_log("Program Program1 success", &mut execution_stack);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expected Program2 to complete, but Program1 completed instead"));
+    }
+
+    #[test]
+    fn test_handle_completion_log_empty_stack() {
+        let mut execution_stack: Vec<String> = Vec::new();
+
+        let result = handle_completion_log("Program Program1 success", &mut execution_stack);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("program Program1 completed but execution stack is empty"));
     }
 }
