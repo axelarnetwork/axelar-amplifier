@@ -127,7 +127,10 @@ pub enum QueryMsg {
     ChainContractsInfo(ChainContractsKey),
 
     #[returns(Vec<ChainContractsResponse>)]
-    Deployments,
+    Deployments {
+        starting_deployment_name: Option<nonempty::String>,
+        limit: Option<u64>,
+    },
 
     #[returns(ChainContractsResponse)]
     Deployment { deployment_name: nonempty::String },

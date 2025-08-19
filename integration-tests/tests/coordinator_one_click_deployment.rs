@@ -659,7 +659,10 @@ fn coordinator_one_click_query_deployments_succeeds() {
 
     let res = protocol.coordinator.query::<Vec<ChainContractsResponse>>(
         &protocol.app,
-        &coordinator::msg::QueryMsg::Deployments {},
+        &coordinator::msg::QueryMsg::Deployments {
+            starting_deployment_name: None,
+            limit: None,
+        },
     );
     assert!(res.is_ok());
 

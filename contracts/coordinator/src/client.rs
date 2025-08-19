@@ -255,7 +255,10 @@ mod test {
                         .into())
                         .into()
                     }
-                    QueryMsg::Deployments => Ok(to_json_binary(&vec![ChainContractsResponse {
+                    QueryMsg::Deployments {
+                        starting_deployment_name: _,
+                        limit: _,
+                    } => Ok(to_json_binary(&vec![ChainContractsResponse {
                         chain_name: chain_name!("axelar"),
                         prover_address: Addr::unchecked("prover"),
                         verifier_address: Addr::unchecked("verifier"),
