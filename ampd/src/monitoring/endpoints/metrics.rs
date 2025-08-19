@@ -22,6 +22,7 @@ use sysinfo::{get_current_pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKin
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tokio::time::{Duration, Instant};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -33,6 +34,12 @@ const CHANNEL_SIZE: usize = 1000;
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelValue)]
+pub enum Stage {
+    EventHandling,
+    TransactionBroadcast,
+    TransactionConfirmation,
+}
 /// Messages for metrics collection
 ///
 /// These messages are sent to the metrics processor to update various counters
@@ -45,6 +52,17 @@ pub enum Msg {
     VerificationVote {
         vote_decision: voting::Vote,
         chain_name: ChainName,
+    },
+    /// Record the result of RPC calls
+    RpcCall {
+        chain_name: ChainName,
+        success: bool,
+    },
+    /// Record result and duration of a processing stage operation
+    StageResult {
+        stage: Stage,
+        success: bool,
+        duration: Duration,
     },
 }
 
@@ -206,19 +224,27 @@ async fn serve_metrics(
 struct Metrics {
     block_received: BlockReceivedMetrics,
     verification_vote: VerificationVoteMetrics,
+    rpc_call: RpcCallMetrics,
+    stage_result: EventStageMetrics,
 }
 
 impl Metrics {
     pub fn new(registry: &mut Registry) -> Self {
         let block_received = BlockReceivedMetrics::new();
         let verification_vote = VerificationVoteMetrics::new();
+        let rpc_call = RpcCallMetrics::new();
+        let stage_result = EventStageMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
+        rpc_call.register(registry);
+        stage_result.register(registry);
 
         Self {
             block_received,
             verification_vote,
+            rpc_call,
+            stage_result,
         }
     }
 
@@ -227,13 +253,26 @@ impl Metrics {
             Msg::BlockReceived => {
                 self.block_received.increment();
             }
-
             Msg::VerificationVote {
                 vote_decision,
                 chain_name,
             } => {
                 self.verification_vote
                     .record_verification_vote(vote_decision, chain_name);
+            }
+
+            Msg::RpcCall {
+                chain_name,
+                success,
+            } => {
+                self.rpc_call.record_rpc_call(chain_name, success);
+            }
+            Msg::StageResult {
+                stage,
+                success,
+                duration,
+            } => {
+                self.stage_result.record(success, duration, stage);
             }
         }
     }
@@ -315,6 +354,109 @@ impl VerificationVoteMetrics {
         };
         self.total.get_or_create(&label).inc();
     }
+}
+
+struct RpcCallMetrics {
+    total: Family<Vec<(String, String)>, Counter>,
+    failed: Family<Vec<(String, String)>, Counter>,
+}
+
+impl RpcCallMetrics {
+    fn new() -> Self {
+        let total = Family::<Vec<(String, String)>, Counter>::default();
+        let failed = Family::<Vec<(String, String)>, Counter>::default();
+        Self { total, failed }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "rpc_calls",
+            "number of RPC calls per chain",
+            self.total.clone(),
+        );
+
+        registry.register(
+            "rpc_calls_failed",
+            "number of failed RPC calls per chain",
+            self.failed.clone(),
+        );
+    }
+
+    fn record_rpc_call(&self, chain_name: ChainName, success: bool) {
+        let label = vec![("chain_name".to_string(), chain_name.to_string())];
+        self.total.get_or_create(&label).inc();
+
+        if !success {
+            self.failed.get_or_create(&label).inc();
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct StageLabel {
+    stage: Stage,
+}
+
+struct EventStageMetrics {
+    total: Family<StageLabel, Counter>,
+    failed: Family<StageLabel, Counter>,
+    duration: Family<StageLabel, Counter>,
+}
+
+impl EventStageMetrics {
+    fn new() -> Self {
+        let total = Family::<StageLabel, Counter>::default();
+        let failed = Family::<StageLabel, Counter>::default();
+        let duration = Family::<StageLabel, Counter>::default();
+        Self {
+            total,
+            failed,
+            duration,
+        }
+    }
+
+    fn register(&self, registry: &mut Registry) {
+        registry.register(
+            "stage_processed",
+            "total number of processed items per stage",
+            self.total.clone(),
+        );
+        registry.register(
+            "stage_failed",
+            "number of failed items per stage",
+            self.failed.clone(),
+        );
+        registry.register(
+            "stage_duration",
+            "duration of processing items per stage in milliseconds",
+            self.duration.clone(),
+        );
+    }
+
+    fn record(&self, success: bool, duration: Duration, stage: Stage) {
+        let label = StageLabel { stage };
+        self.total.get_or_create(&label).inc();
+        if !success {
+            self.failed.get_or_create(&label).inc();
+        }
+        self.duration.get_or_create(&label).inc_by(
+            u64::try_from(duration.as_millis())
+                .expect("duration should not exceed u64 milliseconds"),
+        );
+    }
+}
+
+/// Generic function to time an async operation and return both result and duration.
+/// Used when recording EventFlow metrics.
+pub async fn timed<F, Fut, T>(f: F) -> (T, Duration)
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = T>,
+{
+    let start = Instant::now();
+    let result = f().await;
+    let elapsed = start.elapsed();
+    (result, elapsed)
 }
 
 /// System metrics collector that provides real-time CPU and memory usage for the AMPD process.
@@ -399,6 +541,7 @@ impl Collector for SystemMetricsCollector {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use std::time::Duration;
 
     use axum::Router;
@@ -406,13 +549,12 @@ mod tests {
     use itertools::Itertools;
     use router_api::chain_name;
     use tokio::time;
-    use tracing_test::traced_test;
 
     use super::test_utils::zeroize_system_metrics;
     use super::*;
 
     #[tokio::test(start_paused = true)]
-    async fn should_increment_blocks_received_counter_when_message_processed() {
+    async fn should_update_all_metrics_successfully() {
         let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
@@ -421,34 +563,14 @@ mod tests {
 
         let initial_metrics = server.get("/test").await;
 
-        initial_metrics.assert_text_contains("blocks_received_total 0");
         initial_metrics.assert_status_ok();
 
+        // blocks received
         client.record_metric(Msg::BlockReceived);
         client.record_metric(Msg::BlockReceived);
         client.record_metric(Msg::BlockReceived);
 
-        // Wait for the metrics to be updated
-        time::sleep(Duration::from_secs(1)).await;
-        let final_metrics = server.get("/test").await;
-        final_metrics.assert_text_contains("blocks_received_total 3");
-        final_metrics.assert_status_ok();
-
-        // Ensure the final metrics are in the expected format
-        goldie::assert!(zeroize_system_metrics(&final_metrics.text()))
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn should_update_verification_votes_metrics_correctly_when_multiple_chains_cast_votes() {
-        let (router, process, client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let initial_metrics = server.get("/test").await;
-        initial_metrics.assert_status_ok();
-
+        // verification votes
         let chain_names = vec![
             chain_name!("ethereum"),
             chain_name!("solana"),
@@ -472,45 +594,78 @@ mod tests {
             });
         }
 
+        // EventFlow Metrics
+        client.record_metric(Msg::StageResult {
+            stage: Stage::EventHandling,
+            success: true,
+            duration: Duration::from_millis(100),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::EventHandling,
+            success: false,
+            duration: Duration::from_millis(200),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionBroadcast,
+            success: true,
+            duration: Duration::from_millis(300),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionBroadcast,
+            success: false,
+            duration: Duration::from_millis(400),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionConfirmation,
+            success: true,
+            duration: Duration::from_millis(500),
+        });
+        client.record_metric(Msg::StageResult {
+            stage: Stage::TransactionConfirmation,
+            success: false,
+            duration: Duration::from_millis(600),
+        });
+
+        // Wait for the metrics to be updated
+        // rpc calls
+        client.record_metric(Msg::RpcCall {
+            chain_name: ChainName::from_str("ethereum").unwrap(),
+            success: true,
+        });
+
+        client.record_metric(Msg::RpcCall {
+            chain_name: ChainName::from_str("polygon").unwrap(),
+            success: false,
+        });
+
+        // Wait for the metrics to be updated
         time::sleep(Duration::from_secs(1)).await;
         let final_metrics = server.get("/test").await;
+
         final_metrics.assert_status_ok();
 
-        goldie::assert!(zeroize_system_metrics(&sort_metrics_output(
-            &final_metrics.text()
-        )))
-    }
-
-    #[tokio::test(start_paused = true)]
-    #[traced_test]
-    async fn should_show_valid_system_metrics_in_prometheus_output() {
-        let (router, process, _client) = create_endpoint();
-        _ = process.run(CancellationToken::new());
-
-        let router = Router::new().route("/test", router);
-        let server = TestServer::new(router).unwrap();
-
-        let metrics = server.get("/test").await;
-        metrics.assert_status_ok();
-
-        let metrics_text = metrics.text();
-
-        if metrics_text.contains("ampd_cpu_usage_percent") {
-            let cpu_usage = extract_metric_value(&metrics_text, "ampd_cpu_usage_percent");
+        // system metrics
+        if final_metrics.text().contains("ampd_cpu_usage_percent") {
+            let cpu_usage = extract_metric_value(&final_metrics.text(), "ampd_cpu_usage_percent");
             assert!(
                 cpu_usage >= 0.0,
                 "CPU usage should be non-negative when metric is present"
             );
         }
 
-        if metrics_text.contains("ampd_memory_usage_bytes") {
-            let memory_usage = extract_metric_value(&metrics_text, "ampd_memory_usage_bytes");
+        if final_metrics.text().contains("ampd_memory_usage_bytes") {
+            let memory_usage =
+                extract_metric_value(&final_metrics.text(), "ampd_memory_usage_bytes");
             assert!(
                 memory_usage >= 0.0,
                 "Memory usage should be non-negative when metric is present"
             );
         }
-        goldie::assert!(zeroize_system_metrics(&metrics_text));
+
+        // Ensure the final metrics are in the expected format
+        goldie::assert!(sort_metrics_output(&zeroize_system_metrics(
+            &final_metrics.text()
+        )))
     }
 
     /// Test if the sort_metrics_output function produces consistent output.
@@ -527,6 +682,18 @@ mod tests {
 
         assert_eq!(sorted_data1, sorted_data2);
         goldie::assert!(sorted_data1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn timed_function_should_return_correct_result_and_duration() {
+        let (result, duration) = timed(|| async {
+            tokio::time::advance(Duration::from_millis(100)).await;
+            true
+        })
+        .await;
+
+        assert!(result);
+        assert_eq!(duration, Duration::from_millis(100));
     }
 
     /// Extracts the numeric value of a Prometheus metric from text output

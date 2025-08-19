@@ -18,19 +18,30 @@ use mockall::automock;
 use report::{ResultCompatExt, ResultExt};
 use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
-use tonic::{transport, Request};
+use tonic::{transport, Code, Request, Status};
 
 use crate::grpc::client::types::{BroadcastClientResponse, ChainName, ContractsAddresses, Key};
 
 pub mod types;
 
-pub(crate) fn parse_addr(addr: &str) -> error_stack::Result<cosmrs::AccountId, Error> {
-    addr.parse::<cosmrs::AccountId>()
+pub(crate) fn parse_addr(addr: &str) -> Result<AccountId, Error> {
+    addr.parse::<AccountId>()
         .change_context(AppError::InvalidAddress.into())
         .attach_printable(addr.to_string())
 }
 use crate::grpc::connection_pool::{ClientConnectionState, ConnectionHandle};
 use crate::grpc::error::{AppError, Error};
+
+fn is_transport_error(status: &Status) -> bool {
+    match status.code() {
+        Code::Unavailable => true,       // Service unavailable, connection issues
+        Code::DeadlineExceeded => true,  // Timeout, connection hanging
+        Code::ResourceExhausted => true, // Connection pool exhausted
+        Code::Aborted => true,           // Connection aborted
+        Code::Cancelled => true,         // Request cancelled, connection interrupted
+        _ => false,
+    }
+}
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
@@ -83,6 +94,21 @@ impl GrpcClient {
             Err(_) => Err(Error::from(AppError::ConnectionUnavailable)).into_report(),
         }
     }
+
+    /// Called from inspect_err callbacks throughout gRPC client methods to trigger reconnection
+    /// when transport/connection errors occur without blocking the main execution flow.
+    ///
+    /// Uses `tokio::spawn` because `inspect_err` requires a synchronous closure, but
+    /// `request_reconnect()` is async. We want non-blocking fire-and-forget behavior.
+    /// Alternative approaches (making callers async or using try_send) add more complexity.
+    fn ensure_healthy_connection(&self, status: &Status) {
+        if is_transport_error(status) {
+            let handle = self.connection_handle.clone();
+            tokio::spawn(async move {
+                let _ = handle.request_reconnect().await;
+            });
+        }
+    }
 }
 
 #[async_trait]
@@ -107,7 +133,11 @@ impl Client for GrpcClient {
                 .collect(),
             include_block_begin_end,
         };
-        let streaming_response = blockchain_client.subscribe(request).await.into_report()?;
+        let streaming_response = blockchain_client
+            .subscribe(request)
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()?;
 
         let transformed_stream = streaming_response.into_inner().map(|result| match result {
             Ok(response) => match response.event {
@@ -129,6 +159,7 @@ impl Client for GrpcClient {
         let broadcaster_address = blockchain_client
             .address(Request::new(AddressRequest {}))
             .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?
             .into_inner()
             .address;
@@ -140,12 +171,12 @@ impl Client for GrpcClient {
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
         let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
-
         let request = BroadcastRequest { msg: Some(msg) };
 
         let broadcast_response = blockchain_client
             .broadcast(request)
             .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?
             .into_inner();
 
@@ -166,6 +197,7 @@ impl Client for GrpcClient {
                 query: query.into(),
             })
             .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()
             .map(|response| response.into_inner().result)
             .and_then(|result| {
@@ -179,17 +211,18 @@ impl Client for GrpcClient {
         let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
 
-        let response = blockchain_client
+        let contracts_response = blockchain_client
             .contracts(Request::new(ContractsRequest {
                 chain: chain.into(),
             }))
             .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()?
             .into_inner();
 
-        ContractsAddresses::try_from(&response)
+        ContractsAddresses::try_from(&contracts_response)
             .change_context(AppError::InvalidContractsResponse.into())
-            .attach_printable(format!("{response:?}"))
+            .attach_printable(format!("{contracts_response:?}"))
     }
 
     async fn sign(
@@ -206,6 +239,7 @@ impl Client for GrpcClient {
                 msg: message.into(),
             }))
             .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().signature)
@@ -222,6 +256,7 @@ impl Client for GrpcClient {
                 key_id: key.map(|k| k.into()),
             }))
             .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
             .into_report()
             .and_then(|response| {
                 nonempty::Vec::try_from(response.into_inner().pub_key)
@@ -307,7 +342,7 @@ mod tests {
 
         sleep(Duration::from_millis(100)).await;
 
-        let client = GrpcClient::new(connection_handle.clone());
+        let client = GrpcClient::new(connection_handle);
 
         (client, pool_abort_handle)
     }
@@ -371,6 +406,7 @@ mod tests {
     #[tokio::test]
     async fn address_should_return_error_if_grpc_error_occurs() {
         let mut mock_blockchain = MockBlockchainService::new();
+
         mock_blockchain
             .expect_address()
             .return_once(|_request| Err(Status::unavailable("service unavailable")));
