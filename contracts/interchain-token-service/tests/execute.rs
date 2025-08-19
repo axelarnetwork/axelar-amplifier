@@ -870,7 +870,7 @@ fn execute_its_when_not_gateway_sender_fails() {
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     );
 }
 
@@ -1032,7 +1032,7 @@ fn freeze_chain_when_not_admin_fails() {
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1053,7 +1053,7 @@ fn unfreeze_chain_when_not_admin_fails() {
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1198,7 +1198,7 @@ fn disable_execution_when_not_admin_fails() {
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1217,7 +1217,7 @@ fn enable_execution_when_not_admin_fails() {
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1795,7 +1795,7 @@ fn register_p2p_token_should_fail_when_called_by_non_elevated_account() {
             msg::TokenSupply::Untracked
         ),
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1887,6 +1887,6 @@ fn non_admin_or_governance_or_operator_should_not_modify_supply() {
             "random"
         ),
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }

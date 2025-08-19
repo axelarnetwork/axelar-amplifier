@@ -59,7 +59,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = find_authorized_callers()))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = find_authorized_callers))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -127,12 +127,15 @@ fn validate_contract_addresses(
 }
 
 fn find_authorized_callers(
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, permission_control::Error>
-{
-    |storage, msg| match msg {
+    storage: &dyn Storage,
+    sender: Addr,
+    msg: &ExecuteMsg,
+) -> error_stack::Result<bool, permission_control::Error> {
+    match msg {
         ExecuteMsg::StartSigningSession { chain_name, .. } => {
-            execute::authorized_callers(storage, chain_name)
-                .change_context(permission_control::Error::Unauthorized)
+            Ok(execute::authorized_callers(storage, chain_name)
+                .change_context(permission_control::Error::Unauthorized)?
+                .contains(&sender))
         }
         _ => Err(report!(permission_control::Error::WrongVariant)),
     }
@@ -564,9 +567,8 @@ mod tests {
             );
 
             assert!(res.unwrap_err().to_string().contains(
-                &permission_control::Error::AddressNotWhitelisted {
-                    expected: vec![MockApi::default().addr_make(PROVER)],
-                    actual: api.addr_make(sender)
+                &permission_control::Error::SpecificPermissionDenied {
+                    roles: vec![String::from("authorized")],
                 }
                 .to_string()
             ));
@@ -1194,10 +1196,11 @@ mod tests {
                 chain_name.clone(),
             );
 
+            println!("Res {:?}", res);
+
             assert!(res.unwrap_err().to_string().contains(
-                &permission_control::Error::AddressNotWhitelisted {
-                    expected: vec![],
-                    actual: api.addr_make(PROVER)
+                &permission_control::Error::SpecificPermissionDenied {
+                    roles: vec![String::from("authorized")],
                 }
                 .to_string()
             ));
@@ -1263,7 +1266,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into()
             }
@@ -1288,7 +1291,7 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into()
             }
@@ -1414,9 +1417,8 @@ mod tests {
             );
 
             assert!(res.unwrap_err().to_string().contains(
-                &permission_control::Error::AddressNotWhitelisted {
-                    expected: vec![],
-                    actual: api.addr_make(PROVER)
+                &permission_control::Error::SpecificPermissionDenied {
+                    roles: vec![String::from("authorized")],
                 }
                 .to_string()
             ));

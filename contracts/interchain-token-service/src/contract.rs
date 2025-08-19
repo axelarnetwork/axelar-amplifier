@@ -147,12 +147,20 @@ pub fn execute(
     .then(Ok)
 }
 
-fn match_gateway(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Vec<Addr>, Report<Error>> {
-    Ok(vec![state::load_config(storage).axelarnet_gateway])
+fn match_gateway(
+    storage: &dyn Storage,
+    sender_addr: Addr,
+    _: &ExecuteMsg,
+) -> Result<bool, Report<Error>> {
+    Ok(sender_addr == state::load_config(storage).axelarnet_gateway)
 }
 
-fn match_operator(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Vec<Addr>, Report<Error>> {
-    Ok(vec![state::load_config(storage).operator])
+fn match_operator(
+    storage: &dyn Storage,
+    sender_addr: Addr,
+    _: &ExecuteMsg,
+) -> Result<bool, Report<Error>> {
+    Ok(sender_addr == state::load_config(storage).operator)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

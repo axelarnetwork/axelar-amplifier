@@ -42,7 +42,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender, match_verifier(&info.sender))? {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_verifier)? {
         ExecuteMsg::RegisterService {
             service_name,
             coordinator_contract,
@@ -151,28 +151,28 @@ pub fn execute(
 }
 
 fn match_verifier(
-    sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> Result<Vec<Addr>, Report<permission_control::Error>> + '_
-{
-    |storage: &dyn Storage, msg: &ExecuteMsg| {
-        let service_name = match msg {
-            ExecuteMsg::RegisterChainSupport { service_name, .. }
-            | ExecuteMsg::DeregisterChainSupport { service_name, .. } => service_name,
-            _ => bail!(permission_control::Error::WrongVariant),
-        };
-        let res = VERIFIERS
-            .load(storage, (service_name, sender))
-            .map(|verifier| verifier.address)
-            .change_context(ContractError::VerifierNotFound)
-            .change_context(permission_control::Error::Unauthorized);
+    storage: &dyn Storage,
+    sender_addr: Addr,
+    msg: &ExecuteMsg,
+) -> Result<bool, Report<permission_control::Error>> {
+    let service_name = match msg {
+        ExecuteMsg::RegisterChainSupport { service_name, .. }
+        | ExecuteMsg::DeregisterChainSupport { service_name, .. } => service_name,
+        _ => bail!(permission_control::Error::WrongVariant),
+    };
 
-        // on error, check if the service even exists, and if it doesn't, return ServiceNotFound
-        if res.is_err() {
-            state::service(storage, service_name, None)
-                .change_context(permission_control::Error::Unauthorized)?;
-        }
-        res.map(|addr| vec![addr])
+    let res = VERIFIERS
+        .load(storage, (service_name, &sender_addr))
+        .map(|verifier| verifier.address)
+        .change_context(ContractError::VerifierNotFound)
+        .change_context(permission_control::Error::Unauthorized);
+
+    // on error, check if the service even exists, and if it doesn't, return ServiceNotFound
+    if res.is_err() {
+        state::service(storage, service_name, None)
+            .change_context(permission_control::Error::Unauthorized)?;
     }
+    res.map(|addr| addr == sender_addr)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -448,7 +448,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             permission_control::Error,
-            permission_control::Error::PermissionDenied { .. }
+            permission_control::Error::GeneralPermissionDenied { .. }
         ));
     }
 
@@ -591,7 +591,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             permission_control::Error,
-            permission_control::Error::PermissionDenied { .. }
+            permission_control::Error::GeneralPermissionDenied { .. }
         ));
     }
 
@@ -712,7 +712,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             permission_control::Error,
-            permission_control::Error::PermissionDenied { .. }
+            permission_control::Error::GeneralPermissionDenied { .. }
         ));
     }
 
@@ -805,7 +805,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             permission_control::Error,
-            permission_control::Error::PermissionDenied { .. }
+            permission_control::Error::GeneralPermissionDenied { .. }
         ));
     }
 
@@ -906,7 +906,7 @@ mod test {
         assert!(err_contains!(
             err.report,
             permission_control::Error,
-            permission_control::Error::PermissionDenied { .. }
+            permission_control::Error::GeneralPermissionDenied { .. }
         ));
     }
 

@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -100,17 +100,22 @@ pub fn execute(
 }
 
 fn find_gateway_address(
-    sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Vec<Addr>, Error> + '_ {
-    move |storage, _| {
-        let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
-        if axelarnet_gateway == sender {
-            Ok(vec![axelarnet_gateway])
-        } else {
-            load_chain_by_gateway(storage, sender)?
-                .gateway
-                .address
-                .then(|addr| Ok(vec![addr]))
+    storage: &dyn Storage,
+    sender: Addr,
+    _msg: &ExecuteMsg,
+) -> error_stack::Result<bool, Error> {
+    let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
+    if axelarnet_gateway == sender {
+        Ok(true)
+    } else {
+        match load_chain_by_gateway(storage, &sender) {
+            Err(e)
+                if e.frames()
+                    .any(|f| f.downcast_ref::<Error>() == Some(&Error::StoreFailure)) =>
+            {
+                Ok(false)
+            }
+            _ => Ok(true),
         }
     }
 }
@@ -457,7 +462,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -477,7 +482,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::Admin.into(),
             },
@@ -512,7 +517,7 @@ mod test {
 
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -558,7 +563,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -599,7 +604,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -618,7 +623,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::Admin.into(),
             },
@@ -732,12 +737,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]).into(),
         )
         .unwrap_err();
-        assert_contract_err_string_contains(
-            err,
-            permission_control::Error::WhitelistNotFound {
-                sender: eth.gateway.clone(),
-            },
-        );
+        assert_contract_err_string_contains(err, router_api::error::Error::GatewayNotRegistered);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);

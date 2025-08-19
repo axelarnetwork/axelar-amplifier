@@ -48,7 +48,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 ///
 /// fn execute(deps: Deps, env: Env, info: MessageInfo, msg: ExecuteMsg) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
 ///     // check permissions before handling the message
-///     match msg.ensure_permissions(deps.storage, &info.sender, |storage, message | GATEWAY.load(storage).map(|addr| vec![addr]))? {
+///     match msg.ensure_permissions(deps.storage, &info.sender, |storage, sender_addr, message | GATEWAY.load(storage).map(|addr| sender_addr == addr))? {
 ///         ExecuteMsg::AnyoneButGovernanceCanCallThis => Ok(()),
 ///         ExecuteMsg::OnlyGovernanceCanCallThis => Ok(()),
 ///         ExecuteMsg::AdminOrGatewayCanCallThis => Ok(()),
@@ -276,13 +276,12 @@ fn build_specific_permissions_check(
             // load all whitelisted addresses from storage and check if the sender is whitelisted
             quote! {
                 #(
-                    let stored_addr = error_stack::ResultExt::change_context(
-                        #specific_permissions(storage, &self).map_err(|err| error_stack::Report::from(err)),
+                    let sender_is_authorized = error_stack::ResultExt::change_context(
+                        #specific_permissions(storage, sender.clone(), &self).map_err(|err| error_stack::Report::from(err)),
                         axelar_wasm_std::permission_control::Error::WhitelistNotFound{sender: sender.clone()})?;
-                    if stored_addr.contains(sender) {
+                    if sender_is_authorized {
                         return Ok(self);
                     }
-                    whitelisted.extend(stored_addr);
                 )*
             }
         }
@@ -290,7 +289,6 @@ fn build_specific_permissions_check(
 
     // map enum variants to specific permission checks
     quote! {
-        let mut whitelisted = Vec::new();
         match self {
             #(#enum_type::#variants {..}=> {#specific_permissions})*
         };
@@ -304,48 +302,70 @@ fn build_general_permissions_check(
 ) -> proc_macro2::TokenStream {
     let general_permissions_quote = permissions.iter().map(|permission| {
         let general_permissions: &[_] = permission.general.as_ref();
-
-        if general_permissions.is_empty() && !permission.specific.is_empty() {
+        let specific_is_empty = permission.specific.is_empty();
+        if general_permissions.is_empty() && !specific_is_empty {
             // getting to this point means the specific check has failed, so we return an error
+            let specific_permissions: Vec<String> = permission.specific.iter().filter_map(|p| p.get_ident().map(|ident| ident.to_string()))
+            .collect();
+
             quote! {
-                Err(axelar_wasm_std::permission_control::Error::AddressNotWhitelisted {
-                    expected: whitelisted.clone(),
-                    actual: sender.clone(),
+                Err(axelar_wasm_std::permission_control::Error::SpecificPermissionDenied {
+                    roles: vec![
+                        #(#specific_permissions.to_string()),*
+                    ]
                 }.into())
             }
         } else {
             // specific permissions have either failed or there were none, so check general permissions
-            quote! {Ok((#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into())}
+            quote! {Ok(
+                (
+                    (#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into(),
+                    #specific_is_empty,
+                )
+            )}
         }
     });
 
     // map enum variants to general permission checks. Exclude checks for the 'Any' case,
     // because it allows any address, compare permissions to the sender's role otherwise.
     quote! {
-        let permission : Result<axelar_wasm_std::flagset::FlagSet<_>, axelar_wasm_std::permission_control::Error > = match self {
+        let permission_result : Result<(axelar_wasm_std::flagset::FlagSet<_>, bool), axelar_wasm_std::permission_control::Error > = match self {
             #(#enum_type::#variants {..}=> {#general_permissions_quote})*
         };
 
-        let permission = permission?;
+        let permission_result = permission_result?;
+        let permission = permission_result.0;
+        let specific_is_empty = permission_result.1;
 
         if permission.contains(axelar_wasm_std::permission_control::Permission::Any) {
             return Ok(self);
         }
 
+        // Dealing with FlagSet
         let role = error_stack::ResultExt::change_context(
             axelar_wasm_std::permission_control::sender_role(storage, sender),
-            axelar_wasm_std::permission_control::Error::PermissionDenied {
+            axelar_wasm_std::permission_control::Error::GeneralPermissionDenied {
                 expected: permission.clone(),
                 actual: axelar_wasm_std::permission_control::Permission::NoPrivilege.into(),
             },
         )?;
 
         if (*permission & *role).is_empty() {
-            return Err(axelar_wasm_std::permission_control::Error::PermissionDenied {
-                expected: permission,
-                actual: role,
+            // provide more descriptive error depending on whether the sender can have either
+            // general or specific permission, or just general permission.
+            if specific_is_empty {
+                return Err(axelar_wasm_std::permission_control::Error::GeneralPermissionDenied {
+                    expected: permission,
+                    actual: role,
+                }
+                .into());
+            } else {
+                return Err(axelar_wasm_std::permission_control::Error::GeneralPermissionDenied {
+                    expected: permission,
+                    actual: role,
+                }
+                .into());
             }
-            .into());
         }
 
         Ok(self)
@@ -461,7 +481,7 @@ fn build_full_check_function(
                 #(#unique_specific_permissions: #fs),*)
                 -> error_stack::Result<Self,axelar_wasm_std::permission_control::Error>
                     where
-                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &Self) -> error_stack::Result<Vec<cosmwasm_std::Addr>, #cs>),*,
+                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, cosmwasm_std::Addr, &Self) -> error_stack::Result<bool, #cs>),*,
                         #(#cs: error_stack::Context),*
                     {
                 #specific_permission_body
@@ -682,11 +702,11 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 ///
 /// Direct:
 ///
-/// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<Vec<cosmwasm_std::Addr>, impl error_stack::Context>
+/// FnOnce(&dyn cosmwasm_std::Storage, Addr, &ExecuteMsg) -> error_stack::Result<bool, impl error_stack::Context>
 ///
-/// The `find_sender_address` function must return the addresses of all auithorized senders on success,
-/// and an error on failure. If there are no authorized sender addresses, `find_sender_address` must
-/// return an empty vector. This function should return an error if there is an internal error.
+/// The `find_sender_address` function must return the true if the sender address is authorized to
+/// execute the message, and false otherwise. This function should return an error only if there is
+/// an internal error.
 #[proc_macro_attribute]
 pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut execute_fn = syn::parse_macro_input!(item as ItemFn);

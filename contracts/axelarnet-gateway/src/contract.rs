@@ -7,8 +7,9 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use error_stack::{Report, ResultExt};
+use msgs_derive::ensure_permissions;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
 
 mod execute;
@@ -55,13 +56,14 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[ensure_permissions(direct(nexus = match_nexus))]
 pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response<nexus::execute::Message>, ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender, match_nexus)? {
+    match msg {
         ExecuteMsg::CallContract {
             destination_chain,
             destination_address,
@@ -107,6 +109,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     .then(Ok)
 }
 
-fn match_nexus(storage: &dyn Storage, _: &ExecuteMsg) -> Result<Vec<Addr>, Report<Error>> {
-    Ok(vec![state::load_config(storage).nexus])
+fn match_nexus(
+    storage: &dyn Storage,
+    sender_addr: Addr,
+    _: &ExecuteMsg,
+) -> Result<bool, Report<Error>> {
+    Ok(sender_addr == state::load_config(storage).nexus)
 }
