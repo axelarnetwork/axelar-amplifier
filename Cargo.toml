@@ -111,6 +111,7 @@ signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifi
 snarkos-account = "3.8.0"
 snarkvm = "3.8.0"
 snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM", tag = "snarkvm-with-cosmwasm" }
+snarkos-account = { version = "3.8.0" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
@@ -125,7 +126,7 @@ sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
-tofn = { path = "../tofn" }
+tofn = { version = "1.1", git = "https://github.com/eigerco/tofn.git", branch = "refactor-aleo-schnorr" }
 tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
