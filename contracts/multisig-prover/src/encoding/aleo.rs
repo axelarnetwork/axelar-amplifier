@@ -6,12 +6,12 @@ use aleo_gmp_types::utils::ToBytesExt;
 use aleo_network_config::network::NetworkConfig;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
-use error_stack::Result;
+use error_stack::{report, Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use snarkvm_cosmwasm::console::program::Network;
 use snarkvm_cosmwasm::prelude::{
-    CanaryV0, Group, MainnetV0, Plaintext, TestnetV0, ToBits as _, Zero as _,
+    CanaryV0, Group, MainnetV0, Plaintext, TestnetV0, ToBits as _, ToBytes as _, Zero as _,
 };
 
 use crate::error::ContractError;
@@ -59,6 +59,7 @@ fn payload_digest_inner<N: Network>(
                 .chain(std::iter::repeat(Group::<N>::zero()))
                 .take(48);
 
+            // Its safe to unwrap because we are taking 48 elements
             let array1: [Group<N>; 24] = std::array::from_fn(|_| groups.next().unwrap());
             let array2: [Group<N>; 24] = std::array::from_fn(|_| groups.next().unwrap());
 
@@ -66,50 +67,53 @@ fn payload_digest_inner<N: Network>(
                 messages: [array1, array2],
             };
 
-            let plaintext: Plaintext<N> = Plaintext::try_from(&messages).map_err(|e| {
-                ContractError::AleoError(format!("Failed to convert messages to plaintext: {e}"))
-            })?;
-
-            N::hash_to_group_bhp256(&plaintext.to_bits_le()).map_err(|e| {
-                ContractError::AleoError(format!("Failed to hash messages to group: {e}"))
-            })?
+            Plaintext::try_from(&messages)
+                .and_then(|plaintext| N::hash_to_group_bhp256(&plaintext.to_bits_le()))
+                .map_err(|_| {
+                    report!(ContractError::AleoError(
+                        "Failed to convert messages to plaintext".to_string()
+                    ))
+                })?
         }
-        // TODO: make the WeightedSigners configurable from outside
-        Payload::VerifierSet(verifier_set) => {
-            let leo_verifier_set = verifier_set.to_leo().map_err(|e| {
-                ContractError::AleoError(format!("Failed to convert verifier set to leo: {e}"))
-            })?;
-
-            aleo_gmp_types::utils::bhp(&leo_verifier_set).map_err(|e| {
-                ContractError::AleoError(format!("Failed to hash verifier set: {e}"))
-            })?
-        }
+        Payload::VerifierSet(verifier_set) => verifier_set
+            .to_leo()
+            .and_then(|leo_verifier_set| aleo_gmp_types::utils::bhp(&leo_verifier_set))
+            .change_context_lazy(|| {
+                ContractError::AleoError("Failed to convert verifier set to Leo".to_string())
+            })?,
     };
 
     let part1 = u128::from_le_bytes(domain_separator[0..16].try_into().map_err(|_| {
-        ContractError::AleoError("Failed to convert domain separator to u128".to_string())
+        report!(ContractError::AleoError(
+            "Failed to convert domain separator to u128".to_string()
+        ))
     })?);
     let part2 = u128::from_le_bytes(domain_separator[16..32].try_into().map_err(|_| {
-        ContractError::AleoError("Failed to convert domain separator to u128".to_string())
+        report!(ContractError::AleoError(
+            "Failed to convert domain separator to u128".to_string()
+        ))
     })?);
     let domain_separator: [u128; 2] = [part1, part2];
 
     let payload_digest = PayloadDigest {
         domain_separator,
-        signer: verifier_set.to_leo().map_err(|e| {
-            ContractError::AleoError(format!("Failed to convert verifier set to leo: {e}"))
+        signer: verifier_set.to_leo().change_context_lazy(|| {
+            ContractError::AleoError("Failed to convert verifier set to Leo".to_string())
         })?,
         data_hash,
     };
 
-    let plaintext: Plaintext<N> = Plaintext::try_from(&payload_digest)
-        .map_err(|e| ContractError::AleoError(e.to_string()))?;
-    let bits: Vec<bool> = plaintext.to_bits_le();
-    let group = N::hash_to_group_bhp256(&bits).map_err(|e| {
-        ContractError::AleoError(format!("Failed to hash payload digest to group: {e}"))
-    })?;
+    let group = Plaintext::try_from(&payload_digest)
+        .and_then(|plaintext| N::hash_to_group_bhp256(&plaintext.to_bits_le()))
+        .map_err(|_| {
+            report!(ContractError::AleoError(
+                "Failed to convert group to bytes".to_string()
+            ))
+        })?;
 
-    let hash: Hash = group.to_bytes_le_array().unwrap();
+    let hash: Hash = group.to_bytes_le_array().change_context_lazy(|| {
+        ContractError::AleoError("Failed to convert group to bytes".to_string())
+    })?;
 
     Ok(hash)
 }
@@ -120,7 +124,7 @@ pub fn encode_execute_data(
     signatures: Vec<SignerWithSig>,
     payload: &Payload,
 ) -> Result<HexBinary, ContractError> {
-    match network {
+    let res = match network {
         NetworkConfig::TestnetV0 => {
             encode_execute_data_inner::<TestnetV0>(verifier_set, signatures, payload)
         }
@@ -130,7 +134,13 @@ pub fn encode_execute_data(
         NetworkConfig::CanaryV0 => {
             encode_execute_data_inner::<CanaryV0>(verifier_set, signatures, payload)
         }
-    }
+    };
+
+    res.map_err(|e| {
+        report!(ContractError::AleoError(format!(
+            "Failed to encode execute data: {e}"
+        )))
+    })
 }
 
 /// The relayer will use this data to submit the payload to the contract.
@@ -138,7 +148,7 @@ fn encode_execute_data_inner<N: Network>(
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,
     payload: &Payload,
-) -> Result<HexBinary, ContractError> {
+) -> Result<HexBinary, aleo_gmp_types::error::Error> {
     match payload {
         Payload::Messages(messages) => {
             let aleo_messages: Vec<Message<N>> =
@@ -149,6 +159,7 @@ fn encode_execute_data_inner<N: Network>(
                 .chain(std::iter::repeat(Message::<N>::default()))
                 .take(48);
 
+            // Its safe to unwrap because we are taking 48 elements
             let array1: [Message<N>; 24] = std::array::from_fn(|_| messages.next().unwrap());
             let array2: [Message<N>; 24] = std::array::from_fn(|_| messages.next().unwrap());
 
@@ -156,7 +167,7 @@ fn encode_execute_data_inner<N: Network>(
                 messages: [array1, array2],
             };
 
-            let weighted_signers = AxelarToLeo::<N>::to_leo(verifier_set).unwrap();
+            let weighted_signers = AxelarToLeo::<N>::to_leo(verifier_set)?;
             let proof =
                 aleo_gmp_types::aleo_struct::AxelarProof::<N>::new(weighted_signers, signatures);
 
@@ -164,29 +175,29 @@ fn encode_execute_data_inner<N: Network>(
                 proof: proof.into(),
                 message,
             };
-            let plaintext: Plaintext<N> = Plaintext::try_from(&execute_data)
-                .map_err(|e| ContractError::AleoError(e.to_string()))?;
-            let plaintext_str = plaintext.to_string();
+            let plaintext_bytes = Plaintext::try_from(&execute_data)
+                .and_then(|plaintext| plaintext.to_bytes_le())
+                .map_err(|_| aleo_gmp_types::error::Error::ConversionFailed)?;
 
-            Ok(HexBinary::from(plaintext_str.as_bytes()))
+            Ok(HexBinary::from(plaintext_bytes))
         }
         Payload::VerifierSet(new_verifier_set) => {
-            let new_weighted_signers = AxelarToLeo::<N>::to_leo(new_verifier_set).unwrap();
+            let new_weighted_signers = AxelarToLeo::<N>::to_leo(new_verifier_set)?;
             let proof = aleo_gmp_types::aleo_struct::AxelarProof::<N>::new(
                 new_weighted_signers,
                 signatures,
             );
 
-            let weighted_signers = AxelarToLeo::<N>::to_leo(verifier_set).unwrap();
+            let weighted_signers = AxelarToLeo::<N>::to_leo(verifier_set)?;
             let execute_data = ExecuteDataVerifierSet {
                 proof: proof.into(),
                 payload: weighted_signers,
             };
-            let plaintext: Plaintext<N> = Plaintext::try_from(&execute_data)
-                .map_err(|e| ContractError::AleoError(e.to_string()))?;
-            let plaintext_str = plaintext.to_string();
+            let plaintext_bytes = Plaintext::try_from(&execute_data)
+                .and_then(|plaintext| plaintext.to_bytes_le())
+                .map_err(|_| aleo_gmp_types::error::Error::ConversionFailed)?;
 
-            Ok(HexBinary::from(plaintext_str.as_bytes()))
+            Ok(HexBinary::from(plaintext_bytes))
         }
     }
 }

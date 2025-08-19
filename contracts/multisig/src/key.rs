@@ -4,7 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 use enum_display_derive::Display;
-use error_stack::{Report, ResultExt};
+use error_stack::{report, Report, ResultExt};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use snarkvm_cosmwasm::prelude::{FromBytes, ToBytes};
@@ -279,9 +279,8 @@ fn validate_and_normalize_public_key(
         KeyType::AleoSchnorr => Ok(snarkvm_cosmwasm::prelude::Address::<
             snarkvm_cosmwasm::prelude::TestnetV0,
         >::from_bytes_le(&pub_key)
-        .map_err(|_| ContractError::InvalidPublicKey)?
-        .to_bytes_le()
-        .map_err(|_| ContractError::InvalidPublicKey)?
+        .and_then(|addr| addr.to_bytes_le())
+        .map_err(|_| report!(ContractError::InvalidPublicKey))?
         .into()),
     }
 }
