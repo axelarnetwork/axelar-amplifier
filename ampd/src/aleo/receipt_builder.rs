@@ -2,10 +2,8 @@ use std::str::FromStr;
 
 use aleo_gmp_types::aleo_struct::generated_structs::SignersRotated;
 use aleo_string_encoder::StringEncoder;
-// use aleo_types::transaction::Transaction;
-// use aleo_types::transition::Transition;
 use error_stack::{ensure, Report, Result, ResultExt};
-use snarkvm::prelude::{Network, ProgramID, ToBytes};
+use snarkvm::prelude::{Network, ProgramID};
 
 use crate::aleo::error::Error;
 use crate::aleo::generated_structs::ContractCall;
@@ -178,11 +176,6 @@ where
 
         let plain_text = snarkvm::prelude::Plaintext::<N>::from_str(&payload)
             .map_err(|_| Report::new(Error::PayloadHash(payload.to_string())))?;
-        println!("----> plaintext payload: {}", plain_text);
-        println!(
-            "----> plaintext payload bytes: {:02x?}",
-            plain_text.to_bytes_le()
-        );
 
         let chain_name = StringEncoder::from_slice(&call_contract.destination_chain)
             .decode()
