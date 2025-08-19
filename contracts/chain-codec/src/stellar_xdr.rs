@@ -1,5 +1,6 @@
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::FnExt;
+use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
@@ -9,7 +10,6 @@ use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 
 use crate::error::Error;
-use chain_codec_api::Payload;
 
 pub fn payload_digest(
     domain_separator: &Hash,
@@ -79,6 +79,7 @@ pub fn encode_execute_data(
 }
 #[cfg(test)]
 mod tests {
+    use chain_codec_api::Payload;
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType::Ed25519;
@@ -88,7 +89,6 @@ mod tests {
     use router_api::{chain_name, chain_name_raw, CrossChainId, Message};
 
     use crate::stellar_xdr::{encode_execute_data, payload_digest};
-    use chain_codec_api::Payload;
 
     #[test]
     fn stellar_messages_payload_digest() {
