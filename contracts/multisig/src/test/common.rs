@@ -158,7 +158,7 @@ pub mod aleo_schnorr_test_data {
         let signature = snarkvm_cosmwasm::console::account::signature::Signature::sign_bytes(
             &private_key,
             message().as_slice(),
-            &mut rand_chacha::ChaChaRng::from_entropy(),
+            &mut rand_chacha::ChaChaRng::from_seed([1u8; 32]),
         )
         .unwrap();
 

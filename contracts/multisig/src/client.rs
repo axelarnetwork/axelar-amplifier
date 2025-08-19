@@ -459,7 +459,6 @@ mod test {
             &aleo_schnorr_subkey
         )
         .into_iter()
-        .take(2) // Skip Aleo-Schnorr signatures for this test
         .flat_map(|(_, _, signers, session_id)| {
             validate_submit_signature_msgs_construction(&client, session_id, signers)
         })
@@ -480,7 +479,6 @@ mod test {
             &aleo_schnorr_subkey
         )
         .into_iter()
-        .take(2) // Skip Aleo-Schnorr signatures for this test
         .flat_map(
             |(key_type, _, signers, _)| validate_register_public_key_msgs_construction(
                 &client, key_type, signers
