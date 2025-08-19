@@ -97,7 +97,7 @@ deactivate Multisig
 ## Authorization
 
 Prior to calling `StartSigningSession`, the prover contract must first be _authorized_.
-For a contract to become authorized, the governance or coordinator contract needs to call `AuthorizeCallers`, and specify the contract addresses together with their corresponding chain names.
+For a contract to become authorized, the governance account or coordinator contract need to call `AuthorizeCallers`, and specify the contract addresses together with their corresponding chain names.
 Similarly, the governance or admin can revoke authorization of a particular contract by calling `UnauthorizeCallers`.
 
 ## Interface
