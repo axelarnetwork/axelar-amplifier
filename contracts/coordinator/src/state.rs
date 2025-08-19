@@ -228,22 +228,15 @@ pub fn deployed_contracts(
         .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
 }
 
-pub fn registered_provers(
+pub fn is_prover_registered(
     storage: &dyn Storage,
     prover_address: ProverAddress,
-) -> Result<Vec<Addr>, Error> {
-    Ok(
-        if CHAIN_CONTRACTS_MAP
-            .idx
-            .by_prover
-            .item(storage, prover_address.clone())
-            .is_ok_and(|result| result.is_some())
-        {
-            vec![prover_address]
-        } else {
-            vec![]
-        },
-    )
+) -> Result<bool, Error> {
+    Ok(CHAIN_CONTRACTS_MAP
+        .idx
+        .by_prover
+        .item(storage, prover_address)
+        .is_ok_and(|result| result.is_some()))
 }
 
 #[index_list(VerifierProverRecord)]

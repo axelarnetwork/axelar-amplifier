@@ -500,25 +500,33 @@ fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
     format_ident!("{}FromProxy", execute_msg_ident.clone())
 }
 
-/// AllPermissions is a custom struct used to parse the attributes for the external_execute macro
-/// The external_execute macro must be defined as follows:
+/// AllPermissions is a custom struct used to parse the attributes for the ensure_permissions macro
+/// The ensure_permissions macro must be defined as follows:
 ///
-/// #[external_execute(proxy(coordinator = find_coordinator_address), direct(verifier = find_varifier_address))]
+/// #[ensure_permissions(proxy(coordinator = find_coordinator_address), direct(verifier = find_verifier_address))]
 ///
 /// ContractPermission is a vector of tuples, where the first element is the contract name, and the second
 /// is the authorization function.
 ///
 /// The aforementioned example denotes that the 'find_coordinator' function will be used to authorize
 /// the coordinator contract, and the 'find_verifier' function is used to authorize the verifier contract.
-/// The authorization function is the same as is provided to the ensure_permissions method, and it's
-/// signature is as follows:
+/// The authorization functions are as follows:
 ///
-/// FnOnce(&dyn cosmwasm_std::Storage, &ExecuteMsg) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
+/// Proxy:
 ///
-/// The authorized address is returned.
+/// FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, impl error_stack::Context>
 ///
-/// proxy: Proxy contracts that are allowed to execute messages on this contract.
-/// direct: Addresses that are allowed to execute particular messages.
+/// The `find_coordinator_address` function must return the address of the corresponding contract on success,
+/// and an error on failure. This function should fail if no such contract address has been set, or if there
+/// is another internal error (such as an error parsing state).
+///
+/// Direct:
+///
+/// FnOnce(&dyn cosmwasm_std::Storage, Addr, &ExecuteMsg) -> error_stack::Result<bool, impl error_stack::Context>
+///
+/// The `find_verifier_address` function must return the true if the sender address is authorized to
+/// execute the message, and false otherwise. This function should return an error only if there is
+/// an internal error.
 #[derive(Debug)]
 struct ContractPermission(Vec<(Ident, Expr)>);
 

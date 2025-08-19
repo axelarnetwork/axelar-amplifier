@@ -59,7 +59,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = find_authorized_callers))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -126,17 +126,16 @@ fn validate_contract_addresses(
         .try_collect()
 }
 
-fn find_authorized_callers(
+fn can_start_signing_session(
     storage: &dyn Storage,
-    sender: Addr,
+    sender_addr: Addr,
     msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, permission_control::Error> {
     match msg {
-        ExecuteMsg::StartSigningSession { chain_name, .. } => {
-            Ok(execute::authorized_callers(storage, chain_name)
-                .change_context(permission_control::Error::Unauthorized)?
-                .contains(&sender))
-        }
+        ExecuteMsg::StartSigningSession { chain_name, .. } => Ok(
+            execute::require_authorized_caller(storage, sender_addr, chain_name)
+                .change_context(permission_control::Error::Unauthorized)?,
+        ),
         _ => Err(report!(permission_control::Error::WrongVariant)),
     }
 }
@@ -1195,8 +1194,6 @@ mod tests {
                 &verifier_set_id,
                 chain_name.clone(),
             );
-
-            println!("Res {:?}", res);
 
             assert!(res.unwrap_err().to_string().contains(
                 &permission_control::Error::SpecificPermissionDenied {

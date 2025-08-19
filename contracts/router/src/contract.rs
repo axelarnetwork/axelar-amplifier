@@ -109,13 +109,14 @@ fn find_gateway_address(
         Ok(true)
     } else {
         match load_chain_by_gateway(storage, &sender) {
+            Ok(_) => Ok(true),
             Err(e)
                 if e.frames()
-                    .any(|f| f.downcast_ref::<Error>() == Some(&Error::StoreFailure)) =>
+                    .any(|f| f.downcast_ref::<Error>() == Some(&Error::GatewayNotRegistered)) =>
             {
-                Ok(false)
+                Ok(true)
             }
-            _ => Ok(true),
+            Err(e) => Err(e),
         }
     }
 }

@@ -105,7 +105,7 @@ fn find_prover_address(
     sender: Addr,
     _msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, state::Error> {
-    Ok(state::registered_provers(storage, sender.clone())?.contains(&sender))
+    state::is_prover_registered(storage, sender.clone())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

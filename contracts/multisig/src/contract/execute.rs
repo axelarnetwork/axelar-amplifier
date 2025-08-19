@@ -177,18 +177,15 @@ pub fn register_pub_key(
     }))
 }
 
-pub fn authorized_callers(
+pub fn require_authorized_caller(
     storage: &dyn Storage,
+    sender_addr: Addr,
     chain_name: &ChainName,
-) -> Result<Vec<Addr>, ContractError> {
+) -> Result<bool, ContractError> {
     Ok(AUTHORIZED_CALLERS
-        .range(storage, None, None, cosmwasm_std::Order::Ascending)
-        .filter_map(|entry| {
-            entry
-                .ok()
-                .and_then(|(addr, chain)| chain.eq(chain_name).then_some(addr))
-        })
-        .collect::<Vec<_>>())
+        .may_load(storage, &sender_addr)
+        .map_err(ContractError::from)?
+        == Some(chain_name.clone()))
 }
 
 pub fn authorize_callers(
