@@ -1,7 +1,7 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.9.0"
+version = "1.11.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -22,6 +22,7 @@ axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
+clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = "0.15.11"
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
@@ -44,6 +45,7 @@ hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
 itertools = { workspace = true }
 k256 = { workspace = true }
+lazy_static = "1.5.0"
 mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
@@ -56,6 +58,7 @@ pin-project-lite = "0.2.16"
 prometheus-client = "0.23.1"
 prost = "0.13.5"
 prost-types = "0.13.5"
+regex = "1.10.2"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 rewards = { workspace = true }
@@ -75,11 +78,12 @@ starknet-checked-felt = { workspace = true }
 starknet-core = { workspace = true }
 starknet-providers = { workspace = true }
 stellar = { workspace = true }
-stellar-rpc-client = "21.4.0"
+stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sysinfo = "0.36.1"
 tendermint = { workspace = true }
 tendermint-rpc = { version = "0.35.0", features = ["http-client"] }
 thiserror = { workspace = true }

@@ -56,27 +56,26 @@ jobs:
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           aws-region: us-east-2
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ghwf-${{ github.event.repository.name }}
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: '0'
           ref: ${{ github.event.inputs.tag }}
           submodules: recursive
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
-          toolchain: 1.81.0
-          override: true
+          cache-key: "cache-release-${{ matrix.os }}-${{ matrix.arch }}"
 
       - name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v6
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
@@ -88,9 +87,9 @@ jobs:
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
-          
+
           brew install protobuf
-          
+
           if [ "$ARCH" == "arm64" ]
           then
             rustup target add aarch64-apple-darwin
@@ -102,7 +101,7 @@ jobs:
             mkdir ampdbin
             mv "/Users/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           fi
-          
+
           gpg --armor --detach-sign "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
       - name: build and sign linux binaries
@@ -113,7 +112,7 @@ jobs:
           OS="linux"
           ARCH="${{ matrix.arch }}"
           sudo apt-get install protobuf-compiler
-          
+
           if [ "$ARCH" == "arm64" ]
           then
             sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
@@ -121,13 +120,13 @@ jobs:
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             cargo build --release --target aarch64-unknown-linux-gnu
             mkdir ampdbin
-            mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/aarch64-unknown-linux-gnu/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"            
+            mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/aarch64-unknown-linux-gnu/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           else
             cargo build --release
             mkdir ampdbin
             mv "/home/runner/work/axelar-amplifier/axelar-amplifier/target/release/ampd" "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
-          fi     
-          
+          fi
+
            gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
 
 
@@ -177,7 +176,7 @@ jobs:
 
       - name: Upload binaries to release
         if: github.event.inputs.dry-run == 'false'
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@81c65b7cd4de9b2570615ce3aad67a41de5b1a13 # v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ./ampdbin/*
@@ -203,7 +202,7 @@ jobs:
 
       - name: Upload to R2
         if: github.event.inputs.dry-run == 'false'
-        uses: ryand56/r2-upload-action@v1.3.2
+        uses: ryand56/r2-upload-action@31453780fdaaf43c8eff7231dd521f8669b48621 # v1.3.2
         with:
           r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
           r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
@@ -222,21 +221,21 @@ jobs:
     if: github.event.inputs.dry-run == 'false'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: '0'
           ref: ${{ github.event.inputs.tag }}
           submodules: recursive
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
@@ -258,12 +257,12 @@ jobs:
     if: github.event.inputs.dry-run == 'false'
     steps:
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.3.0
+        uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # 3.3.0
         with:
           cosign-release: 'v2.2.2'
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}

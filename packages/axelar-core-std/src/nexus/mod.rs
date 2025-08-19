@@ -103,6 +103,7 @@ mod test {
     use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::QuerierWrapper;
     use rand::RngCore;
+    use router_api::chain_name;
 
     use crate::nexus;
     use crate::nexus::test_utils::{reply_with_is_chain_registered, reply_with_tx_hash_and_nonce};
@@ -132,7 +133,7 @@ mod test {
         let client: nexus::Client = client::CosmosClient::new(QuerierWrapper::new(&querier)).into();
 
         assert!(assert_ok!(
-            client.is_chain_registered(&"test-chain".parse().unwrap())
+            client.is_chain_registered(&chain_name!("test-chain"))
         ));
     }
 }

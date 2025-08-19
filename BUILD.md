@@ -4,7 +4,7 @@ This document provides instructions for building Amplifier components, including
 
 ## Prerequisites
 
-- Rust and Cargo (check the current rust version in the `workspace.package` of root [Cargo.toml](Cargo.toml) file)
+- Rust and Cargo (the required version is automatically managed by [rust-toolchain.toml](rust-toolchain.toml))
 - Docker (for reproducible optimized contract builds)
 - [just](https://crates.io/crates/just) cargo crate (for running the optimizer and other useful project specific commands)
 

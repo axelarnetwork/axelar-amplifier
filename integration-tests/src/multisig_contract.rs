@@ -1,8 +1,8 @@
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::contract::{execute, instantiate, query};
+use router_api::cosmos_addr;
 
 use crate::contract::Contract;
 use crate::protocol::AxelarApp;
@@ -27,13 +27,13 @@ impl MultisigContract {
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                MockApi::default().addr_make("anyone"),
+                cosmos_addr!("anyone"),
                 &multisig::msg::InstantiateMsg {
                     rewards_address: rewards_address.to_string(),
                     governance_address: governance.to_string(),
                     admin_address: admin.to_string(),
                     block_expiry,
-                    coordinator_address,
+                    coordinator_address: coordinator_address.to_string(),
                 },
                 &[],
                 "multisig",

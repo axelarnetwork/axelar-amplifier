@@ -14,6 +14,10 @@ pub struct AxelarExecutableMsg {
 /// By convention, amplifier-compatible contracts must expose this `Execute` variant.
 /// The actual message type would be defined in the respective contracts, but due to identical json serialization
 /// it can be imitated here to provide a strong type for this gateway to call.
+#[cfg_attr(
+    dylint_lib = "amplifier_lints",
+    allow(msg_without_explicit_permissions)
+)]
 #[cw_serde]
 enum ExecuteMsg {
     /// Execute the message at the destination contract with the corresponding payload.
@@ -38,9 +42,9 @@ impl<'a> Client<'a> {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::{mock_dependencies, MockApi};
+    use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{to_json_binary, HexBinary, WasmMsg};
-    use router_api::CrossChainId;
+    use router_api::{address, cosmos_addr, CrossChainId};
 
     use crate::clients::external;
 
@@ -48,10 +52,10 @@ mod test {
     fn execute_message() {
         let deps = mock_dependencies();
 
-        let destination_addr = MockApi::default().addr_make("axelar-executable");
+        let destination_addr = cosmos_addr!("axelar-executable");
 
         let executable_msg = external::AxelarExecutableMsg {
-            source_address: "source-address".parse().unwrap(),
+            source_address: address!("source-address"),
             payload: HexBinary::from(vec![1, 2, 3]),
             cc_id: CrossChainId::new("source-chain", "message-id").unwrap(),
         };

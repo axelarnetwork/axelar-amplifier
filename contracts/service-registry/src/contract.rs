@@ -178,15 +178,20 @@ fn match_verifier(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
     deps: Deps,
-    _env: Env,
+    env: Env,
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ActiveVerifiers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::active_verifiers(deps, service_name, chain_name)?)
-            .map_err(|err| err.into()),
+        } => to_json_binary(&query::active_verifiers(
+            deps,
+            env,
+            service_name,
+            chain_name,
+        )?)
+        .map_err(|err| err.into()),
         QueryMsg::Verifier {
             service_name,
             verifier,
@@ -212,7 +217,6 @@ pub fn query(
 #[cfg(test)]
 mod test {
     use std::collections::HashSet;
-    use std::str::FromStr;
 
     use axelar_wasm_std::error::err_contains;
     use axelar_wasm_std::nonempty;
@@ -220,9 +224,9 @@ mod test {
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        coins, from_json, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
+        coins, from_json, Api, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
     };
-    use router_api::ChainName;
+    use router_api::{chain_name, cosmos_addr, ChainName};
     use service_registry_api::{Verifier, WeightedVerifier};
 
     use super::*;
@@ -242,7 +246,7 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("instantiator"), &[]),
+            message_info(&cosmos_addr!("instantiator"), &[]),
             InstantiateMsg {
                 governance_account: api.addr_make(GOVERNANCE_ADDRESS).to_string(),
             },
@@ -380,11 +384,11 @@ mod test {
         assert!(response.is_ok());
 
         let verifiers = vec![
-            api.addr_make("verifier1").to_string(),
-            api.addr_make("verifier2").to_string(),
-            api.addr_make("verifier3").to_string(),
-            api.addr_make("verifier4").to_string(),
-            api.addr_make("verifier5").to_string(),
+            cosmos_addr!("verifier1").to_string(),
+            cosmos_addr!("verifier2").to_string(),
+            cosmos_addr!("verifier3").to_string(),
+            cosmos_addr!("verifier4").to_string(),
+            cosmos_addr!("verifier5").to_string(),
         ];
 
         let res = execute(
@@ -414,7 +418,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -431,7 +435,7 @@ mod test {
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -597,7 +601,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -648,7 +652,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -683,7 +687,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -718,7 +722,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let service = execute_register_service(deps.as_mut(), service_name.into());
         execute_override_service_params(deps.as_mut(), service_name.into(), chain_name.clone());
@@ -757,7 +761,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res = execute(
             deps.as_mut(),
@@ -784,7 +788,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "verifiers";
-        let chain_name = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res = execute(
             deps.as_mut(),
@@ -810,7 +814,7 @@ mod test {
         let mut deps = setup();
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         execute_register_service(deps.as_mut(), service_name.into());
         let params_override =
@@ -837,7 +841,7 @@ mod test {
         let deps = setup();
 
         let service_name = "verifiers";
-        let chain_name: ChainName = "solana".parse().unwrap();
+        let chain_name = chain_name!("solana");
 
         let res: Option<ServiceParamsOverride> = from_json(
             query(
@@ -867,7 +871,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: Uint128::one().try_into().unwrap(),
@@ -883,7 +887,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![MockApi::default().addr_make("verifier").into()],
+                verifiers: vec![cosmos_addr!("verifier").into()],
                 service_name: service_name.into(),
             },
         );
@@ -894,7 +898,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![MockApi::default().addr_make("verifier").into()],
+                verifiers: vec![cosmos_addr!("verifier").into()],
                 service_name: service_name.into(),
             },
         )
@@ -919,7 +923,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -968,7 +972,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1014,7 +1018,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1049,7 +1053,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1094,7 +1098,7 @@ mod test {
                 mock_env(),
                 QueryMsg::ActiveVerifiers {
                     service_name: service_name.into(),
-                    chain_name: ChainName::from_str("random chain").unwrap(),
+                    chain_name: chain_name!("random chain"),
                 },
             )
             .unwrap(),
@@ -1118,7 +1122,7 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: api.addr_make("nowhere").to_string(),
+                coordinator_contract: cosmos_addr!("nowhere").to_string(),
                 min_num_verifiers: 0,
                 max_num_verifiers: Some(100),
                 min_verifier_bond: min_verifier_bond.try_into().unwrap(),
@@ -1153,7 +1157,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1242,9 +1246,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("binance"),
+            chain_name!("avalanche"),
         ];
 
         let res = execute(
@@ -1337,9 +1341,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("binance"),
+            chain_name!("avalanche"),
         ];
 
         let res = execute(
@@ -1462,7 +1466,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1474,7 +1478,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let second_chain_name = ChainName::from_str("avalanche").unwrap();
+        let second_chain_name = chain_name!("avalanche");
         // Deregister support for another chain
         let res = execute(
             deps.as_mut(),
@@ -1565,7 +1569,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1678,7 +1682,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1742,7 +1746,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1788,7 +1792,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1815,7 +1819,7 @@ mod test {
         let api = deps.api;
 
         let service_name = "validators";
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1860,7 +1864,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1905,7 +1909,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let err = execute(
             deps.as_mut(),
             mock_env(),
@@ -1986,7 +1990,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2104,7 +2108,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2179,7 +2183,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2254,7 +2258,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2342,7 +2346,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2452,7 +2456,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2529,10 +2533,7 @@ mod test {
         let mut deps = setup();
         let api = deps.api;
 
-        let verifiers = vec![
-            MockApi::default().addr_make("verifier1"),
-            MockApi::default().addr_make("verifier2"),
-        ];
+        let verifiers = vec![cosmos_addr!("verifier1"), cosmos_addr!("verifier2")];
         let min_num_verifiers = verifiers.len() as u16;
 
         let service_name = "validators";
@@ -2565,7 +2566,7 @@ mod test {
         )
         .unwrap();
 
-        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chain_name = chain_name!("ethereum");
 
         for verifier in &verifiers {
             // should return err until all verifiers are registered
@@ -2667,7 +2668,7 @@ mod test {
         assert!(res.is_ok());
 
         // given a bonded verifier
-        let verifier1 = MockApi::default().addr_make("verifier-1");
+        let verifier1 = cosmos_addr!("verifier-1");
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -2710,7 +2711,7 @@ mod test {
         ));
 
         // given a verifier passed unbonding period
-        let verifier2 = MockApi::default().addr_make("verifier-2");
+        let verifier2 = cosmos_addr!("verifier-2");
 
         // bond verifier
         let res = execute(
@@ -2846,9 +2847,9 @@ mod test {
         assert!(res.is_ok());
 
         let chains = vec![
-            ChainName::from_str("ethereum").unwrap(),
-            ChainName::from_str("binance").unwrap(),
-            ChainName::from_str("avalanche").unwrap(),
+            chain_name!("ethereum"),
+            chain_name!("binance"),
+            chain_name!("avalanche"),
         ];
         let res = execute(
             deps.as_mut(),
@@ -2920,9 +2921,9 @@ mod test {
         assert!(res.is_ok());
 
         let verifiers_1 = vec![
-            api.addr_make("verifier1").to_string(),
-            api.addr_make("verifier2").to_string(),
-            api.addr_make("verifier3").to_string(),
+            cosmos_addr!("verifier1").to_string(),
+            cosmos_addr!("verifier2").to_string(),
+            cosmos_addr!("verifier3").to_string(),
         ];
 
         let res = execute(
@@ -2937,8 +2938,8 @@ mod test {
         assert!(res.is_ok());
 
         let verifiers_2 = vec![
-            api.addr_make("verifier4").to_string(),
-            api.addr_make("verifier5").to_string(),
+            cosmos_addr!("verifier4").to_string(),
+            cosmos_addr!("verifier5").to_string(),
         ];
 
         let res = execute(
@@ -2986,9 +2987,9 @@ mod test {
         assert!(res.is_ok());
 
         let verifiers = vec![
-            api.addr_make("verifier1").to_string(),
-            api.addr_make("verifier2").to_string(),
-            api.addr_make("verifier3").to_string(),
+            cosmos_addr!("verifier1").to_string(),
+            cosmos_addr!("verifier2").to_string(),
+            cosmos_addr!("verifier3").to_string(),
         ];
 
         let res = execute(
@@ -3078,8 +3079,8 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
                 verifiers: vec![
-                    api.addr_make("verifier1").to_string(),
-                    api.addr_make("verifier2").to_string(),
+                    cosmos_addr!("verifier1").to_string(),
+                    cosmos_addr!("verifier2").to_string(),
                 ],
                 service_name: service_name.clone(),
             },
@@ -3098,8 +3099,8 @@ mod test {
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UnauthorizeVerifiers {
                 verifiers: vec![
-                    api.addr_make("verifier1").to_string(),
-                    api.addr_make("verifier3").to_string(),
+                    cosmos_addr!("verifier1").to_string(),
+                    cosmos_addr!("verifier3").to_string(),
                 ],
                 service_name: service_name.clone(),
             },
@@ -3117,7 +3118,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::JailVerifiers {
-                verifiers: vec![api.addr_make("verifier2").to_string()],
+                verifiers: vec![cosmos_addr!("verifier2").to_string()],
                 service_name: service_name.clone(),
             },
         );
@@ -3129,7 +3130,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::AuthorizeVerifiers {
-                verifiers: vec![api.addr_make("verifier2").to_string()],
+                verifiers: vec![cosmos_addr!("verifier2").to_string()],
                 service_name: service_name.clone(),
             },
         );
@@ -3141,7 +3142,7 @@ mod test {
     fn jailing_from_none_does_not_affect_count() {
         let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
-        let new_verifier = api.addr_make("verifier6").to_string();
+        let new_verifier = cosmos_addr!("verifier6").to_string();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -3159,7 +3160,7 @@ mod test {
     fn jailing_unauthorized_verifier_does_not_affect_authorized_count() {
         let (mut deps, api, service_name, _verifiers) = setup_service_with_5_verifiers();
 
-        let new_verifier = api.addr_make("verifier6").to_string();
+        let new_verifier = cosmos_addr!("verifier6").to_string();
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -3171,5 +3172,135 @@ mod test {
         );
         assert!(res.is_ok());
         assert_auth_verifier_count_is_valid(&deps, &service_name, 5);
+    }
+
+    #[test]
+    fn active_verifiers_respects_chain_max_override() {
+        let (mut deps, api, service_name, original_verifiers) = setup_service_with_5_verifiers();
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
+        let chain_name = chain_name!("ethereum");
+
+        // Bond and register all verifiers
+        for verifier in &original_verifiers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(
+                    &api.addr_validate(verifier).unwrap(),
+                    &coins(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
+                ),
+                ExecuteMsg::BondVerifier {
+                    service_name: service_name.clone(),
+                },
+            );
+            assert!(res.is_ok());
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&api.addr_validate(verifier).unwrap(), &[]),
+                ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.clone(),
+                    chains: vec![chain_name.clone()],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        // Create chain override with max verifiers = 3 (smaller than global max of 10)
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+                service_params_override: crate::msg::ServiceParamsOverride {
+                    min_num_verifiers: None,
+                    max_num_verifiers: Some(Some(3)), // Chain limit of 3
+                },
+            },
+        );
+        assert!(res.is_ok());
+
+        // Query active verifiers for the chain
+        let active_verifiers = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+            },
+        )
+        .unwrap();
+
+        let active_verifiers: Vec<WeightedVerifier> = from_json(&active_verifiers).unwrap();
+
+        // Should only return 3 verifiers (respecting chain max override)
+        assert_eq!(active_verifiers.len(), 3);
+
+        // Increase the max verifiers, make sure the full set is returned
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::OverrideServiceParams {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+                service_params_override: crate::msg::ServiceParamsOverride {
+                    min_num_verifiers: None,
+                    max_num_verifiers: Some(Some(5)), // Chain limit of 3
+                },
+            },
+        );
+        assert!(res.is_ok());
+
+        // Query active verifiers for the chain
+        let active_verifiers = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name.clone(),
+            },
+        )
+        .unwrap();
+
+        let active_verifiers: Vec<WeightedVerifier> = from_json(&active_verifiers).unwrap();
+
+        assert_eq!(active_verifiers.len(), original_verifiers.len());
+
+        // Test that without chain override, all 5 verifiers would be returned
+        let chain_name_no_override = chain_name!("polygon");
+
+        // Register all verifiers for the chain without override
+        for verifier in &original_verifiers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&api.addr_validate(verifier).unwrap(), &[]),
+                ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.clone(),
+                    chains: vec![chain_name_no_override.clone()],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let active_verifiers_no_override = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::ActiveVerifiers {
+                service_name: service_name.clone(),
+                chain_name: chain_name_no_override,
+            },
+        )
+        .unwrap();
+
+        let active_verifiers_no_override: Vec<WeightedVerifier> =
+            from_json(&active_verifiers_no_override).unwrap();
+
+        // Should return all 5 verifiers (respecting global max of 10)
+        assert_eq!(active_verifiers_no_override.len(), 5);
     }
 }

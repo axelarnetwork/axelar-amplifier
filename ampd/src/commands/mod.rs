@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::pin::Pin;
 
 use clap::Subcommand;
@@ -13,7 +14,7 @@ use crate::asyncutil::future::RetryPolicy;
 use crate::config::Config;
 use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcaster_v2, cosmos, tofnd, Error, PREFIX};
+use crate::{broadcast, cosmos, monitoring, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -65,7 +66,9 @@ pub struct ServiceRegistryConfig {
 impl Default for ServiceRegistryConfig {
     fn default() -> Self {
         Self {
-            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
         }
     }
 }
@@ -78,7 +81,9 @@ pub struct RewardsConfig {
 impl Default for RewardsConfig {
     fn default() -> Self {
         Self {
-            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
+            cosmwasm_contract: AccountId::new(PREFIX, &[0; 32])
+                .expect("AccountId should be created validly")
+                .into(),
         }
     }
 }
@@ -129,14 +134,14 @@ async fn broadcast_tx(
 }
 
 async fn instantiate_broadcaster(
-    broadcaster_config: broadcaster_v2::Config,
+    broadcaster_config: broadcast::Config,
     tofnd_config: tofnd::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     pub_key: CosmosPublicKey,
 ) -> Result<
-    broadcaster_v2::BroadcasterTask<
+    broadcast::BroadcasterTask<
         cosmos::CosmosGrpcClient,
-        Pin<Box<broadcaster_v2::MsgQueue>>,
+        Pin<Box<broadcast::MsgQueue>>,
         MultisigClient,
     >,
     Error,
@@ -150,35 +155,38 @@ async fn instantiate_broadcaster(
     .change_context(Error::Connection)
     .attach_printable(tofnd_config.url)?;
 
-    let broadcaster = broadcaster_v2::Broadcaster::new(
-        cosmos_client.clone(),
-        broadcaster_config.chain_id,
-        pub_key,
-    )
-    .await
-    .change_context(Error::Broadcaster)?;
-    let (msg_queue, _) = broadcaster_v2::MsgQueue::new_msg_queue_and_client(
-        broadcaster.clone(),
-        broadcaster_config.queue_cap,
-        broadcaster_config.batch_gas_limit,
-        broadcaster_config.broadcast_interval,
-    );
-    let broadcaster_task = broadcaster_v2::BroadcasterTask::builder()
-        .broadcaster(broadcaster)
-        .msg_queue(msg_queue)
-        .signer(multisig_client.clone())
-        .key_id(tofnd_config.key_uid.clone())
+    let broadcaster = broadcast::Broadcaster::builder()
+        .client(cosmos_client.clone())
+        .chain_id(broadcaster_config.chain_id)
+        .pub_key(pub_key)
         .gas_adjustment(broadcaster_config.gas_adjustment)
         .gas_price(broadcaster_config.gas_price)
         .build()
         .await
         .change_context(Error::Broadcaster)?;
+    let (msg_queue, _) = broadcast::MsgQueue::new_msg_queue_and_client(
+        broadcaster.clone(),
+        broadcaster_config.queue_cap,
+        broadcaster_config.batch_gas_limit,
+        broadcaster_config.broadcast_interval,
+    );
+
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
+        .expect("should never fail to create dummy monitoring client");
+
+    let broadcaster_task = broadcast::BroadcasterTask::builder()
+        .broadcaster(broadcaster)
+        .msg_queue(msg_queue)
+        .signer(multisig_client.clone())
+        .key_id(tofnd_config.key_uid.clone())
+        .monitoring_client(monitoring_client)
+        .build();
 
     Ok(broadcaster_task)
 }
 
 async fn handle_tx_result(
-    broadcaster_config: broadcaster_v2::Config,
+    broadcaster_config: broadcast::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     res: TxResponse,
     skip_confirmation: bool,
@@ -191,7 +199,7 @@ async fn handle_tx_result(
 }
 
 async fn confirm_tx(
-    broadcaster_config: broadcaster_v2::Config,
+    broadcaster_config: broadcast::Config,
     cosmos_client: cosmos::CosmosGrpcClient,
     tx_hash: String,
 ) -> Result<String, Error> {
@@ -203,7 +211,7 @@ async fn confirm_tx(
             .into(),
     );
 
-    broadcaster_v2::confirm_tx(&cosmos_client, tx_hash, retry_policy)
+    broadcast::confirm_tx(&cosmos_client, tx_hash, retry_policy)
         .await
         .map(|res| res.txhash)
         .change_context(Error::TxConfirmation)

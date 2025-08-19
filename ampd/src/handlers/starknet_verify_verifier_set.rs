@@ -13,7 +13,9 @@ use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
 use events::{try_from, Event};
+use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
+use router_api::{chain_name, ChainName};
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -22,9 +24,15 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
+use crate::monitoring;
+use crate::monitoring::metrics;
 use crate::starknet::json_rpc::StarknetClient;
 use crate::starknet::verifier::verify_verifier_set;
 use crate::types::TMAddress;
+
+lazy_static! {
+    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
+}
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
@@ -51,6 +59,7 @@ where
     voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -66,12 +75,14 @@ where
         voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        monitoring_client: monitoring::Client,
     ) -> Self {
         Self {
             verifier,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
+            monitoring_client,
         }
     }
 
@@ -125,7 +136,7 @@ where
 
         let transaction_response = self
             .rpc_client
-            .get_event_by_message_id_signers_rotated(verifier_set.message_id.clone())
+            .event_by_message_id_signers_rotated(verifier_set.message_id.clone())
             .await;
 
         let vote = info_span!(
@@ -142,6 +153,13 @@ where
                     verify_verifier_set(&tx_receipt, &verifier_set, &source_gateway_address)
                 }
             };
+
+            self.monitoring_client
+                .metrics()
+                .record_metric(metrics::Msg::VerificationVote {
+                    vote_decision: vote.clone(),
+                    chain_name: STARKNET_CHAIN_NAME.clone(),
+                });
 
             info!(
                 vote = vote.as_value(),
@@ -164,6 +182,7 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use error_stack::Result;
@@ -172,14 +191,17 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use rand::Rng;
+    use router_api::chain_name;
     use starknet_checked_felt::CheckedFelt;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
+    use super::STARKNET_CHAIN_NAME;
     use crate::event_processor::EventHandler;
     use crate::handlers::starknet_verify_verifier_set::PollStartedEvent;
+    use crate::monitoring::{metrics, test_utils};
     use crate::starknet::json_rpc::MockStarknetClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
@@ -200,7 +222,7 @@ mod tests {
         let mut rpc_client = MockStarknetClient::new();
         // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
         rpc_client
-            .expect_get_event_by_message_id_signers_rotated()
+            .expect_event_by_message_id_signers_rotated()
             .returning(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
@@ -213,12 +235,52 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, rx, monitoring_client);
 
         let _ = tx.send(expiration + 1);
 
         // poll is expired, should not hit rpc error now
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockStarknetClient::new();
+        rpc_client
+            .expect_event_by_message_id_signers_rotated()
+            .returning(|_| None);
+
+        let event: Event = to_event(
+            poll_started_event(participants(5, Some(worker.clone())), 100),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            rpc_client,
+            watch::channel(0).1,
+            monitoring_client,
+        );
+        let _ = handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            receiver.try_recv().unwrap(),
+            metrics::Msg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: STARKNET_CHAIN_NAME.clone(),
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 
     fn random_hash() -> String {
@@ -253,7 +315,7 @@ mod tests {
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "starknet-devnet-v1".parse().unwrap(),
+                source_chain: chain_name!("starknet-devnet-v1"),
                 source_gateway_address:
                     "0x049ec69cd2e0c987857fbda7966ff59077e2e92c18959bdb9b0012438c452047"
                         .parse()

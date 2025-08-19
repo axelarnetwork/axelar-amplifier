@@ -30,7 +30,7 @@ use thiserror::Error;
 use tonic::transport::Channel;
 use tonic::{Code, Response, Status};
 
-use crate::broadcaster_v2::Tx;
+use crate::broadcast::Tx;
 use crate::types::debug::REDACTED_VALUE;
 use crate::types::{CosmosPublicKey, TMAddress};
 
@@ -772,8 +772,8 @@ mod tests {
 
     #[test]
     fn ensure_simulate_req_res_serialization_do_not_change() {
+        #[allow(deprecated)]
         let req = SimulateRequest {
-            #[allow(deprecated)]
             tx: Some(Tx {
                 body: None,
                 auth_info: None,
@@ -786,8 +786,8 @@ mod tests {
                 gas_wanted: 1000,
                 gas_used: 900,
             }),
+            #[allow(deprecated)]
             result: Some(AbciResult {
-                #[allow(deprecated)]
                 data: vec![1, 2, 3],
                 log: "simulation log".to_string(),
                 events: vec![abci::Event {

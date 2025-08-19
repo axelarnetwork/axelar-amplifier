@@ -117,6 +117,26 @@ rpc_url = 'http://127.0.0.1/'
 secs = 3
 nanos = 0
 
+[[handlers]]
+type = 'StacksMsgVerifier'
+chain_name = 'stacks'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
+[[handlers]]
+type = 'StacksVerifierSetVerifier'
+chain_name = 'stacks'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
 [tofnd_config]
 url = 'http://localhost:50051/'
 party_uid = 'ampd'

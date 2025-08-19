@@ -113,6 +113,20 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    StacksMsgVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
+    StacksVerifierSetVerifier {
+        chain_name: ChainName,
+        cosmwasm_contract: TMAddress,
+        #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    },
 }
 
 fn validate_starknet_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -260,15 +274,23 @@ where
         Config::SolanaVerifierSetVerifier,
         "Solana verifier set verifier"
     )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksMsgVerifier,
+        "Stacks message verifier"
+    )?;
+    ensure_unique_config!(
+        &configs,
+        Config::StacksVerifierSetVerifier,
+        "Stacks verifier set verifier"
+    )?;
 
     Ok(configs)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use router_api::ChainName;
+    use router_api::chain_name;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
@@ -398,7 +420,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaMsgVerifier {
-            chain_name: ChainName::from_str("solana").unwrap(),
+            chain_name: chain_name!("solana"),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -413,7 +435,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaVerifierSetVerifier {
-            chain_name: ChainName::from_str("solana").unwrap(),
+            chain_name: chain_name!("solana"),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -426,11 +448,41 @@ mod tests {
                 Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
             )
         );
+
+        let sample_config = Config::StacksMsgVerifier {
+            chain_name: chain_name!("stacks"),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stacks message verifier config is allowed")
+            )
+        );
+
+        let sample_config = Config::StacksVerifierSetVerifier {
+            chain_name: chain_name!("stacks"),
+            cosmwasm_contract: TMAddress::random(PREFIX),
+            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
+            rpc_timeout: None,
+        };
+
+        let configs = vec![sample_config.clone(), sample_config];
+
+        assert!(
+            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
+                Err(e) if e.to_string().contains("only one Stacks verifier set verifier config is allowed")
+            )
+        );
     }
     #[test]
     fn test_chain_struct_debug_redacts_url() {
         let chain = Chain {
-            name: ChainName::from_str("ethereum").unwrap(),
+            name: chain_name!("ethereum"),
             rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
             finalization: Finalization::RPCFinalizedBlock,
         };

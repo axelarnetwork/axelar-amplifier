@@ -17,46 +17,35 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
-          profile: minimal
-          toolchain: 1.81.0
-          override: true
+          cache-key: "cache-codecov"
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libclang-dev
         run: sudo apt-get install libclang-dev
 
-      - name: Cache build artifacts
-        uses: useblacksmith/rust-cache@v3.0.1
-        id: cache
-        with:
-          shared-key: "cache-codecov"
-
-      - name: Log crates.toml
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: cat /home/runner/.cargo/.crates.toml
-
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@1fd1160ee1f4387ce162a5a4f9c26ea274278b7f # cargo-llvm-cov branch (v2.58.7)
+        with:
+          tool: cargo-llvm-cov
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
         env:
-          RUSTFLAGS: --cfg tracing_unstable
           RUST_BACKTRACE: 1
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info

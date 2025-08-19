@@ -16,7 +16,7 @@ use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
-use router_api::{CrossChainId, Message};
+use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 use serde::Serialize;
 use voting_verifier::msg::MessageStatus;
 
@@ -26,14 +26,13 @@ const VERIFIER: &str = "verifier";
 #[test]
 fn instantiate_works() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
-    let verifier_address = deps.api.addr_make("verifier");
-    let router_address = deps.api.addr_make("router");
+    let verifier_address = cosmos_addr!("verifier");
+    let router_address = cosmos_addr!("router");
 
     let result = instantiate(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         InstantiateMsg {
             verifier_address: verifier_address.into_string(),
             router_address: router_address.into_string(),
@@ -50,20 +49,19 @@ fn successful_verify() {
     let mut responses = vec![];
     for msgs in test_cases {
         let mut deps = instantiate_contract();
-        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check verification is idempotent
-        let response = iter::repeat(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&api.addr_make("sender"), &[]),
+                message_info(&cosmos_addr!("sender"), &[]),
                 ExecuteMsg::VerifyMessages(msgs.clone()),
             )
             .unwrap(),
+            10,
         )
-        .take(10)
         .dedup()
         .collect::<Vec<_>>();
 
@@ -82,20 +80,19 @@ fn successful_route_incoming() {
     let mut responses = vec![];
     for msgs in test_cases {
         let mut deps = instantiate_contract();
-        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
         // check routing of incoming messages is idempotent
-        let response = iter::repeat(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&api.addr_make("sender"), &[]),
+                message_info(&cosmos_addr!("sender"), &[]),
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
+            2,
         )
-        .take(2)
         .dedup()
         .collect::<Vec<_>>();
 
@@ -133,7 +130,7 @@ fn successful_route_outgoing() {
         }
 
         // check routing of outgoing messages is idempotent
-        let response = iter::repeat(
+        let response = iter::repeat_n(
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -141,8 +138,8 @@ fn successful_route_outgoing() {
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
+            2,
         )
-        .take(2)
         .dedup()
         .collect::<Vec<_>>();
 
@@ -151,9 +148,11 @@ fn successful_route_outgoing() {
         responses.push(response[0].clone());
 
         // check all outgoing messages are stored because the router (sender) is implicitly trusted
-        iter::repeat(query(deps.as_ref(), mock_env().clone(), query_msg).unwrap())
-            .take(2)
-            .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
+        iter::repeat_n(
+            query(deps.as_ref(), mock_env().clone(), query_msg).unwrap(),
+            2,
+        )
+        .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
     goldie::assert_json!(responses);
@@ -163,12 +162,11 @@ fn successful_route_outgoing() {
 fn verify_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
     let mut deps = instantiate_contract();
-    let api = deps.api;
 
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         ExecuteMsg::VerifyMessages(generate_msgs("verifier in unreachable", 10)),
     );
 
@@ -179,12 +177,11 @@ fn verify_with_faulty_verifier_fails() {
 fn route_incoming_with_faulty_verifier_fails() {
     // if the mock querier is not overwritten, it will return an error
     let mut deps = instantiate_contract();
-    let api = deps.api;
 
     let response = execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         ExecuteMsg::RouteMessages(generate_msgs("verifier in unreachable", 10)),
     );
 
@@ -196,14 +193,13 @@ fn calls_with_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = instantiate_contract();
-        let api = deps.api;
         let router = deps.api.addr_make(ROUTER);
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("sender"), &[]),
+            message_info(&cosmos_addr!("sender"), &[]),
             ExecuteMsg::VerifyMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -211,7 +207,7 @@ fn calls_with_duplicate_ids_should_fail() {
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("sender"), &[]),
+            message_info(&cosmos_addr!("sender"), &[]),
             ExecuteMsg::RouteMessages(msgs.clone()),
         );
         assert!(response.is_err());
@@ -231,13 +227,12 @@ fn route_duplicate_ids_should_fail() {
     let (test_cases, handler) = test_cases_for_duplicate_msgs();
     for msgs in test_cases {
         let mut deps = instantiate_contract();
-        let api = deps.api;
         update_query_handler(&mut deps.querier, handler.clone());
 
         let response = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("sender"), &[]),
+            message_info(&cosmos_addr!("sender"), &[]),
             ExecuteMsg::RouteMessages(msgs),
         );
 
@@ -280,6 +275,7 @@ fn reject_reroute_outgoing_message_with_different_contents() {
     )));
 }
 
+#[allow(clippy::type_complexity)]
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
@@ -305,6 +301,7 @@ fn test_cases_for_correct_verifier() -> (
     (test_cases, handler)
 }
 
+#[allow(clippy::type_complexity)]
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
     impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
@@ -345,9 +342,9 @@ fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
             cc_id: CrossChainId::new("mock-chain", format!("{:?}{}", namespace, i)).unwrap(),
-            destination_address: "idc".parse().unwrap(),
-            destination_chain: "mock-chain-2".parse().unwrap(),
-            source_address: "idc".parse().unwrap(),
+            destination_address: address!("idc"),
+            destination_chain: chain_name!("mock-chain-2"),
+            source_address: address!("idc"),
             payload_hash: [i; 32],
         })
         .collect()
@@ -433,14 +430,13 @@ fn update_query_handler<U: Serialize>(
 
 fn instantiate_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies();
-    let api = deps.api;
     let verifier_address = deps.api.addr_make(VERIFIER);
     let router_address = deps.api.addr_make(ROUTER);
 
     let response = instantiate(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!("sender"), &[]),
         InstantiateMsg {
             verifier_address: verifier_address.into_string(),
             router_address: router_address.into_string(),

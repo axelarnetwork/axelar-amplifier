@@ -578,7 +578,9 @@ mod tests {
         RegisterTokenMetadata, TokenId,
     };
     use its_abi_translator::abi::hub_message_abi_encode;
-    use router_api::{cosmos_address, ChainName, ChainNameRaw, CrossChainId};
+    use router_api::{
+        chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainNameRaw, CrossChainId,
+    };
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
@@ -1780,7 +1782,7 @@ mod tests {
             register_p2p_token_instance(
                 deps.as_mut(),
                 token_id(),
-                ChainNameRaw::try_from("bananas").unwrap(),
+                chain_name_raw!("bananas"),
                 ethereum(),
                 decimals,
                 supply.clone()
@@ -1794,7 +1796,7 @@ mod tests {
                 deps.as_mut(),
                 token_id(),
                 ethereum(),
-                ChainNameRaw::try_from("bananas").unwrap(),
+                chain_name_raw!("bananas"),
                 decimals,
                 supply.clone()
             ),
@@ -2095,7 +2097,7 @@ mod tests {
             deps.as_mut().storage,
             &Config {
                 axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
-                operator: MockApi::default().addr_make("operator-address")
+                operator: cosmos_addr!("operator-address")
             },
         ));
 
@@ -2125,14 +2127,12 @@ mod tests {
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ChainName {} => {
-                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
-                    }
+                    QueryMsg::ChainName => Ok(to_json_binary(&chain_name!("axelar")).into()).into(),
                     _ => panic!("unsupported query"),
                 }
             }
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make("translation").as_str() =>
+                if contract_addr == cosmos_addr!("translation").as_str() =>
             {
                 let msg = from_json::<its_msg_translator_api::QueryMsg>(msg).unwrap();
                 match msg {
