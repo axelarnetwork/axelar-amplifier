@@ -98,11 +98,6 @@ jobs:
         with:
           cache-key: "cache-lints"
 
-      # Currently a workaround for running custom lints.
-      # For some reason, the custom lints seem to use cargo version 1.80.0, causing that step to fail.
-      - name: Uninstall stable & nightly rust versions
-        run: rustup uninstall stable && rustup uninstall nightly
-
       # Install nightly toolchain for formatting (as per justfile)
       - name: Install nightly for rustfmt
         run: rustup toolchain install nightly --component rustfmt --profile minimal
