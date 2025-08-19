@@ -90,7 +90,7 @@ fn sig_verifier_called() {
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -99,7 +99,7 @@ fn sig_verifier_called() {
         .execute(
             &mut protocol.app,
             cosmos_addr!("anyone"),
-            &multisig_prover::msg::ExecuteMsg::ConstructProof(vec![]),
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(vec![]),
         )
         .unwrap();
 

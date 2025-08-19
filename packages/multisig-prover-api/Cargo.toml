@@ -5,11 +5,17 @@ rust-version = { workspace = true }
 license = { workspace = true }
 edition = { workspace = true }
 
+[features]
+receive-payload = []
+
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
+client = { workspace = true }
 cw-storage-plus = { workspace = true }
+error-stack = { workspace = true }
+msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
 sha3 = { workspace = true }

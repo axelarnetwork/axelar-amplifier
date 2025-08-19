@@ -1,6 +1,6 @@
 use cw_multi_test::Executor;
 use integration_tests::contract::Contract;
-use multisig_prover::msg::ExecuteMsg;
+use multisig_prover_api::msg::ExecuteMsg;
 use router_api::{chain_name, cosmos_addr};
 use service_registry::WeightedVerifier;
 use service_registry_api::msg::QueryMsg as ServiceRegistryQueryMsg;
@@ -55,7 +55,7 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+            &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -66,7 +66,7 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
     let proof = test_utils::proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
-        multisig_prover::msg::ProofStatus::Completed { .. }
+        multisig_prover_api::msg::ProofStatus::Completed { .. }
     ));
 
     assert_eq!(proof.message_ids.len(), 0);
@@ -143,7 +143,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+            &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -155,7 +155,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
     // proof must be completed
     assert!(matches!(
         proof.status,
-        multisig_prover::msg::ProofStatus::Completed { .. }
+        multisig_prover_api::msg::ProofStatus::Completed { .. }
     ));
     assert_eq!(proof.message_ids.len(), 0);
 
@@ -185,7 +185,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -213,7 +213,7 @@ fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confir
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::ConfirmVerifierSet,
     );
     assert!(response.is_err());
 }
@@ -257,7 +257,7 @@ fn verifier_set_update_can_be_resigned() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+            &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -270,7 +270,7 @@ fn verifier_set_update_can_be_resigned() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+            &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -286,7 +286,7 @@ fn verifier_set_update_can_be_resigned() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+            &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -306,7 +306,7 @@ fn verifier_set_update_can_be_resigned() {
     // proof must be completed
     assert!(matches!(
         proof.status,
-        multisig_prover::msg::ProofStatus::Completed { .. }
+        multisig_prover_api::msg::ProofStatus::Completed { .. }
     ));
 }
 

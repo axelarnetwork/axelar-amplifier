@@ -525,7 +525,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         .execute(
             &mut protocol.app,
             protocol.governance_address.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet {}
+            &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet {}
         )
         .is_ok());
 
@@ -535,7 +535,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         .execute(
             &mut protocol.app,
             protocol.governance_address.clone(),
-            &multisig_prover::msg::ExecuteMsg::ConstructProof(vec![CrossChainId::new(
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(vec![CrossChainId::new(
                 chain1.chain_name.clone(),
                 "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
             )

@@ -4,10 +4,10 @@ use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
 
 use crate::error::ContractError;
-use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 use crate::state::{
     CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD,
 };
+use multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 
 pub fn proof(deps: Deps, multisig_session_id: Uint64) -> Result<ProofResponse, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;

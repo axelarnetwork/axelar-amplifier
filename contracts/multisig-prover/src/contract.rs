@@ -5,8 +5,8 @@ use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Repl
 use error_stack::ResultExt;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
+use multisig_prover_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 mod execute;
 mod migrations;
@@ -145,13 +145,13 @@ mod tests {
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
-    use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{
         mock_querier_handler, ADMIN, CHAIN_CODEC_ADDRESS, COORDINATOR_ADDRESS, GATEWAY_ADDRESS,
         GOVERNANCE, MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS,
         VOTING_VERIFIER_ADDRESS,
     };
+    use multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();

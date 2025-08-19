@@ -18,7 +18,7 @@ mod tests {
     use router_api::{address, chain_name, Message};
 
     use super::*;
-    use crate::Payload;
+    use multisig_prover_api::payload::Payload;
 
     #[test]
     fn proof_under_construction_is_serializable() {

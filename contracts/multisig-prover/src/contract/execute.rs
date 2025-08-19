@@ -18,7 +18,7 @@ use crate::error::ContractError;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
-use crate::Payload;
+use multisig_prover_api::payload::Payload;
 
 pub fn construct_proof(
     deps: DepsMut,

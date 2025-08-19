@@ -23,7 +23,10 @@ path = "src/bin/schema.rs"
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-receive-payload = ["chain-codec-api/receive-payload"]
+receive-payload = [
+    "chain-codec-api/receive-payload",
+    "multisig-prover-api/receive-payload",
+]
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
@@ -41,7 +44,6 @@ gateway-api = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = [] }
 itertools = "0.11.0"
 k256 = { workspace = true }
-msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 multisig-prover-api = { workspace = true }
 report = { workspace = true }

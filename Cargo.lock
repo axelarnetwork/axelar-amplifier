@@ -6604,7 +6604,6 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "k256",
- "msgs-derive",
  "multisig",
  "multisig-prover-api",
  "prost 0.12.6",
@@ -6624,10 +6623,13 @@ name = "multisig-prover-api"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
+ "error-stack",
  "goldie",
+ "msgs-derive",
  "multisig",
  "router-api",
  "sha3",
