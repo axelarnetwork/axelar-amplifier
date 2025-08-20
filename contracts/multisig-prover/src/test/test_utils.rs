@@ -188,6 +188,12 @@ fn chain_codec_mock_querier_handler(msg: chain_codec_api::msg::QueryMsg) -> Quer
         chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
             to_json_binary(&validate_address(&address, &AddressFormat::Eip55).is_ok())
         }
+        chain_codec_api::msg::QueryMsg::PayloadDigest {
+            signer: _,
+            payload: _,
+            #[cfg(feature = "receive-payload")]
+                payload_bytes: _,
+        } => to_json_binary(&HexBinary::from_hex("deadbeef").unwrap()),
     };
     Ok(result.into()).into()
 }

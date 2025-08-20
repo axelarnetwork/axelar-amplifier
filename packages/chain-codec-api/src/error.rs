@@ -16,6 +16,20 @@ pub enum Error {
     },
     #[error("failed to validate address: {address}")]
     ValidateAddress { address: String },
+    #[cfg_attr(
+        not(feature = "receive-payload"),
+        error("failed to get payload digest. signer: {signer:?}, payload: {payload:?}")
+    )]
+    #[cfg_attr(
+        feature = "receive-payload",
+        error("failed to get payload digest. signer: {signer:?}, payload: {payload:?}, payload_bytes: {payload_bytes:?}")
+    )]
+    PayloadDigest {
+        signer: VerifierSet,
+        payload: Payload,
+        #[cfg(feature = "receive-payload")]
+        payload_bytes: Vec<cosmwasm_std::HexBinary>,
+    },
 }
 
 impl Error {
@@ -31,6 +45,17 @@ impl Error {
                 payload,
             },
             QueryMsg::ValidateAddress { address } => Error::ValidateAddress { address },
+            QueryMsg::PayloadDigest {
+                signer,
+                payload,
+                #[cfg(feature = "receive-payload")]
+                payload_bytes,
+            } => Error::PayloadDigest {
+                signer,
+                payload,
+                #[cfg(feature = "receive-payload")]
+                payload_bytes,
+            },
         }
     }
 }

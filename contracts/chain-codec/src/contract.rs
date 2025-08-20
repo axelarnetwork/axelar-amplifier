@@ -3,7 +3,9 @@ use axelar_wasm_std::error::ContractError;
 use chain_codec_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
+};
 
 use crate::error::Error;
 use crate::state::{Config, CONFIG};
@@ -65,6 +67,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
             to_json_binary(&Empty {})?
         }
+        QueryMsg::PayloadDigest { signer, payload } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            #[cfg(feature = "evm")]
+            use crate::abi as encoding;
+            #[cfg(feature = "sui")]
+            use crate::bcs as encoding;
+            #[cfg(feature = "stellar_xdr")]
+            use crate::stellar_xdr as encoding;
+
+            to_json_binary(&HexBinary::from(encoding::payload_digest(
+                &config.domain_separator,
+                &signer,
+                &payload,
+            )?))?
+        }
     })
 }
 
@@ -82,16 +100,15 @@ pub fn execute(
         &_info.sender,
         |_, _| -> error_stack::Result<_, ContractError> { Ok(config.multisig_prover.clone()) },
     )? {
-        ExecuteMsg::PayloadDigest { signer, payload } => {
-            #[cfg(feature = "evm")]
-            use crate::abi as encoding;
-            #[cfg(feature = "sui")]
-            use crate::bcs as encoding;
-            #[cfg(feature = "stellar_xdr")]
-            use crate::stellar_xdr as encoding;
-
-            let digest = encoding::payload_digest(&config.domain_separator, &signer, &payload)?;
-            Ok(Response::new().set_data(digest))
+        ExecuteMsg::NotifySigningSession {
+            multisig_session_id: _,
+            verifier_set: _,
+            payload: _,
+        } => {
+            // This implementation does nothing and just returns an empty response.
+            // Other chain codec implementations can use this to store session information
+            // that they need or to fail the transaction
+            Ok(Response::new())
         }
     }
 }

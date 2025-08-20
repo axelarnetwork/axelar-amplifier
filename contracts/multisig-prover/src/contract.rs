@@ -15,8 +15,7 @@ mod reply;
 
 pub use migrations::{migrate, MigrateMsg};
 
-pub const PAYLOAD_DIGEST_REPLY_ID: u64 = 1;
-pub const START_MULTISIG_REPLY_ID: u64 = 2;
+pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -104,7 +103,6 @@ pub fn reply(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match reply.id {
         START_MULTISIG_REPLY_ID => reply::start_multisig_reply(deps, reply),
-        PAYLOAD_DIGEST_REPLY_ID => reply::payload_digest_reply(deps, reply),
         _ => unreachable!("unknown reply ID"),
     }
     .map_err(axelar_wasm_std::error::ContractError::from)

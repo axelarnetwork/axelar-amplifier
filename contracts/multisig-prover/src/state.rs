@@ -27,6 +27,8 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
 pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
+#[cfg(feature = "receive-payload")]
+pub const PAYLOAD_BYTES: Map<&PayloadId, Vec<cosmwasm_std::HexBinary>> = Map::new("payload_bytes");
 
 pub const REPLY_TRACKER: Item<PayloadId> = Item::new("reply_tracker");
 

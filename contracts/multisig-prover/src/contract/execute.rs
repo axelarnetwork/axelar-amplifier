@@ -14,7 +14,7 @@ use multisig_prover_api::payload::Payload;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
-use crate::contract::PAYLOAD_DIGEST_REPLY_ID;
+use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
@@ -67,14 +67,34 @@ pub fn construct_proof(
     let chain_codec: chain_codec_api::Client =
         client::ContractClient::new(deps.querier, &config.chain_codec).into();
 
+    // save payload bytes to pass it to the chain codec contract later
     #[cfg(feature = "receive-payload")]
-    let digest_msg = chain_codec.payload_digest(verifier_set, payload.clone(), payload_bytes);
+    crate::state::PAYLOAD_BYTES
+        .save(deps.storage, &payload_id, &payload_bytes)
+        .map_err(ContractError::from)?;
+
+    #[cfg(feature = "receive-payload")]
+    let digest = chain_codec
+        .payload_digest(verifier_set.clone(), payload.clone(), payload_bytes)
+        .change_context(ContractError::FailedToQueryChainCodec)?;
     #[cfg(not(feature = "receive-payload"))]
-    let digest_msg = chain_codec.payload_digest(verifier_set, payload.clone());
+    let digest = chain_codec
+        .payload_digest(verifier_set.clone(), payload.clone())
+        .change_context(ContractError::FailedToQueryChainCodec)?;
+
+    let multisig: multisig::Client =
+        client::ContractClient::new(deps.querier, &config.multisig).into();
+
+    let start_sig_msg = multisig.start_signing_session(
+        verifier_set.id(),
+        digest,
+        config.chain_name,
+        config.sig_verifier_address.map(Into::into),
+    );
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-        digest_msg,
-        PAYLOAD_DIGEST_REPLY_ID,
+        start_sig_msg,
+        START_MULTISIG_REPLY_ID,
     )))
 }
 
@@ -266,24 +286,34 @@ pub fn update_verifier_set(
                 client::ContractClient::new(deps.querier, &config.chain_codec).into();
 
             #[cfg(feature = "receive-payload")]
-            let digest_msg = chain_codec.payload_digest(
-                cur_verifier_set.clone(),
-                payload.clone(),
-                vec![], // empty because we don't have payload bytes here and only fill this field for proof construction
-            );
+            let digest = chain_codec
+                .payload_digest(
+                    cur_verifier_set.clone(),
+                    payload.clone(),
+                    vec![], // empty because we don't have payload bytes here and only fill this field for proof construction
+                )
+                .change_context(ContractError::FailedToQueryChainCodec)?;
             #[cfg(not(feature = "receive-payload"))]
-            let digest_msg = chain_codec.payload_digest(cur_verifier_set.clone(), payload.clone());
+            let digest = chain_codec
+                .payload_digest(cur_verifier_set.clone(), payload.clone())
+                .change_context(ContractError::FailedToQueryChainCodec)?;
+
+            let multisig: multisig::Client =
+                client::ContractClient::new(deps.querier, &config.multisig).into();
+
+            let start_sig_msg = multisig.start_signing_session(
+                cur_verifier_set.id(),
+                digest,
+                config.chain_name,
+                config.sig_verifier_address.map(Into::into),
+            );
 
             let verifier_union_set = all_active_verifiers(deps.storage)?;
 
-            // the flow here is:
-            // 1. we send the payload digest msg to the chain codec contract
-            // 2. the chain codec contract replies with the payload digest and in the reply we start the multisig session
-            // 3. we update the coordinator's active verifiers
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
-                    digest_msg,
-                    PAYLOAD_DIGEST_REPLY_ID,
+                    start_sig_msg,
+                    START_MULTISIG_REPLY_ID,
                 ))
                 .add_message(coordinator.set_active_verifiers(
                     verifier_union_set.iter().map(|v| v.to_string()).collect(),

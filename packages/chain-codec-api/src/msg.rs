@@ -1,6 +1,6 @@
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Empty, HexBinary};
+use cosmwasm_std::{Empty, HexBinary, Uint64};
 use msgs_derive::Permissions;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
@@ -44,18 +44,9 @@ pub enum QueryMsg {
     /// Not erroring is interpreted as a successful validation.
     #[returns(Empty)]
     ValidateAddress { address: String },
-}
-
-#[cw_serde]
-#[derive(Permissions)]
-pub enum ExecuteMsg {
-    /// This should return a digest for identifying the payload in the `Response::data`. This is what gets signed by the verifiers.
+    /// This query returns a digest for identifying the payload. This is what gets signed by the verifiers.
     /// It's called by the multisig-prover contract during proof construction.
-    /// You can save additional information to the contract state if needed.
-    ///
-    /// This can only be called by the multisig-prover contract. That might not matter for some contracts,
-    /// but if your contract needs to save additional information, that is relevant.
-    #[permission(Specific(multisig_prover))]
+    #[returns(HexBinary)]
     PayloadDigest {
         signer: VerifierSet,
         payload: Payload,
@@ -63,6 +54,27 @@ pub enum ExecuteMsg {
         /// Therefore, it is also feature-gated in this crate.
         /// This is only filled if the digest is for proof construction. For a verifier set update, it is empty.
         /// Please note that you should validate this in some way.
+        #[cfg(feature = "receive-payload")]
+        payload_bytes: Vec<HexBinary>,
+    },
+}
+
+#[cw_serde]
+#[derive(Permissions)]
+pub enum ExecuteMsg {
+    /// This message is called by the multisig-prover contract after a multisig session is started.
+    /// It provides session information that the chain codec contract can store and use later.
+    /// The contract can also still revert the transaction here by returning an error or panicking.
+    ///
+    /// This can only be called by the multisig-prover contract.
+    #[permission(Specific(multisig_prover))]
+    NotifySigningSession {
+        multisig_session_id: Uint64,
+        verifier_set: VerifierSet,
+        payload: Payload,
+        /// This field is only available if the multisig-prover contract was compiled with the `receive-payload` feature flag.
+        /// Therefore, it is also feature-gated in this crate.
+        /// This is only filled if the session is for proof construction. For a verifier set update, it is empty.
         #[cfg(feature = "receive-payload")]
         payload_bytes: Vec<HexBinary>,
     },
