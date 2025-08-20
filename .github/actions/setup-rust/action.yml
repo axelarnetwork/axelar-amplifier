@@ -9,6 +9,12 @@ inputs:
 runs:
   using: 'composite'
   steps:
+
+    # In case there is a "stable" default toolchain cached, we need to uninstall that to ensure all steps use the expected toolchain
+    - name: Remove
+      shell: bash
+      run: rustup toolchain uninstall "stable"
+
     - name: Setup Rust toolchain
       id: rust
       uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
