@@ -19,7 +19,11 @@ pub struct Client<'a> {
 
 impl Client<'_> {
     #[cfg(not(feature = "receive-payload"))]
-    pub fn payload_digest(&self, signer: VerifierSet, payload: Payload) -> Result<HexBinary, Error> {
+    pub fn payload_digest(
+        &self,
+        signer: VerifierSet,
+        payload: Payload,
+    ) -> Result<HexBinary, Error> {
         let msg = QueryMsg::PayloadDigest { signer, payload };
         self.client
             .query(&msg)
@@ -33,7 +37,11 @@ impl Client<'_> {
         payload: Payload,
         payload_bytes: Vec<HexBinary>,
     ) -> Result<HexBinary, Error> {
-        let msg = QueryMsg::PayloadDigest { signer, payload, payload_bytes };
+        let msg = QueryMsg::PayloadDigest {
+            signer,
+            payload,
+            payload_bytes,
+        };
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
