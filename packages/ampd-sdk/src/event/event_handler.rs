@@ -204,9 +204,7 @@ where
                 return;
             }
 
-            let result = client.broadcast(msg.clone()).await;
-
-            if let Err(err) = result {
+            if let Err(err) = client.broadcast(msg.clone()).await {
                 error!(
                     err = report::LoggableError::from(&err).as_value(),
                     msg_type = msg.type_url.as_value(),
