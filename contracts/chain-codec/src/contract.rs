@@ -67,7 +67,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
             to_json_binary(&Empty {})?
         }
-        QueryMsg::PayloadDigest { signer, payload } => {
+        QueryMsg::PayloadDigest {
+            verifier_set,
+            payload,
+        } => {
             let config = CONFIG.load(deps.storage)?;
 
             #[cfg(feature = "evm")]
@@ -79,7 +82,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
             to_json_binary(&HexBinary::from(encoding::payload_digest(
                 &config.domain_separator,
-                &signer,
+                &verifier_set,
                 &payload,
             )?))?
         }

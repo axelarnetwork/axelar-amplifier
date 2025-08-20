@@ -46,7 +46,7 @@ impl Error {
             },
             QueryMsg::ValidateAddress { address } => Error::ValidateAddress { address },
             QueryMsg::PayloadDigest {
-                signer,
+                verifier_set: signer,
                 payload,
                 #[cfg(feature = "receive-payload")]
                 payload_bytes,

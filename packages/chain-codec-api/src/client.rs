@@ -21,10 +21,13 @@ impl Client<'_> {
     #[cfg(not(feature = "receive-payload"))]
     pub fn payload_digest(
         &self,
-        signer: VerifierSet,
+        verifier_set: VerifierSet,
         payload: Payload,
     ) -> Result<HexBinary, Error> {
-        let msg = QueryMsg::PayloadDigest { signer, payload };
+        let msg = QueryMsg::PayloadDigest {
+            verifier_set,
+            payload,
+        };
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
@@ -33,12 +36,12 @@ impl Client<'_> {
     #[cfg(feature = "receive-payload")]
     pub fn payload_digest(
         &self,
-        signer: VerifierSet,
+        verifier_set: VerifierSet,
         payload: Payload,
         payload_bytes: Vec<HexBinary>,
     ) -> Result<HexBinary, Error> {
         let msg = QueryMsg::PayloadDigest {
-            signer,
+            verifier_set,
             payload,
             payload_bytes,
         };
