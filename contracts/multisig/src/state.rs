@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
@@ -25,7 +25,8 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 // The keys represent the addresses that can start a signing session.
-pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
+const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
+const CALLERS_FOR_CHAIN: Map<&ChainName, HashSet<Addr>> = Map::new("callers_for_chain");
 pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 
 /// Signatures by session id and signer address
@@ -112,6 +113,52 @@ pub fn save_pub_key(
     }
 
     Ok(pub_keys().save(store, (signer, pub_key.key_type()), &pub_key.into())?)
+}
+
+pub fn save_authorized_caller(
+    storage: &mut dyn Storage,
+    contract_address: Addr,
+    chain_name: ChainName,
+) -> StdResult<()> {
+    AUTHORIZED_CALLERS.save(storage, &contract_address, &chain_name)?;
+    match CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
+        Err(e) => Err(e),
+        Ok(addresses) if addresses.is_some() => {
+            let mut addresses = addresses.unwrap();
+            addresses.insert(contract_address.clone());
+            CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)
+        }
+        Ok(..) => CALLERS_FOR_CHAIN.save(storage, &chain_name, &HashSet::from([contract_address])),
+    }
+}
+
+pub fn remove_authorized_caller(
+    storage: &mut dyn Storage,
+    contract_address: Addr,
+) -> StdResult<()> {
+    let chain_name = AUTHORIZED_CALLERS.load(storage, &contract_address)?;
+    AUTHORIZED_CALLERS.remove(storage, &contract_address);
+    match CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
+        Ok(addresses) if addresses.is_some() => {
+            let mut addresses = addresses.unwrap();
+            addresses.remove(&contract_address);
+            if addresses.is_empty() {
+                CALLERS_FOR_CHAIN.remove(storage, &chain_name);
+            } else {
+                CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)?;
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+pub fn load_authorized_caller(
+    storage: &dyn Storage,
+    contract_address: Addr,
+) -> StdResult<ChainName> {
+    AUTHORIZED_CALLERS.load(storage, &contract_address)
 }
 
 #[cfg(test)]

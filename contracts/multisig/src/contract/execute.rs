@@ -7,7 +7,10 @@ use sha3::{Digest, Keccak256};
 use super::*;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
-use crate::state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS};
+use crate::state::{
+    load_authorized_caller, load_session_signatures, remove_authorized_caller,
+    save_authorized_caller, save_pub_key, save_signature,
+};
 use crate::verifier_set::VerifierSet;
 
 pub fn start_signing_session(
@@ -182,7 +185,7 @@ pub fn require_authorized_caller(
     contract_address: &Addr,
     chain_name: &ChainName,
 ) -> Result<Addr, ContractError> {
-    let expected_chain_name = AUTHORIZED_CALLERS.load(storage, contract_address)?;
+    let expected_chain_name = load_authorized_caller(storage, contract_address.clone())?;
     if expected_chain_name != *chain_name {
         return Err(ContractError::WrongChainName {
             expected: expected_chain_name,
@@ -198,7 +201,7 @@ pub fn authorize_callers(
     contracts
         .iter()
         .try_for_each(|(contract_address, chain_name)| {
-            AUTHORIZED_CALLERS.save(deps.storage, contract_address, chain_name)
+            save_authorized_caller(deps.storage, contract_address.clone(), chain_name.clone())
         })
         .map_err(ContractError::from)?;
 
@@ -217,7 +220,9 @@ pub fn unauthorize_callers(
     contracts: HashMap<Addr, ChainName>,
 ) -> error_stack::Result<Response, ContractError> {
     contracts.iter().for_each(|(contract_address, _)| {
-        AUTHORIZED_CALLERS.remove(deps.storage, contract_address)
+        // TODO: sdavidson1177 what to do with error here. May panic,
+        // since error should never happen (invalid configuration/migration)
+        let _ = remove_authorized_caller(deps.storage, contract_address.clone());
     });
 
     Ok(
