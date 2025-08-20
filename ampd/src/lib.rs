@@ -90,14 +90,24 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         rewards: _rewards,
         monitoring_server,
         grpc: grpc_config,
+        event_sub,
+        tm_client,
     } = cfg;
 
-    let (monitoring_server, monitoring_client) =
-        monitoring::Server::new(monitoring_server.bind_address).change_context(Error::Monitor)?;
+    let (monitoring_server, monitoring_client) = monitoring::Server::new(
+        monitoring_server.bind_address,
+        monitoring_server.channel_size,
+    )
+    .change_context(Error::Monitor)?;
 
-    let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
-        .change_context(Error::Connection)
-        .attach_printable(tm_jsonrpc.clone())?;
+    let tm_client = tm_client::TendermintClient::new(
+        tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
+            .change_context(Error::Connection)
+            .attach_printable(tm_jsonrpc.clone())?,
+        tm_client.max_retries,
+        tm_client.retry_delay,
+    );
+
     let multisig_client = MultisigClient::new(
         tofnd_config.party_uid,
         tofnd_config.url.as_str(),
@@ -119,6 +129,9 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         tm_client.clone(),
         event_processor.stream_buffer_size,
         event_processor.delay,
+        event_sub.poll_interval,
+        event_sub.block_processing_buffer,
+        RetryPolicy::repeat_constant(event_sub.retry_delay, event_sub.retry_max_attempts),
         monitoring_client.clone(),
     );
     let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
@@ -155,6 +168,8 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
             broadcast.tx_fetch_interval,
             broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         ),
+        broadcast.tx_confirmation_buffer_size,
+        broadcast.tx_confirmation_queue_cap,
         monitoring_client.clone(),
     );
     let broadcaster_task = broadcast::BroadcasterTask::builder()
@@ -204,11 +219,11 @@ where
 }
 
 struct App {
-    event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+    event_publisher: event_sub::EventPublisher<tm_client::TendermintClient>,
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     multisig_client: MultisigClient,
-    block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+    block_height_monitor: BlockHeightMonitor<tm_client::TendermintClient>,
     monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
     broadcaster_task:
@@ -221,10 +236,10 @@ struct App {
 impl App {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+        event_publisher: event_sub::EventPublisher<tm_client::TendermintClient>,
         event_subscriber: event_sub::EventSubscriber,
         multisig_client: MultisigClient,
-        block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+        block_height_monitor: BlockHeightMonitor<tm_client::TendermintClient>,
         monitoring_server: monitoring::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcast::BroadcasterTask<

@@ -5,6 +5,7 @@ use events::Event;
 use futures::{future, StreamExt, TryStreamExt};
 use mockall::automock;
 use report::LoggableError;
+use serde::{Deserialize, Serialize};
 use tendermint::block;
 use thiserror::Error;
 use tokio::sync::broadcast::{self, Sender};
@@ -22,24 +23,6 @@ use crate::tm_client::TmClient;
 
 pub mod stream;
 
-// The maximum number of blocks to process concurrently.
-// - A value of 1 ensures sequential processing, preventing the event sub
-//   from downloading events from multiple blocks simultaneously. This minimizes
-//   memory usage but may slow down event processing.
-// - Higher values enable parallel block processing, improving throughput but
-//   increasing memory usage and potential resource contention.
-// - Setting this too high may cause excessive memory consumption, while setting
-//   it too low may lead to slower processing and underutilization of downstream
-//   consumers.
-const BLOCK_PROCESSING_BUFFER: usize = 10;
-// Interval to poll for new blocks
-const POLL_INTERVAL: Duration = Duration::from_secs(5);
-// Retry policy for block processing and event retrival
-const BLOCK_PROCESSING_RETRY_POLICY: RetryPolicy = RetryPolicy::RepeatConstant {
-    sleep: Duration::from_secs(3),
-    max_attempts: 3,
-};
-
 #[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("failed querying the latest block")]
@@ -50,6 +33,27 @@ pub enum Error {
     EventDecoding { block: block::Height },
     #[error("failed receiving event from broadcast stream")]
     BroadcastStreamRecv(#[from] BroadcastStreamRecvError),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct Config {
+    pub block_processing_buffer: usize,
+    #[serde(with = "humantime_serde")]
+    pub poll_interval: Duration,
+    #[serde(with = "humantime_serde")]
+    pub retry_delay: Duration,
+    pub retry_max_attempts: u64,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            block_processing_buffer: 10,
+            poll_interval: Duration::from_secs(5),
+            retry_delay: Duration::from_secs(1),
+            retry_max_attempts: 3,
+        }
+    }
 }
 
 #[automock]
@@ -80,6 +84,8 @@ pub struct EventPublisher<T: TmClient + Sync> {
     poll_interval: Duration,
     tx: Sender<std::result::Result<Event, Error>>,
     delay: Duration,
+    block_processing_buffer: usize,
+    retry_policy: RetryPolicy,
     monitoring_client: monitoring::Client,
 }
 
@@ -89,14 +95,19 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
         client: T,
         capacity: usize,
         delay: Duration,
+        poll_interval: Duration,
+        block_processing_buffer: usize,
+        retry_policy: RetryPolicy,
         monitoring_client: monitoring::Client,
     ) -> (Self, EventSubscriber) {
         let (tx, _) = broadcast::channel(capacity);
         let publisher = EventPublisher {
             tm_client: client,
-            poll_interval: POLL_INTERVAL,
+            poll_interval,
             tx: tx.clone(),
             delay,
+            block_processing_buffer,
+            retry_policy,
             monitoring_client,
         };
         let subscriber = EventSubscriber { tx };
@@ -108,9 +119,13 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
     pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
         let block_stream = stream::blocks(&self.tm_client, self.poll_interval, self.delay)
             .filter(|_| future::ready(self.has_subscriber())); // skip processing blocks when no subscriber exists
-        let event_stream =
-            stream::events(&self.tm_client, block_stream, BLOCK_PROCESSING_RETRY_POLICY)
-                .take_until(token.cancelled());
+        let event_stream = stream::events(
+            &self.tm_client,
+            block_stream,
+            self.retry_policy,
+            self.block_processing_buffer,
+        )
+        .take_until(token.cancelled());
 
         tokio::pin!(event_stream);
         while let Some(event) = event_stream.next().await {
@@ -165,10 +180,34 @@ mod tests {
     use tendermint::{abci, block};
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_sub::{Error, EventPublisher, EventSub};
+    use crate::asyncutil::future::RetryPolicy;
+    use crate::event_sub::{Config, Error, EventPublisher, EventSub, EventSubscriber};
+    use crate::monitoring;
     use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
     use crate::tm_client::{self, MockTmClient};
+
+    fn create_test_event_publisher(
+        tm_client: MockTmClient,
+        monitoring_client: monitoring::Client,
+    ) -> (EventPublisher<MockTmClient>, EventSubscriber) {
+        let config = Config::default();
+        let capacity = 100;
+        let delay = Duration::from_secs(1);
+
+        let retry_policy =
+            RetryPolicy::repeat_constant(config.retry_delay, config.retry_max_attempts);
+        let (event_publisher, subscriber) = EventPublisher::new(
+            tm_client,
+            capacity,
+            delay,
+            config.poll_interval,
+            config.block_processing_buffer,
+            retry_policy,
+            monitoring_client,
+        );
+        (event_publisher, subscriber)
+    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn should_skip_processing_blocks_when_no_subscriber_exists() {
@@ -196,7 +235,7 @@ mod tests {
         let token = CancellationToken::new();
         let (monitoring_client, _) = test_utils::monitoring_client();
         let (event_publisher, _subscriber) =
-            EventPublisher::new(tm_client, 100, Duration::from_secs(1), monitoring_client);
+            create_test_event_publisher(tm_client, monitoring_client);
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
         while *call_count.read().unwrap() < 10 {
@@ -259,7 +298,7 @@ mod tests {
         let token = CancellationToken::new();
         let (monitoring_client, _) = test_utils::monitoring_client();
         let (event_publisher, subscriber) =
-            EventPublisher::new(tm_client, 100, Duration::from_secs(1), monitoring_client);
+            create_test_event_publisher(tm_client, monitoring_client);
         let mut stream = subscriber.subscribe();
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
@@ -378,7 +417,7 @@ mod tests {
         let token = CancellationToken::new();
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let (event_publisher, subscriber) =
-            EventPublisher::new(tm_client, 100, Duration::from_secs(1), monitoring_client);
+            create_test_event_publisher(tm_client, monitoring_client);
         let mut stream = subscriber.subscribe();
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 

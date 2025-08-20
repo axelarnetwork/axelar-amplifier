@@ -165,7 +165,7 @@ async fn instantiate_broadcaster(
         .await
         .change_context(Error::Broadcaster)?;
 
-    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>, None)
         .expect("should never fail to create dummy monitoring client");
 
     let (msg_queue, _) = broadcast::MsgQueue::new_msg_queue_and_client(

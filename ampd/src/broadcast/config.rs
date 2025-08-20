@@ -18,6 +18,10 @@ pub struct Config {
     pub queue_cap: usize,
     #[serde(with = "humantime_serde")]
     pub broadcast_interval: Duration,
+    #[serde(default)]
+    pub tx_confirmation_buffer_size: usize,
+    #[serde(default)]
+    pub tx_confirmation_queue_cap: usize,
 }
 
 impl Default for Config {
@@ -33,6 +37,8 @@ impl Default for Config {
             batch_gas_limit: 1000000,
             queue_cap: 1000,
             broadcast_interval: Duration::from_secs(5),
+            tx_confirmation_buffer_size: 10,
+            tx_confirmation_queue_cap: 1000,
         }
     }
 }

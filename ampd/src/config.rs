@@ -7,7 +7,7 @@ use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcast, event_processor, grpc, monitoring};
+use crate::{broadcast, event_processor, event_sub, grpc, monitoring, tm_client};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -27,6 +27,8 @@ pub struct Config {
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
     pub monitoring_server: monitoring::Config,
+    pub event_sub: event_sub::Config,
+    pub tm_client: tm_client::Config,
 }
 
 impl Default for Config {
@@ -45,6 +47,8 @@ impl Default for Config {
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
             monitoring_server: monitoring::Config::default(),
+            event_sub: event_sub::Config::default(),
+            tm_client: tm_client::Config::default(),
         }
     }
 }

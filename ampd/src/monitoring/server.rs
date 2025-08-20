@@ -35,6 +35,7 @@ pub struct Config {
     /// The address to bind the monitoring server to.
     /// When `None`, the server is disabled.
     pub bind_address: Option<SocketAddrV4>,
+    pub channel_size: Option<usize>,
 }
 
 impl Config {
@@ -44,11 +45,16 @@ impl Config {
     pub fn enabled() -> Self {
         Self {
             bind_address: Some(Self::default_bind_addr()),
+            channel_size: Some(Self::default_channel_size()),
         }
     }
 
     fn default_bind_addr() -> SocketAddrV4 {
         SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)
+    }
+
+    fn default_channel_size() -> usize {
+        1000
     }
 }
 
@@ -62,11 +68,13 @@ impl Serialize for Config {
         struct ConfigCompat {
             enabled: bool,
             bind_address: SocketAddrV4,
+            channel_size: usize,
         }
 
         let compat = ConfigCompat {
             enabled: self.bind_address.is_some(),
             bind_address: self.bind_address.unwrap_or_else(Self::default_bind_addr),
+            channel_size: self.channel_size.unwrap_or_else(Self::default_channel_size),
         };
 
         compat.serialize(serializer)
@@ -85,12 +93,15 @@ impl<'de> Deserialize<'de> for Config {
             enabled: bool,
             #[serde(default = "Config::default_bind_addr")]
             bind_address: SocketAddrV4,
+            #[serde(default = "Config::default_channel_size")]
+            channel_size: usize,
         }
 
         let compat = ConfigCompat::deserialize(deserializer)?;
 
         Ok(Config {
             bind_address: compat.enabled.then_some(compat.bind_address),
+            channel_size: compat.enabled.then_some(compat.channel_size),
         })
     }
 }
@@ -138,9 +149,16 @@ impl Server {
     ///
     /// Returns an error if the server cannot be created or if metrics endpoints
     /// cannot be initialized.
-    pub fn new(connector: Option<impl Into<TcpConnector>>) -> Result<(Server, Client), Error> {
+    pub fn new(
+        connector: Option<impl Into<TcpConnector>>,
+        channel_size: Option<usize>,
+    ) -> Result<(Server, Client), Error> {
         match connector {
-            Some(connector) => Self::create_server_with_client(connector.into()),
+            Some(connector) => Self::create_server_with_client(
+                connector.into(),
+                channel_size
+                    .expect("if monitoring server is enabled, channel size must be a value"),
+            ),
             None => {
                 info!("monitoring server is disabled");
                 Ok((
@@ -153,9 +171,13 @@ impl Server {
         }
     }
 
-    fn create_server_with_client(tcp_connector: TcpConnector) -> Result<(Server, Client), Error> {
+    fn create_server_with_client(
+        tcp_connector: TcpConnector,
+        channel_size: usize,
+    ) -> Result<(Server, Client), Error> {
         let status_router = status::create_endpoint();
-        let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
+        let (metrics_router, metrics_process, metrics_client) =
+            metrics::create_endpoint(channel_size);
 
         let server = Server::Enabled {
             server: HttpServer {
@@ -383,7 +405,7 @@ mod tests {
     #[test]
     #[traced_test]
     fn disabled_client_discards_messages_without_error() {
-        let (_, client) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server and client
+        let (_, client) = Server::new(None::<SocketAddr>, None).unwrap(); // Creates disabled server and client
 
         // Should succeed without doing anything
         client.metrics().record_metric(metrics::Msg::BlockReceived);
@@ -404,7 +426,7 @@ mod tests {
 
     #[async_test]
     async fn disabled_server_shuts_down_when_cancelled() {
-        let (server, _) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server
+        let (server, _) = Server::new(None::<SocketAddr>, None).unwrap(); // Creates disabled server
         let cancel = CancellationToken::new();
 
         let handle = tokio::spawn(server.run(cancel.clone()));
@@ -428,7 +450,7 @@ mod tests {
         let blocked_addr = listener.local_addr().unwrap();
 
         // Create a server on the same address - creation should succeed
-        let (server, _) = Server::new(Some(blocked_addr)).unwrap();
+        let (server, _) = Server::new(Some(blocked_addr), Some(1000)).unwrap();
 
         // But running the server should fail
         let cancel = CancellationToken::new();
@@ -447,9 +469,10 @@ mod tests {
     #[async_test(start_paused = true)]
     async fn enabled_server_responds_to_status_endpoint_and_shuts_down_gracefully() {
         let connector = listener().await;
+        let channel_size = 1000;
         let status_url = create_endpoint_url(connector.bind_address().ok(), "status");
 
-        let (server, _) = Server::new(Some(connector)).unwrap();
+        let (server, _) = Server::new(Some(connector), Some(channel_size)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -474,9 +497,10 @@ mod tests {
     #[async_test(start_paused = true)]
     async fn enabled_server_continues_serving_after_all_metrics_clients_dropped() {
         let connector = listener().await;
+        let channel_size = 1000;
         let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
 
-        let (server, monitoring_client) = Server::new(Some(connector)).unwrap();
+        let (server, monitoring_client) = Server::new(Some(connector), Some(channel_size)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -506,9 +530,10 @@ mod tests {
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_increments_counters_when_messages_sent() {
         let connector = listener().await;
+        let channel_size = 1000;
         let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
 
-        let (server, monitoring_client) = Server::new(Some(connector)).unwrap();
+        let (server, monitoring_client) = Server::new(Some(connector), Some(channel_size)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -539,7 +564,9 @@ mod tests {
     #[async_test(start_paused = true)]
     #[traced_test]
     async fn enabled_server_shuts_down_gracefully_when_cancellation_token_triggered() {
-        let (server, monitoring_client) = Server::new(Some(listener().await)).unwrap();
+        let channel_size = 1000;
+        let (server, monitoring_client) =
+            Server::new(Some(listener().await), Some(channel_size)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -581,9 +608,10 @@ mod tests {
     #[async_test(start_paused = true)]
     async fn enabled_server_handles_concurrent_metrics_requests_correctly() {
         let connector = listener().await;
+        let channel_size = 1000;
         let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
 
-        let (server, original_client) = Server::new(Some(connector)).unwrap();
+        let (server, original_client) = Server::new(Some(connector), Some(channel_size)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));

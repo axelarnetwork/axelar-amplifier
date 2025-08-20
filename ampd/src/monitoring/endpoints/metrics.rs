@@ -152,8 +152,8 @@ impl Client {
 ///
 /// Panics if the Prometheus registry cannot be created or
 /// if metrics cannot be registered. This should never happen in normal operation.
-pub fn create_endpoint() -> (MethodRouter, Process, Client) {
-    let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
+pub fn create_endpoint(channel_size: usize) -> (MethodRouter, Process, Client) {
+    let (tx, rx) = mpsc::channel(channel_size);
 
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
@@ -636,7 +636,8 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn should_update_all_metrics_successfully() {
-        let (router, process, client) = create_endpoint();
+        let channel_size = 1000;
+        let (router, process, client) = create_endpoint(channel_size);
         _ = process.run(CancellationToken::new());
 
         let router = Router::new().route("/test", router);
