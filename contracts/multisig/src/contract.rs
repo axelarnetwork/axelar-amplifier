@@ -173,6 +173,9 @@ pub fn query(
             address::validate_cosmwasm_address(deps.api, &contract_address)?,
             chain_name,
         )?)?,
+        QueryMsg::AuthorizedCallers { chain_name } => {
+            to_json_binary(&query::callers_for_chain(deps, chain_name)?)?
+        }
     }
     .then(Ok)
 }

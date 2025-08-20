@@ -161,6 +161,13 @@ pub fn load_authorized_caller(
     AUTHORIZED_CALLERS.load(storage, &contract_address)
 }
 
+pub fn load_authorized_callers_for_chain(
+    storage: &dyn Storage,
+    chain_name: ChainName,
+) -> StdResult<Option<HashSet<Addr>>> {
+    CALLERS_FOR_CHAIN.may_load(storage, &chain_name)
+}
+
 #[cfg(test)]
 mod tests {
 

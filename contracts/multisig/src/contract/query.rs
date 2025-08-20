@@ -1,9 +1,14 @@
+use std::collections::HashSet;
+
 use router_api::ChainName;
 
 use super::*;
 use crate::key::{KeyType, PublicKey};
 use crate::multisig::Multisig;
-use crate::state::{load_authorized_caller, load_pub_key, load_session_signatures};
+use crate::state::{
+    load_authorized_caller, load_authorized_callers_for_chain, load_pub_key,
+    load_session_signatures,
+};
 use crate::verifier_set::VerifierSet;
 
 pub fn multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
@@ -31,4 +36,11 @@ pub fn public_key(deps: Deps, verifier: Addr, key_type: KeyType) -> StdResult<Pu
 pub fn caller_authorized(deps: Deps, address: Addr, chain_name: ChainName) -> StdResult<bool> {
     let is_authorized = load_authorized_caller(deps.storage, address)? == chain_name;
     Ok(is_authorized)
+}
+
+pub fn callers_for_chain(deps: Deps, chain_name: ChainName) -> StdResult<HashSet<Addr>> {
+    match load_authorized_callers_for_chain(deps.storage, chain_name.clone())? {
+        None => Ok(HashSet::from([])),
+        Some(set) => Ok(set),
+    }
 }

@@ -13,23 +13,26 @@ use crate::verifier_set::VerifierSet;
 #[derive(thiserror::Error)]
 #[cw_serde]
 pub enum Error {
-    #[error("failed to query multisig contract for multisig session. session_id: {0}")]
+    #[error("failed to query multisig contract for multisig session id {0}")]
     MultisigSession(Uint64),
 
-    #[error("failed to query multisig contract for verifier set: verifier_set_id: {0}")]
+    #[error("failed to query multisig contract for verifier set id {0}")]
     VerifierSet(String),
 
-    #[error("failed to query multisig contract for verifier public key. verifier_address: {verifier_address}, key_type: {key_type}")]
+    #[error("failed to query multisig contract for verifier address {verifier_address} with public key type {key_type}")]
     PublicKey {
         verifier_address: String,
         key_type: KeyType,
     },
 
-    #[error("failed to query multisig contract for caller authorization. contract_address: {contract_address}, chain_name: {chain_name}")]
+    #[error("failed to query multisig contract address {contract_address} for caller authorization with chain {chain_name}")]
     IsCallerAuthorized {
         contract_address: String,
         chain_name: ChainName,
     },
+
+    #[error("failed to query authorized callers for chain {chain_name}")]
+    AuthorizedCallersForChain { chain_name: ChainName },
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -57,6 +60,9 @@ impl Error {
                 contract_address,
                 chain_name,
             },
+            QueryMsg::AuthorizedCallers { chain_name } => {
+                Error::AuthorizedCallersForChain { chain_name }
+            }
         }
     }
 }
@@ -358,6 +364,9 @@ mod test {
                         contract_address: _,
                         chain_name: _,
                     } => Ok(to_json_binary(&true).into()).into(),
+                    QueryMsg::AuthorizedCallers { chain_name: _ } => {
+                        Ok(to_json_binary(&vec![cosmos_addr!("prover")]).into()).into()
+                    }
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
