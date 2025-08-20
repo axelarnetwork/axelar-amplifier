@@ -68,11 +68,6 @@ pub fn construct_proof(
         .encoder
         .digest(&config.domain_separator, &verifier_set, &payload)?;
 
-    // This is not needed because we know that we will always use the sig_verifier.
-    // It is placed here because is needed to pass the unit tests.
-    // To be handle appropriately in the future, the sig verifier should be configured in contract
-    // and it should be passed as a parameter to the contract initialized.
-
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         verifier_set_id: verifier_set.id(),
         msg: digest.into(),
