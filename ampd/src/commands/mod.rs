@@ -164,15 +164,17 @@ async fn instantiate_broadcaster(
         .build()
         .await
         .change_context(Error::Broadcaster)?;
+
+    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
+        .expect("should never fail to create dummy monitoring client");
+
     let (msg_queue, _) = broadcast::MsgQueue::new_msg_queue_and_client(
         broadcaster.clone(),
         broadcaster_config.queue_cap,
         broadcaster_config.batch_gas_limit,
         broadcaster_config.broadcast_interval,
+        monitoring_client.clone(),
     );
-
-    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>)
-        .expect("should never fail to create dummy monitoring client");
 
     let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)

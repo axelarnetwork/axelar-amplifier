@@ -119,6 +119,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         tm_client.clone(),
         event_processor.stream_buffer_size,
         event_processor.delay,
+        monitoring_client.clone(),
     );
     let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
         .await
@@ -138,6 +139,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         broadcast.queue_cap,
         broadcast.batch_gas_limit,
         broadcast.broadcast_interval,
+        monitoring_client.clone(),
     );
     let grpc_server = grpc::Server::builder()
         .config(grpc_config)
@@ -145,6 +147,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .msg_queue_client(msg_queue_client.clone())
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
+        .monitoring_client(monitoring_client.clone())
         .build();
     let (tx_confirmer, tx_confirmer_client) = broadcast::TxConfirmer::new_confirmer_and_client(
         cosmos_client,
