@@ -34,7 +34,7 @@ pub fn construct_proof(
         config.chain_name.clone(),
     )?;
 
-    let payload = Payload::Messages(messages);
+    let payload = Payload::Messages(messages.clone());
     let payload_id = payload.id();
 
     match PAYLOAD
@@ -67,11 +67,32 @@ pub fn construct_proof(
     let chain_codec: chain_codec_api::Client =
         client::ContractClient::new(deps.querier, &config.chain_codec).into();
 
-    // save payload bytes to pass it to the chain codec contract later
     #[cfg(feature = "receive-payload")]
-    crate::state::PAYLOAD_BYTES
-        .save(deps.storage, &payload_id, &payload_bytes)
-        .map_err(ContractError::from)?;
+    {
+        if messages.len() != payload_bytes.len() {
+            return Err(report!(ContractError::PayloadBytesMismatch {
+                payload_bytes: payload_bytes.len(),
+                messages: messages.len(),
+            }));
+        }
+
+        use sha3::{Digest, Keccak256};
+
+        for (message, payload_bytes) in messages.iter().zip(&payload_bytes) {
+            let payload_hash: [u8; 32] = Keccak256::digest(payload_bytes).into();
+            if message.payload_hash != payload_hash {
+                return Err(report!(ContractError::PayloadHashMismatch {
+                    expected: message.payload_hash,
+                    actual: payload_hash,
+                }));
+            }
+        }
+
+        // save payload bytes to pass it to the chain codec contract later
+        crate::state::PAYLOAD_BYTES
+            .save(deps.storage, &payload_id, &payload_bytes)
+            .map_err(ContractError::from)?;
+    }
 
     #[cfg(feature = "receive-payload")]
     let digest = chain_codec

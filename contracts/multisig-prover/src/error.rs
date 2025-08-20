@@ -1,3 +1,4 @@
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::StdError;
 use cw_utils::ParseReplyError;
@@ -75,6 +76,15 @@ pub enum ContractError {
 
     #[error("payload does not match the stored value")]
     PayloadMismatch,
+
+    #[error("payload hash mismatch: expected {expected:?}, actual {actual:?}")]
+    PayloadHashMismatch { expected: Hash, actual: Hash },
+
+    #[error("expected same amount of payload bytes entries and messages, got {payload_bytes} payloads and {messages} messages")]
+    PayloadBytesMismatch {
+        payload_bytes: usize,
+        messages: usize,
+    },
 
     #[error("failed to get outgoing messages from gateway")]
     FailedToGetMessages,
