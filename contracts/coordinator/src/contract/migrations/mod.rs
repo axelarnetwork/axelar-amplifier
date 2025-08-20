@@ -62,6 +62,7 @@ pub struct OldChainContracts {
 #[cw_serde]
 pub struct ChainContracts {
     pub chain_name: ChainName,
+    pub prover_address: Option<nonempty::String>,
     pub gateway_address: nonempty::String,
     pub verifier_address: nonempty::String,
 }
@@ -152,6 +153,31 @@ fn migrate_chain_contracts(
         )?;
     }
 
+    for (_, contracts) in contracts_map {
+        if let Some(prover_address) = contracts.prover_address {
+            let prover_address = address::validate_cosmwasm_address(deps.api, &prover_address)
+            .change_context(MigrationError::InvalidChainContracts)?;
+
+            save_contracts_to_state(
+                deps.storage,
+                ChainContractsRecord {
+                    chain_name: contracts.chain_name.clone(),
+                    prover_address,
+                    verifier_address: address::validate_cosmwasm_address(
+                        deps.api,
+                        &contracts.verifier_address,
+                    )
+                    .change_context(MigrationError::InvalidChainContracts)?,
+                    gateway_address: address::validate_cosmwasm_address(
+                        deps.api,
+                        &contracts.gateway_address,
+                    )
+                    .change_context(MigrationError::InvalidChainContracts)?,
+                },
+            )?;
+        }
+    }
+
     Ok(())
 }
 
@@ -205,8 +231,10 @@ mod tests {
 
     const PROVER_1: &str = "prover";
     const PROVER_2: &str = "prover2";
-    const GATEWAY: &str = "gateweay";
-    const VERIFIER: &str = "verifier";
+    const GATEWAY_1: &str = "gateway1";
+    const VERIFIER_1: &str = "verifier1";
+    const GATEWAY_2: &str = "gateway2";
+    const VERIFIER_2: &str = "verifier2";
     const CHAIN_1: &str = "axelar";
     const CHAIN_2: &str = "cosmos";
 
@@ -275,8 +303,8 @@ mod tests {
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
         let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let gateway_addr = api.addr_make(GATEWAY_1);
+        let verifier_addr = api.addr_make(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -297,6 +325,7 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
+                    prover_address: None,
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
                         .unwrap(),
@@ -341,8 +370,8 @@ mod tests {
         let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
         let prover_addr1 = api.addr_make(PROVER_1);
         let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let gateway_addr = api.addr_make(GATEWAY_1);
+        let verifier_addr = api.addr_make(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -362,6 +391,7 @@ mod tests {
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name1.clone(),
+                        prover_address: None,
                         gateway_address: nonempty::String::try_from(gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -369,6 +399,7 @@ mod tests {
                     },
                     ChainContracts {
                         chain_name: chain_name1.clone(),
+                        prover_address: None,
                         gateway_address: nonempty::String::try_from(gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -407,8 +438,8 @@ mod tests {
         let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
         let prover_addr1 = api.addr_make(PROVER_1);
         let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let gateway_addr = api.addr_make(GATEWAY_1);
+        let verifier_addr = api.addr_make(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -427,6 +458,7 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name1.clone(),
+                    prover_address: None,
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
                         .unwrap(),
@@ -461,8 +493,8 @@ mod tests {
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
         let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let gateway_addr = api.addr_make(GATEWAY_1);
+        let verifier_addr = api.addr_make(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -487,6 +519,7 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
+                    prover_address: None,
                     gateway_address: nonempty::String::try_from(
                         cosmos_addr!("different_gateway").to_string(),
                     )
@@ -524,8 +557,8 @@ mod tests {
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
         let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let gateway_addr = api.addr_make(GATEWAY_1);
+        let verifier_addr = api.addr_make(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -550,6 +583,7 @@ mod tests {
                 multisig: api.addr_make(MULTISIG).to_string(),
                 chain_contracts: vec![ChainContracts {
                     chain_name: chain_name.clone(),
+                    prover_address: None,
                     gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
                     verifier_address: nonempty::String::try_from(verifier_addr.to_string())
                         .unwrap(),
@@ -592,8 +626,8 @@ mod tests {
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
         let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY);
-        let verifier_addr = api.addr_make(VERIFIER);
+        let gateway_addr = api.addr_make(GATEWAY_1);
+        let verifier_addr = api.addr_make(VERIFIER_1);
 
         let extra_gateway_addr = api.addr_make("extra_gateway");
         let extra_verifier_addr = api.addr_make("extra_verifier");
@@ -613,6 +647,7 @@ mod tests {
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name.clone(),
+                        prover_address: None,
                         gateway_address: nonempty::String::try_from(gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr.to_string())
@@ -620,6 +655,7 @@ mod tests {
                     },
                     ChainContracts {
                         chain_name: chain_name.clone(),
+                        prover_address: None,
                         gateway_address: nonempty::String::try_from(extra_gateway_addr.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(
@@ -636,5 +672,70 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains(&MigrationError::ExtraChainProvided.to_string()));
+    }
+
+    #[test]
+    fn migrate_can_add_missing_chains() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make(SENDER), &[]);
+
+        assert!(old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: api.addr_make(GOVERNANCE).to_string(),
+                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+            },
+        )
+        .is_ok());
+
+        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
+        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
+        let prover_addr1 = api.addr_make(PROVER_1);
+        let prover_addr2 = api.addr_make(PROVER_2);
+        let gateway_addr1 = api.addr_make(GATEWAY_1);
+        let verifier_addr1 = api.addr_make(VERIFIER_1);
+        let gateway_addr2 = api.addr_make(GATEWAY_2);
+        let verifier_addr2 = api.addr_make(VERIFIER_2);
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![
+                (chain_name1.clone(), prover_addr1.clone()),
+            ]
+        )
+        .is_ok());
+
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: api.addr_make(ROUTER).to_string(),
+                multisig: api.addr_make(MULTISIG).to_string(),
+                chain_contracts: vec![
+                    ChainContracts {
+                        chain_name: chain_name1.clone(),
+                        prover_address: None,
+                        gateway_address: nonempty::String::try_from(gateway_addr1.to_string())
+                            .unwrap(),
+                        verifier_address: nonempty::String::try_from(verifier_addr1.to_string())
+                            .unwrap(),
+                    },
+                    ChainContracts {
+                        chain_name: chain_name2.clone(),
+                        prover_address: Some(nonempty::String::try_from(prover_addr2.to_string()).unwrap()),
+                        gateway_address: nonempty::String::try_from(gateway_addr2.to_string())
+                            .unwrap(),
+                        verifier_address: nonempty::String::try_from(verifier_addr2.to_string())
+                            .unwrap(),
+                    },
+                ],
+            },
+        );
+
+        assert!(res.is_ok());
     }
 }
