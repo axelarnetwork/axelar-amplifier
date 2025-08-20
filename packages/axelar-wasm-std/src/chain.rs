@@ -47,7 +47,7 @@ impl FromStr for ChainName {
 
 #[macro_export]
 macro_rules! chain_name {
-    ($s: literal) => {{
+    ($s:expr) => {{
         use std::str::FromStr;
 
         const _: () = {
@@ -202,7 +202,7 @@ impl FromStr for ChainNameRaw {
 
 #[macro_export]
 macro_rules! chain_name_raw {
-    ($s:literal) => {{
+    ($s:expr) => {{
         use std::str::FromStr as _;
 
         const _: () = {
