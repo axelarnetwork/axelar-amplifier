@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use cosmrs::Any;
 use error_stack::{Context, ResultExt};
 use events::{AbciEventTypeFilter, Event};
-use futures::pin_mut;
+use futures::{pin_mut, Stream};
 use mockall::automock;
 use report::ErrorExt;
 use serde::{Deserialize, Serialize};
@@ -105,6 +105,21 @@ where
         client: &mut impl client::Client,
         token: CancellationToken,
     ) -> error_stack::Result<(), Error> {
+        let stream = self.subscribe_to_stream(client, token.clone()).await?;
+
+        pin_mut!(stream);
+        while let Some(element) = stream.next().await {
+            self.process_stream(element, client, &token).await;
+        }
+
+        Ok(())
+    }
+
+    async fn subscribe_to_stream(
+        &self,
+        client: &mut impl client::Client,
+        token: CancellationToken,
+    ) -> error_stack::Result<impl Stream<Item = error_stack::Result<Event, Error>>, Error> {
         let subscription_params = self.handler.subscription_params();
 
         let stream = client
@@ -114,7 +129,7 @@ where
             )
             .await
             .change_context(Error::EventStream)?
-            .take_while(|_| !token.is_cancelled())
+            .take_while(move |_| !token.is_cancelled())
             .timeout_repeating(interval(self.config.stream_timeout))
             .map(|event| match event {
                 Ok(Ok(event)) => Ok(event),
@@ -122,12 +137,7 @@ where
                 Err(elapsed) => Err(Error::StreamTimeout(elapsed).into_report()),
             });
 
-        pin_mut!(stream);
-        while let Some(element) = stream.next().await {
-            self.process_stream(element, client, &token).await;
-        }
-
-        Ok(())
+        Ok(stream)
     }
 
     async fn process_stream(
