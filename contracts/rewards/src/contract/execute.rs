@@ -274,6 +274,11 @@ mod test {
     use crate::msg::Params;
     use crate::state::{self, Config, Epoch, ParamsSnapshot, PoolId, Verifier, CONFIG};
 
+    const VERIFIER: &str = "verifier";
+    const POOL_CONTRACT: &str = "pool_contract";
+    const SOME_CONTRACT: &str = "some contract";
+    const MOCK_CHAIN: &str = "mock-chain";
+
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
@@ -282,8 +287,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -317,8 +322,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -342,8 +347,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mock_deps = setup(
             cur_epoch_num,
@@ -399,8 +404,8 @@ mod test {
         let epoch_duration = 100u64;
 
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut mock_deps = setup(
             cur_epoch_num,
@@ -458,8 +463,8 @@ mod test {
         let epoch_duration = 100u64;
 
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut mock_deps = setup(
             starting_epoch_num,
@@ -529,7 +534,7 @@ mod test {
             cosmos_addr!("verifier-1"),
             (
                 PoolId {
-                    chain_name: chain_name!("mock-chain"),
+                    chain_name: chain_name!(MOCK_CHAIN),
                     contract: cosmos_addr!("contract-1"),
                 },
                 3,
@@ -549,7 +554,7 @@ mod test {
             cosmos_addr!("verifier-3"),
             (
                 PoolId {
-                    chain_name: chain_name!("mock-chain"),
+                    chain_name: chain_name!(MOCK_CHAIN),
                     contract: cosmos_addr!("contract-3"),
                 },
                 2,
@@ -614,8 +619,8 @@ mod test {
         let initial_participation_threshold = (1, 2);
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut mock_deps = setup_with_params(
             initial_epoch_num,
@@ -684,8 +689,8 @@ mod test {
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -754,8 +759,8 @@ mod test {
         let initial_epoch_start = 256u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -818,8 +823,8 @@ mod test {
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut mock_deps = setup(
             initial_epoch_num,
@@ -879,8 +884,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
 
         let mut mock_deps = setup(
@@ -923,8 +928,8 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
 
         let mut mock_deps = setup(
@@ -940,7 +945,7 @@ mod test {
             (cosmos_addr!("contract_3"), vec![1000, 500, 2000]),
         ];
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
 
         for (pool_contract, rewards) in &test_data {
             let pool_id = PoolId {
@@ -998,7 +1003,7 @@ mod test {
             cosmos_addr!("verifier-1"),
             (
                 PoolId {
-                    chain_name: chain_name!("mock-chain"),
+                    chain_name: chain_name!(MOCK_CHAIN),
                     contract: cosmos_addr!("contract-1"),
                 },
                 3,
@@ -1018,7 +1023,7 @@ mod test {
             cosmos_addr!("verifier-3"),
             (
                 PoolId {
-                    chain_name: chain_name!("mock-chain"),
+                    chain_name: chain_name!(MOCK_CHAIN),
                     contract: cosmos_addr!("contract-3"),
                 },
                 2,
@@ -1090,7 +1095,7 @@ mod test {
         let epoch_duration = 100u64;
         let pools = vec![
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: chain_name!(MOCK_CHAIN),
                 contract: cosmos_addr!("contract-1"),
             },
             PoolId {
@@ -1188,7 +1193,7 @@ mod test {
         let base_epoch_duration = 100u64;
         let pools = vec![
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: chain_name!(MOCK_CHAIN),
                 contract: cosmos_addr!("contract-1"),
             },
             PoolId {
@@ -1271,8 +1276,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (2, 3);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1379,8 +1384,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1391,7 +1396,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
             let event_id = height.to_string() + "event";
@@ -1479,8 +1484,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1491,10 +1496,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let _ = record_participation(
@@ -1564,8 +1569,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1576,10 +1581,10 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let _ = record_participation(
@@ -1636,8 +1641,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1648,7 +1653,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
@@ -1696,9 +1701,9 @@ mod test {
         assert!(record_participation(
             mock_deps.as_mut().storage,
             "some-event".parse().unwrap(),
-            cosmos_addr!("verifier"),
+            cosmos_addr!(VERIFIER),
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: chain_name!(MOCK_CHAIN),
                 contract: cosmos_addr!("contract")
             },
             block_height_started
@@ -1715,7 +1720,7 @@ mod test {
         assert!(add_rewards(
             mock_deps.as_mut().storage,
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: chain_name!(MOCK_CHAIN),
                 contract: cosmos_addr!("contract")
             },
             100u128.try_into().unwrap(),
@@ -1732,7 +1737,7 @@ mod test {
         assert!(distribute_rewards(
             mock_deps.as_mut().storage,
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: chain_name!(MOCK_CHAIN),
                 contract: cosmos_addr!("contract")
             },
             block_height_started,
@@ -1751,8 +1756,8 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("pool_contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
         };
 
         let mut mock_deps = setup_with_params(
@@ -1763,7 +1768,7 @@ mod test {
             participation_threshold,
             pool_id.clone(),
         );
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
 
         let mut cur_height = block_height_started;
         let epoch_count = 3;

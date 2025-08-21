@@ -210,6 +210,8 @@ mod tests {
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
 
+    const STACKS: &str = "stacks";
+
     #[test]
     fn stacks_should_deserialize_verifier_set_poll_started_event() {
         let event: PollStartedEvent = assert_ok!(into_structured_event(
@@ -268,7 +270,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -290,7 +292,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -342,7 +344,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
@@ -380,7 +382,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            chain_name!(STACKS),
             verifier,
             voting_verifier,
             client,
@@ -420,7 +422,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -455,7 +457,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            chain_name!("stacks"),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -487,7 +489,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("stacks"),
+                source_chain: chain_name!(STACKS),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),
