@@ -1,7 +1,6 @@
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Empty, HexBinary, Uint64};
-use msgs_derive::Permissions;
+use cosmwasm_std::{Empty, HexBinary};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
@@ -60,16 +59,21 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-#[derive(Permissions)]
+#[cfg_attr(feature = "notify-signing-session", derive(msgs_derive::Permissions))]
 pub enum ExecuteMsg {
     /// This message is called by the multisig-prover contract after a multisig session is started.
     /// It provides session information that the chain codec contract can store and use later.
     /// The contract can also still revert the transaction here by returning an error or panicking.
     ///
     /// This can only be called by the multisig-prover contract.
+    ///
+    /// This field is only available if the multisig-prover contract was compiled with the `notify-signing-session` feature flag.
+    /// Therefore, it is also feature-gated in this crate.
+    ///
+    #[cfg(feature = "notify-signing-session")]
     #[permission(Specific(multisig_prover))]
     NotifySigningSession {
-        multisig_session_id: Uint64,
+        multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
         /// This field is only available if the multisig-prover contract was compiled with the `receive-payload` feature flag.

@@ -91,27 +91,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: ExecuteMsg,
+    _msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
-
-    match msg.ensure_permissions(
-        deps.storage,
-        &_info.sender,
-        |_, _| -> error_stack::Result<_, ContractError> { Ok(config.multisig_prover.clone()) },
-    )? {
-        ExecuteMsg::NotifySigningSession {
-            multisig_session_id: _,
-            verifier_set: _,
-            payload: _,
-        } => {
-            // This implementation does nothing and just returns an empty response.
-            // Other chain codec implementations can use this to store session information
-            // that they need or to fail the transaction
-            Ok(Response::new())
-        }
-    }
+    Ok(Response::new())
 }

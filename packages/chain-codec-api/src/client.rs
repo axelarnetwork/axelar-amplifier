@@ -1,4 +1,4 @@
-use cosmwasm_std::{CosmosMsg, Empty, HexBinary, Uint64};
+use cosmwasm_std::{Empty, HexBinary};
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
@@ -50,13 +50,13 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    #[cfg(not(feature = "receive-payload"))]
+    #[cfg(all(feature = "notify-signing-session", not(feature = "receive-payload")))]
     pub fn notify_signing_session(
         &self,
-        multisig_session_id: Uint64,
+        multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
-    ) -> CosmosMsg {
+    ) -> cosmwasm_std::CosmosMsg {
         self.client.execute(&ExecuteMsg::NotifySigningSession {
             multisig_session_id,
             verifier_set,
@@ -64,14 +64,14 @@ impl Client<'_> {
         })
     }
 
-    #[cfg(feature = "receive-payload")]
+    #[cfg(all(feature = "notify-signing-session", feature = "receive-payload"))]
     pub fn notify_signing_session(
         &self,
-        multisig_session_id: Uint64,
+        multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
         payload_bytes: Vec<HexBinary>,
-    ) -> CosmosMsg {
+    ) -> cosmwasm_std::CosmosMsg {
         self.client.execute(&ExecuteMsg::NotifySigningSession {
             multisig_session_id,
             verifier_set,

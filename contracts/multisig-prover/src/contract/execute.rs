@@ -89,6 +89,7 @@ pub fn construct_proof(
         }
 
         // save payload bytes to pass it to the chain codec contract later
+        #[cfg(feature = "notify-signing-session")]
         crate::state::PAYLOAD_BYTES
             .save(deps.storage, &payload_id, &payload_bytes)
             .map_err(ContractError::from)?;

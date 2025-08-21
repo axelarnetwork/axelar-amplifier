@@ -3,9 +3,7 @@ use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseRep
 
 use crate::error::ContractError;
 use crate::events::Event;
-use crate::state::{
-    CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER,
-};
+use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -32,39 +30,45 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let payload = PAYLOAD.load(deps.storage, &payload_id)?;
             let msg_ids = payload.message_ids().unwrap_or_default();
 
-            let chain_codec: chain_codec_api::Client =
-                client::ContractClient::new(deps.querier, &config.chain_codec).into();
+            #[allow(unused_mut)]
+            let mut response = Response::new().add_event(Event::ProofUnderConstruction {
+                destination_chain: config.chain_name,
+                msg_ids,
+                payload_id,
+                multisig_session_id,
+            });
 
-            let verifier_set = CURRENT_VERIFIER_SET
-                .may_load(deps.storage)
-                .map_err(ContractError::from)?
-                .ok_or(ContractError::NoVerifierSet)?;
+            #[cfg(feature = "notify-signing-session")]
+            {
+                let verifier_set = crate::state::CURRENT_VERIFIER_SET
+                    .may_load(deps.storage)
+                    .map_err(ContractError::from)?
+                    .ok_or(ContractError::NoVerifierSet)?;
 
-            #[cfg(feature = "receive-payload")]
-            let notify_msg = {
-                // payload bytes are only stored during proof construction,
-                // so there might not be any for this payload
-                let payload_bytes =
-                    crate::state::PAYLOAD_BYTES.may_load(deps.storage, &payload_id)?;
-                chain_codec.notify_signing_session(
-                    multisig_session_id,
-                    verifier_set,
-                    payload,
-                    payload_bytes.unwrap_or_default(),
-                )
-            };
-            #[cfg(not(feature = "receive-payload"))]
-            let notify_msg =
-                chain_codec.notify_signing_session(multisig_session_id, verifier_set, payload);
+                let chain_codec: chain_codec_api::Client =
+                    client::ContractClient::new(deps.querier, &config.chain_codec).into();
 
-            Ok(Response::new()
-                .add_message(notify_msg)
-                .add_event(Event::ProofUnderConstruction {
-                    destination_chain: config.chain_name,
-                    msg_ids,
-                    payload_id,
-                    multisig_session_id,
-                }))
+                #[cfg(feature = "receive-payload")]
+                let notify_msg = {
+                    // payload bytes are only stored during proof construction,
+                    // so there might not be any for this payload
+                    let payload_bytes =
+                        crate::state::PAYLOAD_BYTES.may_load(deps.storage, &payload_id)?;
+                    chain_codec.notify_signing_session(
+                        multisig_session_id,
+                        verifier_set,
+                        payload,
+                        payload_bytes.unwrap_or_default(),
+                    )
+                };
+                #[cfg(not(feature = "receive-payload"))]
+                let notify_msg =
+                    chain_codec.notify_signing_session(multisig_session_id, verifier_set, payload);
+
+                response = response.add_message(notify_msg);
+            }
+
+            Ok(response)
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),
