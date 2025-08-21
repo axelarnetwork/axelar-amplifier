@@ -64,7 +64,7 @@ from Avalanche testnet, Sui testnet and Stacks testnet.
 
 ```yaml
 tm_jsonrpc="http://localhost:26657"
-tm_grpc="tcp://localhost:9090"'
+tm_grpc="tcp://localhost:9090"
 
 event_buffer_cap=10000
 
