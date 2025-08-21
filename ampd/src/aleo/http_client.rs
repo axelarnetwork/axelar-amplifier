@@ -1,5 +1,3 @@
-// use aleo_types::transaction::Transaction;
-// use aleo_types::transition::Transition;
 use async_trait::async_trait;
 use error_stack::{Result, ResultExt};
 use mockall::automock;
