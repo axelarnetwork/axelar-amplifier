@@ -96,6 +96,7 @@ pub enum QueryMsg {
     #[returns(Service)]
     Service {
         service_name: String,
+        #[serde(default)]
         chain_name: Option<ChainName>,
     },
 
