@@ -57,7 +57,7 @@
   "event_sub": {
     "block_processing_buffer": 10,
     "poll_interval": "5s",
-    "retry_delay": "1s",
+    "retry_delay": "3s",
     "retry_max_attempts": 3
   },
   "tm_client": {
