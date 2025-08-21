@@ -38,6 +38,14 @@ pub enum Error {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
     // The maximum number of blocks to process concurrently.
+    // - A value of 1 ensures sequential processing, preventing the event sub
+    //   from downloading events from multiple blocks simultaneously. This minimizes
+    //   memory usage but may slow down event processing.
+    // - Higher values enable parallel block processing, improving throughput but
+    //   increasing memory usage and potential resource contention.
+    // - Setting this too high may cause excessive memory consumption, while setting
+    //   it too low may lead to slower processing and underutilization of downstream
+    //   consumers.
     pub block_processing_buffer: usize,
     // Interval to poll for new blocks
     #[serde(with = "humantime_serde")]

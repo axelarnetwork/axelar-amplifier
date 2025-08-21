@@ -44,6 +44,11 @@ pub struct Config {
     pub stream_buffer_size: usize,
     #[serde(with = "humantime_serde")]
     pub delay: Duration,
+    // Maximum number of messages to enqueue for broadcasting concurrently.
+    // - Controls parallelism when enqueueing messages to the broadcast queue
+    // - Higher values increase throughput for processing many messages at once
+    // - Lower values reduce resource consumption
+    // - Setting is balanced based on network capacity and system resources
     pub tx_broadcast_buffer_size: usize,
 }
 
