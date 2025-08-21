@@ -16,6 +16,8 @@ use tracing::{error, info, instrument};
 use valuable::Valuable;
 
 use crate::asyncutil::future::RetryPolicy;
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
 use crate::tm_client::TmClient;
 
 pub mod stream;
@@ -78,17 +80,24 @@ pub struct EventPublisher<T: TmClient + Sync> {
     poll_interval: Duration,
     tx: Sender<std::result::Result<Event, Error>>,
     delay: Duration,
+    monitoring_client: monitoring::Client,
 }
 
 impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
     #[instrument]
-    pub fn new(client: T, capacity: usize, delay: Duration) -> (Self, EventSubscriber) {
+    pub fn new(
+        client: T,
+        capacity: usize,
+        delay: Duration,
+        monitoring_client: monitoring::Client,
+    ) -> (Self, EventSubscriber) {
         let (tx, _) = broadcast::channel(capacity);
         let publisher = EventPublisher {
             tm_client: client,
             poll_interval: POLL_INTERVAL,
             tx: tx.clone(),
             delay,
+            monitoring_client,
         };
         let subscriber = EventSubscriber { tx };
 
@@ -108,6 +117,10 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
             // error_stack::Report does not implement `Clone`, so we log the full error and pass on the latest context
             let event = event
                 .inspect_err(|err| {
+                    self.monitoring_client
+                        .metrics()
+                        .record_metric(Msg::EventPublisherError);
+
                     error!(
                         err = LoggableError::from(err).as_value(),
                         "failed to retrieve to events"
@@ -116,6 +129,10 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
                 .map_err(|err| err.current_context().clone());
 
             let _ = self.tx.send(event).map_err(Report::new).inspect_err(|err| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::EventPublisherError);
+
                 error!(
                     err = LoggableError::from(err).as_value(),
                     "failed to send event to subscribers"
@@ -149,6 +166,8 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use crate::event_sub::{Error, EventPublisher, EventSub};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
     use crate::tm_client::{self, MockTmClient};
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -175,8 +194,9 @@ mod tests {
         tm_client.expect_block_results().never();
 
         let token = CancellationToken::new();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (event_publisher, _subscriber) =
-            EventPublisher::new(tm_client, 100, Duration::from_secs(1));
+            EventPublisher::new(tm_client, 100, Duration::from_secs(1), monitoring_client);
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
         while *call_count.read().unwrap() < 10 {
@@ -237,8 +257,9 @@ mod tests {
         });
 
         let token = CancellationToken::new();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (event_publisher, subscriber) =
-            EventPublisher::new(tm_client, 100, Duration::from_secs(1));
+            EventPublisher::new(tm_client, 100, Duration::from_secs(1), monitoring_client);
         let mut stream = subscriber.subscribe();
         let handle = tokio::spawn(event_publisher.run(token.child_token()));
 
@@ -317,5 +338,65 @@ mod tests {
             app_hash: Default::default(),
             finalize_block_events: vec![],
         }
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn should_record_event_publisher_err_successfully() {
+        let block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
+        let initial_height = block.header().height;
+
+        let mut tm_client = MockTmClient::new();
+        let mut call_count = 0;
+        tm_client.expect_latest_block().returning(move || {
+            call_count += 1;
+
+            match call_count {
+                1 => Err(report!(tendermint_rpc::Error::server(
+                    "server error".to_string()
+                ))),
+                2 => Ok(tm_client::BlockResponse {
+                    block_id: Default::default(),
+                    block: block.clone(),
+                }),
+                _ => unreachable!("Should only have 2 calls"),
+            }
+        });
+        tm_client.expect_block_results().returning(move |height| {
+            if height == initial_height {
+                Ok(block_results_response(
+                    height,
+                    vec![random_event()],
+                    vec![random_event()],
+                    vec![random_event()],
+                ))
+            } else {
+                Ok(block_results_response(height, vec![], vec![], vec![]))
+            }
+        });
+
+        let token = CancellationToken::new();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+        let (event_publisher, subscriber) =
+            EventPublisher::new(tm_client, 100, Duration::from_secs(1), monitoring_client);
+        let mut stream = subscriber.subscribe();
+        let handle = tokio::spawn(event_publisher.run(token.child_token()));
+
+        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
+        tokio::time::advance(Duration::from_secs(1)).await;
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(metric, Msg::EventPublisherError);
+
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockBegin(_))
+        ));
+        tokio::time::advance(Duration::from_secs(1)).await;
+
+        token.cancel();
+        handle.await.unwrap().unwrap();
+
+        assert!(receiver.try_recv().is_err());
     }
 }
