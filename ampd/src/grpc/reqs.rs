@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
 use ampd_proto::{
-    Algorithm, BroadcastRequest, ContractStateRequest, KeyId, KeyRequest, SignRequest,
-    SubscribeRequest,
+    Algorithm, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyId, KeyRequest,
+    SignRequest, SubscribeRequest,
 };
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
 use error_stack::{bail, ensure, report, Report, Result, ResultExt};
@@ -72,6 +73,16 @@ fn validate_address(address: &str) -> Result<TMAddress, Error> {
     Ok(address)
 }
 
+impl Validate for Request<ContractsRequest> {
+    type Output = ChainName;
+
+    fn validate(self) -> Result<Self::Output, Error> {
+        let ContractsRequest { chain } = self.into_inner();
+
+        ChainName::try_from(chain.clone()).change_context(Error::InvalidChainName(chain))
+    }
+}
+
 impl Validate for Request<KeyRequest> {
     type Output = (KeyIdString, tofnd::Algorithm);
 
@@ -128,6 +139,8 @@ pub enum Error {
     InvalidCryptoAlgorithm(i32),
     #[error("invalid 32-byte sign message {0:?}")]
     InvalidSignMsg(Vec<u8>),
+    #[error("invalid chain name {0}")]
+    InvalidChainName(String),
 }
 
 #[derive(Debug)]
