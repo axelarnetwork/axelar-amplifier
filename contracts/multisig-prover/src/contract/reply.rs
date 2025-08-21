@@ -31,12 +31,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let msg_ids = payload.message_ids().unwrap_or_default();
 
             #[allow(unused_mut)]
-            let mut response = Response::new().add_event(Event::ProofUnderConstruction {
-                destination_chain: config.chain_name,
-                msg_ids,
-                payload_id,
-                multisig_session_id,
-            });
+            let mut response = Response::new();
 
             #[cfg(feature = "notify-signing-session")]
             {
@@ -67,6 +62,13 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
                 response = response.add_message(notify_msg);
             }
+
+            response = response.add_event(Event::ProofUnderConstruction {
+                destination_chain: config.chain_name,
+                msg_ids,
+                payload_id,
+                multisig_session_id,
+            });
 
             Ok(response)
         }
