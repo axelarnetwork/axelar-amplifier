@@ -637,6 +637,15 @@ fn coordinator_one_click_query_deployments_succeeds() {
     let chain_name = String::from("testchain");
     let deployment_name = nonempty_str!("testchain-1");
 
+    let res = protocol.coordinator.query::<Vec<ChainContractsResponse>>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Deployments {
+            starting_deployment_name: None,
+            limit: 1,
+        },
+    );
+    assert!(res.is_err());
+
     let res = instantiate_contracts(
         &mut protocol,
         chain_name.as_str(),
