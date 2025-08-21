@@ -20,7 +20,7 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::types::debug::REDACTED_VALUE;
-use crate::{broadcast, cosmos, event_sub, tofnd};
+use crate::{broadcast, cosmos, event_sub, monitoring, tofnd};
 
 mod blockchain_service;
 mod crypto_service;
@@ -107,6 +107,7 @@ pub struct Server {
     msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
     multisig_client: tofnd::MultisigClient,
+    monitoring_client: monitoring::Client,
 }
 
 impl Server {
@@ -144,10 +145,12 @@ impl Server {
                     .event_sub(self.event_sub)
                     .msg_queue_client(self.msg_queue_client)
                     .cosmos_client(self.cosmos_grpc_client)
+                    .monitoring_client(self.monitoring_client.clone())
                     .build(),
             ))
-            .add_service(CryptoServiceServer::new(crypto_service::Service::from(
+            .add_service(CryptoServiceServer::new(crypto_service::Service::new(
                 self.multisig_client,
+                self.monitoring_client.clone(),
             )));
 
         info!(%addr, "gRPC server started");

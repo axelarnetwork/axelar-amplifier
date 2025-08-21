@@ -209,16 +209,16 @@ mod tests {
     const GOVERNANCE: &str = "governance";
     const ADMIN: &str = "admin";
     const COORDINATOR: &str = "coordinator";
+    const MOCK_CHAIN: &str = "mock-chain";
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
     fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let api = MockApi::default();
-        let instantiator = api.addr_make(INSTANTIATOR);
-        let governance = api.addr_make(GOVERNANCE);
-        let admin = api.addr_make(ADMIN);
-        let rewards = api.addr_make(REWARDS_CONTRACT);
-        let coordinator = api.addr_make(COORDINATOR);
+        let instantiator = cosmos_addr!(INSTANTIATOR);
+        let governance = cosmos_addr!(GOVERNANCE);
+        let admin = cosmos_addr!(ADMIN);
+        let rewards = cosmos_addr!(REWARDS_CONTRACT);
+        let coordinator = cosmos_addr!(COORDINATOR);
 
         let info = message_info(&instantiator, &[]);
         let env = mock_env();
@@ -238,7 +238,7 @@ mod tests {
         key_type: KeyType,
         deps: DepsMut,
     ) -> Result<(Response, VerifierSet), axelar_wasm_std::error::ContractError> {
-        let info = message_info(&MockApi::default().addr_make(PROVER), &[]);
+        let info = message_info(&cosmos_addr!(PROVER), &[]);
         let env = mock_env();
 
         let signers = match key_type {
@@ -317,7 +317,7 @@ mod tests {
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = message_info(&MockApi::default().addr_make(GOVERNANCE), &[]);
+        let info = message_info(&cosmos_addr!(GOVERNANCE), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
@@ -333,7 +333,7 @@ mod tests {
         deps: DepsMut,
         contracts: Vec<(Addr, ChainName)>,
     ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-        let info = message_info(&MockApi::default().addr_make(GOVERNANCE), &[]);
+        let info = message_info(&cosmos_addr!(GOVERNANCE), &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
@@ -425,20 +425,13 @@ mod tests {
         let session_counter = SIGNING_SESSION_COUNTER.load(deps.as_ref().storage).unwrap();
 
         assert_eq!(
-            permission_control::sender_role(
-                deps.as_ref().storage,
-                &MockApi::default().addr_make(ADMIN)
-            )
-            .unwrap(),
+            permission_control::sender_role(deps.as_ref().storage, &cosmos_addr!(ADMIN)).unwrap(),
             Permission::Admin.into()
         );
 
         assert_eq!(
-            permission_control::sender_role(
-                deps.as_ref().storage,
-                &MockApi::default().addr_make(GOVERNANCE)
-            )
-            .unwrap(),
+            permission_control::sender_role(deps.as_ref().storage, &cosmos_addr!(GOVERNANCE))
+                .unwrap(),
             Permission::Governance.into()
         );
 
@@ -481,11 +474,10 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn start_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -495,7 +487,7 @@ mod tests {
         {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 &subkey,
                 chain_name.clone(),
             );
@@ -547,20 +539,17 @@ mod tests {
     #[test]
     fn start_signing_session_wrong_sender() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(MockApi::default().addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
-
-        let sender = "someone else";
 
         for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(sender),
+                cosmos_addr!("someone else"),
                 &verifier_set_id,
                 chain_name.clone(),
             );
@@ -577,11 +566,10 @@ mod tests {
     #[test]
     fn submit_signature() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -590,7 +578,7 @@ mod tests {
         {
             do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 verifier_set_id,
                 chain_name.clone(),
             )
@@ -599,7 +587,7 @@ mod tests {
             let signer = signers.first().unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
-                contract_addr: api.addr_make(REWARDS_CONTRACT).to_string(),
+                contract_addr: cosmos_addr!(REWARDS_CONTRACT).to_string(),
                 msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
@@ -654,11 +642,10 @@ mod tests {
     #[test]
     fn submit_signature_completes_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -667,7 +654,7 @@ mod tests {
         {
             do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 subkey,
                 chain_name.clone(),
             )
@@ -719,11 +706,10 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -732,7 +718,7 @@ mod tests {
         {
             do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 subkey,
                 chain_name.clone(),
             )
@@ -749,7 +735,7 @@ mod tests {
             let signer = signers.get(2).unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
-                contract_addr: api.addr_make(REWARDS_CONTRACT).to_string(),
+                contract_addr: cosmos_addr!(REWARDS_CONTRACT).to_string(),
                 msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
@@ -776,12 +762,11 @@ mod tests {
     #[allow(clippy::arithmetic_side_effects)]
     fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -790,7 +775,7 @@ mod tests {
         {
             do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 subkey,
                 chain_name.clone(),
             )
@@ -822,16 +807,15 @@ mod tests {
     #[test]
     fn submit_signature_wrong_session_id() {
         let (mut deps, ecdsa_subkey, _) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
         do_start_signing_session(
             deps.as_mut(),
-            api.addr_make(PROVER),
+            cosmos_addr!(PROVER),
             &ecdsa_subkey,
             chain_name.clone(),
         )
@@ -853,11 +837,10 @@ mod tests {
     #[test]
     fn query_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -866,9 +849,9 @@ mod tests {
         {
             do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 subkey,
-                chain_name!("mock-chain"),
+                chain_name!(MOCK_CHAIN),
             )
             .unwrap();
 
@@ -1154,9 +1137,8 @@ mod tests {
     #[test]
     fn authorize_and_unauthorize_callers() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let prover_address = api.addr_make(PROVER);
-        let chain_name = chain_name!("mock-chain");
+        let prover_address = cosmos_addr!(PROVER);
+        let chain_name = chain_name!(MOCK_CHAIN);
 
         // authorize
         do_authorize_callers(
@@ -1168,7 +1150,7 @@ mod tests {
         for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 &verifier_set_id,
                 chain_name.clone(),
             );
@@ -1190,7 +1172,7 @@ mod tests {
         for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 &verifier_set_id,
                 chain_name.clone(),
             );
@@ -1254,10 +1236,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
-            contracts: HashMap::from([(
-                deps.api.addr_make(PROVER).to_string(),
-                chain_name!("mock-chain"),
-            )]),
+            contracts: HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(MOCK_CHAIN))]),
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
 
@@ -1279,10 +1258,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
-            contracts: HashMap::from([(
-                deps.api.addr_make(PROVER).to_string(),
-                chain_name!("mock-chain"),
-            )]),
+            contracts: HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(MOCK_CHAIN))]),
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
 
@@ -1299,9 +1275,8 @@ mod tests {
     #[test]
     fn disable_enable_signing() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let prover_address = api.addr_make(PROVER);
-        let chain_name = chain_name!("mock-chain");
+        let prover_address = cosmos_addr!(PROVER);
+        let chain_name = chain_name!(MOCK_CHAIN);
 
         // authorize
         do_authorize_callers(
@@ -1310,12 +1285,12 @@ mod tests {
         )
         .unwrap();
 
-        do_disable_signing(deps.as_mut(), api.addr_make(ADMIN)).unwrap();
+        do_disable_signing(deps.as_mut(), cosmos_addr!(ADMIN)).unwrap();
 
         for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 &verifier_set_id,
                 chain_name.clone(),
             );
@@ -1326,14 +1301,14 @@ mod tests {
             );
         }
 
-        do_enable_signing(deps.as_mut(), api.addr_make(ADMIN)).unwrap();
+        do_enable_signing(deps.as_mut(), cosmos_addr!(ADMIN)).unwrap();
 
         for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 &verifier_set_id,
-                chain_name!("mock-chain"),
+                chain_name!(MOCK_CHAIN),
             );
 
             assert!(res.is_ok());
@@ -1343,11 +1318,10 @@ mod tests {
     #[test]
     fn disable_signing_after_session_creation() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -1356,13 +1330,13 @@ mod tests {
         {
             do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 verifier_set_id,
                 chain_name.clone(),
             )
             .unwrap();
 
-            do_disable_signing(deps.as_mut(), api.addr_make(ADMIN)).unwrap();
+            do_disable_signing(deps.as_mut(), cosmos_addr!(ADMIN)).unwrap();
 
             let signer = signers.first().unwrap().to_owned();
 
@@ -1373,7 +1347,7 @@ mod tests {
                 ContractError::SigningDisabled.to_string()
             );
 
-            do_enable_signing(deps.as_mut(), api.addr_make(ADMIN)).unwrap();
+            do_enable_signing(deps.as_mut(), cosmos_addr!(ADMIN)).unwrap();
             assert!(do_sign(deps.as_mut(), mock_env(), session_id, &signer).is_ok());
         }
     }
@@ -1381,25 +1355,23 @@ mod tests {
     #[test]
     fn disable_enable_signing_has_correct_permissions() {
         let mut deps = setup().0;
-        let api = deps.api;
 
         assert!(do_disable_signing(deps.as_mut(), cosmos_addr!("user1")).is_err());
-        assert!(do_disable_signing(deps.as_mut(), api.addr_make(ADMIN)).is_ok());
+        assert!(do_disable_signing(deps.as_mut(), cosmos_addr!(ADMIN)).is_ok());
         assert!(do_enable_signing(deps.as_mut(), cosmos_addr!("user")).is_err());
-        assert!(do_enable_signing(deps.as_mut(), api.addr_make(ADMIN)).is_ok());
-        assert!(do_disable_signing(deps.as_mut(), api.addr_make(GOVERNANCE)).is_ok());
-        assert!(do_enable_signing(deps.as_mut(), api.addr_make(GOVERNANCE)).is_ok());
+        assert!(do_enable_signing(deps.as_mut(), cosmos_addr!(ADMIN)).is_ok());
+        assert!(do_disable_signing(deps.as_mut(), cosmos_addr!(GOVERNANCE)).is_ok());
+        assert!(do_enable_signing(deps.as_mut(), cosmos_addr!(GOVERNANCE)).is_ok());
     }
 
     #[test]
     fn start_signing_session_wrong_chain() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        let api = deps.api;
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         do_authorize_callers(
             deps.as_mut(),
-            vec![(api.addr_make(PROVER), chain_name.clone())],
+            vec![(cosmos_addr!(PROVER), chain_name.clone())],
         )
         .unwrap();
 
@@ -1408,7 +1380,7 @@ mod tests {
         for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
-                api.addr_make(PROVER),
+                cosmos_addr!(PROVER),
                 &verifier_set_id,
                 wrong_chain_name.clone(),
             );

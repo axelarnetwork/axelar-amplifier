@@ -29,9 +29,9 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// ```
 /// use cosmwasm_schema::cw_serde;
 /// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
-/// use cosmwasm_std::testing::MockApi;
 /// use axelar_wasm_std::permission_control::Permission;
 /// use msgs_derive::Permissions;
+/// use router_api::cosmos_addr;
 ///
 /// #[cw_serde]
 /// #[derive(Permissions)]
@@ -60,7 +60,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// # struct Store;
 /// # impl Store {
 /// #     fn load(&self, storage: &dyn cosmwasm_std::Storage) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error> {
-/// #         Ok(MockApi::default().addr_make("gateway"))
+/// #         Ok(cosmos_addr!("gateway"))
 /// #     }
 /// # }
 /// # const GATEWAY: Store = Store;
@@ -71,7 +71,7 @@ use syn::{parse_quote, Expr, ExprCall, Ident, ItemEnum, ItemFn, Path, Token, Var
 /// # let env = mock_env();
 /// // example how to call the execute function
 /// let info = MessageInfo{
-///    sender: MockApi::default().addr_make("sender"),
+///    sender: cosmos_addr!("sender"),
 ///    funds: vec![],
 /// };
 ///
