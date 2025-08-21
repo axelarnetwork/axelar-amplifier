@@ -79,7 +79,7 @@ impl Validate for Request<ContractsRequest> {
     fn validate(self) -> Result<Self::Output, Error> {
         let ContractsRequest { chain } = self.into_inner();
 
-        ChainName::try_from(chain.as_str()).change_context(Error::InvalidChainName(chain))
+        ChainName::try_from(chain.clone()).change_context(Error::InvalidChainName(chain))
     }
 }
 
