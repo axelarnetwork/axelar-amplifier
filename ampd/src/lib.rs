@@ -94,11 +94,8 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         tm_client,
     } = cfg;
 
-    let (monitoring_server, monitoring_client) = monitoring::Server::new(
-        monitoring_server.bind_address,
-        monitoring_server.channel_size,
-    )
-    .change_context(Error::Monitor)?;
+    let (monitoring_server, monitoring_client) =
+        monitoring::Server::new(monitoring_server).change_context(Error::Monitor)?;
 
     let tm_client = tm_client::TendermintClient::new(
         tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())

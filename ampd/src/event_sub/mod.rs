@@ -37,9 +37,13 @@ pub enum Error {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
+    // The maximum number of blocks to process concurrently.
     pub block_processing_buffer: usize,
+    // Interval to poll for new blocks
     #[serde(with = "humantime_serde")]
     pub poll_interval: Duration,
+
+    // Retry policy for block processing and event retrival
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
     pub retry_max_attempts: u64,

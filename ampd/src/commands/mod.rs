@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::pin::Pin;
 
 use clap::Subcommand;
@@ -165,7 +164,7 @@ async fn instantiate_broadcaster(
         .await
         .change_context(Error::Broadcaster)?;
 
-    let (_, monitoring_client) = monitoring::Server::new(None::<SocketAddr>, None)
+    let (_, monitoring_client) = monitoring::Server::new(monitoring::Config::Disabled)
         .expect("should never fail to create dummy monitoring client");
 
     let (msg_queue, _) = broadcast::MsgQueue::new_msg_queue_and_client(

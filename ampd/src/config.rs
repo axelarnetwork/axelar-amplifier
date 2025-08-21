@@ -72,6 +72,7 @@ mod tests {
     use super::Config;
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{Chain, Config as HandlerConfig};
+    use crate::monitoring;
     use crate::types::TMAddress;
     use crate::url::Url;
 
@@ -631,10 +632,12 @@ mod tests {
         );
         let cfg: Config = toml::from_str(&config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server.bind_address,
-            Some(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001))
+            cfg.monitoring_server,
+            monitoring::Config::Enabled {
+                bind_address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001),
+                channel_size: 500,
+            }
         );
-        assert_eq!(cfg.monitoring_server.channel_size, Some(500));
     }
 
     #[test]
@@ -645,10 +648,12 @@ mod tests {
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server.bind_address,
-            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
+            cfg.monitoring_server,
+            monitoring::Config::Enabled {
+                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
+                channel_size: 1000,
+            }
         );
-        assert_eq!(cfg.monitoring_server.channel_size, Some(1000));
     }
 
     #[test]
@@ -659,7 +664,13 @@ mod tests {
             bind_address = '0.0.0.0:3000'
             ";
         let cfg: Config = toml::from_str(config_str_1).unwrap();
-        assert_eq!(cfg.monitoring_server.channel_size, Some(1000));
+        assert_eq!(
+            cfg.monitoring_server,
+            monitoring::Config::Enabled {
+                bind_address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3000),
+                channel_size: 1000,
+            }
+        );
 
         let config_str_2 = "
         [monitoring_server]
@@ -667,9 +678,13 @@ mod tests {
         channel_size = 500
         ";
         let cfg: Config = toml::from_str(config_str_2).unwrap();
+
         assert_eq!(
-            cfg.monitoring_server.bind_address,
-            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
+            cfg.monitoring_server,
+            monitoring::Config::Enabled {
+                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
+                channel_size: 500,
+            }
         );
     }
 
@@ -680,6 +695,22 @@ mod tests {
             enabled = false
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.monitoring_server.bind_address, None);
+        assert_eq!(cfg.monitoring_server, monitoring::Config::Disabled);
+    }
+
+    #[test]
+    fn deserialize_event_sub_config() {
+        let config_str = "
+            [event_sub]
+            block_processing_buffer = 10
+            poll_interval = '5s'
+            retry_delay = '3s'
+            retry_max_attempts = 3
+            ";
+        let cfg: Config = toml::from_str(config_str).unwrap();
+        assert_eq!(cfg.event_sub.block_processing_buffer, 10);
+        assert_eq!(cfg.event_sub.poll_interval, Duration::from_secs(5));
+        assert_eq!(cfg.event_sub.retry_delay, Duration::from_secs(3));
+        assert_eq!(cfg.event_sub.retry_max_attempts, 3);
     }
 }

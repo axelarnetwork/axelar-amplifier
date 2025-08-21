@@ -27,8 +27,9 @@ gas_price=[gas price with denom, i.e. "0.007uaxl"]
 queue_cap=[max messages to queue when broadcasting]
 tx_fetch_interval=[how often to query for transaction inclusion in a block]
 tx_fetch_max_retries=[how many times to query for transaction inclusion in a block before failing]
-tx_confirmation_buffer_size=[maximum number of transaction confirmations to process concurrently]
-tx_confirmation_queue_cap=[how many transactions can be queued for confirmation before backpressure]
+tx_confirmation_buffer_size=[maximum concurrent transaction confirmations (higher values improve throughput, lower values reduce resource usage; tune based on network and system capacity)]
+tx_confirmation_queue_cap=[maximum size of the confirmation queue (larger values buffer more transactions during spikes but use more memory; smaller values risk dropping requests under load)]
+
 
 [tofnd_config]
 key_uid=[uid of key used for signing transactions]
