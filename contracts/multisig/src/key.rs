@@ -129,7 +129,7 @@ pub enum PublicKey {
     Ed25519(HexBinary),
 
     #[serde(deserialize_with = "deserialize_aleo_address")]
-    AleoSchnorr(HexBinary), // Store the Address of Aleo, using to_bytes_le() to serialize it
+    AleoSchnorr(HexBinary),
 }
 
 fn deserialize_ecdsa_key<'de, D>(deserializer: D) -> Result<HexBinary, D::Error>
@@ -207,6 +207,7 @@ impl Signature {
             KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
             KeyType::Ed25519 => ed25519_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
             KeyType::AleoSchnorr => Err(ContractError::UnsupportedSignatureType {
+                // THIS IS NOT IMPLEMENTED BECAUSE ITS HANDLE BY ALEO sig-verifier
                 signature_type: self.key_type(),
             }),
         }?;
@@ -277,7 +278,8 @@ fn validate_and_normalize_public_key(
         .to_bytes()
         .into()),
         KeyType::AleoSchnorr => Ok(snarkvm_cosmwasm::prelude::Address::<
-            snarkvm_cosmwasm::prelude::TestnetV0,
+            snarkvm_cosmwasm::prelude::TestnetV0, // TODO: remove generics. Is there a way to
+            // verify the key type without the network?
         >::from_bytes_le(&pub_key)
         .and_then(|addr| addr.to_bytes_le())
         .map_err(|_| report!(ContractError::InvalidPublicKey))?
