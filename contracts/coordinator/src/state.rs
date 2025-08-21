@@ -218,21 +218,13 @@ pub fn save_deployed_contracts(
 pub fn deployed_contracts(
     storage: &dyn Storage,
     start: Option<nonempty::String>,
-    limit: Option<u64>,
+    limit: u32,
 ) -> Result<Vec<ChainContracts>, Error> {
-    let start = start.map(Bound::inclusive);
-
-    Ok(match limit {
-        Some(l) => DEPLOYED_CHAINS
-            .range(storage, start, None, Order::Ascending)
-            .take(usize::try_from(l).change_context(Error::StateParseFailed)?)
-            .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
-            .collect(),
-        None => DEPLOYED_CHAINS
-            .range(storage, start, None, Order::Ascending)
-            .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
-            .collect(),
-    })
+    Ok(DEPLOYED_CHAINS
+        .range(storage, start.map(Bound::inclusive), None, Order::Ascending)
+        .take(limit as usize)
+        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
+        .collect())
 }
 
 pub fn is_prover_registered(

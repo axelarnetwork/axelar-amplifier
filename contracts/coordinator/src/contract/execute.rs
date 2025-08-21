@@ -322,7 +322,7 @@ pub fn register_deployment(
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
     let deployed_contracts =
-        state::deployed_contracts(deps.storage, Some(deployment_name.clone()), Some(1))
+        state::deployed_contracts(deps.storage, Some(deployment_name.clone()), 1)
             .change_context(Error::ChainContractsInfo)?
             .first()
             .ok_or(report!(Error::DeploymentsNotFound))?

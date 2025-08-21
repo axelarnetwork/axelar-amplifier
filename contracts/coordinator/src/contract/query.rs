@@ -99,7 +99,7 @@ pub fn chain_contracts_info(
 pub fn deployed_contracts(
     deps: Deps,
     start: Option<nonempty::String>,
-    limit: Option<u64>,
+    limit: u32,
 ) -> Result<Vec<ChainContractsResponse>, Error> {
     let contracts = state::deployed_contracts(deps.storage, start, limit)
         .change_context(Error::ChainContractsInfo)?

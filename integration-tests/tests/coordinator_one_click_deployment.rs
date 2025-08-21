@@ -651,7 +651,7 @@ fn coordinator_one_click_query_deployments_succeeds() {
         &protocol.app,
         &coordinator::msg::QueryMsg::Deployments {
             starting_deployment_name: None,
-            limit: None,
+            limit: 1,
         },
     );
     assert!(res.is_ok());
