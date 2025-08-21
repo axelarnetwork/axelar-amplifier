@@ -44,7 +44,6 @@ pub struct Config {
     pub stream_buffer_size: usize,
     #[serde(with = "humantime_serde")]
     pub delay: Duration,
-    #[serde(default)]
     pub tx_broadcast_buffer_size: usize,
 }
 

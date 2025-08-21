@@ -27,10 +27,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-// safe upper bound for expected metric throughput;
-// shouldn't exceed 1000 message
-const CHANNEL_SIZE: usize = 1000;
-
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 

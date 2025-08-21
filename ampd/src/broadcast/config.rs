@@ -18,9 +18,7 @@ pub struct Config {
     pub queue_cap: usize,
     #[serde(with = "humantime_serde")]
     pub broadcast_interval: Duration,
-    #[serde(default)]
     pub tx_confirmation_buffer_size: usize,
-    #[serde(default)]
     pub tx_confirmation_queue_cap: usize,
 }
 

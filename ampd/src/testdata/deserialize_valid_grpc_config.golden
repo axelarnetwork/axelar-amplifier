@@ -1,6 +1,7 @@
 {
   "tm_jsonrpc": "http://localhost:26657/",
   "tm_grpc": "tcp://localhost:9090",
+  "default_rpc_timeout": "3s",
   "tm_grpc_timeout": {
     "secs": 5,
     "nanos": 0

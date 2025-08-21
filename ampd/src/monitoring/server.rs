@@ -375,6 +375,7 @@ mod tests {
         // Test parsing enabled config from environment variable
         env::set_var("TEST_MONITORING_ENABLED", "true");
         env::set_var("TEST_MONITORING_BIND_ADDRESS", "127.0.0.1:4000");
+        env::set_var("TEST_MONITORING_CHANNEL_SIZE", "500");
 
         let enabled_config: Config = cfg::builder()
             .add_source(Environment::with_prefix("TEST_MONITORING"))
@@ -386,6 +387,7 @@ mod tests {
             enabled_config.bind_address,
             Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 4000))
         );
+        assert_eq!(enabled_config.channel_size, Some(500));
 
         // Test parsing disabled config from environment variable
         env::set_var("TEST_MONITORING_ENABLED", "false");
@@ -400,6 +402,7 @@ mod tests {
         // Clean up
         env::remove_var("TEST_MONITORING_ENABLED");
         env::remove_var("TEST_MONITORING_BIND_ADDRESS");
+        env::remove_var("TEST_MONITORING_CHANNEL_SIZE");
     }
 
     #[test]

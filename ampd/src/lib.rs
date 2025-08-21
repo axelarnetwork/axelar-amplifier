@@ -62,7 +62,6 @@ use crate::config::Config;
 use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
-const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
 lazy_static! {
     static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
@@ -81,6 +80,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
+        default_rpc_timeout,
         tm_grpc_timeout,
         broadcast,
         handlers,
@@ -198,7 +198,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         tx_confirmer,
         monitoring_client,
     )
-    .configure_handlers(verifier, handlers, event_processor)
+    .configure_handlers(verifier, handlers, event_processor, default_rpc_timeout)
     .await
 }
 
@@ -273,10 +273,16 @@ impl App {
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         event_processor_config: event_processor::Config,
+        default_rpc_timeout: Duration,
     ) -> Result<App, Error> {
         for config in handler_configs {
             match self
-                .try_create_handler_task(&config, &verifier, &event_processor_config)
+                .try_create_handler_task(
+                    &config,
+                    &verifier,
+                    &event_processor_config,
+                    default_rpc_timeout,
+                )
                 .await
             {
                 Ok(task) => {
@@ -298,6 +304,7 @@ impl App {
         config: &handlers::config::Config,
         verifier: &TMAddress,
         event_processor_config: &event_processor::Config,
+        default_rpc_timeout: Duration,
     ) -> Result<CancellableTask<Result<(), event_processor::Error>>, Error> {
         match config {
             handlers::config::Config::EvmMsgVerifier {
@@ -308,8 +315,8 @@ impl App {
                 let rpc_client = json_rpc::Client::new_http(
                     chain.rpc_url.clone(),
                     reqwest::ClientBuilder::new()
-                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                         .build()
                         .change_context(Error::Connection)?,
                     self.monitoring_client.clone(),
@@ -341,8 +348,8 @@ impl App {
                 let rpc_client = json_rpc::Client::new_http(
                     chain.rpc_url.clone(),
                     reqwest::ClientBuilder::new()
-                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                         .build()
                         .change_context(Error::Connection)?,
                     self.monitoring_client.clone(),
@@ -393,8 +400,8 @@ impl App {
                     json_rpc::Client::new_http(
                         rpc_url.clone(),
                         reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                             .build()
                             .change_context(Error::Connection)?,
                         self.monitoring_client.clone(),
@@ -416,8 +423,8 @@ impl App {
                     .base_url(chain_rpc_url.as_str())
                     .http_client(
                         reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                             .build()
                             .change_context(Error::Connection)?,
                     )
@@ -469,8 +476,8 @@ impl App {
                     json_rpc::Client::new_http(
                         rpc_url.clone(),
                         reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                             .build()
                             .change_context(Error::Connection)?,
                         self.monitoring_client.clone(),
@@ -614,7 +621,7 @@ impl App {
                     solana::Client::new(
                         RpcClient::new_with_timeout_and_commitment(
                             rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                            rpc_timeout.unwrap_or(default_rpc_timeout),
                             CommitmentConfig::finalized(),
                         ),
                         self.monitoring_client.clone(),
@@ -640,7 +647,7 @@ impl App {
                     solana::Client::new(
                         RpcClient::new_with_timeout_and_commitment(
                             rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                            rpc_timeout.unwrap_or(default_rpc_timeout),
                             CommitmentConfig::finalized(),
                         ),
                         self.monitoring_client.clone(),
@@ -666,7 +673,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     Client::new_http(
                         rpc_url.clone(),
-                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                        rpc_timeout.unwrap_or(default_rpc_timeout),
                         self.monitoring_client.clone(),
                         chain_name.clone(),
                     )?,
@@ -690,7 +697,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     Client::new_http(
                         rpc_url.clone(),
-                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
+                        rpc_timeout.unwrap_or(default_rpc_timeout),
                         self.monitoring_client.clone(),
                         chain_name.clone(),
                     )?,
