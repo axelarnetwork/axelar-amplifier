@@ -112,7 +112,7 @@ fn migrate_config(
 }
 
 fn migrate_chain_contracts(
-    deps: DepsMut,
+    mut deps: DepsMut,
     chain_contracts: Vec<ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
@@ -131,8 +131,18 @@ fn migrate_chain_contracts(
         })
         .collect::<Result<HashMap<ChainName, ChainContracts>, MigrationError>>()?;
 
+    migrate_registered_provers(&mut deps, provers_by_chain, &mut contracts_map)?;
+
+    migrate_remaining_chains(&mut deps, &mut contracts_map)
+}
+
+fn migrate_registered_provers(
+    deps: &mut DepsMut,
+    provers_by_chain: Vec<(ChainName, Addr)>,
+    contracts_map: &mut HashMap<ChainName, ChainContracts>,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
     for (chain_name, prover_addr) in provers_by_chain {
-        let contracts = contracts_for_chain(chain_name.clone(), &mut contracts_map)?;
+        let contracts = contracts_for_chain(chain_name.clone(), contracts_map)?;
 
         save_contracts_to_state(
             deps.storage,
@@ -153,10 +163,17 @@ fn migrate_chain_contracts(
         )?;
     }
 
-    for (_, contracts) in contracts_map {
-        if let Some(prover_address) = contracts.prover_address {
-            let prover_address = address::validate_cosmwasm_address(deps.api, &prover_address)
-            .change_context(MigrationError::InvalidChainContracts)?;
+    Ok(())
+}
+
+fn migrate_remaining_chains(
+    deps: &mut DepsMut,
+    contracts_map: &mut HashMap<ChainName, ChainContracts>,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
+    for contracts in contracts_map.values_mut() {
+        if let Some(prover_address) = &contracts.prover_address {
+            let prover_address = address::validate_cosmwasm_address(deps.api, prover_address)
+                .change_context(MigrationError::InvalidChainContracts)?;
 
             save_contracts_to_state(
                 deps.storage,
@@ -703,9 +720,7 @@ mod tests {
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
-            vec![
-                (chain_name1.clone(), prover_addr1.clone()),
-            ]
+            vec![(chain_name1.clone(), prover_addr1.clone()),]
         )
         .is_ok());
 
@@ -726,7 +741,9 @@ mod tests {
                     },
                     ChainContracts {
                         chain_name: chain_name2.clone(),
-                        prover_address: Some(nonempty::String::try_from(prover_addr2.to_string()).unwrap()),
+                        prover_address: Some(
+                            nonempty::String::try_from(prover_addr2.to_string()).unwrap(),
+                        ),
                         gateway_address: nonempty::String::try_from(gateway_addr2.to_string())
                             .unwrap(),
                         verifier_address: nonempty::String::try_from(verifier_addr2.to_string())
