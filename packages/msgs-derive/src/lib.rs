@@ -277,7 +277,7 @@ fn build_specific_permissions_check(
             quote! {
                 #(
                     let sender_is_authorized = error_stack::ResultExt::change_context(
-                        #specific_permissions(storage, sender.clone(), &self).map_err(|err| error_stack::Report::from(err)),
+                        #specific_permissions(storage, sender, &self).map_err(|err| error_stack::Report::from(err)),
                         axelar_wasm_std::permission_control::Error::WhitelistNotFound{sender: sender.clone()})?;
                     if sender_is_authorized {
                         return Ok(self);
@@ -481,7 +481,7 @@ fn build_full_check_function(
                 #(#unique_specific_permissions: #fs),*)
                 -> error_stack::Result<Self,axelar_wasm_std::permission_control::Error>
                     where
-                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, cosmwasm_std::Addr, &Self) -> error_stack::Result<bool, #cs>),*,
+                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &cosmwasm_std::Addr, &Self) -> error_stack::Result<bool, #cs>),*,
                         #(#cs: error_stack::Context),*
                     {
                 #specific_permission_body
@@ -522,7 +522,7 @@ fn external_execute_msg_ident(execute_msg_ident: Ident) -> Ident {
 ///
 /// Direct:
 ///
-/// FnOnce(&dyn cosmwasm_std::Storage, Addr, &ExecuteMsg) -> error_stack::Result<bool, impl error_stack::Context>
+/// FnOnce(&dyn cosmwasm_std::Storage, &Addr, &ExecuteMsg) -> error_stack::Result<bool, impl error_stack::Context>
 ///
 /// The `find_verifier_address` function must return the true if the sender address is authorized to
 /// execute the message, and false otherwise. This function should return an error only if there is
@@ -710,7 +710,7 @@ fn validate_external_contract_function(contracts: Vec<Ident>) -> TokenStream {
 ///
 /// Direct:
 ///
-/// FnOnce(&dyn cosmwasm_std::Storage, Addr, &ExecuteMsg) -> error_stack::Result<bool, impl error_stack::Context>
+/// FnOnce(&dyn cosmwasm_std::Storage, &Addr, &ExecuteMsg) -> error_stack::Result<bool, impl error_stack::Context>
 ///
 /// The `find_sender_address` function must return the true if the sender address is authorized to
 /// execute the message, and false otherwise. This function should return an error only if there is

@@ -179,11 +179,11 @@ pub fn register_pub_key(
 
 pub fn require_authorized_caller(
     storage: &dyn Storage,
-    sender_addr: Addr,
+    sender_addr: &Addr,
     chain_name: &ChainName,
 ) -> Result<bool, ContractError> {
     Ok(AUTHORIZED_CALLERS
-        .may_load(storage, &sender_addr)
+        .may_load(storage, sender_addr)
         .map_err(ContractError::from)?
         == Some(chain_name.clone()))
 }

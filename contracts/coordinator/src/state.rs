@@ -236,7 +236,8 @@ pub fn is_prover_registered(
         .idx
         .by_prover
         .item(storage, prover_address)
-        .is_ok_and(|result| result.is_some()))
+        .expect("prover not found")
+        .is_some())
 }
 
 #[index_list(VerifierProverRecord)]

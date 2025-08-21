@@ -75,7 +75,7 @@ pub fn specific_permission(
     specific_name: &str,
 ) -> impl FnOnce(
     &dyn Storage,
-    Addr,
+    &Addr,
     &TestMsg3,
 ) -> error_stack::Result<bool, axelar_wasm_std::permission_control::Error>
        + '_ {
@@ -200,13 +200,13 @@ fn ensure_specific_permissions() {
     let gateway2_addr = cosmos_addr!("gateway2");
     let gateway3_addr = cosmos_addr!("gateway3");
 
-    let gateway1 = |_: &dyn Storage, sender_addr: Addr, _: &TestMsg2| {
+    let gateway1 = |_: &dyn Storage, sender_addr: &Addr, _: &TestMsg2| {
         Ok::<bool, Report<Error>>(sender_addr == cosmos_addr!("gateway1"))
     };
-    let gateway2 = |_: &dyn Storage, sender_addr: Addr, _: &TestMsg2| {
+    let gateway2 = |_: &dyn Storage, sender_addr: &Addr, _: &TestMsg2| {
         Ok::<bool, Report<Error>>(sender_addr == cosmos_addr!("gateway2"))
     };
-    let gateway3 = |_: &dyn Storage, sender_addr: Addr, _: &TestMsg2| {
+    let gateway3 = |_: &dyn Storage, sender_addr: &Addr, _: &TestMsg2| {
         Ok::<bool, Report<Error>>(sender_addr == cosmos_addr!("gateway3"))
     };
 
@@ -333,6 +333,18 @@ fn ensure_specific_permissions() {
             .current_context(),
         permission_control::Error::SpecificPermissionDenied { .. }
     ));
+
+    println!(
+        "Error: {:?}",
+        TestMsg2::Specific4.ensure_permissions(
+            &storage,
+            &no_privilege,
+            gateway1,
+            gateway2,
+            gateway3
+        )
+    );
+
     assert!(matches!(
         TestMsg2::Specific4
             .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
@@ -357,7 +369,7 @@ fn ensure_specific_permissions() {
         .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
         .is_ok());
 
-    let gateway3 = |_: &dyn Storage, _: Addr, _: &TestMsg2| Err(report!(Error));
+    let gateway3 = |_: &dyn Storage, _: &Addr, _: &TestMsg2| Err(report!(Error));
 
     assert!(matches!(
         TestMsg2::Specific4

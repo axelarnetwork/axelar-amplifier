@@ -149,7 +149,7 @@ pub fn execute(
 
 fn match_gateway(
     storage: &dyn Storage,
-    sender_addr: Addr,
+    sender_addr: &Addr,
     _: &ExecuteMsg,
 ) -> Result<bool, Report<Error>> {
     Ok(sender_addr == state::load_config(storage).axelarnet_gateway)
@@ -157,7 +157,7 @@ fn match_gateway(
 
 fn match_operator(
     storage: &dyn Storage,
-    sender_addr: Addr,
+    sender_addr: &Addr,
     _: &ExecuteMsg,
 ) -> Result<bool, Report<Error>> {
     Ok(sender_addr == state::load_config(storage).operator)

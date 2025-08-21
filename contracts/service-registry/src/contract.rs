@@ -152,7 +152,7 @@ pub fn execute(
 
 fn match_verifier(
     storage: &dyn Storage,
-    sender_addr: Addr,
+    sender_addr: &Addr,
     msg: &ExecuteMsg,
 ) -> Result<bool, Report<permission_control::Error>> {
     let service_name = match msg {
@@ -162,7 +162,7 @@ fn match_verifier(
     };
 
     let res = VERIFIERS
-        .load(storage, (service_name, &sender_addr))
+        .load(storage, (service_name, sender_addr))
         .map(|verifier| verifier.address)
         .change_context(ContractError::VerifierNotFound)
         .change_context(permission_control::Error::Unauthorized);

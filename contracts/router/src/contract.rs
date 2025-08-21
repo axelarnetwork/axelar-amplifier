@@ -101,14 +101,14 @@ pub fn execute(
 
 fn find_gateway_address(
     storage: &dyn Storage,
-    sender: Addr,
+    sender: &Addr,
     _msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, Error> {
     let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
     if axelarnet_gateway == sender {
         Ok(true)
     } else {
-        match load_chain_by_gateway(storage, &sender) {
+        match load_chain_by_gateway(storage, sender) {
             Ok(_) => Ok(true),
             Err(e)
                 if e.frames()

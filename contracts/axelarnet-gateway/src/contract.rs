@@ -111,7 +111,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
 fn match_nexus(
     storage: &dyn Storage,
-    sender_addr: Addr,
+    sender_addr: &Addr,
     _: &ExecuteMsg,
 ) -> Result<bool, Report<Error>> {
     Ok(sender_addr == state::load_config(storage).nexus)

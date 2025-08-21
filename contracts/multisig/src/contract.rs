@@ -128,7 +128,7 @@ fn validate_contract_addresses(
 
 fn can_start_signing_session(
     storage: &dyn Storage,
-    sender_addr: Addr,
+    sender_addr: &Addr,
     msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, permission_control::Error> {
     match msg {

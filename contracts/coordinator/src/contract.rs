@@ -102,7 +102,7 @@ pub fn execute(
 
 fn find_prover_address(
     storage: &dyn Storage,
-    sender: Addr,
+    sender: &Addr,
     _msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, state::Error> {
     state::is_prover_registered(storage, sender.clone())
