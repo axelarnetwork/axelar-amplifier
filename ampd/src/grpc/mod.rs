@@ -25,7 +25,7 @@ use valuable::Valuable;
 
 use crate::types::debug::REDACTED_VALUE;
 use crate::types::TMAddress;
-use crate::{broadcast, cosmos, event_sub, tofnd};
+use crate::{broadcast, cosmos, event_sub, monitoring, tofnd};
 
 mod blockchain_service;
 mod crypto_service;
@@ -117,6 +117,7 @@ pub struct Server {
     multisig_client: tofnd::MultisigClient,
     service_registry: TMAddress,
     rewards: TMAddress,
+    monitoring_client: monitoring::Client,
 }
 
 impl Server {
@@ -157,10 +158,12 @@ impl Server {
                     .service_registry(self.service_registry)
                     .rewards(self.rewards)
                     .config(self.config.blockchain_service)
+                    .monitoring_client(self.monitoring_client.clone())
                     .build(),
             ))
-            .add_service(CryptoServiceServer::new(crypto_service::Service::from(
+            .add_service(CryptoServiceServer::new(crypto_service::Service::new(
                 self.multisig_client,
+                self.monitoring_client.clone(),
             )));
 
         info!(%addr, "gRPC server started");
