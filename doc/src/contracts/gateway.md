@@ -7,7 +7,7 @@ external gateways, which are gateways deployed on external chains connected to A
 The gateway contract is how messages enter the amplifier protocol.
 Here are the steps taken throughout the lifecycle of
 a message:
-1. User sends a message to the external gateway. We call this incoming message.
+1. User sends a message to the external gateway. We call this an incoming message.
 2. Incoming messages are sent to the gateway via `VerifyMessages`.
 3. The gateway calls `VerifyMessages` on the verifier, which submits the messages for verification (or just returns true if already verified).
 4. The messages are verified asynchronously, and the verification status is stored in the verifier.

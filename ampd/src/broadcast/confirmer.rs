@@ -9,7 +9,9 @@ use tracing::{debug, info, instrument, warn};
 use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::cosmos;
+use crate::monitoring::metrics;
+use crate::monitoring::metrics::{Msg, Stage};
+use crate::{cosmos, monitoring};
 
 // TODO: move these constants to the config. In the meantime, these were chosen as reasonable heuristics.
 // Maximum number of transaction confirmations to process concurrently.
@@ -54,6 +56,7 @@ where
     rx: mpsc::Receiver<String>,
     client: T,
     retry_policy: RetryPolicy,
+    monitoring_client: monitoring::Client,
 }
 
 impl<T> TxConfirmer<T>
@@ -71,12 +74,14 @@ where
     pub fn new_confirmer_and_client(
         client: T,
         retry_policy: RetryPolicy,
+        monitoring_client: monitoring::Client,
     ) -> (Self, TxConfirmerClient) {
         let (tx, rx) = mpsc::channel(TX_CONFIRMATION_QUEUE_CAP);
         let confirmer = Self {
             rx,
             client,
             retry_policy,
+            monitoring_client,
         };
 
         (confirmer, tx)
@@ -97,10 +102,23 @@ where
             rx,
             client,
             retry_policy,
+            monitoring_client,
         } = self;
         let mut stream = ReceiverStream::new(rx)
             .inspect(|tx_hash| info!(tx_hash, "received tx hash to confirm"))
-            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy))
+            .map(|tx_hash| async {
+                let (res, elapsed) =
+                    metrics::timed(|| async { confirm_tx(&client, tx_hash, retry_policy).await })
+                        .await;
+
+                monitoring_client.metrics().record_metric(Msg::StageResult {
+                    stage: Stage::TransactionConfirmation,
+                    success: res.is_ok(),
+                    duration: elapsed,
+                });
+
+                res
+            })
             .buffer_unordered(TX_CONFIRMATION_BUFFER_SIZE);
 
         while let Some(result) = stream.next().await {
@@ -179,6 +197,8 @@ mod tests {
 
     use crate::asyncutil::future::RetryPolicy;
     use crate::cosmos;
+    use crate::monitoring::metrics::{Msg, Stage};
+    use crate::monitoring::test_utils;
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
@@ -208,13 +228,26 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx succeeded on chain"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: true,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -245,13 +278,26 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx failed on chain"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: false,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -273,13 +319,26 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx not found on chain"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: false,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -301,12 +360,25 @@ mod tests {
             client
         });
 
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
         let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+            super::TxConfirmer::new_confirmer_and_client(client, retry_policy, monitoring_client);
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("failed to query for tx"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: false,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 }

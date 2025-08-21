@@ -14,7 +14,7 @@ V--RecordParticipation-->R
 M--RecordParticipation-->R
 E--DistributeRewards-->R
 U--AddRewards-->R
-G--UpdateParams-->R
+G--UpdatePoolParams-->R
 R--Send rewards-->W
 ```
 
@@ -63,7 +63,7 @@ participant Verifier
 participant Multisig Prover
 
 Multisig Prover ->> Multisig: StartSigningSession
-Verifier ->> Multisig: Sign
+Verifier ->> Multisig: SubmitSignature
 opt If signed within grace period
 Multisig ->> Rewards: RecordParticipation
 end
