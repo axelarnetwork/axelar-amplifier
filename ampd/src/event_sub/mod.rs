@@ -50,7 +50,7 @@ impl Default for Config {
         Self {
             block_processing_buffer: 10,
             poll_interval: Duration::from_secs(5),
-            retry_delay: Duration::from_secs(1),
+            retry_delay: Duration::from_secs(3),
             retry_max_attempts: 3,
         }
     }
