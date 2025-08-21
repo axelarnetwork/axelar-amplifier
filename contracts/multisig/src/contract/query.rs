@@ -34,8 +34,10 @@ pub fn public_key(deps: Deps, verifier: Addr, key_type: KeyType) -> StdResult<Pu
 }
 
 pub fn caller_authorized(deps: Deps, address: Addr, chain_name: ChainName) -> StdResult<bool> {
-    let is_authorized = load_authorized_caller(deps.storage, address)? == chain_name;
-    Ok(is_authorized)
+    Ok(load_authorized_caller(deps.storage, address)
+        .ok()
+        .filter(|c| c == &chain_name)
+        .is_some())
 }
 
 pub fn callers_for_chain(deps: Deps, chain_name: ChainName) -> StdResult<HashSet<Addr>> {
