@@ -139,16 +139,13 @@ pub fn remove_authorized_caller(
 ) -> StdResult<()> {
     let chain_name = AUTHORIZED_CALLERS.load(storage, &contract_address)?;
     AUTHORIZED_CALLERS.remove(storage, &contract_address);
-    match CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
-        Ok(Some(mut addresses)) => {
-            addresses.remove(&contract_address);
-            if addresses.is_empty() {
-                CALLERS_FOR_CHAIN.remove(storage, &chain_name);
-            } else {
-                CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)?;
-            }
+    if let Ok(Some(mut addresses)) = CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
+        addresses.remove(&contract_address);
+        if addresses.is_empty() {
+            CALLERS_FOR_CHAIN.remove(storage, &chain_name);
+        } else {
+            CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)?;
         }
-        _ => {}
     }
 
     Ok(())
