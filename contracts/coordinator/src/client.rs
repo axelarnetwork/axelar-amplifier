@@ -104,19 +104,22 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::{chain_name, cosmos_addr};
 
     use crate::client::Client;
     use crate::msg::{ChainContractsKey, ChainContractsResponse, QueryMsg};
 
+    const AXELAR: &str = "axelar";
+    const VERIFIER: &str = "verifier";
+
     #[test]
     fn query_ready_to_unbond_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(cosmos_addr!("verifier").to_string());
+        let res = client.ready_to_unbond(cosmos_addr!(VERIFIER).to_string());
 
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -127,7 +130,7 @@ mod test {
         let (querier, addr) = setup_queries_to_succeed();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
-        let res = client.ready_to_unbond(cosmos_addr!("verifier").to_string());
+        let res = client.ready_to_unbond(cosmos_addr!(VERIFIER).to_string());
 
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -139,7 +142,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let res = client.chain_contracts(ChainContractsKey::ChainName(chain_name!("axelar")));
+        let res = client.chain_contracts(ChainContractsKey::ChainName(chain_name!(AXELAR)));
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
 
@@ -155,7 +158,7 @@ mod test {
         goldie::assert_json!(res.unwrap());
 
         let res = client.chain_contracts(ChainContractsKey::VerifierAddress(Addr::unchecked(
-            "verifier",
+            VERIFIER,
         )));
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
@@ -167,7 +170,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let res = client.chain_contracts(ChainContractsKey::ChainName(chain_name!("axelar")));
+        let res = client.chain_contracts(ChainContractsKey::ChainName(chain_name!(AXELAR)));
         assert!(res.is_err());
         goldie::assert_json!(res.unwrap_err().to_string());
     }
@@ -212,29 +215,29 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "coordinator";
+        const ADDR: &str = "coordinator";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
+            } if contract_addr == cosmos_addr!(ADDR).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, cosmos_addr!(ADDR))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = "coordinator";
+        const ADDR: &str = "coordinator";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+                if contract_addr == cosmos_addr!(ADDR).as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
@@ -247,9 +250,9 @@ mod test {
                     } => Ok(to_json_binary(&true).into()).into(),
                     QueryMsg::ChainContractsInfo(_) => {
                         Ok(to_json_binary(&ChainContractsResponse {
-                            chain_name: chain_name!("axelar"),
+                            chain_name: chain_name!(AXELAR),
                             prover_address: Addr::unchecked("prover"),
-                            verifier_address: Addr::unchecked("verifier"),
+                            verifier_address: Addr::unchecked(VERIFIER),
                             gateway_address: Addr::unchecked("gateway"),
                         })
                         .into())
@@ -261,6 +264,6 @@ mod test {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, cosmos_addr!(ADDR))
     }
 }

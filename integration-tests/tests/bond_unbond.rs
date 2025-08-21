@@ -36,7 +36,10 @@ fn verifier_should_not_unbond_while_in_active_set() {
 #[test]
 #[allow(clippy::arithmetic_side_effects)]
 fn claim_stake_after_rotation_success() {
-    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
+    let chains: Vec<router_api::ChainName> = vec![
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
+    ];
 
     let test_utils::TestCase {
         mut protocol,
@@ -107,7 +110,10 @@ fn claim_stake_after_rotation_success() {
 
 #[test]
 fn claim_stake_when_in_all_active_verifier_sets_fails() {
-    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
+    let chains: Vec<router_api::ChainName> = vec![
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
+    ];
 
     let test_utils::TestCase {
         mut protocol,
@@ -144,7 +150,10 @@ fn claim_stake_when_in_all_active_verifier_sets_fails() {
 
 #[test]
 fn claim_stake_when_in_some_active_verifier_sets_fails() {
-    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
+    let chains: Vec<router_api::ChainName> = vec![
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
+    ];
 
     let test_utils::TestCase {
         mut protocol,
@@ -185,7 +194,10 @@ fn claim_stake_when_in_some_active_verifier_sets_fails() {
 
 #[test]
 fn claim_stake_after_deregistering_before_rotation_fails() {
-    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
+    let chains: Vec<router_api::ChainName> = vec![
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
+    ];
 
     let test_utils::TestCase {
         mut protocol,
@@ -232,7 +244,10 @@ fn claim_stake_after_deregistering_before_rotation_fails() {
 
 #[test]
 fn claim_stake_when_jailed_fails() {
-    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
+    let chains: Vec<router_api::ChainName> = vec![
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
+    ];
 
     let test_utils::TestCase {
         mut protocol,
@@ -287,7 +302,10 @@ fn claim_stake_when_jailed_fails() {
 
 #[test]
 fn claim_stake_when_in_next_verifier_sets_fails() {
-    let chains: Vec<router_api::ChainName> = vec![chain_name!("Ethereum"), chain_name!("Polygon")];
+    let chains: Vec<router_api::ChainName> = vec![
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
+    ];
 
     let test_utils::TestCase {
         mut protocol,
