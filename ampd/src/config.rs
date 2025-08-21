@@ -70,6 +70,8 @@ mod tests {
     use crate::url::Url;
 
     const PREFIX: &str = "axelar";
+    const SOLANA: &str = "solana";
+    const STACKS: &str = "stacks";
 
     #[test]
     fn deserialize_valid_grpc_config() {
@@ -582,7 +584,7 @@ mod tests {
                     rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::SolanaMsgVerifier {
-                    chain_name: chain_name!("solana"),
+                    chain_name: chain_name!(SOLANA),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -590,7 +592,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
-                    chain_name: chain_name!("solana"),
+                    chain_name: chain_name!(SOLANA),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -598,7 +600,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksMsgVerifier {
-                    chain_name: chain_name!("stacks"),
+                    chain_name: chain_name!(STACKS),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -606,7 +608,7 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksVerifierSetVerifier {
-                    chain_name: chain_name!("stacks"),
+                    chain_name: chain_name!(STACKS),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

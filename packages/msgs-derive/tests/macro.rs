@@ -8,6 +8,10 @@ use error_stack::{report, Report};
 use msgs_derive::{ensure_permissions, Permissions};
 use router_api::cosmos_addr;
 
+const REGULAR_USER: &str = "regular user";
+const ADMIN: &str = "admin";
+const GOVERNANCE: &str = "governance";
+
 #[cw_serde]
 #[derive(Permissions)]
 #[allow(dead_code)] // the msg fields are only defined to make sure the derive attribute can handle fields correctly
@@ -92,9 +96,9 @@ pub fn execute(
 
 #[test]
 fn test_general_ensure_permission() {
-    let no_privilege = cosmos_addr!("regular user");
-    let admin = cosmos_addr!("admin");
-    let governance = cosmos_addr!("governance");
+    let no_privilege = cosmos_addr!(REGULAR_USER);
+    let admin = cosmos_addr!(ADMIN);
+    let governance = cosmos_addr!(GOVERNANCE);
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
@@ -191,9 +195,9 @@ fn test_general_ensure_permission() {
 
 #[test]
 fn ensure_specific_permissions() {
-    let no_privilege = cosmos_addr!("regular user");
-    let admin = cosmos_addr!("admin");
-    let governance = cosmos_addr!("governance");
+    let no_privilege = cosmos_addr!(REGULAR_USER);
+    let admin = cosmos_addr!(ADMIN);
+    let governance = cosmos_addr!(GOVERNANCE);
 
     let gateway1_addr = cosmos_addr!("gateway1");
     let gateway2_addr = cosmos_addr!("gateway2");
@@ -366,9 +370,9 @@ fn ensure_specific_permissions() {
 
 #[test]
 fn ensure_proxy_permissions() {
-    let no_privilege = cosmos_addr!("regular user");
-    let admin = cosmos_addr!("admin");
-    let governance = cosmos_addr!("governance");
+    let no_privilege = cosmos_addr!(REGULAR_USER);
+    let admin = cosmos_addr!(ADMIN);
+    let governance = cosmos_addr!(GOVERNANCE);
 
     let gateway1_addr = cosmos_addr!("gateway1");
     let gateway2_addr = cosmos_addr!("gateway2");
