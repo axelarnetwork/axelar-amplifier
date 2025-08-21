@@ -102,7 +102,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
 
     let tm_client = tm_client::TendermintClient::new(
         tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
-        .change_context(Error::Connection)
+            .change_context(Error::Connection)
             .attach_printable(tm_jsonrpc.clone())?,
         tm_client.max_retries,
         tm_client.retry_delay,
