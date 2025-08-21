@@ -123,12 +123,13 @@ pub fn save_authorized_caller(
     AUTHORIZED_CALLERS.save(storage, &contract_address, &chain_name)?;
     match CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
         Err(e) => Err(e),
-        Ok(addresses) if addresses.is_some() => {
-            let mut addresses = addresses.unwrap();
+        Ok(Some(mut addresses)) => {
             addresses.insert(contract_address.clone());
             CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)
         }
-        Ok(..) => CALLERS_FOR_CHAIN.save(storage, &chain_name, &HashSet::from([contract_address])),
+        Ok(None) => {
+            CALLERS_FOR_CHAIN.save(storage, &chain_name, &HashSet::from([contract_address]))
+        }
     }
 }
 
@@ -139,8 +140,7 @@ pub fn remove_authorized_caller(
     let chain_name = AUTHORIZED_CALLERS.load(storage, &contract_address)?;
     AUTHORIZED_CALLERS.remove(storage, &contract_address);
     match CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
-        Ok(addresses) if addresses.is_some() => {
-            let mut addresses = addresses.unwrap();
+        Ok(Some(mut addresses)) => {
             addresses.remove(&contract_address);
             if addresses.is_empty() {
                 CALLERS_FOR_CHAIN.remove(storage, &chain_name);
