@@ -58,8 +58,12 @@ pub enum QueryMsg {
     },
 }
 
+#[cfg(not(feature = "notify-signing-session"))]
+pub type ExecuteMsg = Empty;
+
+#[cfg(feature = "notify-signing-session")]
 #[cw_serde]
-#[cfg_attr(feature = "notify-signing-session", derive(msgs_derive::Permissions))]
+#[derive(msgs_derive::Permissions)]
 pub enum ExecuteMsg {
     /// This message is called by the multisig-prover contract after a multisig session is started.
     /// It provides session information that the chain codec contract can store and use later.
@@ -69,8 +73,6 @@ pub enum ExecuteMsg {
     ///
     /// This field is only available if the multisig-prover contract was compiled with the `notify-signing-session` feature flag.
     /// Therefore, it is also feature-gated in this crate.
-    ///
-    #[cfg(feature = "notify-signing-session")]
     #[permission(Specific(multisig_prover))]
     NotifySigningSession {
         multisig_session_id: cosmwasm_std::Uint64,

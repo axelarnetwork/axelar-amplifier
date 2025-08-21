@@ -90,6 +90,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+// ExecuteMsg is just Empty because we don't enable notify-signing-session for chain-codec-api,
+// so we cannot call ensure_permissions
+#[allow(unknown_lints, execute_without_explicit_permissions)]
 pub fn execute(
     _deps: DepsMut,
     _env: Env,
