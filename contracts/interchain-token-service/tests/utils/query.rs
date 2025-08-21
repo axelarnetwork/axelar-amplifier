@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::{error::ContractError, nonempty};
+use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
