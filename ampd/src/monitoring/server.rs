@@ -55,18 +55,18 @@ impl Config {
     /// The default channel size is `1000`.
     pub fn enabled() -> Self {
         Self::Enabled {
-            bind_address: default_bind_addr(),
-            channel_size: default_channel_size(),
+            bind_address: Self::default_bind_addr(),
+            channel_size: Self::default_channel_size(),
         }
     }
-}
 
-fn default_bind_addr() -> SocketAddrV4 {
-    SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)
-}
+    fn default_bind_addr() -> SocketAddrV4 {
+        SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)
+    }
 
-fn default_channel_size() -> usize {
-    1000
+    fn default_channel_size() -> usize {
+        1000
+    }
 }
 
 // Custom serialization to make the state of the monitoring server more explicit in a config file
@@ -85,8 +85,8 @@ impl Serialize for Config {
         let compat = match self {
             Config::Disabled => ConfigCompat {
                 enabled: false,
-                bind_address: default_bind_addr(),
-                channel_size: default_channel_size(),
+                bind_address: Self::default_bind_addr(),
+                channel_size: Self::default_channel_size(),
             },
             Config::Enabled {
                 bind_address,
@@ -112,9 +112,9 @@ impl<'de> Deserialize<'de> for Config {
         struct ConfigCompat {
             #[serde(default)]
             enabled: bool,
-            #[serde(default = "default_bind_addr")]
+            #[serde(default = "Config::default_bind_addr")]
             bind_address: SocketAddrV4,
-            #[serde(default = "default_channel_size")]
+            #[serde(default = "Config::default_channel_size")]
             channel_size: usize,
         }
 
