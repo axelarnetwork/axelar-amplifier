@@ -36,7 +36,7 @@ pub enum Config {
     Disabled,
     Enabled {
         bind_address: SocketAddrV4,
-        // Safe upper bound for expected metric throughput. 
+        // Safe upper bound for expected metric throughput.
         channel_size: usize,
     },
 }
