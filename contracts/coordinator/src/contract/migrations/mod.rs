@@ -234,7 +234,7 @@ mod tests {
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use router_api::{chain_name, cosmos_addr, ChainName};
+    use router_api::{cosmos_addr, ChainName};
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{MigrationError, OldConfig, ProverAddress, OLD_CONFIG};
@@ -318,9 +318,9 @@ mod tests {
         .is_ok());
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY_1);
-        let verifier_addr = api.addr_make(VERIFIER_1);
+        let prover_addr = cosmos_addr!(PROVER_1);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -383,10 +383,10 @@ mod tests {
 
         let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
         let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY_1);
-        let verifier_addr = api.addr_make(VERIFIER_1);
+        let prover_addr1 = cosmos_addr!(PROVER_1);
+        let prover_addr2 = cosmos_addr!(PROVER_2);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -450,10 +450,10 @@ mod tests {
 
         let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
         let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr = api.addr_make(GATEWAY_1);
-        let verifier_addr = api.addr_make(VERIFIER_1);
+        let prover_addr1 = cosmos_addr!(PROVER_1);
+        let prover_addr2 = cosmos_addr!(PROVER_2);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -505,9 +505,9 @@ mod tests {
         .is_ok());
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY_1);
-        let verifier_addr = api.addr_make(VERIFIER_1);
+        let prover_addr = cosmos_addr!(PROVER_1);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -568,9 +568,9 @@ mod tests {
         .is_ok());
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY_1);
-        let verifier_addr = api.addr_make(VERIFIER_1);
+        let prover_addr = cosmos_addr!(PROVER_1);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -636,12 +636,12 @@ mod tests {
         .is_ok());
 
         let chain_name = ChainName::try_from(CHAIN_1).unwrap();
-        let prover_addr = api.addr_make(PROVER_1);
-        let gateway_addr = api.addr_make(GATEWAY_1);
-        let verifier_addr = api.addr_make(VERIFIER_1);
+        let prover_addr = cosmos_addr!(PROVER_1);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
 
-        let extra_gateway_addr = api.addr_make("extra_gateway");
-        let extra_verifier_addr = api.addr_make("extra_verifier");
+        let extra_gateway_addr = cosmos_addr!("extra_gateway");
+        let extra_verifier_addr = cosmos_addr!("extra_verifier");
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -688,29 +688,28 @@ mod tests {
     #[test]
     fn migrate_can_add_missing_chains() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         let env = mock_env();
-        let info = message_info(&api.addr_make(SENDER), &[]);
+        let info = message_info(&cosmos_addr!(SENDER), &[]);
 
         assert!(old_instantiate(
             deps.as_mut(),
             env.clone(),
             info,
             OldInstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                service_registry: api.addr_make(SERVICE_REGISTRY).to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                service_registry: cosmos_addr!(SERVICE_REGISTRY).to_string(),
             },
         )
         .is_ok());
 
         let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
         let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
-        let prover_addr1 = api.addr_make(PROVER_1);
-        let prover_addr2 = api.addr_make(PROVER_2);
-        let gateway_addr1 = api.addr_make(GATEWAY_1);
-        let verifier_addr1 = api.addr_make(VERIFIER_1);
-        let gateway_addr2 = api.addr_make(GATEWAY_2);
-        let verifier_addr2 = api.addr_make(VERIFIER_2);
+        let prover_addr1 = cosmos_addr!(PROVER_1);
+        let prover_addr2 = cosmos_addr!(PROVER_2);
+        let gateway_addr1 = cosmos_addr!(GATEWAY_1);
+        let verifier_addr1 = cosmos_addr!(VERIFIER_1);
+        let gateway_addr2 = cosmos_addr!(GATEWAY_2);
+        let verifier_addr2 = cosmos_addr!(VERIFIER_2);
 
         assert!(add_old_prover_registration(
             deps.as_mut(),
@@ -722,8 +721,8 @@ mod tests {
             deps.as_mut(),
             env,
             MigrateMsg {
-                router: api.addr_make(ROUTER).to_string(),
-                multisig: api.addr_make(MULTISIG).to_string(),
+                router: cosmos_addr!(ROUTER).to_string(),
+                multisig: cosmos_addr!(MULTISIG).to_string(),
                 chain_contracts: vec![
                     ChainContracts {
                         chain_name: chain_name1.clone(),
