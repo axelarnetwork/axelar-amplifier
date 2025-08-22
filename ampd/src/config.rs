@@ -7,7 +7,7 @@ use crate::handlers::config::deserialize_handler_configs;
 use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcast, event_processor, event_sub, grpc, monitoring, tm_client};
+use crate::{broadcast, event_processor, grpc, monitoring};
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
@@ -16,8 +16,6 @@ pub struct Config {
     pub tm_jsonrpc: Url,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_grpc: Url,
-    #[serde(with = "humantime_serde")]
-    pub default_rpc_timeout: Duration,
     pub tm_grpc_timeout: Duration,
     pub event_processor: event_processor::Config,
     pub broadcast: broadcast::Config,
@@ -29,8 +27,6 @@ pub struct Config {
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
     pub monitoring_server: monitoring::Config,
-    pub event_sub: event_sub::Config,
-    pub tm_client: tm_client::Config,
 }
 
 impl Default for Config {
@@ -40,7 +36,6 @@ impl Default for Config {
                 .expect("Url should be created validly"),
             tm_grpc: Url::new_non_sensitive("tcp://localhost:9090")
                 .expect("Url should be created validly"),
-            default_rpc_timeout: Duration::from_secs(3),
             tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcast::Config::default(),
             handlers: vec![],
@@ -50,8 +45,6 @@ impl Default for Config {
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
             monitoring_server: monitoring::Config::default(),
-            event_sub: event_sub::Config::default(),
-            tm_client: tm_client::Config::default(),
         }
     }
 }
@@ -72,7 +65,6 @@ mod tests {
     use super::Config;
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{Chain, Config as HandlerConfig};
-    use crate::monitoring;
     use crate::types::TMAddress;
     use crate::url::Url;
 
@@ -620,71 +612,32 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_monitoring_server_config_enabled_with_all_fields() {
+    fn deserialize_monitoring_server_config_with_bind_address_and_enabled() {
         let bind_address = "0.0.0.0:3001";
         let config_str = format!(
             "
             [monitoring_server]
             enabled = true
             bind_address = '{bind_address}'
-            channel_size = 500
             ",
         );
         let cfg: Config = toml::from_str(&config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001),
-                channel_size: 500,
-            }
+            cfg.monitoring_server.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001))
         );
     }
 
     #[test]
-    fn deserialize_monitoring_server_config_enabled_without_any_fields_should_use_default() {
+    fn deserialize_monitoring_server_config_without_bind_address_enabled() {
         let config_str = "
             [monitoring_server]
             enabled = true
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
         assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
-                channel_size: 1000,
-            }
-        );
-    }
-
-    #[test]
-    fn deserialize_monitoring_server_config_enabled_with_partial_fields() {
-        let config_str_1 = "
-            [monitoring_server]
-            enabled = true
-            bind_address = '0.0.0.0:3000'
-            ";
-        let cfg: Config = toml::from_str(config_str_1).unwrap();
-        assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3000),
-                channel_size: 1000,
-            }
-        );
-
-        let config_str_2 = "
-        [monitoring_server]
-        enabled = true
-        channel_size = 500
-        ";
-        let cfg: Config = toml::from_str(config_str_2).unwrap();
-
-        assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
-                channel_size: 500,
-            }
+            cfg.monitoring_server.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000))
         );
     }
 
@@ -695,22 +648,6 @@ mod tests {
             enabled = false
             ";
         let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.monitoring_server, monitoring::Config::Disabled);
-    }
-
-    #[test]
-    fn deserialize_event_sub_config() {
-        let config_str = "
-            [event_sub]
-            block_processing_buffer = 10
-            poll_interval = '5s'
-            retry_delay = '3s'
-            retry_max_attempts = 3
-            ";
-        let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.event_sub.block_processing_buffer, 10);
-        assert_eq!(cfg.event_sub.poll_interval, Duration::from_secs(5));
-        assert_eq!(cfg.event_sub.retry_delay, Duration::from_secs(3));
-        assert_eq!(cfg.event_sub.retry_max_attempts, 3);
+        assert_eq!(cfg.monitoring_server.bind_address, None);
     }
 }

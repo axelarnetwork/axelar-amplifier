@@ -28,44 +28,27 @@ pub enum Error {
 
 /// Configuration for the monitoring server
 ///
-/// This enum ensures that the logical relationship between fields is maintained:
-/// - When monitoring is disabled, no fields are required
-/// - When monitoring is enabled, bind_address and channel_size are optional and will use sensible defaults if not specified
-#[derive(Clone, PartialEq, Debug)]
-pub enum Config {
-    Disabled,
-    Enabled {
-        bind_address: SocketAddrV4,
-        // Safe upper bound for expected metric throughput.
-        channel_size: usize,
-    },
-}
-
-/// The default configuration of the monitoring server is disabled.
-impl Default for Config {
-    fn default() -> Self {
-        Self::Disabled
-    }
+/// Controls whether the monitoring server is enabled and on which address it binds.
+/// When `bind_address` is `None`, the server is disabled.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Config {
+    /// The address to bind the monitoring server to.
+    /// When `None`, the server is disabled.
+    pub bind_address: Option<SocketAddrV4>,
 }
 
 impl Config {
     /// Creates a new configuration with monitoring enabled using the default bind address
     ///
     /// The default bind address is `127.0.0.1:3000`.
-    /// The default channel size is `1000`.
     pub fn enabled() -> Self {
-        Self::Enabled {
-            bind_address: Self::default_bind_addr(),
-            channel_size: Self::default_channel_size(),
+        Self {
+            bind_address: Some(Self::default_bind_addr()),
         }
     }
 
     fn default_bind_addr() -> SocketAddrV4 {
         SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000)
-    }
-
-    fn default_channel_size() -> usize {
-        1000
     }
 }
 
@@ -79,23 +62,11 @@ impl Serialize for Config {
         struct ConfigCompat {
             enabled: bool,
             bind_address: SocketAddrV4,
-            channel_size: usize,
         }
 
-        let compat = match self {
-            Config::Disabled => ConfigCompat {
-                enabled: false,
-                bind_address: Self::default_bind_addr(),
-                channel_size: Self::default_channel_size(),
-            },
-            Config::Enabled {
-                bind_address,
-                channel_size,
-            } => ConfigCompat {
-                enabled: true,
-                bind_address: *bind_address,
-                channel_size: *channel_size,
-            },
+        let compat = ConfigCompat {
+            enabled: self.bind_address.is_some(),
+            bind_address: self.bind_address.unwrap_or_else(Self::default_bind_addr),
         };
 
         compat.serialize(serializer)
@@ -114,19 +85,12 @@ impl<'de> Deserialize<'de> for Config {
             enabled: bool,
             #[serde(default = "Config::default_bind_addr")]
             bind_address: SocketAddrV4,
-            #[serde(default = "Config::default_channel_size")]
-            channel_size: usize,
         }
 
         let compat = ConfigCompat::deserialize(deserializer)?;
 
-        Ok(if compat.enabled {
-            Config::Enabled {
-                bind_address: compat.bind_address,
-                channel_size: compat.channel_size,
-            }
-        } else {
-            Config::Disabled
+        Ok(Config {
+            bind_address: compat.enabled.then_some(compat.bind_address),
         })
     }
 }
@@ -174,14 +138,10 @@ impl Server {
     ///
     /// Returns an error if the server cannot be created or if metrics endpoints
     /// cannot be initialized.
-    pub fn new(config: Config) -> Result<(Server, Client), Error> {
-        match config {
-            Config::Enabled {
-                bind_address,
-                channel_size,
-            } => Self::create_server_with_client(TcpConnector::from(bind_address), channel_size),
-
-            Config::Disabled => {
+    pub fn new(connector: Option<impl Into<TcpConnector>>) -> Result<(Server, Client), Error> {
+        match connector {
+            Some(connector) => Self::create_server_with_client(connector.into()),
+            None => {
                 info!("monitoring server is disabled");
                 Ok((
                     Server::Disabled,
@@ -193,13 +153,9 @@ impl Server {
         }
     }
 
-    fn create_server_with_client(
-        tcp_connector: TcpConnector,
-        channel_size: usize,
-    ) -> Result<(Server, Client), Error> {
+    fn create_server_with_client(tcp_connector: TcpConnector) -> Result<(Server, Client), Error> {
         let status_router = status::create_endpoint();
-        let (metrics_router, metrics_process, metrics_client) =
-            metrics::create_endpoint(channel_size);
+        let (metrics_router, metrics_process, metrics_client) = metrics::create_endpoint();
 
         let server = Server::Enabled {
             server: HttpServer {
@@ -397,7 +353,6 @@ mod tests {
         // Test parsing enabled config from environment variable
         env::set_var("TEST_MONITORING_ENABLED", "true");
         env::set_var("TEST_MONITORING_BIND_ADDRESS", "127.0.0.1:4000");
-        env::set_var("TEST_MONITORING_CHANNEL_SIZE", "500");
 
         let enabled_config: Config = cfg::builder()
             .add_source(Environment::with_prefix("TEST_MONITORING"))
@@ -405,13 +360,9 @@ mod tests {
             .unwrap()
             .try_deserialize()
             .unwrap();
-
         assert_eq!(
-            enabled_config,
-            Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 4000),
-                channel_size: 500,
-            }
+            enabled_config.bind_address,
+            Some(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 4000))
         );
 
         // Test parsing disabled config from environment variable
@@ -422,18 +373,17 @@ mod tests {
             .unwrap()
             .try_deserialize()
             .unwrap();
-        assert_eq!(disabled_config, Config::Disabled);
+        assert_eq!(disabled_config.bind_address, None);
 
         // Clean up
         env::remove_var("TEST_MONITORING_ENABLED");
         env::remove_var("TEST_MONITORING_BIND_ADDRESS");
-        env::remove_var("TEST_MONITORING_CHANNEL_SIZE");
     }
 
     #[test]
     #[traced_test]
     fn disabled_client_discards_messages_without_error() {
-        let (_, client) = Server::new(Config::Disabled).unwrap(); // Creates disabled server and client
+        let (_, client) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server and client
 
         // Should succeed without doing anything
         client.metrics().record_metric(metrics::Msg::BlockReceived);
@@ -454,7 +404,7 @@ mod tests {
 
     #[async_test]
     async fn disabled_server_shuts_down_when_cancelled() {
-        let (server, _) = Server::new(Config::Disabled).unwrap(); // Creates disabled server
+        let (server, _) = Server::new(None::<SocketAddr>).unwrap(); // Creates disabled server
         let cancel = CancellationToken::new();
 
         let handle = tokio::spawn(server.run(cancel.clone()));
@@ -475,14 +425,10 @@ mod tests {
     async fn server_startup_fails_when_address_unavailable() {
         // First, bind to a specific port to make it unavailable
         let listener = listener().await.connect().await.unwrap();
-        let blocked_addr = convert_to_socketaddrv4(listener.local_addr().unwrap());
+        let blocked_addr = listener.local_addr().unwrap();
 
         // Create a server on the same address - creation should succeed
-        let (server, _) = Server::new(Config::Enabled {
-            bind_address: blocked_addr,
-            channel_size: 1000,
-        })
-        .unwrap();
+        let (server, _) = Server::new(Some(blocked_addr)).unwrap();
 
         // But running the server should fail
         let cancel = CancellationToken::new();
@@ -500,15 +446,10 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_responds_to_status_endpoint_and_shuts_down_gracefully() {
-        let bind_address = listener().await.bind_address().unwrap();
-        let channel_size = 1000;
-        let status_url = create_endpoint_url(bind_address, "status");
+        let connector = listener().await;
+        let status_url = create_endpoint_url(connector.bind_address().ok(), "status");
 
-        let (server, _) = Server::new(Config::Enabled {
-            bind_address: convert_to_socketaddrv4(bind_address),
-            channel_size,
-        })
-        .unwrap();
+        let (server, _) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -532,15 +473,10 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_continues_serving_after_all_metrics_clients_dropped() {
-        let bind_address = listener().await.bind_address().unwrap();
-        let channel_size = 1000;
-        let metrics_url = create_endpoint_url(bind_address, "metrics");
+        let connector = listener().await;
+        let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
 
-        let (server, monitoring_client) = Server::new(Config::Enabled {
-            bind_address: convert_to_socketaddrv4(bind_address),
-            channel_size,
-        })
-        .unwrap();
+        let (server, monitoring_client) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -569,15 +505,10 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn metrics_endpoint_increments_counters_when_messages_sent() {
-        let bind_address = listener().await.bind_address().unwrap();
-        let channel_size = 1000;
-        let metrics_url = create_endpoint_url(bind_address, "metrics");
+        let connector = listener().await;
+        let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
 
-        let (server, monitoring_client) = Server::new(Config::Enabled {
-            bind_address: convert_to_socketaddrv4(bind_address),
-            channel_size,
-        })
-        .unwrap();
+        let (server, monitoring_client) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -608,13 +539,7 @@ mod tests {
     #[async_test(start_paused = true)]
     #[traced_test]
     async fn enabled_server_shuts_down_gracefully_when_cancellation_token_triggered() {
-        let channel_size = 1000;
-        let bind_address = convert_to_socketaddrv4(listener().await.bind_address().unwrap());
-        let (server, monitoring_client) = Server::new(Config::Enabled {
-            bind_address,
-            channel_size,
-        })
-        .unwrap();
+        let (server, monitoring_client) = Server::new(Some(listener().await)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -655,15 +580,10 @@ mod tests {
 
     #[async_test(start_paused = true)]
     async fn enabled_server_handles_concurrent_metrics_requests_correctly() {
-        let bind_address = listener().await.bind_address().unwrap();
-        let channel_size = 1000;
-        let metrics_url = create_endpoint_url(bind_address, "metrics");
+        let connector = listener().await;
+        let metrics_url = create_endpoint_url(connector.bind_address().ok(), "metrics");
 
-        let (server, original_client) = Server::new(Config::Enabled {
-            bind_address: convert_to_socketaddrv4(bind_address),
-            channel_size,
-        })
-        .unwrap();
+        let (server, original_client) = Server::new(Some(connector)).unwrap();
         let cancel = CancellationToken::new();
 
         let server_handle = tokio::spawn(server.run(cancel.clone()));
@@ -705,15 +625,8 @@ mod tests {
             .into()
     }
 
-    fn create_endpoint_url(bind_address: SocketAddr, endpoint: &str) -> String {
-        format!("http://{}/{endpoint}", bind_address)
-    }
-
-    fn convert_to_socketaddrv4(addr: SocketAddr) -> SocketAddrV4 {
-        match addr {
-            SocketAddr::V4(v4) => v4,
-            SocketAddr::V6(_) => panic!("expected IPv4 address in this test"),
-        }
+    fn create_endpoint_url(bind_address: Option<SocketAddr>, endpoint: &str) -> String {
+        format!("http://{}/{endpoint}", bind_address.unwrap())
     }
 
     fn send_multiple_metrics(
