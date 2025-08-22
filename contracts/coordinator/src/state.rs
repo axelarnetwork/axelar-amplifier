@@ -5,7 +5,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdError, Storage};
 use cw_storage_plus::{
-    index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
+    index_list, Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
 };
 use error_stack::{bail, report, Result, ResultExt};
 use router_api::ChainName;
@@ -41,9 +41,6 @@ pub enum Error {
 
     #[error("deployment name {0} is in use")]
     DeploymentNameInUse(nonempty::String),
-
-    #[error("deployment name {0} not found")]
-    DeploymentNameNotFound(nonempty::String),
 }
 
 #[cw_serde]
@@ -220,21 +217,13 @@ pub fn save_deployed_contracts(
 
 pub fn deployed_contracts(
     storage: &dyn Storage,
-    deployment_name: nonempty::String,
-) -> Result<ChainContracts, Error> {
-    DEPLOYED_CHAINS
-        .may_load(storage, deployment_name.to_string())
-        .change_context(Error::StateParseFailed)?
-        .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
-}
-
-pub fn deployments(storage: &dyn Storage) -> Result<Vec<ChainContracts>, Error> {
+    start: Option<nonempty::String>,
+    limit: u32,
+) -> Result<Vec<ChainContracts>, Error> {
     Ok(DEPLOYED_CHAINS
-        .range(storage, None, None, Order::Ascending)
-        .filter_map(|entry| match entry {
-            Ok((_, contracts)) => Some(contracts),
-            Err(..) => None,
-        })
+        .range(storage, start.map(Bound::inclusive), None, Order::Ascending)
+        .take(limit as usize)
+        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
         .collect())
 }
 

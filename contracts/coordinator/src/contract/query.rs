@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Deps, Order, StdError};
-use error_stack::{Result, ResultExt};
+use error_stack::{bail, Result, ResultExt};
 use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
 
@@ -96,8 +96,12 @@ pub fn chain_contracts_info(
     .map(ChainContractsResponse::from)
 }
 
-pub fn deployments(deps: Deps) -> Result<Vec<ChainContractsResponse>, Error> {
-    Ok(state::deployments(deps.storage)
+pub fn deployed_contracts(
+    deps: Deps,
+    start: Option<nonempty::String>,
+    limit: u32,
+) -> Result<Vec<ChainContractsResponse>, Error> {
+    let contracts = state::deployed_contracts(deps.storage, start, limit)
         .change_context(Error::ChainContractsInfo)?
         .into_iter()
         .map(|chains| ChainContractsResponse {
@@ -106,19 +110,10 @@ pub fn deployments(deps: Deps) -> Result<Vec<ChainContractsResponse>, Error> {
             verifier_address: chains.voting_verifier,
             gateway_address: chains.gateway,
         })
-        .collect())
-}
+        .collect::<Vec<ChainContractsResponse>>();
 
-pub fn deployed_contracts(
-    deps: Deps,
-    deployment_name: nonempty::String,
-) -> Result<ChainContractsResponse, Error> {
-    state::deployed_contracts(deps.storage, deployment_name)
-        .map(|chains| ChainContractsResponse {
-            chain_name: chains.chain_name,
-            prover_address: chains.multisig_prover,
-            verifier_address: chains.voting_verifier,
-            gateway_address: chains.gateway,
-        })
-        .change_context(Error::ChainContractsInfo)
+    match contracts.first() {
+        None => bail!(Error::DeploymentsNotFound),
+        Some(..) => Ok(contracts),
+    }
 }

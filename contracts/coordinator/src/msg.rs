@@ -18,6 +18,12 @@ type ProverAddress = Addr;
 type GatewayAddress = Addr;
 type VerifierAddress = Addr;
 
+pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
+
+const fn default_pagination_limit() -> u32 {
+    DEFAULT_PAGINATION_LIMIT
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -127,7 +133,11 @@ pub enum QueryMsg {
     ChainContractsInfo(ChainContractsKey),
 
     #[returns(Vec<ChainContractsResponse>)]
-    Deployments,
+    Deployments {
+        starting_deployment_name: Option<nonempty::String>,
+        #[serde(default = "default_pagination_limit")]
+        limit: u32,
+    },
 
     #[returns(ChainContractsResponse)]
     Deployment { deployment_name: nonempty::String },

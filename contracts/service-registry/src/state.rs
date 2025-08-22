@@ -447,11 +447,16 @@ mod tests {
 
     use super::*;
 
+    const VERIFIER: &str = "verifier";
+    const SOLANA: &str = "solana";
+    const ETHEREUM: &str = "ethereum";
+    const COSMOS: &str = "cosmos";
+
     #[test]
     fn load_service_no_override() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let loaded_service = service(
             deps.as_ref().storage,
@@ -467,7 +472,7 @@ mod tests {
     fn load_service_with_full_override() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let min_verifiers_override = 20;
         let max_verifiers_override = Some(20);
 
@@ -511,7 +516,7 @@ mod tests {
     fn load_service_with_partial_override() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -549,7 +554,7 @@ mod tests {
     fn load_default_service_params() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -591,7 +596,7 @@ mod tests {
     fn remove_service_override_succeeds() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -624,7 +629,7 @@ mod tests {
     fn remove_service_override_fails_if_service_override_does_not_exist() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let res = remove_service_override(deps.as_mut().storage, &stored_service.name, &chain_name);
 
@@ -635,7 +640,7 @@ mod tests {
     fn may_load_service_params_override_succeeds() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
         let max_verifiers_override = Some(20);
 
         let params_override = ServiceParamsOverride {
@@ -664,7 +669,7 @@ mod tests {
     fn may_load_service_params_override_returns_none_if_service_override_does_not_exist() {
         let mut deps = mock_dependencies();
         let stored_service = save_mock_service(deps.as_mut().storage);
-        let chain_name = chain_name!("solana");
+        let chain_name = chain_name!(SOLANA);
 
         let res = may_load_service_params_override(
             deps.as_mut().storage,
@@ -678,9 +683,9 @@ mod tests {
     #[test]
     fn register_single_verifier_chain_single_call_success() {
         let mut deps = mock_dependencies();
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let chains = vec![chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -694,9 +699,9 @@ mod tests {
     #[test]
     fn register_multiple_verifier_chains_single_call_success() {
         let mut deps = mock_dependencies();
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let service_name = "validators";
-        let chain_names = vec![chain_name!("ethereum"), chain_name!("cosmos")];
+        let chain_names = vec![chain_name!(ETHEREUM), chain_name!(COSMOS)];
 
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -710,10 +715,10 @@ mod tests {
     #[test]
     fn register_multiple_verifier_chains_multiple_calls_success() {
         let mut deps = mock_dependencies();
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let service_name = "validators";
 
-        let first_chain_name = chain_name!("ethereum");
+        let first_chain_name = chain_name!(ETHEREUM);
         let first_chains_vector = vec![first_chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -723,7 +728,7 @@ mod tests {
         )
         .is_ok());
 
-        let second_chain_name = chain_name!("cosmos");
+        let second_chain_name = chain_name!(COSMOS);
         let second_chains_vector = vec![second_chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -737,9 +742,9 @@ mod tests {
     #[test]
     fn deregister_single_supported_chain_success() {
         let mut deps = mock_dependencies();
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let chains = vec![chain_name.clone()];
         assert!(register_chains_support(
             deps.as_mut().storage,
@@ -761,9 +766,9 @@ mod tests {
     #[test]
     fn deregister_one_of_supported_chains_success() {
         let mut deps = mock_dependencies();
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let service_name = "validators";
-        let chain_names = vec![chain_name!("ethereum"), chain_name!("cosmos")];
+        let chain_names = vec![chain_name!(ETHEREUM), chain_name!(COSMOS)];
         assert!(register_chains_support(
             deps.as_mut().storage,
             service_name.into(),
@@ -784,9 +789,9 @@ mod tests {
     #[test]
     fn deregister_unsupported_chain_success() {
         let mut deps = mock_dependencies();
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         let service_name = "validators";
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let chains = vec![chain_name.clone()];
 
         assert!(deregister_chains_support(
@@ -801,7 +806,7 @@ mod tests {
     #[test]
     fn test_bonded_add_bond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -822,7 +827,7 @@ mod tests {
     #[test]
     fn test_requested_unbonding_add_bond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -843,7 +848,7 @@ mod tests {
     #[test]
     fn test_unbonding_add_bond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Unbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
                 unbonded_at: Timestamp::from_nanos(0),
@@ -865,7 +870,7 @@ mod tests {
     #[test]
     fn test_unbonded_add_bond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Unbonded,
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -886,7 +891,7 @@ mod tests {
         let bonding_state = BondingState::Unbonded;
 
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -905,7 +910,7 @@ mod tests {
         };
 
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -919,7 +924,7 @@ mod tests {
     #[test]
     fn test_bonded_unbond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -942,7 +947,7 @@ mod tests {
     #[test]
     fn test_bonded_unbond_cant_unbond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -964,7 +969,7 @@ mod tests {
     #[test]
     fn test_requested_unbonding_unbond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -987,7 +992,7 @@ mod tests {
     #[test]
     fn test_requested_unbonding_cant_unbond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -1014,7 +1019,7 @@ mod tests {
         };
 
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -1040,7 +1045,7 @@ mod tests {
         let bonding_state = BondingState::Unbonded;
 
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -1067,7 +1072,7 @@ mod tests {
             amount: Uint128::from(100u32).try_into().unwrap(),
         };
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -1094,7 +1099,7 @@ mod tests {
             amount: Uint128::from(100u32).try_into().unwrap(),
         };
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -1122,7 +1127,7 @@ mod tests {
             unbonded_at: Timestamp::from_nanos(0),
         };
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -1152,7 +1157,7 @@ mod tests {
     fn test_unbonded_claim_stake() {
         let bonding_state = BondingState::Unbonded;
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
@@ -1176,7 +1181,7 @@ mod tests {
     #[test]
     fn jailed_verifier_cannot_unbond() {
         let verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32).try_into().unwrap(),
             },
@@ -1192,7 +1197,7 @@ mod tests {
     #[test]
     fn jailed_verifier_cannot_claim_stake() {
         let verifier: Verifier = Verifier {
-            address: cosmos_addr!("verifier"),
+            address: cosmos_addr!(VERIFIER),
             bonding_state: BondingState::Unbonding {
                 amount: Uint128::from(100u32).try_into().unwrap(),
                 unbonded_at: Timestamp::from_nanos(0),
@@ -1231,7 +1236,7 @@ mod tests {
         let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
         assert_eq!(count, 0);
 
-        let verifier = cosmos_addr!("verifier");
+        let verifier = cosmos_addr!(VERIFIER);
         update_verifier_authorization_status(
             deps.as_mut().storage,
             service.name.clone(),

@@ -140,9 +140,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
             &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
-        QueryMsg::Deployments => Ok(to_json_binary(&query::deployments(deps)?)?),
+        QueryMsg::Deployments {
+            starting_deployment_name,
+            limit,
+        } => Ok(to_json_binary(&query::deployed_contracts(
+            deps,
+            starting_deployment_name,
+            limit,
+        )?)?),
         QueryMsg::Deployment { deployment_name } => Ok(to_json_binary(
-            &query::deployed_contracts(deps, deployment_name)?,
+            &query::deployed_contracts(deps, Some(deployment_name), 1)?
+                .first()
+                .ok_or(Error::ChainContractsInfo)?,
         )?),
     }
 }
