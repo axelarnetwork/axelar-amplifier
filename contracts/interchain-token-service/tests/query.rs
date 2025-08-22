@@ -404,27 +404,3 @@ fn query_custom_token_metadata() {
         utils::query_custom_token_metadata(deps.as_ref(), chain, different_token_address).unwrap();
     assert_eq!(result, None);
 }
-
-#[test]
-fn query_custom_token_metadata_fails_with_error() {
-    use cosmwasm_std::testing::mock_env;
-    use interchain_token_service::contract::{query as contract_query, Error};
-
-    let mut deps = utils::make_deps();
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-
-    let chain = chain_name_raw!(params::ETHEREUM);
-    let token_address = nonempty::HexBinary::try_from(HexBinary::from([1; 32])).unwrap();
-
-    let query_msg = QueryMsg::CustomTokenMetadata {
-        chain: chain.clone(),
-        token_address: token_address.clone(),
-    };
-    let result = contract_query(deps.as_ref(), mock_env(), query_msg);
-    assert!(result.is_ok());
-
-    let _error_variant = Error::QueryCustomTokenMetadata;
-
-    let error = Error::QueryCustomTokenMetadata;
-    assert_eq!(error.to_string(), "failed to query custom token metadata");
-}
