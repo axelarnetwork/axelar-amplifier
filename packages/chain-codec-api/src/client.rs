@@ -38,12 +38,12 @@ impl Client<'_> {
         &self,
         verifier_set: VerifierSet,
         payload: Payload,
-        payload_bytes: Vec<HexBinary>,
+        full_message_payloads: Vec<HexBinary>,
     ) -> Result<HexBinary, Error> {
         let msg = QueryMsg::PayloadDigest {
             verifier_set,
             payload,
-            payload_bytes,
+            full_message_payloads,
         };
         self.client
             .query(&msg)
@@ -70,13 +70,13 @@ impl Client<'_> {
         multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
-        payload_bytes: Vec<HexBinary>,
+        full_message_payloads: Vec<HexBinary>,
     ) -> cosmwasm_std::CosmosMsg {
         self.client.execute(&ExecuteMsg::NotifySigningSession {
             multisig_session_id,
             verifier_set,
             payload,
-            payload_bytes,
+            full_message_payloads,
         })
     }
 

@@ -22,13 +22,13 @@ pub enum Error {
     )]
     #[cfg_attr(
         feature = "receive-payload",
-        error("failed to get payload digest. signer: {signer:?}, payload: {payload:?}, payload_bytes: {payload_bytes:?}")
+        error("failed to get payload digest. signer: {signer:?}, payload: {payload:?}, full_message_payloads: {full_message_payloads:?}")
     )]
     PayloadDigest {
         signer: VerifierSet,
         payload: Payload,
         #[cfg(feature = "receive-payload")]
-        payload_bytes: Vec<cosmwasm_std::HexBinary>,
+        full_message_payloads: Vec<cosmwasm_std::HexBinary>,
     },
 }
 
@@ -49,12 +49,12 @@ impl Error {
                 verifier_set: signer,
                 payload,
                 #[cfg(feature = "receive-payload")]
-                payload_bytes,
+                full_message_payloads,
             } => Error::PayloadDigest {
                 signer,
                 payload,
                 #[cfg(feature = "receive-payload")]
-                payload_bytes,
+                full_message_payloads,
             },
         }
     }

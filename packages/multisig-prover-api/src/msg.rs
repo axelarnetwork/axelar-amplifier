@@ -65,7 +65,10 @@ pub enum ExecuteMsg {
     #[cfg(feature = "receive-payload")]
     ConstructProof {
         message_ids: Vec<CrossChainId>,
-        payload_bytes: Vec<HexBinary>,
+        /// This contains the full message payloads for each message in `message_ids`.
+        /// The order has to be the same as `message_ids`, i.e. `full_message_payloads[i]` corresponds to `message_ids[i]`.
+        /// The hash of each payload is checked to match the message payload.
+        full_message_payloads: Vec<HexBinary>,
     },
 
     #[permission(Elevated)]

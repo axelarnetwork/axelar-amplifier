@@ -86,9 +86,9 @@ pub enum ContractError {
         actual: Hash,
     },
 
-    #[error("expected same amount of payload bytes entries and messages, got {payload_bytes} payloads and {messages} messages")]
+    #[error("expected same amount of full message payloads and messages, got {full_message_payloads} payloads and {messages} messages")]
     PayloadBytesMismatch {
-        payload_bytes: usize,
+        full_message_payloads: usize,
         messages: usize,
     },
 

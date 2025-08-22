@@ -79,8 +79,12 @@ pub fn execute(
         #[cfg(feature = "receive-payload")]
         ExecuteMsg::ConstructProof {
             message_ids,
-            payload_bytes,
-        } => Ok(execute::construct_proof(deps, message_ids, payload_bytes)?),
+            full_message_payloads,
+        } => Ok(execute::construct_proof(
+            deps,
+            message_ids,
+            full_message_payloads,
+        )?),
         ExecuteMsg::UpdateVerifierSet => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {

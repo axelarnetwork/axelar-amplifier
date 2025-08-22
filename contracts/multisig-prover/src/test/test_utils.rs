@@ -192,7 +192,7 @@ fn chain_codec_mock_querier_handler(msg: chain_codec_api::msg::QueryMsg) -> Quer
             verifier_set: _,
             payload: _,
             #[cfg(feature = "receive-payload")]
-                payload_bytes: _,
+                full_message_payloads: _,
         } => to_json_binary(&HexBinary::from_hex("deadbeef").unwrap()),
     };
     Ok(result.into()).into()

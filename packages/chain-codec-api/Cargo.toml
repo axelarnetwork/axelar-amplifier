@@ -6,7 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-# Enable this if you use the multisig-prover contract compiled with this feature and need to receive the full payload bytes.
+# Enable this if you use the multisig-prover contract compiled with this feature and need to receive
+# the full message payloads.
 receive-payload = []
 # Enable this if you want to get notified after a signing session is created.
 # Please note that you also need to use the multisig-prover contract that was compiled with this feature.
