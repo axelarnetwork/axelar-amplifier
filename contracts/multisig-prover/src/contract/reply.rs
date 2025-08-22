@@ -45,8 +45,9 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
                 #[cfg(feature = "receive-payload")]
                 let notify_msg = {
-                    // payload bytes are only stored during proof construction,
-                    // so there might not be any for this payload
+                    // payload bytes are only stored during proof construction
+                    // if this is a reply to a verifier set update, there are no payload bytes,
+                    // so we use `may_load` and pass an empty vec in that case
                     let payload_bytes =
                         crate::state::PAYLOAD_BYTES.may_load(deps.storage, &payload_id)?;
                     chain_codec.notify_signing_session(
