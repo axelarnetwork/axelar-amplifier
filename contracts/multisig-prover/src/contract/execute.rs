@@ -78,10 +78,11 @@ pub fn construct_proof(
 
         use sha3::{Digest, Keccak256};
 
-        for (message, payload_bytes) in messages.iter().zip(&payload_bytes) {
+        for (message, payload_bytes) in messages.into_iter().zip(&payload_bytes) {
             let payload_hash: [u8; 32] = Keccak256::digest(payload_bytes).into();
             if message.payload_hash != payload_hash {
                 return Err(report!(ContractError::PayloadHashMismatch {
+                    message_id: message.cc_id,
                     expected: message.payload_hash,
                     actual: payload_hash,
                 }));
