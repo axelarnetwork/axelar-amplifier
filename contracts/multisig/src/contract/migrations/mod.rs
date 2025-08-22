@@ -1,12 +1,14 @@
 mod legacy_state;
 
+use std::collections::HashSet;
+
 use axelar_wasm_std::{address, migrate_from_version};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response};
+use cosmwasm_std::{DepsMut, Env, Order, Response};
 
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, AUTHORIZED_CALLERS, CALLERS_FOR_CHAIN, CONFIG};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -16,7 +18,7 @@ pub struct MigrateMsg {
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[migrate_from_version("2.1")]
 pub fn migrate(
-    deps: DepsMut,
+    mut deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -34,7 +36,37 @@ pub fn migrate(
         },
     )?;
 
+    migrate_authorized_callers(&mut deps)?;
+
     Ok(Response::default())
+}
+
+fn migrate_authorized_callers(
+    deps: &mut DepsMut,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
+    let authorized_callers: Vec<_> = AUTHORIZED_CALLERS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|item| item.ok())
+        .collect();
+
+    for (contract_address, chain_name) in authorized_callers {
+        match CALLERS_FOR_CHAIN.may_load(deps.storage, &chain_name) {
+            Ok(Some(mut addresses)) => {
+                addresses.insert(contract_address.clone());
+                let _ = CALLERS_FOR_CHAIN.save(deps.storage, &chain_name, &addresses);
+            }
+            Ok(None) => {
+                let _ = CALLERS_FOR_CHAIN.save(
+                    deps.storage,
+                    &chain_name,
+                    &HashSet::from([contract_address]),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

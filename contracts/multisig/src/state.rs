@@ -25,8 +25,8 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 // The keys represent the addresses that can start a signing session.
-const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
-const CALLERS_FOR_CHAIN: Map<&ChainName, HashSet<Addr>> = Map::new("callers_for_chain");
+pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
+pub const CALLERS_FOR_CHAIN: Map<&ChainName, HashSet<Addr>> = Map::new("callers_for_chain");
 pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 
 /// Signatures by session id and signer address
