@@ -656,13 +656,12 @@ fn coordinator_one_click_query_deployments_succeeds() {
     assert!(res.is_ok());
     let contracts = gather_contracts(&protocol, res.unwrap());
 
-    let res = protocol.coordinator.query::<Vec<ChainContractsResponse>>(
-        &protocol.app,
-        &coordinator::msg::QueryMsg::Deployments {
-            starting_deployment_name: None,
-            limit: 1,
-        },
-    );
+    let deployments: coordinator::msg::QueryMsg =
+        serde_json::from_str(r#"{"deployments" : {}}"#).unwrap();
+
+    let res = protocol
+        .coordinator
+        .query::<Vec<ChainContractsResponse>>(&protocol.app, &deployments);
     assert!(res.is_ok());
 
     let res = res.unwrap();
