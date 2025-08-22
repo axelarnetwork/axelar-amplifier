@@ -184,7 +184,6 @@ mod tests {
 
     pub fn aleo_setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
-        let api = deps.api;
 
         deps.querier.update_wasm(mock_querier_handler(
             aleo_test_data::operators(),
@@ -194,15 +193,15 @@ mod tests {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make(ADMIN).to_string(),
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                gateway_address: api.addr_make(GATEWAY_ADDRESS).to_string(),
-                multisig_address: api.addr_make(MULTISIG_ADDRESS).to_string(),
-                coordinator_address: api.addr_make(COORDINATOR_ADDRESS).to_string(),
-                service_registry_address: api.addr_make(SERVICE_REGISTRY_ADDRESS).to_string(),
-                voting_verifier_address: api.addr_make(VOTING_VERIFIER_ADDRESS).to_string(),
+                admin_address: cosmos_addr!(ADMIN).to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                gateway_address: cosmos_addr!(GATEWAY_ADDRESS).to_string(),
+                multisig_address: cosmos_addr!(MULTISIG_ADDRESS).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
+                service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: cosmos_addr!(VOTING_VERIFIER_ADDRESS).to_string(),
                 sig_verifier_address: None,
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
