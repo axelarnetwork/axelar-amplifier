@@ -27,9 +27,6 @@ gas_price=[gas price with denom, i.e. "0.007uaxl"]
 queue_cap=[max messages to queue when broadcasting]
 tx_fetch_interval=[how often to query for transaction inclusion in a block]
 tx_fetch_max_retries=[how many times to query for transaction inclusion in a block before failing]
-tx_confirmation_buffer_size=[maximum concurrent transaction confirmations (higher values improve throughput, lower values reduce resource usage; tune based on network and system capacity)]
-tx_confirmation_queue_cap=[maximum size of the confirmation queue (larger values buffer more transactions during spikes but use more memory; smaller values risk dropping requests under load)]
-
 
 [tofnd_config]
 key_uid=[uid of key used for signing transactions]
@@ -66,7 +63,6 @@ from Avalanche testnet, Sui testnet and Stacks testnet.
 ```yaml
 tm_jsonrpc="http://localhost:26657"
 tm_grpc="tcp://localhost:9090"
-
 event_buffer_cap=10000
 
 [service_registry]
@@ -81,8 +77,6 @@ gas_price="0.00005uamplifier"
 queue_cap="1000"
 tx_fetch_interval="600ms"
 tx_fetch_max_retries="10"
-tx_confirmation_buffer_size = 10
-tx_confirmation_queue_cap = 1000
 
 [tofnd_config]
 key_uid="axelar"
