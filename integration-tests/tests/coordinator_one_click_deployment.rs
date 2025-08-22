@@ -16,13 +16,17 @@ use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
-use router_api::{cosmos_addr, ChainName, CrossChainId, Message};
+use router_api::{chain_name, cosmos_addr, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
 
 use crate::test_utils::Chain;
 
 pub mod test_utils;
+
+const TESTCHAIN: &str = "testchain";
+const CHAIN_NAME_1: &str = "testchain1";
+const CHAIN_NAME_2: &str = "testchain2";
 
 #[derive(Clone)]
 struct DeployedContracts {
@@ -249,11 +253,9 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name = String::from("testchain");
-
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name.as_str(),
+        TESTCHAIN,
         &chain1,
         nonempty::String::try_from("testchain1").unwrap(),
         Binary::new(vec![1])
@@ -261,7 +263,7 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_different_deploym
     .is_ok());
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name.as_str(),
+        TESTCHAIN,
         &chain1,
         nonempty::String::try_from("testchain2").unwrap(),
         Binary::new(vec![2])
@@ -278,22 +280,19 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_different_de
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name_1 = String::from("testchain1");
-    let chain_name_2 = String::from("testchain2");
-
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name_1.clone().as_str(),
+        CHAIN_NAME_1,
         &chain1,
-        nonempty::String::try_from(chain_name_1).unwrap(),
+        nonempty::String::try_from(CHAIN_NAME_1).unwrap(),
         Binary::new(vec![1])
     )
     .is_ok());
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name_2.clone().as_str(),
+        CHAIN_NAME_2,
         &chain1,
-        nonempty::String::try_from(chain_name_2).unwrap(),
+        nonempty::String::try_from(CHAIN_NAME_2).unwrap(),
         Binary::new(vec![2])
     )
     .is_ok());
@@ -307,22 +306,19 @@ fn coordinator_one_click_instantiates_contracts_different_chainname_same_deploym
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name_1 = String::from("testchain1");
-    let chain_name_2 = String::from("testchain2");
-
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name_1.clone().as_str(),
+        CHAIN_NAME_1,
         &chain1,
-        nonempty::String::try_from(chain_name_1.clone()).unwrap(),
+        nonempty::String::try_from(CHAIN_NAME_1).unwrap(),
         Binary::new(vec![1])
     )
     .is_ok());
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name_2.clone().as_str(),
+        CHAIN_NAME_2,
         &chain1,
-        nonempty::String::try_from(chain_name_1).unwrap(),
+        nonempty::String::try_from(CHAIN_NAME_1).unwrap(),
         Binary::new(vec![2])
     )
     .is_err());
@@ -336,21 +332,19 @@ fn coordinator_one_click_instantiates_contracts_same_chainname_same_deployment_n
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name = String::from("testchain");
-
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name.clone().as_str(),
+        TESTCHAIN,
         &chain1,
-        nonempty::String::try_from(chain_name.clone()).unwrap(),
+        nonempty::String::try_from(TESTCHAIN).unwrap(),
         Binary::new(vec![1])
     )
     .is_ok());
     assert!(instantiate_contracts(
         &mut protocol,
-        chain_name.clone().as_str(),
+        TESTCHAIN,
         &chain1,
-        nonempty::String::try_from(chain_name.clone()).unwrap(),
+        nonempty::String::try_from(TESTCHAIN).unwrap(),
         Binary::new(vec![2])
     )
     .is_err());
@@ -366,11 +360,9 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name = String::from("testchain");
-
     let deployed_chain_msgs = vec![Message {
         cc_id: CrossChainId::new(
-            chain_name.clone(),
+            TESTCHAIN,
             "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
         )
         .unwrap(),
@@ -406,7 +398,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain_name.parse().unwrap(),
+        destination_chain: chain_name!(TESTCHAIN),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )
@@ -418,15 +410,15 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
 
     let res = instantiate_contracts(
         &mut protocol,
-        chain_name.clone().as_str(),
+        TESTCHAIN,
         &chain1,
-        nonempty::String::try_from(chain_name.clone()).unwrap(),
+        nonempty::String::try_from(TESTCHAIN).unwrap(),
         Binary::new(vec![1]),
     );
     assert!(res.is_ok());
     assert!(register_deployment(
         &mut protocol,
-        nonempty::String::try_from(chain_name.clone()).unwrap()
+        nonempty::String::try_from(TESTCHAIN).unwrap()
     )
     .is_ok());
 
@@ -440,7 +432,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
                 verifier.addr.clone(),
                 &service_registry::msg::ExecuteMsg::RegisterChainSupport {
                     service_name: protocol.service_name.parse().unwrap(),
-                    chains: vec![chain_name.parse().unwrap(),]
+                    chains: vec![chain_name!(TESTCHAIN),]
                 }
             )
             .is_ok());
@@ -593,12 +585,11 @@ fn coordinator_one_click_register_deployment_with_router_succeeds() {
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name = String::from("testchain");
     let deployment_name = nonempty_str!("testchain-1");
 
     let res = instantiate_contracts(
         &mut protocol,
-        chain_name.as_str(),
+        TESTCHAIN,
         &chain1,
         deployment_name.clone(),
         Binary::new(vec![1]),
@@ -615,12 +606,11 @@ fn coordinator_one_click_authorize_callers_succeeds() {
         ..
     } = test_utils::setup_test_case();
 
-    let chain_name = String::from("testchain");
     let deployment_name = nonempty_str!("testchain-1");
 
     let res = instantiate_contracts(
         &mut protocol,
-        chain_name.as_str(),
+        TESTCHAIN,
         &chain1,
         deployment_name.clone(),
         Binary::new(vec![1]),
@@ -635,7 +625,7 @@ fn coordinator_one_click_authorize_callers_succeeds() {
         &protocol.app,
         &multisig::msg::QueryMsg::IsCallerAuthorized {
             contract_address: contracts.multisig_prover.contract_address().to_string(),
-            chain_name: router_api::ChainName::try_from(chain_name.clone()).unwrap(),
+            chain_name: chain_name!(TESTCHAIN),
         },
     );
     assert!(res.is_ok());

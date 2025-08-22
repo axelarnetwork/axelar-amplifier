@@ -8,7 +8,9 @@ use interchain_token_service::msg::{
     DEFAULT_PAGINATION_LIMIT,
 };
 use interchain_token_service_std::TokenId;
-use router_api::{address, chain_name_raw, cosmos_addr, Address};
+use router_api::{address, chain_name_raw, cosmos_addr};
+
+use crate::utils::params;
 
 mod utils;
 
@@ -75,7 +77,7 @@ fn query_chain_config() {
             max_decimals_when_truncating: test_config.eth.max_decimals,
         },
         frozen: false,
-        msg_translator: cosmos_addr!("translation_contract"),
+        msg_translator: cosmos_addr!(params::TRANSLATION_CONTRACT),
     };
 
     let eth_chain_config = assert_ok!(utils::query_its_chain(
@@ -87,13 +89,11 @@ fn query_chain_config() {
     // case sensitive query
     let chain_config = assert_ok!(utils::query_its_chain(
         test_config.deps.as_ref(),
-        chain_name_raw!("ethereum")
+        chain_name_raw!(params::ETHEREUM)
     ));
     assert_eq!(chain_config, None);
 
-    let new_address: Address = "0x9999999990123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let new_address = address!("0x9999999990123456789012345678901234567890");
     assert_ok!(utils::update_chain(
         test_config.deps.as_mut(),
         test_config.eth.chain.clone(),
@@ -123,7 +123,7 @@ fn query_all_its_contracts() {
 
     let its_contracts = vec![
         (
-            chain_name_raw!("ethereum"),
+            chain_name_raw!(params::ETHEREUM),
             address!("0x1234567890123456789012345678901234567890"),
         ),
         (
@@ -154,7 +154,7 @@ fn query_token_chain_config() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let token_id: TokenId = TokenId::new([1; 32]);
 
     let config = utils::query_token_instance(deps.as_ref(), chain, token_id).unwrap();
@@ -248,18 +248,33 @@ fn query_chains_pagination() {
     let mut test_config = ChainConfigTest::setup();
 
     let chains = vec![
-        ("Chain1", "0x1234567890123456789012345678901234567890"),
-        ("Chain2", "0x1234567890123456789012345678901234567891"),
-        ("Chain3", "0x1234567890123456789012345678901234567892"),
-        ("Chain4", "0x1234567890123456789012345678901234567893"),
-        ("Chain5", "0x1234567890123456789012345678901234567894"),
+        (
+            chain_name_raw!("Chain1"),
+            address!("0x1234567890123456789012345678901234567890"),
+        ),
+        (
+            chain_name_raw!("Chain2"),
+            address!("0x1234567890123456789012345678901234567891"),
+        ),
+        (
+            chain_name_raw!("Chain3"),
+            address!("0x1234567890123456789012345678901234567892"),
+        ),
+        (
+            chain_name_raw!("Chain4"),
+            address!("0x1234567890123456789012345678901234567893"),
+        ),
+        (
+            chain_name_raw!("Chain5"),
+            address!("0x1234567890123456789012345678901234567894"),
+        ),
     ];
 
     for (chain_name, address) in chains {
         utils::register_chain(
             test_config.deps.as_mut(),
-            chain_name.parse().unwrap(),
-            address.parse().unwrap(),
+            chain_name,
+            address,
             test_config.eth.max_uint_bits,
             test_config.eth.max_decimals,
         )

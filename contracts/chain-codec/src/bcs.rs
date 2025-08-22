@@ -111,7 +111,7 @@ mod tests {
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name, chain_name_raw, cosmos_addr, CrossChainId, Message};
+    use router_api::{address, chain_name, chain_name_raw, cosmos_addr, CrossChainId, Message};
 
     use super::payload_digest;
 
@@ -275,14 +275,11 @@ mod tests {
                             .parse()
                             .unwrap(),
                 },
-                source_address: "0x1a68E002efa42CF3bDEF81d66bB41f9d677420bE"
-                    .parse()
-                    .unwrap(),
+                source_address: address!("0x1a68E002efa42CF3bDEF81d66bB41f9d677420bE"),
                 destination_chain: chain_name!("sui"),
-                destination_address:
+                destination_address: address!(
                     "0xdf4dd40feff3c09bb5c559d0cfd7d1c5025fa802bba275453e48af7d2b437727"
-                        .parse()
-                        .unwrap(),
+                ),
                 payload_hash: [2; 32],
             },
             Message {
@@ -293,14 +290,11 @@ mod tests {
                             .parse()
                             .unwrap(),
                 },
-                source_address: "0x876EabF441B2EE5B5b0554Fd502a8E0600950cFa"
-                    .parse()
-                    .unwrap(),
+                source_address: address!("0x876EabF441B2EE5B5b0554Fd502a8E0600950cFa"),
                 destination_chain: chain_name!("sui"),
-                destination_address:
+                destination_address: address!(
                     "0x7bcef829e138fb8fff88671514597313153b9f5501a282bee68a2d9b66aa66e8"
-                        .parse()
-                        .unwrap(),
+                ),
                 payload_hash: [3; 32],
             },
         ]);
