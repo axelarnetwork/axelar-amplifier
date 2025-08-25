@@ -640,7 +640,7 @@ fn coordinator_one_click_query_deployments_succeeds() {
     let res = protocol.coordinator.query::<Vec<ChainContractsResponse>>(
         &protocol.app,
         &coordinator::msg::QueryMsg::Deployments {
-            starting_deployment_name: None,
+            start_after: None,
             limit: 1,
         },
     );
