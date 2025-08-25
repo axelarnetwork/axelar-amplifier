@@ -3672,6 +3672,7 @@ dependencies = [
  "report",
  "rewards",
  "router-api",
+ "schemars",
  "semver 1.0.26",
  "serde_json",
  "service-registry",

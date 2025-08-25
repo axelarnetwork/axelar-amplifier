@@ -16,6 +16,10 @@ crate-type = ["cdylib", "rlib"]
 name = "event-verifier-schema"
 path = "src/bin/schema.rs"
 
+[[bin]]
+name = "schema_generator"
+path = "src/bin/schema_generator.rs"
+
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
@@ -36,6 +40,7 @@ rewards = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
 semver = { workspace = true }
 serde_json = { workspace = true }
+schemars = "0.8"
 service-registry = { workspace = true, features = ["library"] }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
