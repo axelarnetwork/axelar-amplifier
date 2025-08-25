@@ -104,7 +104,7 @@ impl From<PollStarted> for Event {
 pub struct TxEventConfirmation {
     pub transaction_hash: String,
     pub source_chain: ChainName,
-    pub event_data: crate::msg::EventData,
+    pub event_data: String, // JSON string representing the serialized EventData
 }
 
 // Message TryFrom implementation removed - message functionality has been removed
@@ -193,28 +193,32 @@ mod tests {
                 TxEventConfirmation {
                     transaction_hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
                     source_chain: "sourceChain".try_into().unwrap(),
-                    event_data: crate::msg::EventData::Evm {
-                        transaction_details: None,
-                        events: vec![crate::msg::Event {
-                            contract_address: "contractAddress1".parse().unwrap(),
-                            event_index: 1,
-                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                            data: cosmwasm_std::HexBinary::from(vec![1, 2, 3, 4]),
-                        }],
-                    },
+                    event_data: serde_json::to_string(&serde_json::json!({
+                        "Evm": {
+                            "transaction_details": null,
+                            "events": [{
+                                "contract_address": "contractAddress1",
+                                "event_index": 1,
+                                "topics": ["010203"],
+                                "data": "01020304"
+                            }]
+                        }
+                    })).unwrap(),
                 },
                 TxEventConfirmation {
                     transaction_hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string(),
                     source_chain: "sourceChain".try_into().unwrap(),
-                    event_data: crate::msg::EventData::Evm {
-                        transaction_details: None,
-                        events: vec![crate::msg::Event {
-                            contract_address: "contractAddress2".parse().unwrap(),
-                            event_index: 2,
-                            topics: vec![cosmwasm_std::HexBinary::from(vec![1, 2, 3])],
-                            data: cosmwasm_std::HexBinary::from(vec![5, 6, 7, 8]),
-                        }],
-                    },
+                    event_data: serde_json::to_string(&serde_json::json!({
+                        "Evm": {
+                            "transaction_details": null,
+                            "events": [{
+                                "contract_address": "contractAddress2",
+                                "event_index": 2,
+                                "topics": ["010203"],
+                                "data": "05060708"
+                            }]
+                        }
+                    })).unwrap(),
                 },
             ],
             metadata: PollMetadata {

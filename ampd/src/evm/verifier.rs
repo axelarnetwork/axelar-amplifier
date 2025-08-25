@@ -3,6 +3,7 @@ use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, Transaction, TransactionReceipt, H256};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use router_api::ChainName;
+use serde_json;
 use tracing::debug;
 
 use crate::handlers::evm_verify_event::Event;
@@ -153,7 +154,15 @@ pub fn verify_event(
     }
 
     // Check event data matches
-    match &event.event_data {
+    let event_data = match serde_json::from_str::<event_verifier::msg::EventData>(&event.event_data) {
+        Ok(data) => data,
+        Err(_) => {
+            println!("failed to parse event data JSON");
+            return Vote::NotFound;
+        }
+    };
+    
+    match event_data {
         event_verifier::msg::EventData::Evm { transaction_details, events } => {
             // If transaction details are present, verify the transaction first
             if let Some(tx_details) = transaction_details {

@@ -61,7 +61,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 pub struct EventToVerify {
     pub event_id: EventId,
-    pub event_data: EventData,
+    pub event_data: String, // JSON string representing the serialized EventData
 }
 
 #[cw_serde]
@@ -175,45 +175,6 @@ impl Event {
     }
 }
 
-impl EventData {
-    pub fn hash(&self) -> Hash {
-        let mut hasher = Keccak256::new();
-        let delimiter_bytes = &[FIELD_DELIMITER as u8];
-
-        match self {
-            EventData::Evm { transaction_details, events } => {
-                // Hash variant identifier
-                hasher.update(b"Evm");
-                hasher.update(delimiter_bytes);
-                
-                // Hash transaction details if present
-                match transaction_details {
-                    Some(tx_details) => {
-                        hasher.update(b"some");
-                        hasher.update(delimiter_bytes);
-                        let tx_hash = tx_details.hash();
-                        hasher.update(tx_hash.as_ref());
-                        hasher.update(delimiter_bytes);
-                    }
-                    None => {
-                        hasher.update(b"none");
-                        hasher.update(delimiter_bytes);
-                    }
-                }
-                
-                // Hash each event
-                for event in events {
-                    let event_hash = event.hash();
-                    hasher.update(event_hash.as_ref());
-                    hasher.update(delimiter_bytes);
-                }
-            }
-        }
-
-        hasher.finalize().into()
-    }
-}
-
 impl EventToVerify {
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
@@ -224,9 +185,8 @@ impl EventToVerify {
         hasher.update(&self.event_id.transaction_hash);
         hasher.update(delimiter_bytes);
 
-        // Hash the event data using its hash function
-        let event_data_hash = self.event_data.hash();
-        hasher.update(event_data_hash.as_ref());
+        // Hash the event data JSON string directly
+        hasher.update(self.event_data.as_bytes());
 
         hasher.finalize().into()
     }

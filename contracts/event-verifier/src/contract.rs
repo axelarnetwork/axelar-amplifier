@@ -121,7 +121,7 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::events::TxEventConfirmation;
-    use crate::msg::{EventData, EventId, EventToVerify};
+    use crate::msg::{EventId, EventToVerify};
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
@@ -279,18 +279,17 @@ mod test {
                     source_chain: source_chain(),
                     transaction_hash: transaction_hash("id", i),
                 },
-                event_data: EventData::Evm {
-                    transaction_details: None,
-                    events: vec![crate::msg::Event {
-                        contract_address: alloy_primitives::Address::random()
-                            .to_string()
-                            .try_into()
-                            .unwrap(),
-                        event_index: i,
-                        topics: vec![],
-                        data: [0; 32].into(),
-                    }],
-                },
+                event_data: serde_json::to_string(&serde_json::json!({
+                    "Evm": {
+                        "transaction_details": null,
+                        "events": [{
+                            "contract_address": alloy_primitives::Address::random().to_string(),
+                            "event_index": i,
+                            "topics": [],
+                            "data": "0000000000000000000000000000000000000000000000000000000000000000"
+                        }]
+                    }
+                })).unwrap(),
             })
             .collect()
     }

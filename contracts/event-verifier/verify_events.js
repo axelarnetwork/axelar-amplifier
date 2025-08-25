@@ -31,6 +31,9 @@ Query only:
     --tx 0xabc... \
     --indexes 0,2 \
     --query
+
+Note: The event_data is now serialized as a JSON string in the contract. The script automatically
+serializes the event data structure to JSON before sending it to the contract.
 */
 
 const { parseArgs } = require("node:util");
@@ -208,7 +211,7 @@ async function main() {
       source_chain: String(args["chain-name"]),
       transaction_hash: String(args.tx)
     },
-    event_data
+    event_data: JSON.stringify(event_data)
   };
 
   const queryMsg = { events_status: [event] };
