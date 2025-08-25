@@ -644,7 +644,8 @@ fn coordinator_one_click_query_deployments_succeeds() {
             limit: 1,
         },
     );
-    assert!(res.is_err());
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().len(), 0);
 
     let res = instantiate_contracts(
         &mut protocol,
