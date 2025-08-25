@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -14,7 +14,7 @@ use thiserror::Error;
 use tokio::time::interval;
 use tokio_stream::{Elapsed, StreamExt};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
@@ -59,7 +59,6 @@ impl Default for Config {
 }
 
 #[derive(Error, Debug)]
-#[allow(dead_code)]
 pub enum Error {
     #[error("failed to retrieve events stream from the client")]
     EventStream,
@@ -77,8 +76,7 @@ pub enum Error {
     BroadcastFailed,
 }
 
-#[derive(TypedBuilder)]
-#[allow(dead_code)]
+#[derive(Debug, TypedBuilder)]
 pub struct HandlerTask<H>
 where
     H: EventHandler,
@@ -87,18 +85,15 @@ where
 {
     handler: H,
     config: Config,
-    #[builder(default = String::from("default_task"))]
-    task_label: String,
     #[builder(default = RetryPolicy::NoRetry)]
     handler_retry_policy: RetryPolicy,
 }
 
-#[allow(dead_code)]
 impl<H> HandlerTask<H>
 where
-    H: EventHandler,
+    H: EventHandler + Debug,
     <H::Event as TryFrom<Event>>::Error: Context,
-    H::Event: Display,
+    H::Event: Display + Debug,
 {
     pub async fn run(
         self,
@@ -146,17 +141,15 @@ where
         client: &mut impl client::Client,
         token: &CancellationToken,
     ) {
-        if let Ok(event) = self.parse_event(element).await {
-            if let Ok(msgs) = self.handle_event(event, token).await {
+        if let Some(event) = self.parse_event(element).await {
+            if let Some(msgs) = self.handle_event(event, token).await {
                 self.broadcast_msgs(client, msgs, token).await;
             }
         }
     }
 
-    async fn parse_event(
-        &self,
-        element: error_stack::Result<Event, Error>,
-    ) -> Result<H::Event, ()> {
+    #[instrument]
+    async fn parse_event(&self, element: error_stack::Result<Event, Error>) -> Option<H::Event> {
         element
             .inspect(Self::log_block_boundary)
             .and_then(|event| {
@@ -170,6 +163,7 @@ where
                     "failed to parse events"
                 );
             })
+            .ok()
     }
 
     fn log_block_boundary(event: &Event) {
@@ -184,11 +178,8 @@ where
         }
     }
 
-    async fn handle_event(
-        &self,
-        event: H::Event,
-        token: &CancellationToken,
-    ) -> Result<Vec<Any>, ()> {
+    #[instrument]
+    async fn handle_event(&self, event: H::Event, token: &CancellationToken) -> Option<Vec<Any>> {
         with_retry(
             || self.handler.handle(&event, token),
             self.handler_retry_policy,
@@ -201,8 +192,10 @@ where
                 "failed to handle events"
             );
         })
+        .ok()
     }
 
+    #[instrument(skip(client))]
     async fn broadcast_msgs(
         &self,
         client: &mut impl client::Client,
@@ -218,6 +211,7 @@ where
                 error!(
                     err = report::LoggableError::from(&err).as_value(),
                     msg_type = msg.type_url.as_value(),
+                    msg_value = hex::encode(&msg.value).as_value(),
                     "failed to broadcast message"
                 );
             }
@@ -520,7 +514,7 @@ mod tests {
     async fn test_broadcast_failure_continues_processing() {
         let mut handler = setup_handler();
 
-        let test_msg = cosmrs::Any {
+        let test_msg = Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
             value: vec![1, 2, 3],
         };
