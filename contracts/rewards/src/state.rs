@@ -499,10 +499,14 @@ mod test {
     use crate::msg::Params;
     use crate::state::ParamsSnapshot;
 
+    const POOL_CONTRACT: &str = "pool_contract";
+    const SOME_CONTRACT: &str = "some contract";
+    const MOCK_CHAIN: &str = "mock-chain";
+
     #[test]
     fn pool_id_try_from_msg_pool_id() {
         let api = MockApi::default();
-        let contract = cosmos_addr!("some contract");
+        let contract = cosmos_addr!(SOME_CONTRACT);
         let chain_name = chain_name!("chain");
 
         let pool_id = msg::PoolId {
@@ -537,8 +541,8 @@ mod test {
                 participation_threshold: (1, 2).try_into().unwrap(),
             },
             pool_id: PoolId {
-                chain_name: chain_name!("mock-chain"),
-                contract: cosmos_addr!("pool_contract"),
+                chain_name: chain_name!(MOCK_CHAIN),
+                contract: cosmos_addr!(POOL_CONTRACT),
             },
             event_count: 101u64,
             participation: HashMap::from([
@@ -603,8 +607,8 @@ mod test {
         };
         let pool = RewardsPool {
             id: PoolId {
-                chain_name: chain_name!("mock-chain"),
-                contract: cosmos_addr!("pool_contract"),
+                chain_name: chain_name!(MOCK_CHAIN),
+                contract: cosmos_addr!(POOL_CONTRACT),
             },
             balance: Uint128::from(100u128),
             params,
@@ -628,8 +632,8 @@ mod test {
             block_height_started: 1000,
         };
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
 
         // should be empty at first
@@ -662,7 +666,7 @@ mod test {
 
         // check different contract
         let diff_pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: chain_name!(MOCK_CHAIN),
             contract: cosmos_addr!("some other contract"),
         };
         // should be empty at first
@@ -690,8 +694,8 @@ mod test {
 
         let event = Event {
             pool_id: PoolId {
-                chain_name: chain_name!("mock-chain"),
-                contract: cosmos_addr!("some contract"),
+                chain_name: chain_name!(MOCK_CHAIN),
+                contract: cosmos_addr!(SOME_CONTRACT),
             },
             event_id: "some event".try_into().unwrap(),
             epoch_num: 2,
@@ -712,7 +716,7 @@ mod test {
 
         // different event id and contract address should return none
         let diff_pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
+            chain_name: chain_name!(MOCK_CHAIN),
             contract: cosmos_addr!("different contract"),
         };
         let loaded = load_event(
@@ -753,8 +757,8 @@ mod test {
             block_height_started: 1,
         };
         let pool_id = PoolId {
-            chain_name: chain_name!("mock-chain"),
-            contract: cosmos_addr!("some contract"),
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(SOME_CONTRACT),
         };
         let mut tally = EpochTally::new(
             pool_id.clone(),
@@ -781,7 +785,7 @@ mod test {
         let loaded = load_epoch_tally(
             mock_deps.as_ref().storage,
             PoolId {
-                chain_name: chain_name!("mock-chain"),
+                chain_name: chain_name!(MOCK_CHAIN),
                 contract: cosmos_addr!("different contract"),
             },
             epoch_num,
@@ -815,9 +819,9 @@ mod test {
         };
         let mut mock_deps = mock_dependencies();
 
-        let chain_name = chain_name!("mock-chain");
+        let chain_name = chain_name!(MOCK_CHAIN);
         let pool = RewardsPool {
-            id: PoolId::new(chain_name.clone(), cosmos_addr!("some contract")),
+            id: PoolId::new(chain_name.clone(), cosmos_addr!(SOME_CONTRACT)),
             params,
             balance: Uint128::zero(),
         };

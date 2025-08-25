@@ -270,6 +270,9 @@ mod tests {
     use crate::url::Url;
     use crate::PREFIX;
 
+    const SOLANA: &str = "solana";
+    const STACKS: &str = "stacks";
+
     #[test]
     fn finalizer_should_default_to_ethereum() {
         let chain_config_toml = "
@@ -390,7 +393,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaMsgVerifier {
-            chain_name: chain_name!("solana"),
+            chain_name: chain_name!(SOLANA),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -405,7 +408,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaVerifierSetVerifier {
-            chain_name: chain_name!("solana"),
+            chain_name: chain_name!(SOLANA),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -420,7 +423,7 @@ mod tests {
         );
 
         let sample_config = Config::StacksMsgVerifier {
-            chain_name: chain_name!("stacks"),
+            chain_name: chain_name!(STACKS),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -435,7 +438,7 @@ mod tests {
         );
 
         let sample_config = Config::StacksVerifierSetVerifier {
-            chain_name: chain_name!("stacks"),
+            chain_name: chain_name!(STACKS),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
