@@ -338,17 +338,6 @@ fn ensure_specific_permissions() {
         permission_control::Error::SpecificPermissionDenied { .. }
     ));
 
-    println!(
-        "Error: {:?}",
-        TestMsg2::Specific4.ensure_permissions(
-            &storage,
-            &no_privilege,
-            gateway1,
-            gateway2,
-            gateway3
-        )
-    );
-
     assert!(matches!(
         TestMsg2::Specific4
             .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
