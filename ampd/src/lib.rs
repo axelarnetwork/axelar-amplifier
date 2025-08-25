@@ -1,6 +1,5 @@
 mod asyncutil;
 mod block_height_monitor;
-#[allow(dead_code)]
 mod broadcast;
 #[cfg(feature = "commands")]
 pub mod commands;
