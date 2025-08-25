@@ -10,6 +10,7 @@ ampd = { path = "../../ampd", default-features = false, features = ["url"] }
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
+config = { workspace = true }
 cosmrs = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
