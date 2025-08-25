@@ -179,16 +179,13 @@ pub fn register_pub_key(
 
 pub fn require_authorized_caller(
     storage: &dyn Storage,
-    contract_address: &Addr,
+    sender_addr: &Addr,
     chain_name: &ChainName,
-) -> Result<Addr, ContractError> {
-    let expected_chain_name = AUTHORIZED_CALLERS.load(storage, contract_address)?;
-    if expected_chain_name != *chain_name {
-        return Err(ContractError::WrongChainName {
-            expected: expected_chain_name,
-        });
-    }
-    Ok(contract_address.clone())
+) -> Result<bool, ContractError> {
+    Ok(AUTHORIZED_CALLERS
+        .may_load(storage, sender_addr)
+        .map_err(ContractError::from)?
+        == Some(chain_name.clone()))
 }
 
 pub fn authorize_callers(

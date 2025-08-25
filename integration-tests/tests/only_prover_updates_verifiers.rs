@@ -58,8 +58,8 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
 
     assert!(response.is_err());
     assert!(response.unwrap_err().to_string().contains(
-        &permission_control::Error::WhitelistNotFound {
-            sender: multisig_prover.contract_addr.clone()
+        &permission_control::Error::SpecificPermissionDenied {
+            roles: vec![String::from("prover")]
         }
         .to_string()
     ));

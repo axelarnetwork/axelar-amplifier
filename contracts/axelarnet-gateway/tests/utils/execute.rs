@@ -30,7 +30,8 @@ pub fn call_contract(
             destination_chain,
             destination_address,
             payload,
-        },
+        }
+        .into(),
     )
 }
 
@@ -42,7 +43,7 @@ pub fn route_from_router(
         deps,
         mock_env(),
         message_info(&cosmos_addr!(params::ROUTER), &[]),
-        GatewayExecuteMsg::RouteMessages(msgs),
+        GatewayExecuteMsg::RouteMessages(msgs).into(),
     )
 }
 
@@ -55,7 +56,7 @@ pub fn execute_payload(
         deps,
         mock_env(),
         message_info(&cosmos_addr!(params::SENDER), &[]),
-        GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
+        GatewayExecuteMsg::Execute { cc_id, payload }.into(),
     )
 }
 
@@ -67,7 +68,7 @@ pub fn route_to_router(
         deps,
         mock_env(),
         message_info(&cosmos_addr!(params::SENDER), &[]),
-        GatewayExecuteMsg::RouteMessages(msgs),
+        GatewayExecuteMsg::RouteMessages(msgs).into(),
     )
 }
 
@@ -79,6 +80,6 @@ pub fn route_from_nexus(
         deps,
         mock_env(),
         message_info(&cosmos_addr!(params::NEXUS), &[]),
-        GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
+        GatewayExecuteMsg::RouteMessagesFromNexus(msgs).into(),
     )
 }
