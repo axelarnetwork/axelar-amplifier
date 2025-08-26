@@ -152,12 +152,12 @@ where
         token: CancellationToken,
     ) -> Option<Vec<Any>> {
         let event = element.inspect(Self::log_block_boundary).ok()?;
-        let parsed = Self::parse_event(event).await?;
+        let parsed = Self::parse_event(event)?;
         self.handle_event(parsed, token).await
     }
 
     #[instrument]
-    async fn parse_event(event: Event) -> Option<H::Event> {
+    fn parse_event(event: Event) -> Option<H::Event> {
         H::Event::try_from(event.clone())
             .change_context(Error::EventConversion)
             .ok()
