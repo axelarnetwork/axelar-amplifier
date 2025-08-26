@@ -152,7 +152,12 @@ where
     ) -> Option<Vec<Any>> {
         let event = element
             .inspect(Self::log_block_boundary)
-            .inspect_err(|err| error!("failed to get event from stream: {err}"))
+            .inspect_err(|err| {
+                error!(
+                    err = report::LoggableError::from(err).as_value(),
+                    "failed to get event from stream"
+                )
+            })
             .ok()?;
         let parsed = Self::parse_event(event)?;
         self.handle_event(parsed, token).await
