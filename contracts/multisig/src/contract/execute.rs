@@ -8,7 +8,7 @@ use super::*;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{
-    load_authorized_caller, load_session_signatures, remove_authorized_caller,
+    AUTHORIZED_CALLERS, load_session_signatures, remove_authorized_caller,
     save_authorized_caller, save_pub_key, save_signature,
 };
 use crate::verifier_set::VerifierSet;
@@ -182,16 +182,13 @@ pub fn register_pub_key(
 
 pub fn require_authorized_caller(
     storage: &dyn Storage,
-    contract_address: &Addr,
+    sender_addr: &Addr,
     chain_name: &ChainName,
-) -> Result<Addr, ContractError> {
-    let expected_chain_name = load_authorized_caller(storage, contract_address.clone())?;
-    if expected_chain_name != *chain_name {
-        return Err(ContractError::WrongChainName {
-            expected: expected_chain_name,
-        });
-    }
-    Ok(contract_address.clone())
+) -> Result<bool, ContractError> {
+    Ok(AUTHORIZED_CALLERS
+        .may_load(storage, sender_addr)
+        .map_err(ContractError::from)?
+        == Some(chain_name.clone()))
 }
 
 pub fn authorize_callers(

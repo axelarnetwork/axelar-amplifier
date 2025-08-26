@@ -134,7 +134,7 @@ pub enum QueryMsg {
 
     #[returns(Vec<ChainContractsResponse>)]
     Deployments {
-        starting_deployment_name: Option<nonempty::String>,
+        start_after: Option<nonempty::String>,
         #[serde(default = "default_pagination_limit")]
         limit: u32,
     },

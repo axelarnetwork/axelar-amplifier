@@ -321,12 +321,11 @@ pub fn register_deployment(
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
-    let deployed_contracts =
-        state::deployed_contracts(deps.storage, Some(deployment_name.clone()), 1)
-            .change_context(Error::ChainContractsInfo)?
-            .first()
-            .ok_or(report!(Error::DeploymentsNotFound))?
-            .clone();
+    let deployed_contracts = state::deployments(deps.storage, Some(deployment_name.clone()), 1)
+        .change_context(Error::ChainContractsInfo)?
+        .first()
+        .ok_or(report!(Error::DeploymentsNotFound))?
+        .clone();
 
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;

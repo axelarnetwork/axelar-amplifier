@@ -215,13 +215,27 @@ pub fn save_deployed_contracts(
         .change_context(Error::PersistingState)
 }
 
-pub fn deployed_contracts(
+pub fn deployments(
     storage: &dyn Storage,
-    start: Option<nonempty::String>,
+    start_after: Option<nonempty::String>,
     limit: u32,
 ) -> Result<Vec<ChainContracts>, Error> {
+    if let Some(ref deployment) = start_after {
+        if limit == 1 {
+            return Ok(DEPLOYED_CHAINS
+                .may_load(storage, deployment.to_string())
+                .change_context(Error::StateParseFailed)?
+                .map_or(vec![], |f| vec![f]));
+        }
+    }
+
     Ok(DEPLOYED_CHAINS
-        .range(storage, start.map(Bound::inclusive), None, Order::Ascending)
+        .range(
+            storage,
+            start_after.map(Bound::exclusive),
+            None,
+            Order::Ascending,
+        )
         .take(limit as usize)
         .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
         .collect())
@@ -235,7 +249,7 @@ pub fn is_prover_registered(
         .idx
         .by_prover
         .item(storage, prover_address)
-        .change_context(Error::StateParseFailed)?
+        .expect("prover not found")
         .is_some())
 }
 

@@ -41,9 +41,17 @@ impl Display for FlagSet<Permission> {
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error("sender with role '{actual}' is not allowed to perform this action that requires '{expected}' permissions")]
-    PermissionDenied {
+    GeneralPermissionDenied {
         expected: FlagSet<Permission>,
         actual: FlagSet<Permission>,
+    },
+    #[error("sender does not fit roles {roles:?}")]
+    SpecificPermissionDenied { roles: Vec<String> },
+    #[error("sender with role '{actual}' does not fit roles {roles:?}, or have '{expected}' permissions")]
+    GeneralAndSpecificPermissionDenied {
+        expected: FlagSet<Permission>,
+        actual: FlagSet<Permission>,
+        roles: Vec<String>,
     },
     #[error("sender '{actual}' must be one of the addresses {expected:?}")]
     AddressNotWhitelisted { expected: Vec<Addr>, actual: Addr },

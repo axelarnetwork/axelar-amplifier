@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Deps, Order, StdError};
-use error_stack::{bail, Result, ResultExt};
+use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
 
@@ -98,10 +98,10 @@ pub fn chain_contracts_info(
 
 pub fn deployed_contracts(
     deps: Deps,
-    start: Option<nonempty::String>,
+    start_after: Option<nonempty::String>,
     limit: u32,
 ) -> Result<Vec<ChainContractsResponse>, Error> {
-    let contracts = state::deployed_contracts(deps.storage, start, limit)
+    Ok(state::deployments(deps.storage, start_after, limit)
         .change_context(Error::ChainContractsInfo)?
         .into_iter()
         .map(|chains| ChainContractsResponse {
@@ -110,10 +110,15 @@ pub fn deployed_contracts(
             verifier_address: chains.voting_verifier,
             gateway_address: chains.gateway,
         })
-        .collect::<Vec<ChainContractsResponse>>();
+        .collect::<Vec<ChainContractsResponse>>())
+}
 
-    match contracts.first() {
-        None => bail!(Error::DeploymentsNotFound),
-        Some(..) => Ok(contracts),
-    }
+pub fn deployed_contract(
+    deps: Deps,
+    deployment_name: nonempty::String,
+) -> Result<ChainContractsResponse, Error> {
+    deployed_contracts(deps, Some(deployment_name), 1)?
+        .first()
+        .cloned()
+        .ok_or(report!(Error::DeploymentsNotFound))
 }
