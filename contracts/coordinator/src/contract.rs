@@ -10,7 +10,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use error_stack::ResultExt;
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 use msgs_derive::ensure_permissions;
@@ -37,7 +37,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(direct(prover=find_prover_address(info.sender.clone())))]
+#[ensure_permissions(direct(prover=find_prover_address))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -101,15 +101,11 @@ pub fn execute(
 }
 
 fn find_prover_address(
-    sender: Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, state::Error> {
-    move |storage, _| {
-        if state::is_prover_registered(storage, sender.clone())? {
-            Ok(sender)
-        } else {
-            Err(report!(state::Error::ProverNotRegistered(sender)))
-        }
-    }
+    storage: &dyn Storage,
+    sender: &Addr,
+    _msg: &ExecuteMsg,
+) -> error_stack::Result<bool, state::Error> {
+    state::is_prover_registered(storage, sender.clone())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -290,7 +286,7 @@ mod tests {
 
         assert!(res.unwrap_err().root_cause().to_string().contains(
             &axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::PermissionDenied {
+                permission_control::Error::GeneralPermissionDenied {
                     expected: Permission::Governance.into(),
                     actual: Permission::NoPrivilege.into()
                 }

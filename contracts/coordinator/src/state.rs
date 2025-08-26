@@ -249,7 +249,7 @@ pub fn is_prover_registered(
         .idx
         .by_prover
         .item(storage, prover_address)
-        .change_context(Error::StateParseFailed)?
+        .expect("prover not found")
         .is_some())
 }
 
