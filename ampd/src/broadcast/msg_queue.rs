@@ -23,6 +23,10 @@ use crate::monitoring::metrics::Msg;
 use crate::types::TMAddress;
 use crate::{cosmos, monitoring};
 
+fn is_potentially_evm_message(type_url: &str) -> bool {
+    type_url == "/cosmwasm.wasm.v1.MsgExecuteContract"
+}
+
 type TxResult = std::result::Result<(String, u64), Arc<Report<Error>>>;
 
 /// Represents a message in the queue ready for broadcasting
@@ -149,6 +153,13 @@ where
     /// * `Error::EstimateGas` - If gas estimation fails
     /// * `Error::EnqueueMsg` - If enqueueing fails
     pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
+        // if is_potentially_evm_message(&msg.type_url) {
+        //     tracing::info!(
+        //         msg_type_url = %msg.type_url,
+        //         "EVM-related message enqueued for broadcasting"
+        //     );
+        // }
+
         let _rx = self.enqueue_with_channel(msg).await?;
 
         Ok(())
@@ -305,6 +316,28 @@ impl Stream for MsgQueue {
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
                     if let Some(msgs) = me.queue.push_or(msg, handle_queue_err) {
+                        // let evm_msgs: Vec<_> = msgs
+                        //     .as_ref()
+                        //     .iter()
+                        //     .enumerate()
+                        //     .filter(|(_, msg)| is_potentially_evm_message(&msg.msg.type_url))
+                        //     .collect();
+                        //
+                        // if !evm_msgs.is_empty() {
+                        //     tracing::info!(
+                        //         batch_size = msgs.as_ref().len(),
+                        //         evm_msgs_count = evm_msgs.len(),
+                        //         "Message batch with EVM messages ready for broadcasting"
+                        //     );
+                        //     for (i, msg) in evm_msgs {
+                        //         tracing::info!(
+                        //             msg_index = i,
+                        //             msg_type_url = %msg.msg.type_url,
+                        //             gas = msg.gas,
+                        //             "EVM batch message details"
+                        //         );
+                        //     }
+                        // }
                         return Poll::Ready(Some(msgs));
                     }
                 }

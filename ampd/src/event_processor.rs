@@ -108,6 +108,7 @@ where
         match event {
             StreamStatus::Ok(event) => {
                 handle_event(
+                    &handler_label,
                     &handler,
                     &msg_queue_client,
                     &event,
@@ -130,8 +131,31 @@ where
     Ok(())
 }
 
+fn is_evm_handler(handler_label: &str) -> bool {
+    let non_evm_prefixes = [
+        "sui-",
+        "stellar-",
+        "starknet-",
+        "solana-",
+        "stacks-",
+        "mvx-",
+        "multisig-",
+        "xrpl-multisig-",
+    ];
+    let evm_suffixes = ["-msg-verifier", "-verifier-set-verifier"];
+
+    !non_evm_prefixes
+        .iter()
+        .any(|prefix| handler_label.starts_with(prefix))
+        && !handler_label.contains("xrpl-")
+        && evm_suffixes
+            .iter()
+            .any(|suffix| handler_label.contains(suffix))
+}
+
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
+    handler_label: &str,
     handler: &H,
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
@@ -154,6 +178,23 @@ where
 
     match res {
         Ok(msgs) => {
+            if is_evm_handler(handler_label) {
+                info!(
+                    handler = %handler_label,
+                    num_msgs = msgs.len(),
+                    event_type = %event,
+                    "EVM handler generated messages for broadcasting"
+                );
+                for (i, msg) in msgs.iter().enumerate() {
+                    info!(
+                        handler = %handler_label,
+                        msg_index = i,
+                        msg_type_url = %msg.type_url,
+                        "EVM handler message details"
+                    );
+                }
+            }
+
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
                 .buffered(tx_broadcast_buffer_size)
