@@ -145,13 +145,15 @@ where
         }
     }
 
-    #[instrument]
     async fn process_event(
         &self,
         element: error_stack::Result<Event, Error>,
         token: CancellationToken,
     ) -> Option<Vec<Any>> {
-        let event = element.inspect(Self::log_block_boundary).ok()?;
+        let event = element
+            .inspect(Self::log_block_boundary)
+            .inspect_err(|err| error!("failed to get event from stream: {err}"))
+            .ok()?;
         let parsed = Self::parse_event(event)?;
         self.handle_event(parsed, token).await
     }
