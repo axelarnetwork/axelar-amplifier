@@ -72,9 +72,9 @@ mod tests {
     use super::Config;
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::{Chain, Config as HandlerConfig};
-    use crate::monitoring;
     use crate::types::TMAddress;
     use crate::url::Url;
+    use crate::{grpc, monitoring};
 
     const PREFIX: &str = "axelar";
     const SOLANA: &str = "solana";
@@ -87,6 +87,9 @@ mod tests {
         let global_concurrency_limit = 2048;
         let concurrency_limit_per_connection = 256;
         let request_timeout = "30s";
+        let voting_verifier = "axelar1t5qnmp37l4tt3s9aqv7rd0jgat7tjau0xffad5";
+        let multisig_prover = "axelar1f06r764ftadyduqryz74qg5yt6yxzpq4vyy0m3";
+        let multisig = "axelar1v8a4r5ru2rwx35yfpqvsc66ydahtqprd3xqz8n";
 
         let config_str = format!(
             "
@@ -96,6 +99,11 @@ mod tests {
             global_concurrency_limit = {global_concurrency_limit}
             concurrency_limit_per_connection = {concurrency_limit_per_connection}
             request_timeout = '{request_timeout}'
+            [[grpc.blockchain_service.chains]]
+            chain_name = 'test-chain'
+            voting_verifier = '{voting_verifier}'
+            multisig_prover = '{multisig_prover}'
+            multisig = '{multisig}'
             ",
         );
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
@@ -615,6 +623,49 @@ mod tests {
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],
+            grpc: grpc::Config {
+                blockchain_service: grpc::BlockchainServiceConfig {
+                    chains: vec![
+                        grpc::BlockchainServiceChainConfig {
+                            chain_name: chain_name!("ethereum"),
+                            voting_verifier: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig_prover: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                        },
+                        grpc::BlockchainServiceChainConfig {
+                            chain_name: chain_name!("solana"),
+                            voting_verifier: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig_prover: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                        },
+                        grpc::BlockchainServiceChainConfig {
+                            chain_name: chain_name!("flow"),
+                            voting_verifier: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig_prover: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                        },
+                    ],
+                },
+                ..grpc::Config::default()
+            },
             ..Config::default()
         }
     }
