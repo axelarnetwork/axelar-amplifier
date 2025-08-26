@@ -70,6 +70,7 @@ impl Config {
     }
 }
 
+#[derive(Default)]
 pub struct ConfigBuilder(config::ConfigBuilder<config::builder::DefaultState>);
 
 impl ConfigBuilder {
@@ -105,9 +106,10 @@ impl ConfigBuilder {
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::assert_err_contains;
     use std::fs;
     use std::str::FromStr;
+
+    use axelar_wasm_std::assert_err_contains;
     use tempfile::TempDir;
 
     use super::*;
