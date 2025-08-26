@@ -145,18 +145,15 @@ where
         }
     }
 
+    #[instrument]
     async fn process_event(
         &self,
         element: error_stack::Result<Event, Error>,
         token: CancellationToken,
     ) -> Option<Vec<Any>> {
-        let event = Self::log_stream_error(element).await?;
+        let event = element.inspect(Self::log_block_boundary).ok()?;
         let parsed = Self::parse_event(event).await?;
         self.handle_event(parsed, token).await
-    }
-
-    async fn log_stream_error(element: error_stack::Result<Event, Error>) -> Option<Event> {
-        element.inspect(Self::log_block_boundary).ok()
     }
 
     #[instrument]
