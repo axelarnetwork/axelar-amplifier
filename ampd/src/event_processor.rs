@@ -19,13 +19,6 @@ use crate::monitoring::metrics;
 use crate::monitoring::metrics::{Msg, Stage};
 use crate::{broadcast, cosmos, event_sub, monitoring};
 
-// Maximum number of messages to enqueue for broadcasting concurrently.
-// - Controls parallelism when enqueueing messages to the broadcast queue
-// - Higher values increase throughput for processing many messages at once
-// - Lower values reduce resource consumption
-// - Setting is balanced based on network capacity and system resources
-const TX_BROADCAST_BUFFER_SIZE: usize = 10;
-
 #[async_trait]
 pub trait EventHandler {
     type Err: Context;
@@ -51,6 +44,12 @@ pub struct Config {
     pub stream_buffer_size: usize,
     #[serde(with = "humantime_serde")]
     pub delay: Duration,
+    // Maximum number of messages to enqueue for broadcasting concurrently.
+    // - Controls parallelism when enqueueing messages to the broadcast queue
+    // - Higher values increase throughput for processing many messages at once
+    // - Lower values reduce resource consumption
+    // - Setting is balanced based on network capacity and system resources
+    pub tx_broadcast_buffer_size: usize,
 }
 
 impl Default for Config {
@@ -61,6 +60,7 @@ impl Default for Config {
             stream_timeout: Duration::from_secs(15),
             stream_buffer_size: 100000,
             delay: Duration::from_secs(1),
+            tx_broadcast_buffer_size: 10,
         }
     }
 }
@@ -87,6 +87,7 @@ where
         retry_delay,
         retry_max_attempts,
         stream_timeout,
+        tx_broadcast_buffer_size,
         ..
     } = event_processor_config;
     let handler_retry = RetryPolicy::repeat_constant(retry_delay, retry_max_attempts);
@@ -111,6 +112,7 @@ where
                     &msg_queue_client,
                     &event,
                     handler_retry,
+                    tx_broadcast_buffer_size,
                     &monitoring_client,
                 )
                 .await?;
@@ -134,6 +136,7 @@ async fn handle_event<H, C>(
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
+    tx_broadcast_buffer_size: usize,
     monitoring_client: &monitoring::Client,
 ) -> Result<(), Error>
 where
@@ -153,7 +156,7 @@ where
         Ok(msgs) => {
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
-                .buffered(TX_BROADCAST_BUFFER_SIZE)
+                .buffered(tx_broadcast_buffer_size)
                 .inspect_err(|err| {
                     warn!(
                         err = LoggableError::from(err).as_value(),
@@ -274,6 +277,7 @@ mod tests {
             stream_timeout: stream_timeout_value,
             stream_buffer_size: 100000,
             delay,
+            tx_broadcast_buffer_size: 10,
         }
     }
 

@@ -1,6 +1,7 @@
 {
   "tm_jsonrpc": "http://localhost:26657/",
   "tm_grpc": "tcp://localhost:9090",
+  "default_rpc_timeout": "3s",
   "tm_grpc_timeout": {
     "secs": 5,
     "nanos": 0
@@ -10,7 +11,8 @@
     "retry_max_attempts": 3,
     "stream_timeout": "15s",
     "stream_buffer_size": 100000,
-    "delay": "1s"
+    "delay": "1s",
+    "tx_broadcast_buffer_size": 10
   },
   "broadcast": {
     "chain_id": "axelar-dojo-1",
@@ -20,7 +22,9 @@
     "gas_price": "0.00005uaxl",
     "batch_gas_limit": 1000000,
     "queue_cap": 1000,
-    "broadcast_interval": "5s"
+    "broadcast_interval": "5s",
+    "tx_confirmation_buffer_size": 10,
+    "tx_confirmation_queue_cap": 1000
   },
   "handlers": [],
   "tofnd_config": {
@@ -57,6 +61,17 @@
   },
   "monitoring_server": {
     "enabled": false,
-    "bind_address": "127.0.0.1:3000"
+    "bind_address": "127.0.0.1:3000",
+    "channel_size": 1000
+  },
+  "event_sub": {
+    "block_processing_buffer": 10,
+    "poll_interval": "5s",
+    "retry_delay": "3s",
+    "retry_max_attempts": 3
+  },
+  "tm_client": {
+    "max_retries": 15,
+    "retry_delay": "1s"
   }
 }
