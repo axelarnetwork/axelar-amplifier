@@ -71,11 +71,10 @@ mod tests {
 
     use super::Config;
     use crate::evm::finalizer::Finalization;
-    use crate::grpc;
     use crate::handlers::config::{Chain, Config as HandlerConfig};
-    use crate::monitoring;
     use crate::types::TMAddress;
     use crate::url::Url;
+    use crate::{grpc, monitoring};
 
     const PREFIX: &str = "axelar";
     const SOLANA: &str = "solana";
