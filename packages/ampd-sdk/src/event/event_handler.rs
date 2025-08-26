@@ -16,7 +16,6 @@ use tokio_stream::{Elapsed, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
-use valuable::Valuable;
 
 use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client;
@@ -33,7 +32,7 @@ pub trait EventHandler: Send + Sync {
     async fn handle(
         &self,
         event: &Self::Event,
-        token: &CancellationToken,
+        token: CancellationToken,
     ) -> error_stack::Result<Vec<Any>, Self::Err>;
 
     fn subscription_params(&self) -> SubscriptionParams;
@@ -104,7 +103,7 @@ where
 
         pin_mut!(stream);
         while let Some(element) = stream.next().await {
-            self.process_stream(element, client, &token).await;
+            self.process_stream(element, client, token.clone()).await;
         }
 
         Ok(())
@@ -139,30 +138,32 @@ where
         &self,
         element: error_stack::Result<Event, Error>,
         client: &mut impl client::Client,
-        token: &CancellationToken,
+        token: CancellationToken,
     ) {
-        if let Some(event) = self.parse_event(element).await {
-            if let Some(msgs) = self.handle_event(event, token).await {
-                self.broadcast_msgs(client, msgs, token).await;
-            }
+        if let Some(msgs) = self.process_event(element, token.clone()).await {
+            Self::broadcast_msgs(client, msgs, token.clone()).await;
         }
     }
 
+    async fn process_event(
+        &self,
+        element: error_stack::Result<Event, Error>,
+        token: CancellationToken,
+    ) -> Option<Vec<Any>> {
+        let event = Self::log_stream_error(element).await?;
+        let parsed = Self::parse_event(event).await?;
+        self.handle_event(parsed, token).await
+    }
+
+    async fn log_stream_error(element: error_stack::Result<Event, Error>) -> Option<Event> {
+        element.inspect(Self::log_block_boundary).ok()
+    }
+
     #[instrument]
-    async fn parse_event(&self, element: error_stack::Result<Event, Error>) -> Option<H::Event> {
-        element
-            .inspect(Self::log_block_boundary)
-            .and_then(|event| {
-                H::Event::try_from(event.clone())
-                    .change_context(Error::EventConversion)
-                    .attach_printable(json!({ "event": event }))
-            })
-            .map_err(|err| {
-                error!(
-                    err = report::LoggableError::from(&err).as_value(),
-                    "failed to parse events"
-                );
-            })
+    async fn parse_event(event: Event) -> Option<H::Event> {
+        H::Event::try_from(event.clone())
+            .change_context(Error::EventConversion)
+            .attach_printable(json!({ "event": event }))
             .ok()
     }
 
@@ -179,42 +180,26 @@ where
     }
 
     #[instrument]
-    async fn handle_event(&self, event: H::Event, token: &CancellationToken) -> Option<Vec<Any>> {
+    async fn handle_event(&self, event: H::Event, token: CancellationToken) -> Option<Vec<Any>> {
         with_retry(
-            || self.handler.handle(&event, token),
+            || self.handler.handle(&event, token.clone()),
             self.handler_retry_policy,
         )
         .await
-        .map_err(|err| {
-            error!(
-                err = report::LoggableError::from(&err).as_value(),
-                event = format!("{event}").as_value(),
-                "failed to handle events"
-            );
-        })
         .ok()
     }
 
     #[instrument(skip(client))]
     async fn broadcast_msgs(
-        &self,
         client: &mut impl client::Client,
         msgs: Vec<Any>,
-        token: &CancellationToken,
+        token: CancellationToken,
     ) {
         for msg in msgs {
             if token.is_cancelled() {
                 return;
             }
-
-            if let Err(err) = client.broadcast(msg.clone()).await {
-                error!(
-                    err = report::LoggableError::from(&err).as_value(),
-                    msg_type = msg.type_url.as_value(),
-                    msg_value = hex::encode(&msg.value).as_value(),
-                    "failed to broadcast message"
-                );
-            }
+            let _ = client.broadcast(msg).await;
         }
     }
 }
