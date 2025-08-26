@@ -9,13 +9,13 @@ use futures::{pin_mut, Stream};
 use mockall::automock;
 use report::ErrorExt;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use thiserror::Error;
 use tokio::time::interval;
 use tokio_stream::{Elapsed, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
+use valuable::Valuable;
 
 use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client;
@@ -163,7 +163,6 @@ where
     async fn parse_event(event: Event) -> Option<H::Event> {
         H::Event::try_from(event.clone())
             .change_context(Error::EventConversion)
-            .attach_printable(json!({ "event": event }))
             .ok()
     }
 
@@ -189,7 +188,6 @@ where
         .ok()
     }
 
-    #[instrument(skip(client))]
     async fn broadcast_msgs(
         client: &mut impl client::Client,
         msgs: Vec<Any>,
@@ -199,7 +197,14 @@ where
             if token.is_cancelled() {
                 return;
             }
-            let _ = client.broadcast(msg).await;
+            if let Err(err) = client.broadcast(msg.clone()).await {
+                error!(
+                    err = report::LoggableError::from(&err).as_value(),
+                    msg_type = msg.type_url.as_value(),
+                    msg_value = hex::encode(&msg.value).as_value(),
+                    "failed to broadcast message"
+                );
+            }
         }
     }
 }
