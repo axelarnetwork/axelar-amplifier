@@ -41,6 +41,7 @@ pub enum Config {
         #[serde(flatten, with = "chain")]
         chain: Chain,
         rpc_timeout: Option<Duration>,
+        confirmation_height: u64,
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,

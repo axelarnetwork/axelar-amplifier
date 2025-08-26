@@ -66,7 +66,9 @@ impl Serialize for Url {
     where
         S: Serializer,
     {
-        serializer.serialize_str(self.inner.as_str())
+        // Serialize as a string value
+        let url_str = self.inner.as_str();
+        url_str.serialize(serializer)
     }
 }
 
@@ -122,12 +124,19 @@ mod tests {
 
     #[test]
     fn serialization_preserves_full_url_regardless_of_sensitivity() {
+        #[derive(Serialize)]
+        struct TestStruct {
+            url: Url,
+        }
+
         let url = Url::new_non_sensitive("https://serialize.test").unwrap();
-        let serialized = toml::to_string(&url).unwrap();
+        let test_struct = TestStruct { url };
+        let serialized = toml::to_string_pretty(&test_struct).unwrap();
         assert!(serialized.contains("https://serialize.test"));
 
         let sensitive_url = Url::new_sensitive("https://sensitive.serialize.test").unwrap();
-        let serialized = toml::to_string(&sensitive_url).unwrap();
+        let test_struct = TestStruct { url: sensitive_url };
+        let serialized = toml::to_string_pretty(&test_struct).unwrap();
         assert!(serialized.contains("https://sensitive.serialize.test"));
     }
 

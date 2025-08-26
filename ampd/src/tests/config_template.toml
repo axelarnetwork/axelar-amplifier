@@ -1,164 +1,176 @@
-tm_jsonrpc = 'http://localhost:26657/'
-tm_grpc = 'tcp://localhost:9090'
+tm_jsonrpc = "http://localhost:26657/"
+tm_grpc = "tcp://localhost:9090"
 
 [tm_grpc_timeout]
 secs = 5
 nanos = 0
 
 [event_processor]
-retry_delay = '1s'
+retry_delay = "1s"
 retry_max_attempts = 3
-stream_timeout = '15s'
+stream_timeout = "15s"
 stream_buffer_size = 100000
-delay = '1s'
+delay = "1s"
 
 [broadcast]
-chain_id = 'axelar-dojo-1'
-tx_fetch_interval = '500ms'
+chain_id = "axelar-dojo-1"
+tx_fetch_interval = "500ms"
 tx_fetch_max_retries = 10
 gas_adjustment = 1.2
-gas_price = '0.00005uaxl'
+gas_price = "0.00005uaxl"
 batch_gas_limit = 1000000
 queue_cap = 1000
-broadcast_interval = '5s'
+broadcast_interval = "5s"
 
 [[handlers]]
-type = 'EvmMsgVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-chain_name = 'ethereum'
-chain_rpc_url = 'http://127.0.0.1/'
-chain_finalization = 'RPCFinalizedBlock'
+type = "EvmMsgVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+chain_name = "ethereum"
+chain_rpc_url = "http://127.0.0.1/"
+chain_finalization = "RPCFinalizedBlock"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'EvmVerifierSetVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-chain_name = 'fantom'
-chain_rpc_url = 'http://127.0.0.1/'
-chain_finalization = 'ConfirmationHeight'
+type = "EvmVerifierSetVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+chain_name = "fantom"
+chain_rpc_url = "http://127.0.0.1/"
+chain_finalization = "ConfirmationHeight"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'MultisigSigner'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-chain_name = 'ethereum'
-
-[[handlers]]
-type = 'SuiMsgVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
+type = "EvmEventVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+chain_name = "polygon"
+chain_rpc_url = "http://127.0.0.1/"
+chain_finalization = "RPCFinalizedBlock"
+confirmation_height = 15
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'SuiVerifierSetVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
+type = "MultisigSigner"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+chain_name = "ethereum"
+
+[[handlers]]
+type = "SuiMsgVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'MvxMsgVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-proxy_url = 'http://127.0.0.1/'
-
-[[handlers]]
-type = 'MvxVerifierSetVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-proxy_url = 'http://127.0.0.1/'
-
-[[handlers]]
-type = 'StellarMsgVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
-
-[[handlers]]
-type = 'StellarVerifierSetVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
-
-[[handlers]]
-type = 'StarknetMsgVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
-
-[[handlers]]
-type = 'StarknetVerifierSetVerifier'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
-
-[[handlers]]
-type = 'SolanaMsgVerifier'
-chain_name = 'solana'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
+type = "SuiVerifierSetVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'SolanaVerifierSetVerifier'
-chain_name = 'solana'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
+type = "MvxMsgVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+proxy_url = "http://127.0.0.1/"
+
+[[handlers]]
+type = "MvxVerifierSetVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+proxy_url = "http://127.0.0.1/"
+
+[[handlers]]
+type = "StellarMsgVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
+
+[[handlers]]
+type = "StellarVerifierSetVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
+
+[[handlers]]
+type = "StarknetMsgVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
+
+[[handlers]]
+type = "StarknetVerifierSetVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
+
+[[handlers]]
+type = "SolanaMsgVerifier"
+chain_name = "solana"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'StacksMsgVerifier'
-chain_name = 'stacks'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
+type = "SolanaVerifierSetVerifier"
+chain_name = "solana"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'StacksVerifierSetVerifier'
-chain_name = 'stacks'
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-rpc_url = 'http://127.0.0.1/'
+type = "StacksMsgVerifier"
+chain_name = "stacks"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
+[[handlers]]
+type = "StacksVerifierSetVerifier"
+chain_name = "stacks"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+rpc_url = "http://127.0.0.1/"
 
 [handlers.rpc_timeout]
 secs = 3
 nanos = 0
 
 [tofnd_config]
-url = 'http://localhost:50051/'
-party_uid = 'ampd'
-key_uid = 'axelar'
+url = "http://localhost:50051/"
+party_uid = "ampd"
+key_uid = "axelar"
 
 [tofnd_config.timeout]
 secs = 3
 nanos = 0
 
 [service_registry]
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
 
 [rewards]
-cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
 
 [grpc]
-ip_addr = '127.0.0.1'
+ip_addr = "127.0.0.1"
 port = 9090
 global_concurrency_limit = 1024
 concurrency_limit_per_connection = 32
-request_timeout = '30s'
+request_timeout = "30s"
 
 [monitoring_server]
 enabled = false
-bind_address = '127.0.0.1:3000'
+bind_address = "127.0.0.1:3000"

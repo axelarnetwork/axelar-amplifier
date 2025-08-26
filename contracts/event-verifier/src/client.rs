@@ -190,7 +190,6 @@ mod test {
                 .try_into()
                 .unwrap(),
             block_expiry: 100.try_into().unwrap(),
-            confirmation_height: 10,
             fee: cosmwasm_std::coin(0, "uaxl"),
         };
 

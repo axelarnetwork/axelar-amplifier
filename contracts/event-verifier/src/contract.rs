@@ -44,7 +44,6 @@ pub fn instantiate(
         admin: address::validate_cosmwasm_address(deps.api, &msg.admin_address)?,
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
-        confirmation_height: msg.confirmation_height,
         fee: msg.fee,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -180,7 +179,6 @@ mod test {
                 admin_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
-                confirmation_height: 100,
                 fee: cosmwasm_std::coin(0, "uaxl"),
             },
         )

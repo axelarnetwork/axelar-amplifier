@@ -25,8 +25,6 @@ pub struct InstantiateMsg {
     pub voting_threshold: MajorityThreshold,
     /// The number of blocks after which a poll expires
     pub block_expiry: nonempty::Uint64,
-    /// The number of blocks to wait for on the source chain before considering a transaction final
-    pub confirmation_height: u64,
     /// Fee required to call verify_events
     pub fee: Coin,
 }

@@ -14,10 +14,6 @@
       "value": "sourcechain"
     },
     {
-      "key": "confirmation_height",
-      "value": "1"
-    },
-    {
       "key": "expires_at",
       "value": "1"
     },

@@ -251,6 +251,18 @@ mod tests {
             nanos = 0
 
             [[handlers]]
+            type = 'EvmEventVerifier'
+            cosmwasm_contract = '{}'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7545/'
+            chain_finalization = 'RPCFinalizedBlock'
+            confirmation_height = 15
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
+            [[handlers]]
             type = 'MultisigSigner'
             cosmwasm_contract = '{}'
             chain_name = 'Ethereum'
@@ -350,10 +362,11 @@ mod tests {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 16);
+        assert_eq!(cfg.handlers.len(), 17);
     }
 
     #[test]
@@ -515,6 +528,18 @@ mod tests {
                         rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::EvmEventVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    chain: Chain {
+                        name: chain_name!("Polygon"),
+                        finalization: Finalization::RPCFinalizedBlock,
+                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    },
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                    confirmation_height: 15,
                 },
                 HandlerConfig::MultisigSigner {
                     cosmwasm_contract: TMAddress::from(

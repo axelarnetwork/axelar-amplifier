@@ -43,7 +43,6 @@ pub struct Event {
 struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
-    confirmation_height: u64,
     expires_at: u64,
     events: Vec<Event>,
     participants: Vec<TMAddress>,
@@ -60,6 +59,7 @@ where
     finalizer_type: Finalization,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
+    confirmation_height: u64,
 }
 
 impl<C> Handler<C>
@@ -73,6 +73,7 @@ where
         finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
+        confirmation_height: u64,
     ) -> Self {
         Self {
             verifier,
@@ -81,6 +82,7 @@ where
             finalizer_type,
             rpc_client,
             latest_block_height,
+            confirmation_height,
         }
     }
 
@@ -166,7 +168,6 @@ where
             source_chain,
             events,
             expires_at,
-            confirmation_height,
             participants,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
@@ -213,7 +214,7 @@ where
 
         println!("Fetching receipts and conditionally fetching transactions");
         let finalized_tx_receipts = self
-            .finalized_tx_receipts(tx_hashes_with_flags, confirmation_height)
+            .finalized_tx_receipts(tx_hashes_with_flags, self.confirmation_height)
             .await?;
         println!("finalized_tx_receipts: {:?}", finalized_tx_receipts);
 
@@ -290,7 +291,6 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "ethereum".parse().unwrap(),
-                confirmation_height: 15,
                 expires_at,
                 participants: participants
                     .into_iter()
@@ -377,6 +377,7 @@ mod tests {
         let event_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
+        let confirmation_height = 15u64;
         let event: Event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &event_verifier_contract,
@@ -391,6 +392,7 @@ mod tests {
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,
+            confirmation_height,
         );
 
         // poll is not expired yet, should hit rpc error

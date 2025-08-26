@@ -19,7 +19,6 @@ impl From<Config> for Vec<Attribute> {
             admin,
             voting_threshold,
             block_expiry,
-            confirmation_height,
             fee,
         } = other;
 
@@ -33,7 +32,6 @@ impl From<Config> for Vec<Attribute> {
             ("voting_threshold", serde_json::to_string(&voting_threshold)
                 .expect("failed to serialize voting_threshold")),
             ("block_expiry", block_expiry.to_string()),
-            ("confirmation_height", confirmation_height.to_string()),
             ("fee", serde_json::to_string(&fee).expect("failed to serialize fee")),
         ]
         .into_iter()
@@ -45,7 +43,6 @@ impl From<Config> for Vec<Attribute> {
 pub struct PollMetadata {
     pub poll_id: PollId,
     pub source_chain: ChainName,
-    pub confirmation_height: u64,
     pub expires_at: u64,
     pub participants: Vec<Addr>,
 }
@@ -66,10 +63,9 @@ impl From<PollMetadata> for Vec<Attribute> {
             ),
             ("source_chain", &value.source_chain.to_string()),
             (
-                "confirmation_height",
-                &value.confirmation_height.to_string(),
+                "expires_at",
+                &value.expires_at.to_string(),
             ),
-            ("expires_at", &value.expires_at.to_string()),
             (
                 "participants",
                 &serde_json::to_string(&value.participants)
@@ -224,7 +220,6 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: 1.into(),
                 source_chain: "sourceChain".try_into().unwrap(),
-                confirmation_height: 1,
                 expires_at: 1,
                 participants: vec![
                     api.addr_make("participant1"),

@@ -165,7 +165,6 @@ pub fn verify_events(
         metadata: PollMetadata {
             poll_id: id,
             source_chain: source_chain.clone(),
-            confirmation_height: config.confirmation_height,
             expires_at,
             participants,
         },
