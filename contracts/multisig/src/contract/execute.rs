@@ -8,8 +8,8 @@ use super::*;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{
-    AUTHORIZED_CALLERS, load_session_signatures, remove_authorized_caller,
-    save_authorized_caller, save_pub_key, save_signature,
+    load_session_signatures, remove_authorized_caller, save_authorized_caller, save_pub_key,
+    save_signature, AUTHORIZED_CALLERS,
 };
 use crate::verifier_set::VerifierSet;
 
