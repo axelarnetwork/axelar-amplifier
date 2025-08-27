@@ -578,7 +578,10 @@ mod tests {
         RegisterTokenMetadata, TokenId,
     };
     use its_abi_translator::abi::hub_message_abi_encode;
-    use router_api::{chain_name_raw, cosmos_address, ChainName, ChainNameRaw, CrossChainId};
+    use router_api::{
+        address, chain_name, chain_name_raw, cosmos_addr, cosmos_address, ChainNameRaw,
+        CrossChainId,
+    };
 
     use super::{apply_to_hub, register_p2p_token_instance};
     use crate::contract::execute::{
@@ -599,6 +602,8 @@ mod tests {
     const ADMIN: &str = "admin";
     const GOVERNANCE: &str = "governance";
     const AXELARNET_GATEWAY: &str = "axelarnet-gateway";
+
+    const TRANSLATION_ADDRESS: &str = "translation";
 
     #[test]
     fn should_be_able_to_transfer() {
@@ -816,7 +821,7 @@ mod tests {
         assert_err_contains!(
             modify_supply(
                 deps.as_mut(),
-                ChainNameRaw::try_from(XRPL).unwrap(),
+                xrpl(),
                 token_id(),
                 msg::SupplyModifier::IncreaseSupply(Uint256::from_u128(50u128).try_into().unwrap())
             ),
@@ -873,7 +878,7 @@ mod tests {
         init(&mut deps);
 
         let msg = HubMessage::SendToHub {
-            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            destination_chain: solana(),
             message: DeployInterchainToken {
                 token_id: [7u8; 32].into(),
                 name: "Test".parse().unwrap(),
@@ -884,21 +889,21 @@ mod tests {
             .into(),
         };
         let cc_id = CrossChainId {
-            source_chain: ChainNameRaw::try_from(ETHEREUM).unwrap(),
+            source_chain: ethereum(),
             message_id: HexTxHashAndEventIndex::new([1u8; 32], 0u32).into(),
         };
 
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
 
         assert_ok!(disable_execution(deps.as_mut()));
 
         let msg = HubMessage::SendToHub {
-            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            destination_chain: solana(),
             message: InterchainTransfer {
                 token_id: [7u8; 32].into(),
                 amount: Uint256::one().try_into().unwrap(),
@@ -912,7 +917,7 @@ mod tests {
         let res = execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         );
         assert_err_contains!(res, Error, Error::ExecutionDisabled);
@@ -920,7 +925,7 @@ mod tests {
         assert_ok!(enable_execution(deps.as_mut()));
 
         let msg = HubMessage::SendToHub {
-            destination_chain: ChainNameRaw::try_from(SOLANA).unwrap(),
+            destination_chain: solana(),
             message: DeployInterchainToken {
                 token_id: [1u8; 32].into(),
                 name: "Test".parse().unwrap(),
@@ -933,7 +938,7 @@ mod tests {
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg),
         ));
     }
@@ -943,8 +948,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
 
         assert_ok!(freeze_chain(deps.as_mut(), source_chain.clone()));
 
@@ -968,7 +973,7 @@ mod tests {
                     .try_into()
                     .unwrap(),
             },
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         );
 
@@ -985,7 +990,7 @@ mod tests {
                     .try_into()
                     .unwrap(),
             },
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
     }
@@ -995,8 +1000,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
 
         assert_ok!(freeze_chain(deps.as_mut(), destination_chain.clone()));
 
@@ -1022,7 +1027,7 @@ mod tests {
         let res = execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         );
         assert_err_contains!(res, Error, Error::ChainFrozen(..));
@@ -1032,7 +1037,7 @@ mod tests {
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id,
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg),
         ));
     }
@@ -1042,9 +1047,9 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
-        let other_chain = ChainNameRaw::try_from(XRPL).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
+        let other_chain = xrpl();
 
         assert_ok!(freeze_chain(deps.as_mut(), other_chain.clone()));
 
@@ -1070,7 +1075,7 @@ mod tests {
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
     }
@@ -1081,26 +1086,26 @@ mod tests {
         assert_ok!(register_chain(
             &mut deps.as_mut(),
             msg::ChainConfig {
-                chain: SOLANA.parse().unwrap(),
-                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                chain: solana(),
+                its_edge_contract: address!(ITS_ADDRESS),
                 truncation: TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8
                 },
-                msg_translator: cosmos_address!("translation")
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS)
             }
         ));
         assert_err_contains!(
             register_chain(
                 &mut deps.as_mut(),
                 msg::ChainConfig {
-                    chain: SOLANA.parse().unwrap(),
-                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    chain: solana(),
+                    its_edge_contract: address!(ITS_ADDRESS),
                     truncation: TruncationConfig {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8
                     },
-                    msg_translator: cosmos_address!("translation"),
+                    msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
                 }
             ),
             Error,
@@ -1113,22 +1118,22 @@ mod tests {
         let mut deps = mock_dependencies();
         let chains = vec![
             msg::ChainConfig {
-                chain: SOLANA.parse().unwrap(),
-                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                chain: solana(),
+                its_edge_contract: address!(ITS_ADDRESS),
                 truncation: TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             },
             msg::ChainConfig {
-                chain: XRPL.parse().unwrap(),
-                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                chain: xrpl(),
+                its_edge_contract: address!(ITS_ADDRESS),
                 truncation: TruncationConfig {
                     max_uint_bits: 256.try_into().unwrap(),
                     max_decimals_when_truncating: 16u8,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             },
         ];
         assert_ok!(register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -1146,13 +1151,13 @@ mod tests {
             update_chains(
                 deps.as_mut(),
                 vec![msg::ChainConfig {
-                    chain: SOLANA.parse().unwrap(),
-                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    chain: solana(),
+                    its_edge_contract: address!(ITS_ADDRESS),
                     truncation: TruncationConfig {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 16u8,
                     },
-                    msg_translator: cosmos_address!("translation"),
+                    msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
                 }]
             ),
             Error,
@@ -1166,8 +1171,8 @@ mod tests {
         init(&mut deps);
 
         let token_id: TokenId = [7u8; 32].into();
-        let solana = ChainNameRaw::try_from(SOLANA).unwrap();
-        let ethereum = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let solana = solana();
+        let ethereum = ethereum();
 
         // update the max_uint to u128 max (previously was u256 max) and reduce decimals when truncating to 6
         let new_decimals = 6u8;
@@ -1175,12 +1180,12 @@ mod tests {
             deps.as_mut(),
             vec![msg::ChainConfig {
                 chain: solana.clone(),
-                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                its_edge_contract: address!(ITS_ADDRESS),
                 truncation: TruncationConfig {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: new_decimals,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             }]
         ));
 
@@ -1204,7 +1209,7 @@ mod tests {
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
 
@@ -1252,8 +1257,8 @@ mod tests {
         init(&mut deps);
 
         let token_id: TokenId = [7u8; 32].into();
-        let solana = ChainNameRaw::try_from(SOLANA).unwrap();
-        let ethereum = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let solana = solana();
+        let ethereum = ethereum();
 
         // deploy a token with 18 decimals
         let msg = HubMessage::SendToHub {
@@ -1275,7 +1280,7 @@ mod tests {
         assert_ok!(execute_message(
             deps.as_mut(),
             cc_id.clone(),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
 
@@ -1284,12 +1289,12 @@ mod tests {
             deps.as_mut(),
             vec![msg::ChainConfig {
                 chain: solana.clone(),
-                its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                its_edge_contract: address!(ITS_ADDRESS),
                 truncation: TruncationConfig {
                     max_uint_bits: 128.try_into().unwrap(),
                     max_decimals_when_truncating: 6u8,
                 },
-                msg_translator: cosmos_address!("translation"),
+                msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
             }]
         ));
 
@@ -1332,8 +1337,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
         let source_decimals = 12u8;
         let destination_decimals = 6u8;
         let token_address: nonempty::HexBinary =
@@ -1400,8 +1405,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
         let source_decimals = 12u8;
         let destination_decimals = 12u8;
         let token_address: nonempty::HexBinary =
@@ -1465,8 +1470,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
         let token_address: nonempty::HexBinary =
             HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
                 .unwrap()
@@ -1502,7 +1507,7 @@ mod tests {
                         .try_into()
                         .unwrap(),
                 },
-                ITS_ADDRESS.to_string().try_into().unwrap(),
+                address!(ITS_ADDRESS),
                 hub_message_abi_encode(msg.clone()),
             ),
             Error,
@@ -1515,8 +1520,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
         let token_address: nonempty::HexBinary =
             HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
                 .unwrap()
@@ -1547,7 +1552,7 @@ mod tests {
                         .try_into()
                         .unwrap(),
                 },
-                ITS_ADDRESS.to_string().try_into().unwrap(),
+                address!(ITS_ADDRESS),
                 hub_message_abi_encode(msg.clone()),
             ),
             Error,
@@ -1560,8 +1565,8 @@ mod tests {
         let mut deps = mock_dependencies();
         init(&mut deps);
 
-        let source_chain = ChainNameRaw::try_from(SOLANA).unwrap();
-        let destination_chain = ChainNameRaw::try_from(ETHEREUM).unwrap();
+        let source_chain = solana();
+        let destination_chain = ethereum();
         let token_address: nonempty::HexBinary =
             HexBinary::from_hex("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
                 .unwrap()
@@ -1591,7 +1596,7 @@ mod tests {
                         .try_into()
                         .unwrap(),
                 },
-                ITS_ADDRESS.to_string().try_into().unwrap(),
+                address!(ITS_ADDRESS),
                 hub_message_abi_encode(msg.clone()),
             ),
             Error,
@@ -1867,15 +1872,15 @@ mod tests {
     }
 
     fn xrpl() -> ChainNameRaw {
-        XRPL.try_into().unwrap()
+        chain_name_raw!(XRPL)
     }
 
     fn solana() -> ChainNameRaw {
-        SOLANA.try_into().unwrap()
+        chain_name_raw!(SOLANA)
     }
 
     fn ethereum() -> ChainNameRaw {
-        ETHEREUM.try_into().unwrap()
+        chain_name_raw!(ETHEREUM)
     }
 
     fn cc_id(source_chain: ChainNameRaw) -> CrossChainId {
@@ -1917,7 +1922,7 @@ mod tests {
         execute_message(
             deps,
             cc_id(from),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         )
     }
@@ -1985,7 +1990,7 @@ mod tests {
         execute_message(
             deps,
             cc_id(from),
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         )
     }
@@ -2010,7 +2015,7 @@ mod tests {
                     .try_into()
                     .unwrap(),
             },
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
         assert_eq!(res.messages.len(), 0);
@@ -2044,7 +2049,7 @@ mod tests {
                     .try_into()
                     .unwrap(),
             },
-            ITS_ADDRESS.to_string().try_into().unwrap(),
+            address!(ITS_ADDRESS),
             hub_message_abi_encode(msg.clone()),
         ));
         assert_eq!(res.messages.len(), 1);
@@ -2084,18 +2089,18 @@ mod tests {
     fn init(deps: &mut OwnedDeps<MemoryStorage, MockApi, MockQuerier>) {
         assert_ok!(permission_control::set_admin(
             deps.as_mut().storage,
-            &MockApi::default().addr_make(ADMIN)
+            &cosmos_addr!(ADMIN)
         ));
         assert_ok!(permission_control::set_governance(
             deps.as_mut().storage,
-            &MockApi::default().addr_make(GOVERNANCE)
+            &cosmos_addr!(GOVERNANCE)
         ));
 
         assert_ok!(state::save_config(
             deps.as_mut().storage,
             &Config {
-                axelarnet_gateway: MockApi::default().addr_make(AXELARNET_GATEWAY),
-                operator: MockApi::default().addr_make("operator-address")
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY),
+                operator: cosmos_addr!("operator-address")
             },
         ));
 
@@ -2104,35 +2109,32 @@ mod tests {
             killswitch::State::Disengaged
         ));
 
-        for chain_name in [SOLANA, ETHEREUM, XRPL, AXELAR] {
-            let chain = ChainNameRaw::try_from(chain_name).unwrap();
+        for chain in [solana(), ethereum(), xrpl(), chain_name_raw!(AXELAR)] {
             assert_ok!(register_chain(
                 &mut deps.as_mut(),
                 msg::ChainConfig {
                     chain: chain.clone(),
-                    its_edge_contract: ITS_ADDRESS.to_string().try_into().unwrap(),
+                    its_edge_contract: address!(ITS_ADDRESS),
                     truncation: TruncationConfig {
                         max_uint_bits: 256.try_into().unwrap(),
                         max_decimals_when_truncating: 18u8
                     },
-                    msg_translator: cosmos_address!("translation"),
+                    msg_translator: cosmos_address!(TRANSLATION_ADDRESS),
                 }
             ));
         }
         deps.querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make(AXELARNET_GATEWAY).as_str() =>
+                if contract_addr == cosmos_addr!(AXELARNET_GATEWAY).as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
-                    QueryMsg::ChainName => {
-                        Ok(to_json_binary(&ChainName::try_from("axelar").unwrap()).into()).into()
-                    }
+                    QueryMsg::ChainName => Ok(to_json_binary(&chain_name!(AXELAR)).into()).into(),
                     _ => panic!("unsupported query"),
                 }
             }
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make("translation").as_str() =>
+                if contract_addr == cosmos_addr!(TRANSLATION_ADDRESS).as_str() =>
             {
                 let msg = from_json::<its_msg_translator_api::QueryMsg>(msg).unwrap();
                 match msg {

@@ -42,9 +42,17 @@ impl Display for FlagSet<Permission> {
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error("sender with role '{actual}' is not allowed to perform this action that requires '{expected}' permissions")]
-    PermissionDenied {
+    GeneralPermissionDenied {
         expected: FlagSet<Permission>,
         actual: FlagSet<Permission>,
+    },
+    #[error("sender does not fit roles {roles:?}")]
+    SpecificPermissionDenied { roles: Vec<String> },
+    #[error("sender with role '{actual}' does not fit roles {roles:?}, or have '{expected}' permissions")]
+    GeneralAndSpecificPermissionDenied {
+        expected: FlagSet<Permission>,
+        actual: FlagSet<Permission>,
+        roles: Vec<String>,
     },
     #[error("sender '{actual}' must be one of the addresses {expected:?}")]
     AddressNotWhitelisted { expected: Vec<Addr>, actual: Addr },
@@ -97,7 +105,8 @@ pub fn sender_role(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{MockApi, MockStorage};
+    use cosmwasm_std::testing::MockStorage;
+    use router_api::cosmos_addr;
 
     use super::*;
 
@@ -122,9 +131,9 @@ mod tests {
 
     #[test]
     fn sender_role_from_storage() {
-        let admin = MockApi::default().addr_make("admin");
-        let governance = MockApi::default().addr_make("governance");
-        let regular_user = MockApi::default().addr_make("regular user");
+        let admin = cosmos_addr!("admin");
+        let governance = cosmos_addr!("governance");
+        let regular_user = cosmos_addr!("regular user");
 
         let mut storage = MockStorage::new();
         set_admin(&mut storage, &admin).unwrap();

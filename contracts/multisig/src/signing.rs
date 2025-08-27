@@ -121,8 +121,9 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 mod tests {
 
     use assert_ok::assert_ok;
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{HexBinary, QuerierWrapper};
+    use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::key::KeyType;
@@ -147,7 +148,7 @@ mod tests {
         let session = SigningSession::new(
             Uint64::one(),
             verifier_set_id,
-            "mock-chain".parse().unwrap(),
+            chain_name!("mock-chain"),
             message.clone(),
             expires_at,
             None,
@@ -183,7 +184,7 @@ mod tests {
         let session = SigningSession::new(
             Uint64::one(),
             verifier_set_id,
-            "mock-chain".parse().unwrap(),
+            chain_name!("mock-chain"),
             message.clone(),
             expires_at,
             None,
@@ -260,7 +261,7 @@ mod tests {
                 .unwrap()
                 .pub_key;
 
-            let sig_verifier_addr = MockApi::default().addr_make("verifier");
+            let sig_verifier_addr = cosmos_addr!("verifier");
 
             let querier = MockQuerier::default();
             let sig_verifier: signature_verifier_api::Client =
@@ -388,7 +389,7 @@ mod tests {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
             let verifier_set = config.verifier_set;
-            let invalid_participant = MockApi::default().addr_make("not_a_participant");
+            let invalid_participant = cosmos_addr!("not_a_participant");
 
             let result = match verifier_set.signers.get(&invalid_participant.to_string()) {
                 Some(signer) => Ok(&signer.pub_key),

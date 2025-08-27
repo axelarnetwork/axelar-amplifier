@@ -62,10 +62,9 @@ impl Client<'_> {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, WasmMsg, WasmQuery};
+    use router_api::{address, chain_name, cosmos_addr};
 
     use super::*;
     use crate::contract::{instantiate, query};
@@ -77,10 +76,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        assert_eq!(
-            client.chain_name().unwrap(),
-            ChainName::from_str("source-chain").unwrap()
-        );
+        assert_eq!(client.chain_name().unwrap(), chain_name!("source-chain"));
     }
 
     #[test]
@@ -89,8 +85,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let destination_chain: ChainName = "destination-chain".parse().unwrap();
-        let destination_address: Address = "destination-address".parse().unwrap();
+        let destination_chain = chain_name!("destination-chain");
+        let destination_address = address!("destination-address");
         let payload = HexBinary::from(vec![1, 2, 3]);
 
         let msg = client.call_contract(
@@ -139,15 +135,15 @@ mod test {
 
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
         let mut deps = mock_dependencies();
-        let addr = deps.api.addr_make("axelarnet-gateway");
+        let addr = cosmos_addr!("axelarnet-gateway");
         let addr_clone = addr.clone();
         let env = mock_env();
-        let info = message_info(&deps.api.addr_make("deployer"), &[]);
+        let info = message_info(&cosmos_addr!("deployer"), &[]);
 
         let instantiate_msg = InstantiateMsg {
-            chain_name: "source-chain".parse().unwrap(),
-            router_address: deps.api.addr_make("router").to_string(),
-            nexus: deps.api.addr_make("nexus").to_string(),
+            chain_name: chain_name!("source-chain"),
+            router_address: cosmos_addr!("router").to_string(),
+            nexus: cosmos_addr!("nexus").to_string(),
         };
 
         instantiate(deps.as_mut(), env, info, instantiate_msg.clone()).unwrap();

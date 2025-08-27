@@ -9,21 +9,9 @@ use tracing::{debug, info, instrument, warn};
 use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
-use crate::cosmos;
-
-// TODO: move these constants to the config. In the meantime, these were chosen as reasonable heuristics.
-// Maximum number of transaction confirmations to process concurrently.
-// - Controls parallelism when confirming transactions
-// - Higher values increase throughput for confirming many transactions
-// - Lower values reduce resource consumption
-// - Balance based on network capacity and system resources
-const TX_CONFIRMATION_BUFFER_SIZE: usize = 10;
-// Maximum capacity of the transaction confirmation queue.
-// - Determines how many transactions can be queued for confirmation before backpressure
-// - Larger values provide more buffering for high-volume transaction periods
-// - Too small may cause confirmation requests to be dropped during traffic spikes
-// - Too large may consume excessive memory if confirmations become backlogged
-const TX_CONFIRMATION_QUEUE_CAP: usize = 1000;
+use crate::monitoring::metrics;
+use crate::monitoring::metrics::{Msg, Stage};
+use crate::{cosmos, monitoring};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -54,6 +42,8 @@ where
     rx: mpsc::Receiver<String>,
     client: T,
     retry_policy: RetryPolicy,
+    buffer_size: usize,
+    monitoring_client: monitoring::Client,
 }
 
 impl<T> TxConfirmer<T>
@@ -71,12 +61,17 @@ where
     pub fn new_confirmer_and_client(
         client: T,
         retry_policy: RetryPolicy,
+        buffer_size: usize,
+        queue_cap: usize,
+        monitoring_client: monitoring::Client,
     ) -> (Self, TxConfirmerClient) {
-        let (tx, rx) = mpsc::channel(TX_CONFIRMATION_QUEUE_CAP);
+        let (tx, rx) = mpsc::channel(queue_cap);
         let confirmer = Self {
             rx,
             client,
             retry_policy,
+            buffer_size,
+            monitoring_client,
         };
 
         (confirmer, tx)
@@ -97,11 +92,25 @@ where
             rx,
             client,
             retry_policy,
+            monitoring_client,
+            buffer_size,
         } = self;
         let mut stream = ReceiverStream::new(rx)
             .inspect(|tx_hash| info!(tx_hash, "received tx hash to confirm"))
-            .map(|tx_hash| confirm_tx(&client, tx_hash, retry_policy))
-            .buffer_unordered(TX_CONFIRMATION_BUFFER_SIZE);
+            .map(|tx_hash| async {
+                let (res, elapsed) =
+                    metrics::timed(|| async { confirm_tx(&client, tx_hash, retry_policy).await })
+                        .await;
+
+                monitoring_client.metrics().record_metric(Msg::StageResult {
+                    stage: Stage::TransactionConfirmation,
+                    success: res.is_ok(),
+                    duration: elapsed,
+                });
+
+                res
+            })
+            .buffer_unordered(buffer_size);
 
         while let Some(result) = stream.next().await {
             log_confirm_tx_result(result);
@@ -179,12 +188,16 @@ mod tests {
 
     use crate::asyncutil::future::RetryPolicy;
     use crate::cosmos;
+    use crate::monitoring::metrics::{Msg, Stage};
+    use crate::monitoring::test_utils;
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
     async fn tx_confirmer_should_confirm_tx_that_succeed_on_chain() {
         let tx_hash = "tx_hash";
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
+        let buffer_size = 10;
+        let queue_cap = 1000;
 
         let mut client = cosmos::MockCosmosClient::default();
         client.expect_clone().return_once(|| {
@@ -208,13 +221,31 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let (confirmer, confirmer_client) = super::TxConfirmer::new_confirmer_and_client(
+            client,
+            retry_policy,
+            buffer_size,
+            queue_cap,
+            monitoring_client,
+        );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx succeeded on chain"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: true,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -222,6 +253,8 @@ mod tests {
     async fn tx_confirmer_should_confirm_tx_that_failed_on_chain() {
         let tx_hash = "tx_hash";
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
+        let buffer_size = 10;
+        let queue_cap = 1000;
 
         let mut client = cosmos::MockCosmosClient::default();
         client.expect_clone().return_once(|| {
@@ -245,13 +278,31 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let (confirmer, confirmer_client) = super::TxConfirmer::new_confirmer_and_client(
+            client,
+            retry_policy,
+            buffer_size,
+            queue_cap,
+            monitoring_client,
+        );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx failed on chain"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: false,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -259,6 +310,8 @@ mod tests {
     async fn tx_confirmer_should_not_confirm_tx_that_cannot_be_found_on_chain() {
         let tx_hash = "tx_hash";
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
+        let buffer_size = 10;
+        let queue_cap = 1000;
 
         let mut client = cosmos::MockCosmosClient::default();
         client.expect_clone().times(3).returning(|| {
@@ -273,13 +326,31 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let (confirmer, confirmer_client) = super::TxConfirmer::new_confirmer_and_client(
+            client,
+            retry_policy,
+            buffer_size,
+            queue_cap,
+            monitoring_client,
+        );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("tx not found on chain"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: false,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test(start_paused = true)]
@@ -287,6 +358,8 @@ mod tests {
     async fn tx_confirmer_should_not_confirm_tx_that_cannot_be_queried() {
         let tx_hash = "tx_hash";
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
+        let buffer_size = 10;
+        let queue_cap = 1000;
 
         let mut client = cosmos::MockCosmosClient::default();
         client.expect_clone().times(3).returning(|| {
@@ -301,12 +374,30 @@ mod tests {
             client
         });
 
-        let (confirmer, confirmer_client) =
-            super::TxConfirmer::new_confirmer_and_client(client, retry_policy);
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let (confirmer, confirmer_client) = super::TxConfirmer::new_confirmer_and_client(
+            client,
+            retry_policy,
+            buffer_size,
+            queue_cap,
+            monitoring_client,
+        );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
         confirmer.run().await.unwrap();
 
         assert!(logs_contain("failed to query for tx"));
+
+        let metrics = receiver.recv().await.unwrap();
+        assert!(matches!(
+            metrics,
+            Msg::StageResult {
+                stage: Stage::TransactionConfirmation,
+                success: false,
+                duration: _
+            }
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 }

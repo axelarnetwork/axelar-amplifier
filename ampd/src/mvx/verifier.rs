@@ -176,6 +176,7 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, Events, LogData, TransactionOnNetwork};
+    use router_api::chain_name;
 
     use crate::handlers::mvx_verify_msg::Message;
     use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
@@ -269,7 +270,7 @@ mod tests {
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.destination_chain = "otherchain".parse().unwrap();
+        msg.destination_chain = chain_name!("otherchain");
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 

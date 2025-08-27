@@ -196,7 +196,7 @@ mod test {
     use multisig::key::PublicKey;
     use multisig::types::MsgToSign;
     use rand::rngs::OsRng;
-    use router_api::ChainName;
+    use router_api::{chain_name, ChainName};
     use tendermint::abci;
     use tokio::sync::watch;
 
@@ -206,6 +206,7 @@ mod test {
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
     const PREFIX: &str = "axelar";
+    const XRPL: &str = "xrpl";
 
     fn rand_public_key() -> multisig::key::PublicKey {
         multisig::key::PublicKey::Ecdsa(HexBinary::from(
@@ -231,7 +232,7 @@ mod test {
             verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
-            chain_name: "xrpl".parse().unwrap(),
+            chain_name: chain_name!(XRPL),
             expires_at: 100u64,
         };
 
@@ -325,7 +326,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
-            "xrpl".parse().unwrap(),
+            chain_name!(XRPL),
             client,
             100u64,
         );
@@ -346,7 +347,7 @@ mod test {
         let handler = handler(
             TMAddress::random(PREFIX),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "xrpl".parse().unwrap(),
+            chain_name!(XRPL),
             client,
             100u64,
         );
@@ -370,7 +371,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "xrpl".parse().unwrap(),
+            chain_name!(XRPL),
             client,
             99u64,
         );
@@ -394,7 +395,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "xrpl".parse().unwrap(),
+            chain_name!(XRPL),
             client,
             101u64,
         );
@@ -415,7 +416,7 @@ mod test {
         let handler = handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            "not-xrpl".parse().unwrap(),
+            chain_name!("not-xrpl"),
             client,
             100u64,
         );

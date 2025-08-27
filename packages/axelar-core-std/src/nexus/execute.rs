@@ -86,7 +86,7 @@ mod test {
     use std::vec;
 
     use axelar_wasm_std::msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex};
-    use router_api::{chain_name_raw, CrossChainId};
+    use router_api::{address, chain_name, chain_name_raw, CrossChainId};
 
     use super::Message;
 
@@ -98,9 +98,9 @@ mod test {
         };
         let msg = Message {
             source_chain: chain_name_raw!("ethereum"),
-            source_address: "something".parse().unwrap(),
-            destination_chain: "polygon".parse().unwrap(),
-            destination_address: "something else".parse().unwrap(),
+            source_address: address!("something"),
+            destination_chain: chain_name!("polygon"),
+            destination_address: address!("something else"),
             payload_hash: [1; 32],
             source_tx_id: msg_id.tx_hash.to_vec().try_into().unwrap(),
             source_tx_index: msg_id.event_index,
@@ -128,9 +128,9 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "something".parse().unwrap(),
-            destination_chain: "polygon".parse().unwrap(),
-            destination_address: "something else".parse().unwrap(),
+            source_address: address!("something"),
+            destination_chain: chain_name!("polygon"),
+            destination_address: address!("something else"),
             payload_hash: [1; 32],
         };
 
@@ -151,9 +151,9 @@ mod test {
                 .as_str(),
             )
             .unwrap(),
-            source_address: "something".parse().unwrap(),
-            destination_chain: "polygon".parse().unwrap(),
-            destination_address: "something else".parse().unwrap(),
+            source_address: address!("something"),
+            destination_chain: chain_name!("polygon"),
+            destination_address: address!("something else"),
             payload_hash: [1; 32],
         };
 

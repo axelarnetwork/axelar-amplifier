@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "ampd-proto",
  "assert_ok",
@@ -1065,6 +1065,7 @@ dependencies = [
  "axelar-wasm-std-derive",
  "bech32 0.11.0",
  "bs58 0.5.1",
+ "const-str",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1081,6 +1082,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "report",
+ "router-api",
  "schemars",
  "semver 1.0.26",
  "serde",
@@ -1313,12 +1315,6 @@ name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
-
-[[package]]
-name = "base32"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23ce669cd6c8588f79e15cf450314f9638f967fc5770ff1c7c1deb0925ea7cfa"
 
 [[package]]
 name = "base64"
@@ -6416,6 +6412,7 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
+ "router-api",
  "serde",
  "serde_json",
  "syn 2.0.101",
@@ -9597,6 +9594,7 @@ dependencies = [
  "hex",
  "indexmap 1.9.3",
  "indexmap 2.9.0",
+ "schemars",
  "serde",
  "serde_derive",
  "serde_json",
@@ -11666,9 +11664,9 @@ dependencies = [
 
 [[package]]
 name = "stellar-rpc-client"
-version = "21.4.0"
+version = "23.0.0-rc.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c735c8e456fa7c37f72dd2a6abc022a111b3bf9b0520d50eef091eb1336ad370"
+checksum = "68db799e1a626da3b2ab34d8e3ddca9657f83552588154f0a68b6071199b691f"
 dependencies = [
  "clap",
  "hex",
@@ -11679,24 +11677,24 @@ dependencies = [
  "serde",
  "serde-aux",
  "serde_json",
+ "serde_with",
  "sha2 0.10.9",
- "stellar-strkey 0.0.8",
+ "stellar-strkey 0.0.9",
  "stellar-xdr",
  "termcolor",
  "termcolor_output",
  "thiserror 1.0.69",
  "tokio",
- "tracing",
 ]
 
 [[package]]
 name = "stellar-strkey"
-version = "0.0.8"
+version = "0.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12d2bf45e114117ea91d820a846fd1afbe3ba7d717988fee094ce8227a3bf8bd"
+checksum = "5e3aa3ed00e70082cb43febc1c2afa5056b9bb3e348bbb43d0cd0aa88a611144"
 dependencies = [
- "base32",
  "crate-git-revision",
+ "data-encoding",
  "thiserror 1.0.69",
 ]
 
@@ -11712,19 +11710,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "stellar-xdr"
-version = "21.2.0"
+name = "stellar-strkey"
+version = "0.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2675a71212ed39a806e415b0dbf4702879ff288ec7f5ee996dda42a135512b50"
+checksum = "ee1832fb50c651ad10f734aaf5d31ca5acdfb197a6ecda64d93fcdb8885af913"
 dependencies = [
- "base64 0.13.1",
+ "crate-git-revision",
+ "data-encoding",
+]
+
+[[package]]
+name = "stellar-xdr"
+version = "23.0.0-rc.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "466946ea96ee221ac75b2a479ef4aa1cbbb7bf0ac11154616d7fcd2f00324b8a"
+dependencies = [
+ "base64 0.22.1",
+ "cfg_eval",
  "crate-git-revision",
  "escape-bytes",
+ "ethnum",
  "hex",
  "serde",
  "serde_json",
  "serde_with",
- "stellar-strkey 0.0.8",
+ "sha2 0.10.9",
+ "stellar-strkey 0.0.13",
 ]
 
 [[package]]

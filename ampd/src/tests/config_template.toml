@@ -1,5 +1,6 @@
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
+default_rpc_timeout = '3s'
 
 [tm_grpc_timeout]
 secs = 5
@@ -11,6 +12,7 @@ retry_max_attempts = 3
 stream_timeout = '15s'
 stream_buffer_size = 100000
 delay = '1s'
+tx_broadcast_buffer_size = 10
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
@@ -21,6 +23,8 @@ gas_price = '0.00005uaxl'
 batch_gas_limit = 1000000
 queue_cap = 1000
 broadcast_interval = '5s'
+tx_confirmation_buffer_size = 10
+tx_confirmation_queue_cap = 1000
 
 [[handlers]]
 type = 'EvmMsgVerifier'
@@ -158,7 +162,35 @@ port = 9090
 global_concurrency_limit = 1024
 concurrency_limit_per_connection = 32
 request_timeout = '30s'
+[[grpc.blockchain_service.chains]]
+chain_name = 'ethereum'
+voting_verifier = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig_prover = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[[grpc.blockchain_service.chains]]
+chain_name = 'solana'
+voting_verifier = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig_prover = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[[grpc.blockchain_service.chains]]
+chain_name = 'flow'
+voting_verifier = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig_prover = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 
 [monitoring_server]
 enabled = false
 bind_address = '127.0.0.1:3000'
+channel_size = 1000
+
+[event_sub]
+block_processing_buffer = 10
+poll_interval = '5s'
+retry_delay = '3s'
+retry_max_attempts = 3
+
+[tm_client]
+max_retries = 15
+retry_delay = '1s'

@@ -110,7 +110,7 @@ mod tests {
     use ethers_core::types::H256;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use router_api::ChainName;
+    use router_api::chain_name;
     use starknet_checked_felt::CheckedFelt;
     use starknet_core::types::Felt;
 
@@ -155,7 +155,7 @@ mod tests {
                 event_index: 0,
             },
             destination_address: String::from("destination_address"),
-            destination_chain: ChainName::from_str("ethereum").unwrap(),
+            destination_chain: chain_name!("ethereum"),
             source_address: CheckedFelt::from_str(
                 "0x00b3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca",
             )
@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut msg = { mock_valid_message() };
-        msg.destination_chain = ChainName::from_str("avalanche").unwrap();
+        msg.destination_chain = chain_name!("avalanche");
         assert_eq!(verify_msg(&event, &msg, &source_gw_address), Vote::NotFound);
 
         let mut msg = { mock_valid_message() };

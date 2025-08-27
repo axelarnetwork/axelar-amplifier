@@ -4,6 +4,28 @@ Initial Metrics:
 blocks_received_total 0
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
+# HELP rpc_calls number of RPC calls per chain.
+# TYPE rpc_calls counter
+# HELP rpc_calls_failed number of failed RPC calls per chain.
+# TYPE rpc_calls_failed counter
+# HELP stage_processed total number of processed items per stage.
+# TYPE stage_processed counter
+# HELP stage_failed number of failed items per stage.
+# TYPE stage_failed counter
+# HELP stage_duration duration of processing items per stage in milliseconds.
+# TYPE stage_duration counter
+# HELP msg_enqueue_error number of failures in message enqueue.
+# TYPE msg_enqueue_error counter
+msg_enqueue_error_total 0
+# HELP event_stream_timeout number of timeouts while waiting for event stream responses.
+# TYPE event_stream_timeout counter
+event_stream_timeout_total 0
+# HELP event_publisher_error number of failures in event publisher.
+# TYPE event_publisher_error counter
+event_publisher_error_total 0
+# HELP grpc_service_error number of failures in grpc service.
+# TYPE grpc_service_error counter
+grpc_service_error_total 0
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent
@@ -21,6 +43,28 @@ Updated Metrics:
 blocks_received_total 3
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
+# HELP rpc_calls number of RPC calls per chain.
+# TYPE rpc_calls counter
+# HELP rpc_calls_failed number of failed RPC calls per chain.
+# TYPE rpc_calls_failed counter
+# HELP stage_processed total number of processed items per stage.
+# TYPE stage_processed counter
+# HELP stage_failed number of failed items per stage.
+# TYPE stage_failed counter
+# HELP stage_duration duration of processing items per stage in milliseconds.
+# TYPE stage_duration counter
+# HELP msg_enqueue_error number of failures in message enqueue.
+# TYPE msg_enqueue_error counter
+msg_enqueue_error_total 0
+# HELP event_stream_timeout number of timeouts while waiting for event stream responses.
+# TYPE event_stream_timeout counter
+event_stream_timeout_total 0
+# HELP event_publisher_error number of failures in event publisher.
+# TYPE event_publisher_error counter
+event_publisher_error_total 0
+# HELP grpc_service_error number of failures in grpc service.
+# TYPE grpc_service_error counter
+grpc_service_error_total 0
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent

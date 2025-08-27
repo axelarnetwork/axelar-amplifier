@@ -197,6 +197,7 @@ mod tests {
     use ethers_core::types::H160;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use router_api::chain_name;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -375,11 +376,13 @@ mod tests {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stellar".parse().unwrap(),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([1; 32]))
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                source_chain: chain_name!("stellar"),
+                source_gateway_address: ScAddress::Contract(
+                    stellar_xdr::curr::Hash::from([1; 32]).into(),
+                )
+                .to_string()
+                .try_into()
+                .unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants
@@ -396,11 +399,13 @@ mod tests {
                         tx_id: msg_id.tx_hash_as_hex(),
                         event_index: u32::try_from(msg_id.event_index).unwrap(),
                         message_id: msg_id.to_string().parse().unwrap(),
-                        source_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([2; 32]))
-                            .to_string()
-                            .try_into()
-                            .unwrap(),
-                        destination_chain: "ethereum".parse().unwrap(),
+                        source_address: ScAddress::Contract(
+                            stellar_xdr::curr::Hash::from([2; 32]).into(),
+                        )
+                        .to_string()
+                        .try_into()
+                        .unwrap(),
+                        destination_chain: chain_name!("ethereum"),
                         destination_address: format!("0x{:x}", H160::repeat_byte(i))
                             .parse()
                             .unwrap(),

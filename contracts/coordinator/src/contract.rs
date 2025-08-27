@@ -10,7 +10,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
-use error_stack::{report, ResultExt};
+use error_stack::ResultExt;
 use itertools::Itertools;
 pub use migrations::{migrate, MigrateMsg};
 use msgs_derive::ensure_permissions;
@@ -37,7 +37,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(direct(prover=find_prover_address(info.sender.clone())))]
+#[ensure_permissions(direct(prover=find_prover_address))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -90,7 +90,7 @@ pub fn execute(
             deployment_name,
             salt,
             params,
-        } => execute::instantiate_chain_contracts(deps, env, info, deployment_name, salt, *params)
+        } => execute::instantiate_chain_contracts(deps, env, deployment_name, salt, *params)
             .change_context(Error::InstantiateChainContracts),
         ExecuteMsg::RegisterDeployment { deployment_name } => {
             execute::register_deployment(deps, info.sender, deployment_name.clone())
@@ -101,15 +101,11 @@ pub fn execute(
 }
 
 fn find_prover_address(
-    sender: Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, state::Error> {
-    move |storage, _| {
-        if state::is_prover_registered(storage, sender.clone())? {
-            Ok(sender)
-        } else {
-            Err(report!(state::Error::ProverNotRegistered(sender)))
-        }
-    }
+    storage: &dyn Storage,
+    sender: &Addr,
+    _msg: &ExecuteMsg,
+) -> error_stack::Result<bool, state::Error> {
+    state::is_prover_registered(storage, sender.clone())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -148,7 +144,7 @@ mod tests {
     use axelar_wasm_std::permission_control::Permission;
     use cosmwasm_std::{Addr, StdResult};
     use cw_multi_test::{no_init, App, ContractWrapper, Executor};
-    use router_api::ChainName;
+    use router_api::{chain_name, cosmos_addr, ChainName};
 
     use super::*;
     use crate::msg::ChainContractsKey;
@@ -167,11 +163,11 @@ mod tests {
     fn setup() -> TestSetup {
         let mut app = App::new(no_init);
 
-        let admin_addr = app.api().addr_make("admin");
-        let chain_name: ChainName = "Ethereum".parse().unwrap();
-        let prover = app.api().addr_make("eth_prover");
-        let gateway = app.api().addr_make("eth_gateway");
-        let verifier = app.api().addr_make("eth_voting_verifier");
+        let admin_addr = cosmos_addr!("admin");
+        let chain_name = chain_name!("Ethereum");
+        let prover = cosmos_addr!("eth_prover");
+        let gateway = cosmos_addr!("eth_gateway");
+        let verifier = cosmos_addr!("eth_voting_verifier");
 
         let coordinator_code = ContractWrapper::new(execute, instantiate, query);
         let coordinator_code_id = app.store_code(Box::new(coordinator_code));
@@ -194,9 +190,9 @@ mod tests {
             admin_addr.clone(),
             coordinator_addr.clone(),
             &ExecuteMsg::RegisterProtocol {
-                service_registry_address: app.api().addr_make("service_registry").to_string(),
-                router_address: app.api().addr_make("router").to_string(),
-                multisig_address: app.api().addr_make("multisig").to_string(),
+                service_registry_address: cosmos_addr!("service_registry").to_string(),
+                router_address: cosmos_addr!("router").to_string(),
+                multisig_address: cosmos_addr!("multisig").to_string(),
             },
             &[],
         )
@@ -230,9 +226,9 @@ mod tests {
     #[test]
     fn add_prover_from_governance_succeeds() {
         let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
-        let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
-        let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
+        let new_prover = cosmos_addr!("new_eth_prover");
+        let new_gateway = cosmos_addr!("new_eth_gateway");
+        let new_verifier = cosmos_addr!("new_eth_verifier");
 
         assert!(test_setup
             .app
@@ -264,10 +260,10 @@ mod tests {
     #[test]
     fn add_prover_from_random_address_fails() {
         let mut test_setup = setup();
-        let new_prover = test_setup.app.api().addr_make("new_eth_prover");
-        let new_gateway = test_setup.app.api().addr_make("new_eth_gateway");
-        let new_verifier = test_setup.app.api().addr_make("new_eth_verifier");
-        let random_addr = test_setup.app.api().addr_make("random_address");
+        let new_prover = cosmos_addr!("new_eth_prover");
+        let new_gateway = cosmos_addr!("new_eth_gateway");
+        let new_verifier = cosmos_addr!("new_eth_verifier");
+        let random_addr = cosmos_addr!("random_address");
 
         let res = test_setup.app.execute_contract(
             random_addr.clone(),
@@ -283,7 +279,7 @@ mod tests {
 
         assert!(res.unwrap_err().root_cause().to_string().contains(
             &axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::PermissionDenied {
+                permission_control::Error::GeneralPermissionDenied {
                     expected: Permission::Governance.into(),
                     actual: Permission::NoPrivilege.into()
                 }
