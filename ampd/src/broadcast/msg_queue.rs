@@ -1027,7 +1027,7 @@ mod tests {
             to_address: TMAddress::random(PREFIX).to_string(),
             amount: vec![],
         })
-            .unwrap()
+        .unwrap()
     }
 
     #[tokio::test]
