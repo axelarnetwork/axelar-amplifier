@@ -162,6 +162,23 @@ port = 9090
 global_concurrency_limit = 1024
 concurrency_limit_per_connection = 32
 request_timeout = '30s'
+[[grpc.blockchain_service.chains]]
+chain_name = 'ethereum'
+voting_verifier = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig_prover = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[[grpc.blockchain_service.chains]]
+chain_name = 'solana'
+voting_verifier = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig_prover = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+
+[[grpc.blockchain_service.chains]]
+chain_name = 'flow'
+voting_verifier = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig_prover = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+multisig = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 
 [monitoring_server]
 enabled = false

@@ -455,7 +455,7 @@ mod tests {
         assert_eq!(
             res.unwrap_err().to_string(),
             axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::PermissionDenied {
+                permission_control::Error::GeneralPermissionDenied {
                     expected: Permission::Elevated.into(),
                     actual: Permission::NoPrivilege.into()
                 }
