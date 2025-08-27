@@ -273,14 +273,16 @@ impl MsgPermissions {
             ));
         }
 
-        if general.iter().any(|(perm, _)| perm == &Permission::Any) && !specific.is_empty() {
-            return Err(syn::Error::new_spanned(
-                specific.first().unwrap(), // we just checked that it's not empty
-                format!(
-                    "whitelisting addresses is useless because permission '{:?}' is set",
-                    Permission::Any
-                ),
-            ));
+        if let Some(first_specific) = specific.first() {
+            if general.iter().any(|(perm, _)| perm == &Permission::Any) {
+                return Err(syn::Error::new_spanned(
+                    first_specific,
+                    format!(
+                        "whitelisting addresses is useless because permission '{:?}' is set",
+                        Permission::Any
+                    ),
+                ));
+            }
         }
 
         Ok(MsgPermissions {
