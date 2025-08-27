@@ -5,7 +5,7 @@ use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
     ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams, ProverMsg, VerifierMsg,
 };
-use cosmwasm_std::{Binary, HexBinary};
+use cosmwasm_std::{Addr, Binary, HexBinary};
 use cw_multi_test::AppResponse;
 use error_stack::Report;
 use events::try_from;
@@ -623,4 +623,36 @@ fn coordinator_one_click_authorize_callers_succeeds() {
     );
     assert!(res.is_ok());
     assert!(res.unwrap());
+}
+
+#[test]
+fn coordinator_instantiate2_query_succeeds() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = instantiate_contracts(
+        &mut protocol,
+        TESTCHAIN,
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+    );
+    assert!(res.is_ok());
+
+    let contracts = gather_contracts(&protocol, res.unwrap());
+
+    let res = protocol.coordinator.query::<Addr>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Instantiate2Address {
+            code_id: contracts.gateway.code_id,
+            salt: Binary::new(vec![1]),
+        },
+    );
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), contracts.gateway.contract_addr)
 }
