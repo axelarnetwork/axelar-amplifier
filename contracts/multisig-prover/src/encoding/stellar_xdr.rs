@@ -86,7 +86,7 @@ mod tests {
     use multisig::key::Signature;
     use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{chain_name, chain_name_raw, CrossChainId, Message};
+    use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
 
     use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};
     use crate::Payload;
@@ -132,13 +132,11 @@ mod tests {
                 source_chain: chain_name_raw!("source"),
                 message_id: "test".parse().unwrap(),
             },
-            source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                .parse()
-                .unwrap(),
+            source_address: address!("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"),
             destination_chain: chain_name!("stellar"),
-            destination_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                .parse()
-                .unwrap(),
+            destination_address: address!(
+                "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+            ),
             payload_hash: HexBinary::from_hex(
                 "65ad329dc342a82bd1daedc42e183e6e2c272b8e2e3fd7c8f81d089736d0bc3c",
             )
@@ -246,13 +244,11 @@ mod tests {
                 source_chain: chain_name_raw!("source"),
                 message_id: "test".parse().unwrap(),
             },
-            source_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                .parse()
-                .unwrap(),
+            source_address: address!("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"),
             destination_chain: chain_name!("stellar"),
-            destination_address: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                .parse()
-                .unwrap(),
+            destination_address: address!(
+                "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
+            ),
             payload_hash: HexBinary::from_hex(
                 "595c9108df17d1cc43e8268ec1516064299c1388bcc86fdd566bcdf400a0a1ed",
             )

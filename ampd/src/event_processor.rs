@@ -19,13 +19,6 @@ use crate::monitoring::metrics;
 use crate::monitoring::metrics::{Msg, Stage};
 use crate::{broadcast, cosmos, event_sub, monitoring};
 
-// Maximum number of messages to enqueue for broadcasting concurrently.
-// - Controls parallelism when enqueueing messages to the broadcast queue
-// - Higher values increase throughput for processing many messages at once
-// - Lower values reduce resource consumption
-// - Setting is balanced based on network capacity and system resources
-const TX_BROADCAST_BUFFER_SIZE: usize = 10;
-
 #[async_trait]
 pub trait EventHandler {
     type Err: Context;
@@ -51,6 +44,12 @@ pub struct Config {
     pub stream_buffer_size: usize,
     #[serde(with = "humantime_serde")]
     pub delay: Duration,
+    // Maximum number of messages to enqueue for broadcasting concurrently.
+    // - Controls parallelism when enqueueing messages to the broadcast queue
+    // - Higher values increase throughput for processing many messages at once
+    // - Lower values reduce resource consumption
+    // - Setting is balanced based on network capacity and system resources
+    pub tx_broadcast_buffer_size: usize,
 }
 
 impl Default for Config {
@@ -61,6 +60,7 @@ impl Default for Config {
             stream_timeout: Duration::from_secs(15),
             stream_buffer_size: 100000,
             delay: Duration::from_secs(1),
+            tx_broadcast_buffer_size: 10,
         }
     }
 }
@@ -87,6 +87,7 @@ where
         retry_delay,
         retry_max_attempts,
         stream_timeout,
+        tx_broadcast_buffer_size,
         ..
     } = event_processor_config;
     let handler_retry = RetryPolicy::repeat_constant(retry_delay, retry_max_attempts);
@@ -111,6 +112,7 @@ where
                     &msg_queue_client,
                     &event,
                     handler_retry,
+                    tx_broadcast_buffer_size,
                     &monitoring_client,
                 )
                 .await?;
@@ -118,6 +120,9 @@ where
             StreamStatus::Error(err) => return Err(err.change_context(Error::EventStream)),
             StreamStatus::TimedOut => {
                 warn!("event stream timed out");
+                monitoring_client
+                    .metrics()
+                    .record_metric(Msg::EventStreamTimeout);
             }
         }
     }
@@ -131,6 +136,7 @@ async fn handle_event<H, C>(
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
     retry_policy: RetryPolicy,
+    tx_broadcast_buffer_size: usize,
     monitoring_client: &monitoring::Client,
 ) -> Result<(), Error>
 where
@@ -150,12 +156,15 @@ where
         Ok(msgs) => {
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
-                .buffered(TX_BROADCAST_BUFFER_SIZE)
+                .buffered(tx_broadcast_buffer_size)
                 .inspect_err(|err| {
                     warn!(
                         err = LoggableError::from(err).as_value(),
                         "failed to enqueue message for broadcasting"
-                    )
+                    );
+                    monitoring_client
+                        .metrics()
+                        .record_metric(Msg::MessageEnqueueError);
                 })
                 .collect::<Vec<_>>()
                 .await;
@@ -268,6 +277,7 @@ mod tests {
             stream_timeout: stream_timeout_value,
             stream_buffer_size: 100000,
             delay,
+            tx_broadcast_buffer_size: 10,
         }
     }
 
@@ -290,6 +300,26 @@ mod tests {
         });
 
         cosmos_client
+    }
+
+    fn mock_client_with_simulate_error(address: TMAddress) -> cosmos::MockCosmosClient {
+        let mut mock_client = setup_client(&address);
+
+        mock_client.expect_clone().times(1).returning(move || {
+            let base_account = create_base_account(&address);
+            let mut mock_client = cosmos::MockCosmosClient::new();
+            mock_client.expect_account().return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+            mock_client
+                .expect_simulate()
+                .return_once(|_| Err(Status::internal("internal error").into_report()));
+            mock_client
+        });
+
+        mock_client
     }
 
     #[tokio::test(start_paused = true)]
@@ -328,14 +358,16 @@ mod tests {
             .build()
             .await
             .unwrap();
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
-
-        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -382,14 +414,15 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
-
-        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -436,14 +469,14 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
-
-        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -510,14 +543,14 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
-
-        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -582,14 +615,14 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
-
-        let (monitoring_client, _) = test_utils::monitoring_client();
 
         let result = consume_events(
             "handler".to_string(),
@@ -645,15 +678,16 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
 
         token.cancel();
-        let (monitoring_client, _) = test_utils::monitoring_client();
         let result = consume_events(
             "handler".to_string(),
             handler,
@@ -693,15 +727,16 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, _) = test_utils::monitoring_client();
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
 
         token.cancel();
-        let (monitoring_client, _) = test_utils::monitoring_client();
         let result = consume_events(
             "handler".to_string(),
             MockEventHandler::new(),
@@ -751,14 +786,15 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
 
-        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
         let cancel_token = CancellationToken::new();
 
         let result_with_timeout = timeout(
@@ -847,15 +883,15 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             100,
             Duration::from_millis(500),
+            monitoring_client.clone(),
         );
-
-        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let _ = consume_events(
             "handler".to_string(),
@@ -868,7 +904,7 @@ mod tests {
         )
         .await;
 
-        let _ = expect_metric_msg(&mut receiver, |m| {
+        expect_metric_msg(&mut receiver, |m| {
             matches!(
                 m,
                 metrics::Msg::StageResult {
@@ -880,7 +916,7 @@ mod tests {
         })
         .await;
 
-        let _ = expect_metric_msg(&mut receiver, |m| {
+        expect_metric_msg(&mut receiver, |m| {
             matches!(
                 m,
                 metrics::Msg::StageResult {
@@ -889,6 +925,119 @@ mod tests {
                     ..
                 }
             )
+        })
+        .await;
+
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_event_timeout_metric_successfully() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let token = CancellationToken::new();
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(2),
+            Duration::from_secs(1),
+        );
+
+        let mock_client = setup_client(&address);
+
+        let broadcaster = broadcast::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+            monitoring_client.clone(),
+        );
+
+        let task = tokio::spawn(consume_events(
+            "handler".to_string(),
+            MockEventHandler::new(),
+            stream::pending(),
+            event_config,
+            token.child_token(),
+            msg_queue_client,
+            monitoring_client,
+        ));
+
+        tokio::time::advance(Duration::from_secs(2)).await;
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(metric, metrics::Msg::EventStreamTimeout);
+
+        token.cancel();
+        let _ = task.await.unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn should_record_msg_enqueue_error_when_msg_simulate_failed() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: chain::Id = "test-chain-id".parse().unwrap();
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+        let event_config = setup_event_config(
+            Duration::from_secs(1),
+            Duration::from_secs(1000),
+            Duration::from_secs(1),
+        );
+        let events: Vec<Result<Event, event_sub::Error>> = vec![Ok(Event::BlockEnd(0_u32.into()))];
+
+        let mut handler = MockEventHandler::new();
+        handler
+            .expect_handle()
+            .return_once(|_| Ok(vec![dummy_msg()]));
+
+        let mock_client = mock_client_with_simulate_error(address);
+
+        let broadcaster = broadcast::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+        let (_, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            100,
+            Duration::from_millis(500),
+            monitoring_client.clone(),
+        );
+
+        let _ = consume_events(
+            "handler".to_string(),
+            handler,
+            stream::iter(events),
+            event_config,
+            CancellationToken::new(),
+            msg_queue_client,
+            monitoring_client,
+        )
+        .await;
+
+        expect_metric_msg(&mut receiver, |m| {
+            matches!(m, metrics::Msg::MessageEnqueueError)
         })
         .await;
 

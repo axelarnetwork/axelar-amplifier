@@ -55,7 +55,7 @@ pub fn instantiate(
     }))
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address(&info.sender)))]
+#[ensure_permissions(proxy(coordinator = find_coordinator_address), direct(gateway = find_gateway_address))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -100,17 +100,23 @@ pub fn execute(
 }
 
 fn find_gateway_address(
+    storage: &dyn Storage,
     sender: &Addr,
-) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
-    move |storage, _| {
-        let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
-        if axelarnet_gateway == sender {
-            Ok(axelarnet_gateway)
-        } else {
-            load_chain_by_gateway(storage, sender)?
-                .gateway
-                .address
-                .then(Ok)
+    _msg: &ExecuteMsg,
+) -> error_stack::Result<bool, Error> {
+    let axelarnet_gateway = load_config(storage)?.axelarnet_gateway;
+    if axelarnet_gateway == sender {
+        Ok(true)
+    } else {
+        match load_chain_by_gateway(storage, sender) {
+            Ok(_) => Ok(true),
+            Err(e)
+                if e.frames()
+                    .any(|f| f.downcast_ref::<Error>() == Some(&Error::GatewayNotRegistered)) =>
+            {
+                Ok(true)
+            }
+            Err(e) => Err(e),
         }
     }
 }
@@ -165,10 +171,11 @@ mod test {
     const AXELARNET_GATEWAY_ADDRESS: &str = "axelarnet_gateway";
     const COORDINATOR_ADDRESS: &str = "coordinator";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
+    const ETHEREUM: &str = "ethereum";
+    const POLYGON: &str = "polygon";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
-        let api = deps.api;
         deps.querier = deps
             .querier
             .with_custom_handler(reply_with_is_chain_registered(false));
@@ -176,12 +183,12 @@ mod test {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make(ADMIN_ADDRESS).to_string(),
-                governance_address: api.addr_make(GOVERNANCE_ADDRESS).to_string(),
-                axelarnet_gateway: api.addr_make(AXELARNET_GATEWAY_ADDRESS).to_string(),
-                coordinator_address: api.addr_make(COORDINATOR_ADDRESS).to_string(),
+                admin_address: cosmos_addr!(ADMIN_ADDRESS).to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE_ADDRESS).to_string(),
+                axelarnet_gateway: cosmos_addr!(AXELARNET_GATEWAY_ADDRESS).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
             },
         )
         .unwrap();
@@ -205,7 +212,7 @@ mod test {
         execute(
             deps,
             mock_env(),
-            message_info(&MockApi::default().addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -271,8 +278,8 @@ mod test {
     #[test]
     fn successful_routing() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -305,8 +312,8 @@ mod test {
     #[test]
     fn wrong_source_chain() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -327,8 +334,8 @@ mod test {
     #[test]
     fn amplifier_messages_must_have_lower_case() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -351,9 +358,8 @@ mod test {
     #[test]
     fn nexus_messages_can_have_upper_case() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &polygon);
 
@@ -365,7 +371,7 @@ mod test {
         let result = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
+            message_info(&cosmos_addr!(AXELARNET_GATEWAY_ADDRESS), &[]),
             ExecuteMsg::RouteMessages(messages.clone()).into(),
         );
         assert!(result.is_ok());
@@ -376,8 +382,8 @@ mod test {
     fn multi_chain_route() {
         let mut deps = setup();
         let chains = vec![
-            make_chain("ethereum"),
-            make_chain("polygon"),
+            make_chain(ETHEREUM),
+            make_chain(POLYGON),
             make_chain("osmosis"),
             make_chain("avalanche"),
             make_chain("moonbeam"),
@@ -440,13 +446,12 @@ mod test {
     #[test]
     fn authorization() {
         let mut deps = setup();
-        let api = deps.api;
-        let chain = make_chain("ethereum");
+        let chain = make_chain(ETHEREUM);
 
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            message_info(&cosmos_addr!(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -457,7 +462,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -466,7 +471,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -477,7 +482,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::Admin.into(),
             },
@@ -486,7 +491,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
                 gateway_address: chain.gateway.to_string().try_into().unwrap(),
@@ -499,7 +504,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            message_info(&cosmos_addr!(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     chain.chain_name.clone(),
@@ -512,7 +517,7 @@ mod test {
 
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -521,7 +526,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     chain.chain_name.clone(),
@@ -535,7 +540,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     chain.chain_name.clone(),
@@ -549,7 +554,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            message_info(&cosmos_addr!(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             }
@@ -558,7 +563,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -567,7 +572,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             }
@@ -578,7 +583,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             }
@@ -589,7 +594,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            message_info(&cosmos_addr!(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
                 contract_address: cosmos_address!("new gateway"),
@@ -599,7 +604,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::NoPrivilege.into(),
             },
@@ -608,7 +613,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
                 contract_address: cosmos_address!("new gateway"),
@@ -618,7 +623,7 @@ mod test {
         .unwrap_err();
         assert_contract_err_string_contains(
             err,
-            permission_control::Error::PermissionDenied {
+            permission_control::Error::GeneralPermissionDenied {
                 expected: Permission::Governance.into(),
                 actual: Permission::Admin.into(),
             },
@@ -627,7 +632,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
                 contract_address: cosmos_address!("new gateway"),
@@ -640,9 +645,8 @@ mod test {
     #[test]
     fn upgrade_gateway_outgoing() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -651,7 +655,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
                 contract_address: new_gateway.to_string().try_into().unwrap(),
@@ -676,9 +680,8 @@ mod test {
     #[test]
     fn upgrade_gateway_incoming() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -687,7 +690,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
                 contract_address: new_gateway.to_string().try_into().unwrap(),
@@ -721,8 +724,8 @@ mod test {
     #[test]
     fn register_chain_test() {
         let mut deps = setup();
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         let message = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
         let err = execute(
@@ -732,12 +735,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]).into(),
         )
         .unwrap_err();
-        assert_contract_err_string_contains(
-            err,
-            permission_control::Error::WhitelistNotFound {
-                sender: eth.gateway.clone(),
-            },
-        );
+        assert_contract_err_string_contains(err, router_api::error::Error::GatewayNotRegistered);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -754,14 +752,13 @@ mod test {
     #[test]
     fn chain_already_registered() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
+        let eth = make_chain(ETHEREUM);
         register_chain(deps.as_mut(), &eth);
 
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: eth.chain_name,
                 gateway_address: cosmos_address!("new gateway"),
@@ -776,7 +773,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: chain_name!("ETHEREUM"),
                 gateway_address: cosmos_address!("new gateway"),
@@ -804,15 +801,14 @@ mod test {
     #[test]
     fn gateway_already_registered() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
 
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::RegisterChain {
                 chain: polygon.chain_name.clone(),
                 gateway_address: eth.gateway.to_string().try_into().unwrap(),
@@ -827,7 +823,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::UpgradeGateway {
                 chain: eth.chain_name,
                 contract_address: polygon.gateway.to_string().try_into().unwrap(),
@@ -842,16 +838,15 @@ mod test {
     #[test]
     fn freeze_incoming() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -895,7 +890,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -916,9 +911,8 @@ mod test {
     #[test]
     fn freeze_outgoing() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -926,7 +920,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -953,7 +947,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -976,9 +970,8 @@ mod test {
     #[test]
     fn freeze_chain() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -997,7 +990,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1044,7 +1037,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1078,15 +1071,14 @@ mod test {
 
     #[test]
     fn freeze_and_unfreeze_all_chains() {
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         let test_case = HashMap::from([
             (eth.chain_name.clone(), GatewayDirection::Bidirectional),
             (polygon.chain_name.clone(), GatewayDirection::Bidirectional),
         ]);
 
         let mut deps = setup();
-        let api = deps.api;
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -1111,9 +1103,9 @@ mod test {
 
         // try sender without permission
         let permission_control: Vec<(Addr, Check)> = vec![
-            (api.addr_make(UNAUTHORIZED_ADDRESS), Result::is_err),
-            (api.addr_make(GOVERNANCE_ADDRESS), Result::is_ok),
-            (api.addr_make(ADMIN_ADDRESS), Result::is_ok),
+            (cosmos_addr!(UNAUTHORIZED_ADDRESS), Result::is_err),
+            (cosmos_addr!(GOVERNANCE_ADDRESS), Result::is_ok),
+            (cosmos_addr!(ADMIN_ADDRESS), Result::is_ok),
         ];
 
         for permission_case in permission_control.iter() {
@@ -1148,9 +1140,9 @@ mod test {
 
         // try sender without permission
         let permission_control: Vec<(Addr, Check)> = vec![
-            (api.addr_make(UNAUTHORIZED_ADDRESS), Result::is_err),
-            (api.addr_make(GOVERNANCE_ADDRESS), Result::is_ok),
-            (api.addr_make(ADMIN_ADDRESS), Result::is_ok),
+            (cosmos_addr!(UNAUTHORIZED_ADDRESS), Result::is_err),
+            (cosmos_addr!(GOVERNANCE_ADDRESS), Result::is_ok),
+            (cosmos_addr!(ADMIN_ADDRESS), Result::is_ok),
         ];
 
         for permission_case in permission_control.iter() {
@@ -1190,16 +1182,15 @@ mod test {
     #[test]
     fn unfreeze_incoming() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1216,7 +1207,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -1254,16 +1245,15 @@ mod test {
     #[test]
     fn unfreeze_outgoing() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1280,7 +1270,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -1318,16 +1308,15 @@ mod test {
     #[test]
     fn freeze_incoming_then_outgoing() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -1338,7 +1327,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -1383,16 +1372,15 @@ mod test {
     #[test]
     fn freeze_outgoing_then_incoming() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -1403,7 +1391,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -1448,16 +1436,15 @@ mod test {
     #[test]
     fn unfreeze_incoming_then_outgoing() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1472,7 +1459,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -1484,7 +1471,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -1517,16 +1504,15 @@ mod test {
     #[test]
     fn unfreeze_outgoing_then_incoming() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1541,7 +1527,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             }
@@ -1553,7 +1539,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             }
@@ -1586,16 +1572,15 @@ mod test {
     #[test]
     fn unfreeze_nothing() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::FreezeChains {
                 chains: HashMap::from([(
                     polygon.chain_name.clone(),
@@ -1610,7 +1595,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::UnfreezeChains {
                 chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::None)]),
             }
@@ -1654,9 +1639,8 @@ mod test {
     #[test]
     fn disable_enable_router() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
@@ -1675,7 +1659,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {}.into(),
         )
         .unwrap();
@@ -1692,7 +1676,7 @@ mod test {
         let _ = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {}.into(),
         )
         .unwrap();
@@ -1710,25 +1694,24 @@ mod test {
     #[test]
     fn ensure_correct_permissions_enable_disable_routing() {
         let mut deps = setup();
-        let api = deps.api;
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            message_info(&cosmos_addr!(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {}.into(),
         )
         .is_err());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {}.into(),
         )
         .is_ok());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {}.into(),
         )
         .is_ok());
@@ -1736,21 +1719,21 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(UNAUTHORIZED_ADDRESS), &[]),
+            message_info(&cosmos_addr!(UNAUTHORIZED_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {}.into(),
         )
         .is_err());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {}.into(),
         )
         .is_ok());
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE_ADDRESS), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {}.into(),
         )
         .is_ok());
@@ -1759,11 +1742,10 @@ mod test {
     #[test]
     fn events_are_emitted_enable_disable_routing() {
         let mut deps = setup();
-        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {}.into(),
         )
         .unwrap();
@@ -1775,7 +1757,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::DisableRouting {}.into(),
         )
         .unwrap();
@@ -1785,7 +1767,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {}.into(),
         )
         .unwrap();
@@ -1797,7 +1779,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsg::EnableRouting {}.into(),
         )
         .unwrap();
@@ -1824,9 +1806,8 @@ mod test {
     #[test]
     fn nexus_can_route_messages() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -1834,7 +1815,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
+            message_info(&cosmos_addr!(AXELARNET_GATEWAY_ADDRESS), &[]),
             ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)).into(),
         )
         .is_ok());
@@ -1858,9 +1839,8 @@ mod test {
     #[test]
     fn direct_msgs_succeeds_nexus_routing_check() {
         let mut deps = setup();
-        let api = deps.api;
-        let eth = make_chain("ethereum");
-        let polygon = make_chain("polygon");
+        let eth = make_chain(ETHEREUM);
+        let polygon = make_chain(POLYGON);
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -1868,7 +1848,7 @@ mod test {
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(AXELARNET_GATEWAY_ADDRESS), &[]),
+            message_info(&cosmos_addr!(AXELARNET_GATEWAY_ADDRESS), &[]),
             ExecuteMsgFromProxy::Direct(ExecuteMsg::RouteMessages(generate_messages(
                 &eth, &polygon, &mut 0, 10
             ))),
@@ -1879,16 +1859,15 @@ mod test {
     #[test]
     fn only_coordinator_executes_coordinator_endpoint_succeeds() {
         let mut deps = setup();
-        let api = deps.api;
 
-        let polygon = make_chain("polygon");
+        let polygon = make_chain(POLYGON);
 
         assert!(execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
+            message_info(&cosmos_addr!(COORDINATOR_ADDRESS), &[]),
             ExecuteMsgFromProxy::Relay {
-                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                original_sender: cosmos_addr!(GOVERNANCE_ADDRESS),
                 msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
@@ -1902,16 +1881,15 @@ mod test {
     #[test]
     fn only_coordinator_executes_coordinator_endpoint_fails() {
         let mut deps = setup();
-        let api = deps.api;
 
-        let polygon = make_chain("polygon");
+        let polygon = make_chain(POLYGON);
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN_ADDRESS), &[]),
+            message_info(&cosmos_addr!(ADMIN_ADDRESS), &[]),
             ExecuteMsgFromProxy::Relay {
-                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                original_sender: cosmos_addr!(GOVERNANCE_ADDRESS),
                 msg: router_api::msg::ExecuteMsg::RegisterChain {
                     chain: polygon.chain_name.clone(),
                     gateway_address: polygon.gateway.to_string().try_into().unwrap(),
@@ -1930,14 +1908,13 @@ mod test {
     #[test]
     fn coordinator_endpoint_only_allows_register_msg() {
         let mut deps = setup();
-        let api = deps.api;
 
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(COORDINATOR_ADDRESS), &[]),
+            message_info(&cosmos_addr!(COORDINATOR_ADDRESS), &[]),
             ExecuteMsgFromProxy::Relay {
-                original_sender: api.addr_make(GOVERNANCE_ADDRESS),
+                original_sender: cosmos_addr!(GOVERNANCE_ADDRESS),
                 msg: ExecuteMsg::EnableRouting {},
             },
         );

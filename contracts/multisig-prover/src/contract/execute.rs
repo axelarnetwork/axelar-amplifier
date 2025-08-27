@@ -547,12 +547,13 @@ mod tests {
     }
 
     fn mock_config() -> Config {
+        const DUMMY: &str = "doesn't matter";
         Config {
-            gateway: cosmos_addr!("doesn't matter"),
-            multisig: cosmos_addr!("doesn't matter"),
-            coordinator: cosmos_addr!("doesn't matter"),
-            service_registry: cosmos_addr!("doesn't matter"),
-            voting_verifier: cosmos_addr!("doesn't matter"),
+            gateway: cosmos_addr!(DUMMY),
+            multisig: cosmos_addr!(DUMMY),
+            coordinator: cosmos_addr!(DUMMY),
+            service_registry: cosmos_addr!(DUMMY),
+            voting_verifier: cosmos_addr!(DUMMY),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: chain_name!("ethereum"),

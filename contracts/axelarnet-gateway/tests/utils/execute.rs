@@ -3,7 +3,7 @@ use axelar_wasm_std::error::ContractError;
 use axelarnet_gateway::msg::ExecuteMsg as GatewayExecuteMsg;
 use axelarnet_gateway::{contract, AxelarExecutableMsg};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::testing::{message_info, mock_env, MockApi};
+use cosmwasm_std::testing::{message_info, mock_env};
 use cosmwasm_std::{DepsMut, HexBinary, MessageInfo, Response};
 use router_api::{cosmos_addr, Address, ChainName, CrossChainId, Message};
 
@@ -30,7 +30,8 @@ pub fn call_contract(
             destination_chain,
             destination_address,
             payload,
-        },
+        }
+        .into(),
     )
 }
 
@@ -41,8 +42,8 @@ pub fn route_from_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::ROUTER), &[]),
-        GatewayExecuteMsg::RouteMessages(msgs),
+        message_info(&cosmos_addr!(params::ROUTER), &[]),
+        GatewayExecuteMsg::RouteMessages(msgs).into(),
     )
 }
 
@@ -54,8 +55,8 @@ pub fn execute_payload(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
-        GatewayExecuteMsg::Execute { cc_id, payload }.clone(),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
+        GatewayExecuteMsg::Execute { cc_id, payload }.into(),
     )
 }
 
@@ -66,8 +67,8 @@ pub fn route_to_router(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&cosmos_addr!("sender"), &[]),
-        GatewayExecuteMsg::RouteMessages(msgs),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
+        GatewayExecuteMsg::RouteMessages(msgs).into(),
     )
 }
 
@@ -78,7 +79,7 @@ pub fn route_from_nexus(
     contract::execute(
         deps,
         mock_env(),
-        message_info(&MockApi::default().addr_make(params::NEXUS), &[]),
-        GatewayExecuteMsg::RouteMessagesFromNexus(msgs),
+        message_info(&cosmos_addr!(params::NEXUS), &[]),
+        GatewayExecuteMsg::RouteMessagesFromNexus(msgs).into(),
     )
 }

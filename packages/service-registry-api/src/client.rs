@@ -137,13 +137,15 @@ mod test {
     use crate::msg::{QueryMsg, ServiceParamsOverride, VerifierDetails};
     use crate::{Service, Verifier, WeightedVerifier};
 
+    const ETHEREUM: &str = "ethereum";
+
     #[test]
     fn query_active_verifiers_returns_error_when_query_fails() {
         let (querier, addr) = setup_queries_to_fail();
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -156,7 +158,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.active_verifiers(service_name.clone(), chain_name.clone());
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());
@@ -219,7 +221,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_err(), "{:?}", res.unwrap());
@@ -232,7 +234,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let service_name = "verifiers".to_string();
-        let chain_name = chain_name!("ethereum");
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.service(service_name, Some(chain_name));
 
         assert!(res.is_ok(), "{}", res.unwrap_err().to_string());

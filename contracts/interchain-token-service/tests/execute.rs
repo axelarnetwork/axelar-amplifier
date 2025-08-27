@@ -12,9 +12,7 @@ use interchain_token_service_std::{
     RegisterTokenMetadata, TokenId,
 };
 use its_abi_translator::abi::hub_message_abi_encode;
-use router_api::{
-    address, chain_name_raw, cosmos_addr, cosmos_address, Address, ChainName, CrossChainId,
-};
+use router_api::{address, chain_name_raw, cosmos_addr, cosmos_address, ChainName, CrossChainId};
 use serde_json::json;
 use utils::{make_deps, params, TestMessage};
 
@@ -22,16 +20,17 @@ mod utils;
 
 use crate::contract::Error;
 
+const TRANSLATION_CONTRACT: &str = "translation_contract";
+const DUMMY_ADDRESS: &str = "0x1234567890123456789012345678901234567890";
+
 #[test]
 fn register_update_its_contract_succeeds() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-    let translation_contract: Address = cosmos_address!("translation_contract");
+    let chain = chain_name_raw!(params::ETHEREUM);
+    let address = address!(DUMMY_ADDRESS);
+    let translation_contract = cosmos_address!(TRANSLATION_CONTRACT);
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -45,9 +44,7 @@ fn register_update_its_contract_succeeds() {
     let chain_config = assert_ok!(utils::query_its_chain(deps.as_ref(), chain.clone()));
     assert_eq!(chain_config.unwrap().its_edge_contract, address);
 
-    let new_address: Address = "0x9999999990123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let new_address = address!("0x9999999990123456789012345678901234567890");
     assert_ok!(utils::update_chain_with_translation(
         deps.as_mut(),
         chain.clone(),
@@ -64,11 +61,9 @@ fn register_update_its_contract_succeeds() {
 fn reregistering_same_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
-    let chain = chain_name_raw!("ethereum");
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
-    let translation_contract: Address = cosmos_address!("translation_contract");
+    let chain = chain_name_raw!(params::ETHEREUM);
+    let address = address!(DUMMY_ADDRESS);
+    let translation_contract = cosmos_address!(TRANSLATION_CONTRACT);
 
     assert_ok!(utils::register_chain_with_translation(
         deps.as_mut(),
@@ -98,15 +93,13 @@ fn update_unknown_chain_fails() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
 
     assert_err_contains!(
         utils::update_chain(
             deps.as_mut(),
             chain,
-            "0x1234567890123456789012345678901234567890"
-                .parse()
-                .unwrap(),
+            address!(DUMMY_ADDRESS),
             256.try_into().unwrap(),
             u8::MAX
         ),
@@ -127,7 +120,7 @@ fn register_multiple_chains_succeeds() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: cosmos_address!(TRANSLATION_CONTRACT),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains.clone()));
@@ -150,7 +143,7 @@ fn register_multiple_chains_fails_if_one_invalid() {
                 max_decimals_when_truncating: 18u8,
                 max_uint_bits: 256.try_into().unwrap(),
             },
-            msg_translator: cosmos_address!("translation_contract"),
+            msg_translator: cosmos_address!(TRANSLATION_CONTRACT),
         })
         .collect();
     assert_ok!(utils::register_chains(deps.as_mut(), chains[0..1].to_vec()));
@@ -466,7 +459,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle()
     } = TestMessage::dummy();
     let configs = vec![
         (
-            chain_name_raw!("ethereum"),
+            chain_name_raw!(params::ETHEREUM),
             source_its_contract.clone(),
             256,
             u8::MAX,
@@ -614,7 +607,7 @@ fn execute_message_interchain_transfer_should_scale_correctly_in_3_chain_cycle_w
     } = TestMessage::dummy();
     let configs = vec![
         (
-            chain_name_raw!("ethereum"),
+            chain_name_raw!(params::ETHEREUM),
             source_its_contract.clone(),
             256,
             u8::MAX,
@@ -870,7 +863,7 @@ fn execute_its_when_not_gateway_sender_fails() {
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     );
 }
 
@@ -1024,15 +1017,15 @@ fn freeze_chain_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum"),
+            chain: chain_name_raw!(params::ETHEREUM),
         },
     );
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1045,32 +1038,29 @@ fn unfreeze_chain_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum"),
+            chain: chain_name_raw!(params::ETHEREUM),
         },
     );
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
 #[test]
 fn admin_or_governance_can_freeze_chain() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!(DUMMY_ADDRESS);
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1083,18 +1073,18 @@ fn admin_or_governance_can_freeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::FreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 }
@@ -1102,17 +1092,14 @@ fn admin_or_governance_can_freeze_chain() {
 #[test]
 fn admin_or_governance_can_unfreeze_chain() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!(DUMMY_ADDRESS);
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1125,18 +1112,18 @@ fn admin_or_governance_can_unfreeze_chain() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 }
@@ -1144,17 +1131,14 @@ fn admin_or_governance_can_unfreeze_chain() {
 #[test]
 fn admin_or_governance_can_modify_supply() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!(DUMMY_ADDRESS);
 
     assert_ok!(utils::register_chain(
         deps.as_mut(),
@@ -1167,18 +1151,18 @@ fn admin_or_governance_can_modify_supply() {
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::UnfreezeChain {
-            chain: chain_name_raw!("ethereum")
+            chain: chain_name_raw!(params::ETHEREUM)
         }
     ));
 }
@@ -1192,13 +1176,13 @@ fn disable_execution_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::DisableExecution,
     );
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1211,34 +1195,33 @@ fn enable_execution_when_not_admin_fails() {
     let result = contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&cosmos_addr!("not-admin"), &[]),
+        message_info(&cosmos_addr!(params::NOT_ADMIN), &[]),
         ExecuteMsg::EnableExecution,
     );
     assert_err_contains!(
         result,
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
 #[test]
 fn admin_or_governance_can_enable_execution() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::EnableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::EnableExecution
     ));
 }
@@ -1246,34 +1229,31 @@ fn admin_or_governance_can_enable_execution() {
 #[test]
 fn admin_or_governance_can_disable_execution() {
     let mut deps = mock_dependencies();
-    let api = deps.api;
 
     utils::instantiate_contract(deps.as_mut()).unwrap();
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::ADMIN), &[]),
+        message_info(&cosmos_addr!(params::ADMIN), &[]),
         ExecuteMsg::DisableExecution
     ));
 
     assert_ok!(contract::execute(
         deps.as_mut(),
         mock_env(),
-        message_info(&api.addr_make(params::GOVERNANCE), &[]),
+        message_info(&cosmos_addr!(params::GOVERNANCE), &[]),
         ExecuteMsg::DisableExecution
     ));
 }
 
 #[test]
 fn set_chain_config_should_succeed() {
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!(DUMMY_ADDRESS);
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
@@ -1289,13 +1269,11 @@ fn set_chain_config_should_succeed() {
 
 #[test]
 fn set_chain_config_should_fail_if_chain_config_is_already_set() {
-    let chain = chain_name_raw!("ethereum");
+    let chain = chain_name_raw!(params::ETHEREUM);
     let max_uint = 256;
     let decimals = 18;
 
-    let address: Address = "0x1234567890123456789012345678901234567890"
-        .parse()
-        .unwrap();
+    let address = address!(DUMMY_ADDRESS);
 
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
@@ -1795,7 +1773,7 @@ fn register_p2p_token_should_fail_when_called_by_non_elevated_account() {
             msg::TokenSupply::Untracked
         ),
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }
 
@@ -1887,6 +1865,6 @@ fn non_admin_or_governance_or_operator_should_not_modify_supply() {
             "random"
         ),
         permission_control::Error,
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     );
 }

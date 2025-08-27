@@ -27,10 +27,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-// safe upper bound for expected metric throughput;
-// shouldn't exceed 1000 message
-const CHANNEL_SIZE: usize = 1000;
-
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
@@ -64,6 +60,14 @@ pub enum Msg {
         success: bool,
         duration: Duration,
     },
+    /// Record the number of errors in message enqueue operations
+    MessageEnqueueError,
+    /// Record the number of timeouts in event stream
+    EventStreamTimeout,
+    /// Record the number of errors that occur in the event publisher
+    EventPublisherError,
+    /// Record the number of errors that occur in the grpc service
+    GrpcServiceError,
 }
 
 /// Errors that can occur in metrics processing
@@ -144,8 +148,8 @@ impl Client {
 ///
 /// Panics if the Prometheus registry cannot be created or
 /// if metrics cannot be registered. This should never happen in normal operation.
-pub fn create_endpoint() -> (MethodRouter, Process, Client) {
-    let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
+pub fn create_endpoint(channel_size: usize) -> (MethodRouter, Process, Client) {
+    let (tx, rx) = mpsc::channel(channel_size);
 
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
@@ -226,6 +230,7 @@ struct Metrics {
     verification_vote: VerificationVoteMetrics,
     rpc_call: RpcCallMetrics,
     stage_result: EventStageMetrics,
+    error_metrics: ErrorMetrics,
 }
 
 impl Metrics {
@@ -234,17 +239,20 @@ impl Metrics {
         let verification_vote = VerificationVoteMetrics::new();
         let rpc_call = RpcCallMetrics::new();
         let stage_result = EventStageMetrics::new();
+        let error_metrics = ErrorMetrics::new();
 
         block_received.register(registry);
         verification_vote.register(registry);
         rpc_call.register(registry);
         stage_result.register(registry);
+        error_metrics.register_all(registry);
 
         Self {
             block_received,
             verification_vote,
             rpc_call,
             stage_result,
+            error_metrics,
         }
     }
 
@@ -273,6 +281,18 @@ impl Metrics {
                 duration,
             } => {
                 self.stage_result.record(success, duration, stage);
+            }
+            Msg::MessageEnqueueError => {
+                self.error_metrics.record_msg_enqueue_error();
+            }
+            Msg::EventStreamTimeout => {
+                self.error_metrics.record_event_timeout();
+            }
+            Msg::EventPublisherError => {
+                self.error_metrics.record_event_publisher_error();
+            }
+            Msg::GrpcServiceError => {
+                self.error_metrics.record_grpc_service_error();
             }
         }
     }
@@ -439,9 +459,67 @@ impl EventStageMetrics {
         if !success {
             self.failed.get_or_create(&label).inc();
         }
-        self.duration
-            .get_or_create(&label)
-            .inc_by(u64::try_from(duration.as_millis()).unwrap());
+        self.duration.get_or_create(&label).inc_by(
+            u64::try_from(duration.as_millis())
+                .expect("duration should not exceed u64 milliseconds"),
+        );
+    }
+}
+
+struct ErrorMetrics {
+    msg_enqueue_error: Counter,
+    event_timeout: Counter,
+    event_publisher_error: Counter,
+    grpc_service_error: Counter,
+}
+
+impl ErrorMetrics {
+    fn new() -> Self {
+        Self {
+            msg_enqueue_error: Counter::default(),
+            event_timeout: Counter::default(),
+            event_publisher_error: Counter::default(),
+            grpc_service_error: Counter::default(),
+        }
+    }
+
+    fn register_all(&self, registry: &mut Registry) {
+        registry.register(
+            "msg_enqueue_error",
+            "number of failures in message enqueue",
+            self.msg_enqueue_error.clone(),
+        );
+        registry.register(
+            "event_stream_timeout",
+            "number of timeouts while waiting for event stream responses",
+            self.event_timeout.clone(),
+        );
+        registry.register(
+            "event_publisher_error",
+            "number of failures in event publisher",
+            self.event_publisher_error.clone(),
+        );
+        registry.register(
+            "grpc_service_error",
+            "number of failures in grpc service",
+            self.grpc_service_error.clone(),
+        );
+    }
+
+    fn record_msg_enqueue_error(&self) {
+        self.msg_enqueue_error.inc();
+    }
+
+    fn record_event_timeout(&self) {
+        self.event_timeout.inc();
+    }
+
+    fn record_event_publisher_error(&self) {
+        self.event_publisher_error.inc();
+    }
+
+    fn record_grpc_service_error(&self) {
+        self.grpc_service_error.inc();
     }
 }
 
@@ -554,7 +632,8 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn should_update_all_metrics_successfully() {
-        let (router, process, client) = create_endpoint();
+        let channel_size = 1000;
+        let (router, process, client) = create_endpoint(channel_size);
         _ = process.run(CancellationToken::new());
 
         let router = Router::new().route("/test", router);
@@ -624,6 +703,14 @@ mod tests {
             success: false,
             duration: Duration::from_millis(600),
         });
+
+        // record error metrics
+        for _ in 0..2 {
+            client.record_metric(Msg::MessageEnqueueError);
+            client.record_metric(Msg::EventStreamTimeout);
+            client.record_metric(Msg::EventPublisherError);
+            client.record_metric(Msg::GrpcServiceError);
+        }
 
         // Wait for the metrics to be updated
         // rpc calls
