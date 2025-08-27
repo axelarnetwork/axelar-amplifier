@@ -125,6 +125,9 @@ pub enum QueryMsg {
 
     #[returns(ChainContractsResponse)]
     ChainContractsInfo(ChainContractsKey),
+
+    #[returns(Addr)]
+    Instantiate2Address { code_id: u64, salt: Binary },
 }
 
 #[cw_serde]
