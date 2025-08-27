@@ -656,3 +656,32 @@ fn coordinator_instantiate2_query_succeeds() {
     assert!(res.is_ok());
     assert_eq!(res.unwrap(), contracts.gateway.contract_addr)
 }
+
+#[test]
+fn coordinator_instantiate2_query_fails_with_incorrect_code_id() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = instantiate_contracts(
+        &mut protocol,
+        TESTCHAIN,
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+    );
+    assert!(res.is_ok());
+
+    let res = protocol.coordinator.query::<Addr>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Instantiate2Address {
+            code_id: 10000,
+            salt: Binary::new(vec![1]),
+        },
+    );
+    assert!(res.is_err());
+}
