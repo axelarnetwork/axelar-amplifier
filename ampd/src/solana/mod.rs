@@ -5,7 +5,7 @@ use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
-use futures::FutureExt;
+use router_api::ChainName;
 use serde::{Deserialize, Deserializer};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
@@ -14,8 +14,31 @@ use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::UiTransactionStatusMeta;
 use tracing::{error, warn};
 
+use crate::monitoring;
+use crate::monitoring::metrics::Msg;
+
 pub mod msg_verifier;
 pub mod verifier_set_verifier;
+
+pub struct Client {
+    client: RpcClient,
+    monitoring_client: monitoring::Client,
+    chain_name: ChainName,
+}
+
+impl Client {
+    pub fn new(
+        client: RpcClient,
+        monitoring_client: monitoring::Client,
+        chain_name: ChainName,
+    ) -> Self {
+        Self {
+            client,
+            monitoring_client,
+            chain_name,
+        }
+    }
+}
 
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
@@ -24,25 +47,40 @@ pub trait SolanaRpcClientProxy: Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-impl SolanaRpcClientProxy for RpcClient {
+impl SolanaRpcClientProxy for Client {
     async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
-        self.get_transaction(
-            signature,
-            solana_transaction_status::UiTransactionEncoding::Base58,
-        )
-        .map(|tx_data_result| {
-            tx_data_result
-                .map(|tx_data| tx_data.transaction.meta)
-                .ok()
-                .flatten()
-        })
-        .await
+        let res = self
+            .client
+            .get_transaction(
+                signature,
+                solana_transaction_status::UiTransactionEncoding::Base58,
+            )
+            .await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        res.map(|tx_data| tx_data.transaction.meta).ok().flatten()
     }
 
     async fn domain_separator(&self) -> Option<[u8; 32]> {
         let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
 
-        let config_data = self.get_account(&gateway_root_pda).await.ok()?.data;
+        let res = self.client.get_account(&gateway_root_pda).await;
+
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_ok(),
+            });
+
+        let config_data = res.ok()?.data;
+
         let config = *GatewayConfig::read(&config_data)?;
         let domain_separator = config.domain_separator;
         Some(domain_separator)
@@ -178,4 +216,54 @@ fn event_comes_from_gateway(
         }
     }
     Err("Log does not belong to the gateway program".into())
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use router_api::ChainName;
+    use solana_client::nonblocking::rpc_client::RpcClient;
+    use solana_sdk::signature::Signature;
+
+    use super::{Client, SolanaRpcClientProxy};
+    use crate::monitoring::metrics::Msg;
+    use crate::monitoring::test_utils;
+
+    #[tokio::test]
+    async fn should_record_rpc_failure_metrics_successfully() {
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let client = Client::new(
+            RpcClient::new("invalid_url".to_string()),
+            monitoring_client,
+            ChainName::from_str("solana").unwrap(),
+        );
+
+        let result = client.tx(&Signature::default()).await;
+        assert!(result.is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("solana").unwrap(),
+                success: false,
+            }
+        );
+
+        let result = client.domain_separator().await;
+        assert!(result.is_none());
+
+        let msg = receiver.recv().await.unwrap();
+        assert_eq!(
+            msg,
+            Msg::RpcCall {
+                chain_name: ChainName::from_str("solana").unwrap(),
+                success: false,
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
+    }
 }

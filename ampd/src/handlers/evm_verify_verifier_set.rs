@@ -212,7 +212,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -222,7 +221,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::ChainName;
+    use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -235,6 +234,8 @@ mod tests {
     use crate::monitoring::{metrics, test_utils};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
+
+    const ETHEREUM: &str = "ethereum";
 
     #[test]
     fn evm_verify_verifier_set_should_deserialize_correct_event() {
@@ -272,7 +273,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier,
-            ChainName::from_str("ethereum").unwrap(),
+            chain_name!(ETHEREUM),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,
@@ -315,7 +316,7 @@ mod tests {
         let handler = super::Handler::new(
             verifier,
             voting_verifier_contract,
-            ChainName::from_str("ethereum").unwrap(),
+            chain_name!(ETHEREUM),
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -330,7 +331,7 @@ mod tests {
             metrics,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str("ethereum").unwrap(),
+                chain_name: chain_name!(ETHEREUM),
             }
         );
 
@@ -349,7 +350,7 @@ mod tests {
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "ethereum".parse().unwrap(),
+                source_chain: chain_name!(ETHEREUM),
                 source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
                     .parse()
                     .unwrap(),

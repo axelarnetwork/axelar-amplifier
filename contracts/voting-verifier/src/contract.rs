@@ -126,7 +126,7 @@ mod test {
     use cosmwasm_std::{from_json, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::{ChainName, CrossChainId, Message};
+    use router_api::{address, chain_name, cosmos_addr, ChainName, CrossChainId, Message};
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
     use starknet_checked_felt::CheckedFelt;
@@ -144,7 +144,7 @@ mod test {
     const GOVERNANCE: &str = "governance";
 
     fn source_chain() -> ChainName {
-        "source-chain".parse().unwrap()
+        chain_name!("source-chain")
     }
 
     fn initial_voting_threshold() -> MajorityThreshold {
@@ -179,15 +179,14 @@ mod test {
         msg_id_format: &MessageIdFormat,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
-        let api = deps.api;
-        let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
+        let service_registry = cosmos_addr!(SERVICE_REGISTRY_ADDRESS);
 
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("admin"), &[]),
+            message_info(&cosmos_addr!("admin"), &[]),
             InstantiateMsg {
-                governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+                governance_address: cosmos_addr!(GOVERNANCE).as_str().parse().unwrap(),
                 service_registry_address: service_registry.as_str().parse().unwrap(),
                 service_name: SERVICE_NAME.parse().unwrap(),
                 source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
@@ -197,7 +196,7 @@ mod test {
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 confirmation_height: 100,
                 source_chain: source_chain(),
-                rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
+                rewards_address: cosmos_addr!(REWARDS_ADDRESS).as_str().parse().unwrap(),
                 msg_id_format: msg_id_format.clone(),
                 address_format: AddressFormat::Eip55,
             },
@@ -317,7 +316,6 @@ mod test {
     #[test]
     fn should_fail_if_gateway_address_format_is_invalid() {
         let mut deps = mock_dependencies();
-        let api = deps.api;
 
         struct TestCase {
             source_gateway_address: String,
@@ -423,11 +421,10 @@ mod test {
             let result = instantiate(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&api.addr_make("admin"), &[]),
+                message_info(&cosmos_addr!("admin"), &[]),
                 InstantiateMsg {
-                    governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
-                    service_registry_address: api
-                        .addr_make(SERVICE_REGISTRY_ADDRESS)
+                    governance_address: cosmos_addr!(GOVERNANCE).as_str().parse().unwrap(),
+                    service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS)
                         .as_str()
                         .parse()
                         .unwrap(),
@@ -437,7 +434,7 @@ mod test {
                     block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                     confirmation_height: 100,
                     source_chain: source_chain(),
-                    rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
+                    rewards_address: cosmos_addr!(REWARDS_ADDRESS).as_str().parse().unwrap(),
                     msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
                     address_format,
                 },
@@ -460,7 +457,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let msg = ExecuteMsg::VerifyMessages(vec![
             Message {
@@ -470,23 +466,23 @@ mod test {
                     .to_string()
                     .parse()
                     .unwrap(),
-                destination_chain: "destination-chain1".parse().unwrap(),
-                destination_address: "destination-address1".parse().unwrap(),
+                destination_chain: chain_name!("destination-chain1"),
+                destination_address: address!("destination-address1"),
                 payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId::new("other-chain", message_id("id", 2, &msg_id_format))
                     .unwrap(),
-                source_address: "source-address2".parse().unwrap(),
-                destination_chain: "destination-chain2".parse().unwrap(),
-                destination_address: "destination-address2".parse().unwrap(),
+                source_address: address!("source-address2"),
+                destination_chain: chain_name!("destination-chain2"),
+                destination_address: address!("destination-address2"),
                 payload_hash: [0; 32],
             },
         ]);
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         )
         .unwrap_err();
@@ -498,7 +494,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         messages[0].cc_id = CrossChainId::new(source_chain(), "foobar").unwrap();
@@ -508,7 +503,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         )
         .unwrap_err();
@@ -523,7 +518,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let messages = messages(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
@@ -531,7 +525,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         )
         .unwrap_err();
@@ -549,12 +543,11 @@ mod test {
 
         let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
-        let api = deps.api;
 
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         )
         .unwrap_err();
@@ -569,7 +562,6 @@ mod test {
         let msg_id_format = MessageIdFormat::Base58TxDigestAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
@@ -577,7 +569,7 @@ mod test {
         let err = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         )
         .unwrap_err();
@@ -592,7 +584,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
         let messages_count = 5;
         let messages_in_progress = 3;
         let messages = messages(messages_count as u64, &msg_id_format);
@@ -600,7 +591,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(
                 messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
             ),
@@ -610,7 +601,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(
                 messages.clone(), // verify all messages including the ones from previous execution
             ),
@@ -654,14 +645,13 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
         let messages = messages(5, &msg_id_format);
 
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg.clone(),
         )
         .unwrap();
@@ -685,7 +675,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         )
         .unwrap();
@@ -725,7 +715,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let messages = messages(4, &msg_id_format);
 
@@ -736,7 +725,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg_verify.clone(),
         );
         assert!(res.is_ok());
@@ -777,7 +766,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -813,7 +802,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg_verify,
         );
         assert!(res.is_ok());
@@ -869,7 +858,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let messages = messages(10, &msg_id_format);
 
@@ -877,7 +865,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -902,7 +890,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let messages = messages(10, &msg_id_format);
 
@@ -910,7 +897,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -953,7 +940,6 @@ mod test {
         for (consensus_vote, expected_status, msg_id_format) in test_cases {
             let verifiers = verifiers(2);
             let mut deps = setup(verifiers.clone(), &msg_id_format);
-            let api = deps.api;
 
             let messages = messages(10, &msg_id_format);
 
@@ -961,7 +947,7 @@ mod test {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&api.addr_make(SENDER), &[]),
+                message_info(&cosmos_addr!(SENDER), &[]),
                 ExecuteMsg::VerifyMessages(messages.clone()),
             )
             .unwrap();
@@ -985,7 +971,7 @@ mod test {
             execute(
                 deps.as_mut(),
                 mock_env_expired(),
-                message_info(&api.addr_make(SENDER), &[]),
+                message_info(&cosmos_addr!(SENDER), &[]),
                 ExecuteMsg::EndPoll {
                     poll_id: Uint64::one().into(),
                 },
@@ -1011,7 +997,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
@@ -1021,7 +1006,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -1043,7 +1028,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
@@ -1053,7 +1037,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         );
         assert!(res.is_ok());
@@ -1075,7 +1059,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1099,13 +1083,12 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1129,7 +1112,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1153,13 +1136,12 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1183,7 +1165,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1204,7 +1186,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1228,7 +1210,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 2u64.into(),
             },
@@ -1252,13 +1234,12 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1281,7 +1262,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1292,7 +1273,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_verifier_set: verifier_set.clone(),
@@ -1307,7 +1288,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let new_voting_threshold: MajorityThreshold = Threshold::try_from((
             initial_voting_threshold().numerator().u64() + 1,
@@ -1320,7 +1300,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -1334,6 +1314,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn threshold_changes_should_not_affect_existing_polls() {
         let verifiers = verifiers(10);
         let initial_threshold = initial_voting_threshold();
@@ -1342,14 +1323,13 @@ mod test {
 
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let messages = messages(1, &msg_id_format);
 
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -1384,7 +1364,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -1394,7 +1374,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1428,7 +1408,6 @@ mod test {
 
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         // increase the threshold prior to starting a poll
         let new_voting_threshold: MajorityThreshold =
@@ -1440,7 +1419,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
@@ -1453,7 +1432,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
@@ -1482,7 +1461,7 @@ mod test {
         execute(
             deps.as_mut(),
             mock_env_expired(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::EndPoll {
                 poll_id: 1u64.into(),
             },
@@ -1512,7 +1491,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(3);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
         let threshold = initial_voting_threshold();
         // this test depends on the threshold being 2/3
         assert_eq!(
@@ -1529,7 +1507,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg_verify.clone(),
         );
         assert!(res.is_ok());
@@ -1626,7 +1604,6 @@ mod test {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
-        let api = deps.api;
 
         let eip55_address = alloy_primitives::Address::random().to_string();
 
@@ -1654,7 +1631,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                message_info(&api.addr_make(SENDER), &[]),
+                message_info(&cosmos_addr!(SENDER), &[]),
                 msg,
             );
             assert!(res.is_err_and(|err| err_contains!(
@@ -1671,7 +1648,7 @@ mod test {
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
+            message_info(&cosmos_addr!(SENDER), &[]),
             msg,
         );
         assert!(res.is_ok());

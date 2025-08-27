@@ -1,7 +1,6 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{HexBinary, Uint128};
 use integration_tests::contract::Contract;
-use router_api::{CrossChainId, Message};
+use router_api::{cosmos_address, CrossChainId, Message};
 
 use crate::test_utils::AXL_DENOMINATION;
 
@@ -153,11 +152,7 @@ fn routing_to_incorrect_gateway_interface() {
         &protocol.router,
         &protocol.governance_address,
         &chain2.chain_name,
-        MockApi::default()
-            .addr_make("some random address")
-            .to_string()
-            .try_into()
-            .unwrap(), // gateway address does not implement required interface,
+        cosmos_address!("some random address"), // gateway address does not implement required interface,
     );
 
     let response = protocol.router.execute(

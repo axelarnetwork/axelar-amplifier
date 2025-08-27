@@ -1,5 +1,6 @@
 use ampd_proto;
 use ampd_proto::{BroadcastResponse, ContractsResponse, KeyId};
+pub use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
 use error_stack::Report;
@@ -27,6 +28,7 @@ pub struct ContractsAddresses {
     pub multisig_prover: AccountId,
     pub service_registry: AccountId,
     pub rewards: AccountId,
+    pub multisig: AccountId,
 }
 
 impl TryFrom<&ContractsResponse> for ContractsAddresses {
@@ -40,6 +42,7 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
             multisig_prover,
             service_registry,
             rewards,
+            multisig,
         } = response;
 
         Ok(ContractsAddresses {
@@ -47,6 +50,7 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
             multisig_prover: super::parse_addr(multisig_prover)?,
             service_registry: super::parse_addr(service_registry)?,
             rewards: super::parse_addr(rewards)?,
+            multisig: super::parse_addr(multisig)?,
         })
     }
 }

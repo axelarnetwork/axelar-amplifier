@@ -8,7 +8,7 @@ use cosmwasm_std::testing::{message_info, mock_dependencies};
 use cosmwasm_std::HexBinary;
 use rand::RngCore;
 use router_api::msg::ExecuteMsg as RouterExecuteMsg;
-use router_api::{CrossChainId, Message};
+use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 
 use crate::utils::{
     axelar_query_handler, messages, mock_axelar_dependencies, params, OwnedDepsExt,
@@ -130,7 +130,7 @@ fn route_from_router_with_destination_chain_not_matching_contract_fails() {
 
     let msg = messages::dummy_from_router(&[1, 2, 3]);
     let msg_with_wrong_destination = Message {
-        destination_chain: "wrong-chain".parse().unwrap(),
+        destination_chain: chain_name!("wrong-chain"),
         ..msg
     };
 
@@ -170,7 +170,7 @@ fn route_from_router_multiple_times_with_data_mismatch_fails() {
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     utils::route_from_router(deps.as_default_mut(), msgs.clone()).unwrap();
 
-    msgs[0].source_address = "wrong-address".parse().unwrap();
+    msgs[0].source_address = address!("wrong-address");
 
     assert_err_contains!(
         utils::route_from_router(deps.as_default_mut(), msgs),
@@ -219,15 +219,15 @@ fn route_from_router_to_nexus_succeeds() {
     let msg = messages::dummy_from_router(&[1, 2, 3]);
     let msgs = vec![
         Message {
-            destination_chain: "legacy-chain-1".parse().unwrap(),
+            destination_chain: chain_name!("legacy-chain-1"),
             ..msg.clone()
         },
         Message {
-            destination_chain: "legacy-chain-2".parse().unwrap(),
+            destination_chain: chain_name!("legacy-chain-2"),
             ..msg.clone()
         },
         Message {
-            destination_chain: "legacy-chain-2".parse().unwrap(),
+            destination_chain: chain_name!("legacy-chain-2"),
             ..msg
         },
     ];
@@ -260,20 +260,19 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     let nonce = rand::random();
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -283,7 +282,7 @@ fn route_to_router_after_contract_call_with_tempered_data_fails() {
     let RouterExecuteMsg::RouteMessages(mut msgs) = inspect_response_msg(response).unwrap() else {
         panic!("pattern must match")
     };
-    msgs[0].destination_chain = "wrong-chain".parse().unwrap();
+    msgs[0].destination_chain = chain_name!("wrong-chain");
 
     assert_err_contains!(
         utils::route_to_router(deps.as_default_mut(), msgs),
@@ -302,20 +301,19 @@ fn route_to_router_after_contract_call_succeeds_multiple_times() {
     let nonce = 210;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -343,20 +341,19 @@ fn route_to_router_after_contract_call_ignores_duplicates() {
     let nonce = 200;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -386,21 +383,20 @@ fn contract_call_returns_correct_message() {
     let nonce = 190;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
 
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -419,20 +415,19 @@ fn contract_call_returns_correct_events() {
     let nonce = 160;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = "destination-chain".parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_chain = chain_name!(params::DESTINATION_CHAIN);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = assert_ok!(utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,
@@ -464,20 +459,19 @@ fn route_to_router_after_contract_call_to_self_succeeds_multiple_times() {
     let nonce = 99;
 
     let mut deps = mock_axelar_dependencies();
-    let api = deps.api;
 
     deps.querier = deps
         .querier
         .with_custom_handler(axelar_query_handler(tx_hash, nonce, false));
 
-    let destination_chain = params::AXELARNET.parse().unwrap();
-    let destination_address = "destination-address".parse().unwrap();
+    let destination_chain = chain_name!(params::AXELARNET);
+    let destination_address = address!(params::DESTINATION_ADDRESS);
     let payload = vec![1, 2, 3].into();
 
     utils::instantiate_contract(deps.as_default_mut()).unwrap();
     let response = utils::call_contract(
         deps.as_default_mut(),
-        message_info(&api.addr_make("sender"), &[]),
+        message_info(&cosmos_addr!(params::SENDER), &[]),
         destination_chain,
         destination_address,
         payload,

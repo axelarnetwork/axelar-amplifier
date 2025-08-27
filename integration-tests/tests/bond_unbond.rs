@@ -1,6 +1,6 @@
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::BlockInfo;
 use integration_tests::contract::Contract;
+use router_api::{chain_name, cosmos_addr};
 use service_registry_api::msg::ExecuteMsg;
 
 pub mod test_utils;
@@ -34,10 +34,11 @@ fn verifier_should_not_unbond_while_in_active_set() {
 }
 
 #[test]
+#[allow(clippy::arithmetic_side_effects)]
 fn claim_stake_after_rotation_success() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
     ];
 
     let test_utils::TestCase {
@@ -110,8 +111,8 @@ fn claim_stake_after_rotation_success() {
 #[test]
 fn claim_stake_when_in_all_active_verifier_sets_fails() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
     ];
 
     let test_utils::TestCase {
@@ -150,8 +151,8 @@ fn claim_stake_when_in_all_active_verifier_sets_fails() {
 #[test]
 fn claim_stake_when_in_some_active_verifier_sets_fails() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
     ];
 
     let test_utils::TestCase {
@@ -194,8 +195,8 @@ fn claim_stake_when_in_some_active_verifier_sets_fails() {
 #[test]
 fn claim_stake_after_deregistering_before_rotation_fails() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
     ];
 
     let test_utils::TestCase {
@@ -244,8 +245,8 @@ fn claim_stake_after_deregistering_before_rotation_fails() {
 #[test]
 fn claim_stake_when_jailed_fails() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
     ];
 
     let test_utils::TestCase {
@@ -286,8 +287,8 @@ fn claim_stake_when_jailed_fails() {
         &ExecuteMsg::JailVerifiers {
             service_name: protocol.service_name.to_string(),
             verifiers: vec![
-                MockApi::default().addr_make("verifier1").to_string(),
-                MockApi::default().addr_make("verifier2").to_string(),
+                cosmos_addr!("verifier1").to_string(),
+                cosmos_addr!("verifier2").to_string(),
             ],
         },
     );
@@ -302,8 +303,8 @@ fn claim_stake_when_jailed_fails() {
 #[test]
 fn claim_stake_when_in_next_verifier_sets_fails() {
     let chains: Vec<router_api::ChainName> = vec![
-        "Ethereum".try_into().unwrap(),
-        "Polygon".try_into().unwrap(),
+        chain_name!(test_utils::ETHEREUM),
+        chain_name!(test_utils::POLYGON),
     ];
 
     let test_utils::TestCase {

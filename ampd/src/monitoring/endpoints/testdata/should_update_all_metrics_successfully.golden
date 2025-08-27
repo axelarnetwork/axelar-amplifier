@@ -1,6 +1,6 @@
 # HELP blocks_received number of blocks received.
 # TYPE blocks_received counter
-blocks_received_total 0
+blocks_received_total 3
 # HELP verification_votes number of verification votes on cross-chain messages.
 # TYPE verification_votes counter
 verification_votes_total{chain_name="avalanche",vote_decision="FailedOnChain"} 1
@@ -18,6 +18,40 @@ verification_votes_total{chain_name="solana",vote_decision="SucceededOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="FailedOnChain"} 1
 verification_votes_total{chain_name="stellar",vote_decision="NotFound"} 1
 verification_votes_total{chain_name="stellar",vote_decision="SucceededOnChain"} 1
+# HELP rpc_calls number of RPC calls per chain.
+# TYPE rpc_calls counter
+rpc_calls_total{chain_name="ethereum"} 1
+rpc_calls_total{chain_name="polygon"} 1
+# HELP rpc_calls_failed number of failed RPC calls per chain.
+# TYPE rpc_calls_failed counter
+rpc_calls_failed_total{chain_name="polygon"} 1
+# HELP stage_processed total number of processed items per stage.
+# TYPE stage_processed counter
+stage_processed_total{stage="EventHandling"} 2
+stage_processed_total{stage="TransactionBroadcast"} 2
+stage_processed_total{stage="TransactionConfirmation"} 2
+# HELP stage_failed number of failed items per stage.
+# TYPE stage_failed counter
+stage_failed_total{stage="EventHandling"} 1
+stage_failed_total{stage="TransactionBroadcast"} 1
+stage_failed_total{stage="TransactionConfirmation"} 1
+# HELP stage_duration duration of processing items per stage in milliseconds.
+# TYPE stage_duration counter
+stage_duration_total{stage="EventHandling"} 300
+stage_duration_total{stage="TransactionBroadcast"} 700
+stage_duration_total{stage="TransactionConfirmation"} 1100
+# HELP msg_enqueue_error number of failures in message enqueue.
+# TYPE msg_enqueue_error counter
+msg_enqueue_error_total 2
+# HELP event_stream_timeout number of timeouts while waiting for event stream responses.
+# TYPE event_stream_timeout counter
+event_stream_timeout_total 2
+# HELP event_publisher_error number of failures in event publisher.
+# TYPE event_publisher_error counter
+event_publisher_error_total 2
+# HELP grpc_service_error number of failures in grpc service.
+# TYPE grpc_service_error counter
+grpc_service_error_total 2
 # HELP ampd_cpu_usage_percent CPU usage of the ampd process in percentage
 # TYPE ampd_cpu_usage_percent gauge
 # UNIT ampd_cpu_usage_percent percent

@@ -8,7 +8,9 @@ use interchain_token_service::msg;
 use interchain_token_service::msg::{ChainConfigResponse, ChainFilter, QueryMsg, TruncationConfig};
 use interchain_token_service::shared::NumBits;
 use interchain_token_service_std::TokenId;
-use router_api::{Address, ChainNameRaw};
+use router_api::{cosmos_addr, Address, ChainNameRaw};
+
+use crate::utils::params;
 
 pub fn query_its_chain(
     deps: Deps,
@@ -85,7 +87,7 @@ pub fn create_config_response(chain_data: &ChainData, frozen: bool) -> ChainConf
             max_decimals_when_truncating: chain_data.max_decimals,
         },
         frozen,
-        msg_translator: cosmwasm_std::testing::MockApi::default().addr_make("translation_contract"),
+        msg_translator: cosmos_addr!(params::TRANSLATION_CONTRACT),
     }
 }
 

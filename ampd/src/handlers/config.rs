@@ -260,9 +260,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use router_api::ChainName;
+    use router_api::chain_name;
     use serde_json::to_value;
 
     use crate::evm::finalizer::Finalization;
@@ -271,6 +269,9 @@ mod tests {
     use crate::types::TMAddress;
     use crate::url::Url;
     use crate::PREFIX;
+
+    const SOLANA: &str = "solana";
+    const STACKS: &str = "stacks";
 
     #[test]
     fn finalizer_should_default_to_ethereum() {
@@ -392,7 +393,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaMsgVerifier {
-            chain_name: ChainName::from_str("solana").unwrap(),
+            chain_name: chain_name!(SOLANA),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -407,7 +408,7 @@ mod tests {
         );
 
         let sample_config = Config::SolanaVerifierSetVerifier {
-            chain_name: ChainName::from_str("solana").unwrap(),
+            chain_name: chain_name!(SOLANA),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -422,7 +423,7 @@ mod tests {
         );
 
         let sample_config = Config::StacksMsgVerifier {
-            chain_name: ChainName::from_str("stacks").unwrap(),
+            chain_name: chain_name!(STACKS),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -437,7 +438,7 @@ mod tests {
         );
 
         let sample_config = Config::StacksVerifierSetVerifier {
-            chain_name: ChainName::from_str("stacks").unwrap(),
+            chain_name: chain_name!(STACKS),
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
@@ -454,7 +455,7 @@ mod tests {
     #[test]
     fn test_chain_struct_debug_redacts_url() {
         let chain = Chain {
-            name: ChainName::from_str("ethereum").unwrap(),
+            name: chain_name!("ethereum"),
             rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
             finalization: Finalization::RPCFinalizedBlock,
         };
