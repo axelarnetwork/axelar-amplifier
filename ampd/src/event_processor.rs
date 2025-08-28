@@ -131,26 +131,10 @@ where
     Ok(())
 }
 
-fn is_evm_handler(handler_label: &str) -> bool {
-    let non_evm_prefixes = [
-        "sui-",
-        "stellar-",
-        "starknet-",
-        "solana-",
-        "stacks-",
-        "mvx-",
-        "multisig-",
-        "xrpl-multisig-",
-    ];
-    let evm_suffixes = ["avalanche-msg-verifier", "avalanche-verifier-set-verifier"];
+fn is_avalanche_evm_handler(handler_label: &str) -> bool {
+    let evm_handlers = ["avalanche-msg-verifier", "avalanche-verifier-set-verifier"];
 
-    !non_evm_prefixes
-        .iter()
-        .any(|prefix| handler_label.starts_with(prefix))
-        && !handler_label.contains("xrpl-")
-        && evm_suffixes
-            .iter()
-            .any(|suffix| handler_label.contains(suffix))
+    evm_handlers.iter().any(|handler| handler_label == *handler)
 }
 
 #[instrument(fields(event = %event), skip_all)]
@@ -178,7 +162,7 @@ where
 
     match res {
         Ok(msgs) => {
-            if is_evm_handler(handler_label) {
+            if is_avalanche_evm_handler(handler_label) {
                 for (i, msg) in msgs.iter().enumerate() {
                     info!(
                         handler = %handler_label,
