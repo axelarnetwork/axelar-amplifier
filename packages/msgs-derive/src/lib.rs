@@ -1,11 +1,12 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use axelar_wasm_std::permission_control::Permission;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Literal, Span};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
+use serde_json::json;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
@@ -109,6 +110,7 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
     let check_function = build_full_check_function(&permissions, specific_check, general_check);
     let verify_external_executors =
         build_verify_external_executor_function(&enum_type, &variants, &permissions);
+    let golden_test = build_golden_test(&enum_type, &variants, &permissions);
 
     TokenStream::from(quote! {
         #[cw_serde]
@@ -149,6 +151,8 @@ fn build_implementation(enum_type: Ident, data: ItemEnum) -> TokenStream {
         impl #external_execute_msg_ident {
             #verify_external_executors
         }
+
+        #golden_test
     })
 }
 
@@ -816,4 +820,67 @@ pub fn ensure_permissions(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #validate_fn
     })
+}
+
+fn build_golden_test(
+    enum_type: &Ident,
+    variants: &[Ident],
+    permissions: &[MsgPermissions],
+) -> proc_macro2::TokenStream {
+    let test_name = format_ident!(
+        "{}_permissions_should_not_change",
+        enum_type.to_string().to_lowercase()
+    );
+    let module_name = format_ident!(
+        "{}_permissions_golden_test",
+        enum_type.to_string().to_lowercase()
+    );
+
+    let permissions_jsons = permissions.iter().map(
+        |MsgPermissions {
+             specific,
+             general,
+             external,
+         }| {
+            let specific = specific
+                .iter()
+                .map(|p| p.to_token_stream().to_string())
+                .collect::<Vec<_>>();
+            let general = general
+                .iter()
+                .map(|p| p.to_token_stream().to_string())
+                .collect::<Vec<_>>();
+            let external = external
+                .iter()
+                .map(|p| p.to_token_stream().to_string())
+                .collect::<Vec<_>>();
+
+            json!({
+                "specific": specific,
+                "general": general,
+                "external": external
+            })
+        },
+    );
+
+    let permissions_map = variants
+        .iter()
+        .map(|variant| variant.to_string())
+        .zip(permissions_jsons)
+        .collect::<BTreeMap<_, _>>();
+
+    let permissions_json = serde_json::to_string_pretty(&permissions_map)
+        .expect("error serializing permissions map to JSON");
+
+    quote! {
+        #[cfg(test)]
+        mod #module_name {
+            use super::*;
+
+            #[test]
+            fn #test_name() {
+                goldie::assert!(#permissions_json);
+            }
+        }
+    }
 }
