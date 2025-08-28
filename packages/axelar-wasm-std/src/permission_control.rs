@@ -5,13 +5,14 @@ use cw_storage_plus::Item;
 use flagset::{flags, Flags};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use strum::{AsRefStr, EnumString};
 
 use crate::flagset::FlagSet;
 use crate::FnExt;
 
 flags! {
     #[repr(u8)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Hash, EnumString, AsRefStr)]
     pub enum Permission: u8 {
         NoPrivilege = 0b001, // this specifies that the user MUST NOT have an elevated role
         Admin = 0b010,
