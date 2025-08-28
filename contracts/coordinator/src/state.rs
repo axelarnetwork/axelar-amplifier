@@ -41,6 +41,9 @@ pub enum Error {
 
     #[error("deployment name {0} is in use")]
     DeploymentNameInUse(nonempty::String),
+
+    #[error("deployment {0} not found")]
+    DeploymentNotFound(nonempty::String),
 }
 
 #[cw_serde]
@@ -215,20 +218,21 @@ pub fn save_deployed_contracts(
         .change_context(Error::PersistingState)
 }
 
+pub fn deployment(
+    storage: &dyn Storage,
+    deployment_name: nonempty::String,
+) -> Result<ChainContracts, Error> {
+    DEPLOYED_CHAINS
+        .may_load(storage, deployment_name.to_string())
+        .change_context(Error::StateParseFailed)?
+        .ok_or(report!(Error::DeploymentNotFound(deployment_name)))
+}
+
 pub fn deployments(
     storage: &dyn Storage,
     start_after: Option<nonempty::String>,
     limit: u32,
-) -> Result<Vec<ChainContracts>, Error> {
-    if let Some(ref deployment) = start_after {
-        if limit == 1 {
-            return Ok(DEPLOYED_CHAINS
-                .may_load(storage, deployment.to_string())
-                .change_context(Error::StateParseFailed)?
-                .map_or(vec![], |f| vec![f]));
-        }
-    }
-
+) -> Result<impl Iterator<Item = ChainContracts> + '_, Error> {
     Ok(DEPLOYED_CHAINS
         .range(
             storage,
@@ -237,8 +241,7 @@ pub fn deployments(
             Order::Ascending,
         )
         .take(limit as usize)
-        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
-        .collect())
+        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts)))
 }
 
 pub fn is_prover_registered(
