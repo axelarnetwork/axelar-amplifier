@@ -18,7 +18,7 @@ type ProverAddress = Addr;
 type GatewayAddress = Addr;
 type VerifierAddress = Addr;
 
-pub const DEFAULT_PAGINATION_LIMIT: u32 = 30;
+pub const DEFAULT_PAGINATION_LIMIT: u32 = u32::MAX;
 
 const fn default_pagination_limit() -> u32 {
     DEFAULT_PAGINATION_LIMIT
