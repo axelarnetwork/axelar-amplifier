@@ -16,7 +16,7 @@ builds = [
         "evm",
     ], default-features = false },
     { name = "stellar", features = [
-        "stellar_xdr",
+        "stellar",
     ], default-features = false },
 ]
 
@@ -39,7 +39,7 @@ sui = []
 # enable this to build the EVM contract with ABI encoding and EIP55 addresses
 evm = []
 # enable this to build the Stellar contract with XDR encoding and Stellar addresses
-stellar_xdr = []
+stellar = []
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }

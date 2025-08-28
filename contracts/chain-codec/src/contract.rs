@@ -1,4 +1,3 @@
-use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::error::ContractError;
 use chain_codec_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
@@ -7,6 +6,7 @@ use cosmwasm_std::{
     to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
 };
 
+use crate::encoding;
 use crate::error::Error;
 use crate::state::{Config, CONFIG};
 
@@ -43,13 +43,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         } => {
             let config = CONFIG.load(deps.storage)?;
 
-            #[cfg(feature = "evm")]
-            use crate::abi as encoding;
-            #[cfg(feature = "sui")]
-            use crate::bcs as encoding;
-            #[cfg(feature = "stellar_xdr")]
-            use crate::stellar_xdr as encoding;
-
             to_json_binary(&encoding::encode_execute_data(
                 &config.domain_separator,
                 &verifier_set,
@@ -58,12 +51,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             )?)?
         }
         QueryMsg::ValidateAddress { address } => {
-            #[cfg(feature = "evm")]
-            validate_address(&address, &AddressFormat::Eip55)?;
-            #[cfg(feature = "sui")]
-            validate_address(&address, &AddressFormat::Sui)?;
-            #[cfg(feature = "stellar_xdr")]
-            validate_address(&address, &AddressFormat::Stellar)?;
+            encoding::validate_address(&address)?;
 
             to_json_binary(&Empty {})?
         }
@@ -72,13 +60,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             payload,
         } => {
             let config = CONFIG.load(deps.storage)?;
-
-            #[cfg(feature = "evm")]
-            use crate::abi as encoding;
-            #[cfg(feature = "sui")]
-            use crate::bcs as encoding;
-            #[cfg(feature = "stellar_xdr")]
-            use crate::stellar_xdr as encoding;
 
             to_json_binary(&HexBinary::from(encoding::payload_digest(
                 &config.domain_separator,

@@ -1,3 +1,4 @@
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
@@ -17,6 +18,11 @@ use sha3::{Digest, Keccak256};
 use crate::error::Error;
 
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
+
+#[inline]
+pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {
+    axelar_wasm_std::address::validate_address(address, &AddressFormat::Eip55)
+}
 
 fn command_type_from_payload(payload: &Payload) -> CommandType {
     match payload {
