@@ -12,6 +12,7 @@ use cosmwasm_std::{
 };
 use error_stack::ResultExt;
 use itertools::Itertools;
+use limit::Limit;
 pub use migrations::{migrate, MigrateMsg};
 use msgs_derive::ensure_permissions;
 
@@ -139,7 +140,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::Deployments { start_after, limit } => Ok(to_json_binary(&query::deployments(
             deps,
             start_after,
-            limit,
+            Limit::from(limit),
         )?)?),
         QueryMsg::Deployment { deployment_name } => {
             Ok(to_json_binary(&query::deployment(deps, deployment_name)?)?)

@@ -8,6 +8,7 @@ use cw_storage_plus::{Bound, Item, Map};
 use error_stack::{report, Result, ResultExt};
 use interchain_token_service_std::{RegisterTokenMetadata, TokenId};
 use itertools::Itertools;
+use limit::Limit;
 use router_api::{Address, ChainNameRaw};
 
 use crate::msg;
@@ -198,7 +199,7 @@ pub fn load_chain_configs<'a>(
     storage: &'a dyn Storage,
     filter: impl Fn(&ChainConfig) -> bool + 'a,
     start_after: Option<ChainNameRaw>,
-    limit: u32,
+    limit: Limit,
 ) -> impl Iterator<Item = Result<(ChainNameRaw, ChainConfig), Error>> + 'a {
     let start = start_after.as_ref().map(Bound::exclusive);
 
@@ -206,7 +207,7 @@ pub fn load_chain_configs<'a>(
         .range(storage, start, None, Order::Ascending)
         .map(|r| r.change_context(Error::Storage))
         .filter_ok(move |(_, config)| filter(config))
-        .take(limit as usize)
+        .take(limit.into())
 }
 
 pub fn save_chain_config(

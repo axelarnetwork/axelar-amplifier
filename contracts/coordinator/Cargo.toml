@@ -40,6 +40,7 @@ serde_json = { workspace = true }
 service-registry-api = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier-api = { workspace = true }
+limit = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }

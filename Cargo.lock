@@ -2329,6 +2329,7 @@ dependencies = [
  "goldie",
  "integration-tests",
  "itertools 0.14.0",
+ "limit",
  "msgs-derive",
  "multisig",
  "multisig-prover-api",
@@ -5214,6 +5215,7 @@ dependencies = [
  "itertools 0.11.0",
  "its-abi-translator",
  "its-msg-translator-api",
+ "limit",
  "msgs-derive",
  "report",
  "router-api",
@@ -5848,6 +5850,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3db8d6ba2cec9eacc40e6e8ccc98931840301f1006e95647ceb2dd5c3aa06f7c"
 dependencies = [
  "libsecp256k1-core 0.3.0",
+]
+
+[[package]]
+name = "limit"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-schema",
 ]
 
 [[package]]
