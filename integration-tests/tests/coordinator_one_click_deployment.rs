@@ -709,3 +709,32 @@ fn coordinator_one_click_query_single_deployment_succeeds() {
         verifier_address: contracts.voting_verifier.contract_addr
     }));
 }
+
+#[test]
+fn coordinator_one_click_query_single_deployment_fails() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chain_name = String::from("testchain");
+    let deployment_name = nonempty_str!("testchain-1");
+
+    let res = instantiate_contracts(
+        &mut protocol,
+        chain_name.as_str(),
+        &chain1,
+        deployment_name.clone(),
+        Binary::new(vec![1]),
+    );
+    assert!(res.is_ok());
+
+    let res = protocol.coordinator.query::<ChainContractsResponse>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Deployment {
+            deployment_name: nonempty_str!("randomdeployment"),
+        },
+    );
+    assert!(res.is_err());
+}

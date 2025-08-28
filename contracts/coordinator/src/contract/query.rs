@@ -116,12 +116,12 @@ pub fn deployment(
     deps: Deps,
     deployment_name: nonempty::String,
 ) -> Result<ChainContractsResponse, Error> {
-    state::deployment(deps.storage, deployment_name)
+    state::deployment(deps.storage, deployment_name.clone())
         .map(|chains| ChainContractsResponse {
             chain_name: chains.chain_name,
             prover_address: chains.multisig_prover,
             verifier_address: chains.voting_verifier,
             gateway_address: chains.gateway,
         })
-        .change_context(Error::DeploymentsNotFound)
+        .change_context(Error::DeploymentNotFound(deployment_name))
 }
