@@ -5,6 +5,7 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
 };
 use error_stack::ResultExt;
+use limit::Limit;
 use msgs_derive::ensure_permissions;
 use router_api::error::Error;
 
@@ -135,9 +136,11 @@ pub fn query(
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
-        QueryMsg::Chains { start_after, limit } => {
-            to_json_binary(&query::chains(deps.storage, start_after, limit)?)
-        }
+        QueryMsg::Chains { start_after, limit } => to_json_binary(&query::chains(
+            deps.storage,
+            start_after,
+            Limit::from(limit),
+        )?),
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
     .map_err(axelar_wasm_std::error::ContractError::from)
@@ -1088,7 +1091,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: None,
+                limit: u32::MAX,
             },
         )
         .unwrap()
@@ -1127,7 +1130,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: None,
+                limit: u32::MAX,
             },
         )
         .unwrap()
@@ -1167,7 +1170,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: None,
+                limit: u32::MAX,
             },
         )
         .unwrap()

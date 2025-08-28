@@ -8,12 +8,11 @@ pub struct Limit(u32);
 
 impl Limit {
     #[allow(dead_code)]
-    fn min() -> Self {
+    pub fn min() -> Self {
         Limit(LIMIT_MIN)
     }
 
-    #[allow(dead_code)]
-    fn max() -> Self {
+    pub fn max() -> Self {
         Limit(LIMIT_MAX)
     }
 }
