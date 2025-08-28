@@ -179,18 +179,13 @@ where
     match res {
         Ok(msgs) => {
             if is_evm_handler(handler_label) {
-                info!(
-                    handler = %handler_label,
-                    num_msgs = msgs.len(),
-                    event_type = %event,
-                    "EVM handler generated messages for broadcasting"
-                );
                 for (i, msg) in msgs.iter().enumerate() {
                     info!(
                         handler = %handler_label,
                         msg_index = i,
                         msg_type_url = %msg.type_url,
-                        "EVM handler message details"
+                        msg_value = ?msg.value,
+                        "AMPD EVM handler message details"
                     );
                 }
             }
