@@ -142,7 +142,7 @@ fn is_evm_handler(handler_label: &str) -> bool {
         "multisig-",
         "xrpl-multisig-",
     ];
-    let evm_suffixes = ["-msg-verifier", "-verifier-set-verifier"];
+    let evm_suffixes = ["avalanche-msg-verifier", "avalanche-verifier-set-verifier"];
 
     !non_evm_prefixes
         .iter()
