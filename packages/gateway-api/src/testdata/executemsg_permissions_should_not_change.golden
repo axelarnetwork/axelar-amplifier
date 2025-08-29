@@ -1,16 +1,16 @@
 {
   "RouteMessages": {
-    "external": [],
+    "specific": [],
     "general": [
       "Any"
     ],
-    "specific": []
+    "external": []
   },
   "VerifyMessages": {
-    "external": [],
+    "specific": [],
     "general": [
       "Any"
     ],
-    "specific": []
+    "external": []
   }
 }

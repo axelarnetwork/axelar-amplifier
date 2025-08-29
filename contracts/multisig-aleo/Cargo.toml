@@ -34,6 +34,7 @@ snarkvm-cosmwasm = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+aleo-gmp-types = { workspace = true }
 hex = "0.4.3"
 rand = { workspace = true }
 snarkos-account = { workspace = true }

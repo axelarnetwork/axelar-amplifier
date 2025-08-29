@@ -6842,6 +6842,7 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 name = "multisig"
 version = "2.3.1"
 dependencies = [
+ "aleo-gmp-types",
  "aleo-network-config",
  "assert_ok",
  "axelar-wasm-std",
@@ -6881,6 +6882,7 @@ dependencies = [
 name = "multisig-aleo"
 version = "0.1.0"
 dependencies = [
+ "aleo-gmp-types",
  "aleo-network-config",
  "axelar-wasm-std",
  "cosmwasm-schema",

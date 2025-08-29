@@ -145,7 +145,7 @@ pub mod aleo_schnorr_test_data {
     use cosmwasm_std::testing::MockApi;
     use rand_chacha::rand_core::SeedableRng;
     use snarkvm_cosmwasm::console::account::PrivateKey;
-    use snarkvm_cosmwasm::prelude::ToBytes as _;
+    use snarkvm_cosmwasm::prelude::{FromBytes as _, Group, ToBytes as _, ToFields as _};
 
     use super::*;
 
@@ -155,9 +155,13 @@ pub mod aleo_schnorr_test_data {
     ) -> TestSigner {
         let verifying_key =
             snarkvm_cosmwasm::console::account::Address::try_from(&private_key).unwrap();
-        let signature = snarkvm_cosmwasm::console::account::signature::Signature::sign_bytes(
+        let group_hash =
+            Group::<snarkvm_cosmwasm::console::network::TestnetV0>::from_bytes_le(&message())
+                .unwrap();
+
+        let signature = snarkvm_cosmwasm::console::account::signature::Signature::sign(
             &private_key,
-            message().as_slice(),
+            &group_hash.to_fields().unwrap(),
             &mut rand_chacha::ChaChaRng::from_seed([1u8; 32]),
         )
         .unwrap();
@@ -181,8 +185,9 @@ pub mod aleo_schnorr_test_data {
     }
 
     pub fn message() -> HexBinary {
-        HexBinary::from_hex("fa0609efd1dfeedfdcc8ba51520fae2d5176b7621d2560f071e801b0817e1537")
-            .unwrap()
+        let group_value = Group::<snarkvm_cosmwasm::console::network::TestnetV0>::from_str("2group").unwrap();
+        let bytes = group_value.to_bytes_le().unwrap();
+        HexBinary::from(bytes)
     }
 
     pub fn signers() -> Vec<TestSigner> {
@@ -225,12 +230,29 @@ pub fn build_verifier_set(key_type: KeyType, signers: &[TestSigner]) -> Verifier
     VerifierSet::new(participants, total_weight.mul_ceil((2u64, 3u64)), 0)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum VerifierSetId {
+    Ecdsa(String),
+    Ed25519(String),
+    AleoSchnorr(String),
+}
+
+impl VerifierSetId {
+    pub fn id(&self) -> &str {
+        match self {
+            VerifierSetId::Ecdsa(id) => &id,
+            VerifierSetId::Ed25519(id) => &id,
+            VerifierSetId::AleoSchnorr(id) => &id,
+        }
+    }
+}
+
 // Returns a list of (key_type, subkey, signers, session_id)
 pub fn signature_test_data<'a>(
-    ecdsa_subkey: &'a String,
-    ed25519_subkey: &'a String,
-    aleo_schnorr_subkey: &'a String,
-) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
+    ecdsa_subkey: &'a VerifierSetId,
+    ed25519_subkey: &'a VerifierSetId,
+    aleo_schnorr_subkey: &'a VerifierSetId,
+) -> Vec<(KeyType, &'a VerifierSetId, Vec<TestSigner>, Uint64)> {
     vec![
         (
             KeyType::Ecdsa,

@@ -56,6 +56,7 @@ snarkvm-cosmwasm = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+aleo-gmp-types = { workspace = true }
 aleo-network-config = { workspace = true }
 assert_ok = { workspace = true }
 curve25519-dalek = "4.1.3"

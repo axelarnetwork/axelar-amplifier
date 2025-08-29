@@ -1,45 +1,45 @@
 {
   "Admin": {
-    "external": [],
+    "specific": [],
     "general": [
       "Admin"
     ],
-    "specific": []
+    "external": []
   },
   "Any": {
-    "external": [],
+    "specific": [],
     "general": [
       "Any"
     ],
-    "specific": []
+    "external": []
   },
   "Elevated": {
-    "external": [],
+    "specific": [],
     "general": [
       "Elevated"
     ],
-    "specific": []
+    "external": []
   },
   "Governance": {
-    "external": [],
+    "specific": [],
     "general": [
       "Governance"
     ],
-    "specific": []
+    "external": []
   },
   "Multi": {
-    "external": [],
+    "specific": [],
     "general": [
       "Admin",
       "NoPrivilege"
     ],
-    "specific": []
+    "external": []
   },
   "NoPrivilege": {
-    "external": [],
+    "specific": [],
     "general": [
       "NoPrivilege"
     ],
-    "specific": []
+    "external": []
   }
 }

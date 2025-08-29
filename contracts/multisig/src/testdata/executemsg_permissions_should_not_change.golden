@@ -1,60 +1,60 @@
 {
   "AuthorizeCallers": {
-    "external": [
-      "coordinator"
-    ],
+    "specific": [],
     "general": [
       "Governance"
     ],
-    "specific": []
-  },
-  "DisableSigning": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
-  "EnableSigning": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
-  "RegisterPublicKey": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "RegisterVerifierSet": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "StartSigningSession": {
-    "external": [],
-    "general": [],
-    "specific": [
-      "authorized"
+    "external": [
+      "coordinator"
     ]
   },
-  "SubmitSignature": {
-    "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "UnauthorizeCallers": {
-    "external": [],
+  "DisableSigning": {
+    "specific": [],
     "general": [
       "Elevated"
     ],
-    "specific": []
+    "external": []
+  },
+  "EnableSigning": {
+    "specific": [],
+    "general": [
+      "Elevated"
+    ],
+    "external": []
+  },
+  "RegisterPublicKey": {
+    "specific": [],
+    "general": [
+      "Any"
+    ],
+    "external": []
+  },
+  "RegisterVerifierSet": {
+    "specific": [],
+    "general": [
+      "Any"
+    ],
+    "external": []
+  },
+  "StartSigningSession": {
+    "specific": [
+      "authorized"
+    ],
+    "general": [],
+    "external": []
+  },
+  "SubmitSignature": {
+    "specific": [],
+    "general": [
+      "Any"
+    ],
+    "external": []
+  },
+  "UnauthorizeCallers": {
+    "specific": [],
+    "general": [
+      "Elevated"
+    ],
+    "external": []
   }
 }

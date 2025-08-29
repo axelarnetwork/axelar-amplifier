@@ -1,37 +1,37 @@
 {
   "InstantiateChainContracts": {
-    "external": [],
+    "specific": [],
     "general": [
       "Governance"
     ],
-    "specific": []
+    "external": []
   },
   "RegisterChain": {
-    "external": [],
+    "specific": [],
     "general": [
       "Governance"
     ],
-    "specific": []
+    "external": []
   },
   "RegisterDeployment": {
-    "external": [],
+    "specific": [],
     "general": [
       "Governance"
     ],
-    "specific": []
+    "external": []
   },
   "RegisterProtocol": {
-    "external": [],
+    "specific": [],
     "general": [
       "Governance"
     ],
-    "specific": []
+    "external": []
   },
   "SetActiveVerifiers": {
-    "external": [],
-    "general": [],
     "specific": [
       "prover"
-    ]
+    ],
+    "general": [],
+    "external": []
   }
 }

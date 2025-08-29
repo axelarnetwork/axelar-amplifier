@@ -212,7 +212,7 @@ mod tests {
     use multisig::msg::Signer;
     use router_api::ChainNameRaw;
     use snarkos_account::Account;
-    use snarkvm::prelude::{Address, ToBytes};
+    use snarkvm::prelude::{Address, FromBytes as _, ToBytes, ToFields};
 
     use super::*;
 
@@ -244,10 +244,12 @@ mod tests {
     // APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo
     // aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss
     fn aleo_sig(digest: [u8; 32]) -> SignerWithSig {
+        let group_hash = Group::<CurrentNetwork>::from_bytes_le(&digest).unwrap();
+
         let aleo_account =
             Account::new(&mut rand::thread_rng()).expect("Failed to create Aleo account");
         let encoded_signature = aleo_account
-            .sign_bytes(&digest, &mut rand::thread_rng())
+            .sign(&group_hash.to_fields().unwrap(), &mut rand::thread_rng())
             .and_then(|signature| signature.to_bytes_le())
             .unwrap()
             .into();

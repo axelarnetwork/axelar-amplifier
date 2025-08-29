@@ -1,45 +1,45 @@
 {
   "Any": {
-    "external": [],
+    "specific": [],
     "general": [
       "Any"
     ],
-    "specific": []
+    "external": []
   },
   "Specific1": {
-    "external": [],
-    "general": [],
     "specific": [
       "gateway1"
-    ]
+    ],
+    "general": [],
+    "external": []
   },
   "Specific2": {
-    "external": [],
+    "specific": [
+      "gateway1"
+    ],
     "general": [
       "Elevated"
     ],
-    "specific": [
-      "gateway1"
-    ]
+    "external": []
   },
   "Specific3": {
-    "external": [],
+    "specific": [
+      "gateway1",
+      "gateway2"
+    ],
     "general": [
       "Admin",
       "NoPrivilege"
     ],
-    "specific": [
-      "gateway1",
-      "gateway2"
-    ]
+    "external": []
   },
   "Specific4": {
-    "external": [],
-    "general": [],
     "specific": [
       "gateway1",
       "gateway2",
       "gateway3"
-    ]
+    ],
+    "general": [],
+    "external": []
   }
 }

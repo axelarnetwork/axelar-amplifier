@@ -145,8 +145,6 @@ pub fn operators() -> Vec<TestOperator> {
         .into_iter()
         .map(
             |(address, pub_key, operator, weight, signature)| {
-                println!("Creating TestOperator for address: {:?}", address);
-                println!("Creating TestOperator for pub_key: {:?}", pub_key);
                 TestOperator {
                 address: Addr::unchecked(address),
                 pub_key: (KeyType::AleoSchnorr, HexBinary::from(PublicKey::AleoSchnorr(

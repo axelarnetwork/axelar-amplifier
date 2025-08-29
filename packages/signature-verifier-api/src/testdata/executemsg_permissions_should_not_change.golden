@@ -1,9 +1,9 @@
 {
   "VerifySignature": {
-    "external": [],
+    "specific": [],
     "general": [
       "Any"
     ],
-    "specific": []
+    "external": []
   }
 }
