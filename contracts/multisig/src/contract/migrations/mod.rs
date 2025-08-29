@@ -1,12 +1,14 @@
 mod legacy_state;
 
+use std::collections::HashSet;
+
 use axelar_wasm_std::{address, migrate_from_version};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response};
+use cosmwasm_std::{DepsMut, Env, Order, Response};
 
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, AUTHORIZED_CALLERS, CALLERS_FOR_CHAIN, CONFIG};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -16,7 +18,7 @@ pub struct MigrateMsg {
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[migrate_from_version("2.1")]
 pub fn migrate(
-    deps: DepsMut,
+    mut deps: DepsMut,
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
@@ -34,19 +36,52 @@ pub fn migrate(
         },
     )?;
 
+    migrate_authorized_callers(&mut deps)?;
+
     Ok(Response::default())
+}
+
+fn migrate_authorized_callers(
+    deps: &mut DepsMut,
+) -> Result<(), axelar_wasm_std::error::ContractError> {
+    let authorized_callers: Vec<_> = AUTHORIZED_CALLERS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|item| item.ok())
+        .collect();
+
+    for (contract_address, chain_name) in authorized_callers {
+        match CALLERS_FOR_CHAIN.may_load(deps.storage, &chain_name) {
+            Ok(Some(mut addresses)) => {
+                addresses.insert(contract_address.clone());
+                let _ = CALLERS_FOR_CHAIN.save(deps.storage, &chain_name, &addresses);
+            }
+            Ok(None) => {
+                let _ = CALLERS_FOR_CHAIN.save(
+                    deps.storage,
+                    &chain_name,
+                    &HashSet::from([contract_address]),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use std::str::FromStr;
+
     use axelar_wasm_std::address;
     use axelar_wasm_std::nonempty::Uint64;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-    use router_api::cosmos_addr;
+    use router_api::{cosmos_addr, ChainName};
 
     use super::legacy_state;
     use crate::contract::{migrate, MigrateMsg};
-    use crate::state::CONFIG;
+    use crate::state::{AUTHORIZED_CALLERS, CALLERS_FOR_CHAIN, CONFIG};
 
     const REWARDS: &str = "rewards";
 
@@ -54,6 +89,7 @@ mod tests {
     const ADMIN: &str = "admin";
     const COORDINATOR: &str = "coordinator";
     const SENDER: &str = "sender";
+    const PROVER: &str = "prover";
 
     #[test]
     fn migrate_properly_registers_coordinator() {
@@ -89,5 +125,53 @@ mod tests {
             address::validate_cosmwasm_address(&deps.api, cosmos_addr!(COORDINATOR).as_ref());
         assert!(coord_addr.is_ok());
         assert_eq!(res.unwrap().coordinator, coord_addr.unwrap());
+    }
+
+    #[test]
+    fn migrate_stores_authorized_callers_for_chains() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = message_info(&cosmos_addr!(GOVERNANCE), &[]);
+
+        assert!(legacy_state::test::instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            legacy_state::InstantiateMsg {
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                admin_address: cosmos_addr!(ADMIN).to_string(),
+                rewards_address: cosmos_addr!(REWARDS).to_string(),
+                block_expiry: Uint64::try_from(100).unwrap(),
+            },
+        )
+        .is_ok());
+
+        assert!(AUTHORIZED_CALLERS
+            .save(
+                &mut deps.storage,
+                &cosmos_addr!(PROVER),
+                &ChainName::from_str("chain1").unwrap()
+            )
+            .is_ok());
+
+        assert!(CALLERS_FOR_CHAIN
+            .load(&deps.storage, &ChainName::from_str("chain1").unwrap())
+            .is_err());
+
+        assert!(migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                coordinator: cosmos_addr!(COORDINATOR).to_string(),
+            },
+        )
+        .is_ok());
+
+        assert_eq!(
+            CALLERS_FOR_CHAIN
+                .load(&deps.storage, &ChainName::from_str("chain1").unwrap())
+                .unwrap(),
+            HashSet::from([cosmos_addr!(PROVER)])
+        );
     }
 }

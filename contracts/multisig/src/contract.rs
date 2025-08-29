@@ -174,6 +174,9 @@ pub fn query(
             address::validate_cosmwasm_address(deps.api, &contract_address)?,
             chain_name,
         )?)?,
+        QueryMsg::AuthorizedCallers { chain_name } => {
+            to_json_binary(&query::callers_for_chain(deps, chain_name)?)?
+        }
     }
     .then(Ok)
 }
@@ -1392,5 +1395,33 @@ mod tests {
                 .to_string()
             ));
         }
+    }
+
+    #[test]
+    fn query_authorized_callers_for_chains_succeeds() {
+        let (mut deps, _, _) = setup();
+
+        let contracts = vec![
+            (cosmos_addr!("addr1"), chain_name!("chain1")),
+            (cosmos_addr!("addr2"), chain_name!("chain1")),
+            (cosmos_addr!("addr3"), chain_name!("chain2")),
+        ];
+        do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
+
+        assert!(
+            query::callers_for_chain(deps.as_ref(), chain_name!("chain1"))
+                .unwrap()
+                .contains(&cosmos_addr!("addr1"))
+        );
+        assert!(
+            query::callers_for_chain(deps.as_ref(), chain_name!("chain1"))
+                .unwrap()
+                .contains(&cosmos_addr!("addr2"))
+        );
+        assert!(
+            query::callers_for_chain(deps.as_ref(), chain_name!("chain2"))
+                .unwrap()
+                .contains(&cosmos_addr!("addr3"))
+        );
     }
 }
