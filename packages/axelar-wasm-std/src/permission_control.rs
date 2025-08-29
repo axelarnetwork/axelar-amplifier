@@ -5,13 +5,14 @@ use cw_storage_plus::Item;
 use flagset::{flags, Flags};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use strum::{AsRefStr, EnumString};
 
 use crate::flagset::FlagSet;
 use crate::FnExt;
 
 flags! {
     #[repr(u8)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Hash, EnumString, AsRefStr)]
     pub enum Permission: u8 {
         NoPrivilege = 0b001, // this specifies that the user MUST NOT have an elevated role
         Admin = 0b010,
@@ -41,9 +42,17 @@ impl Display for FlagSet<Permission> {
 #[derive(thiserror::Error, Debug, PartialEq)]
 pub enum Error {
     #[error("sender with role '{actual}' is not allowed to perform this action that requires '{expected}' permissions")]
-    PermissionDenied {
+    GeneralPermissionDenied {
         expected: FlagSet<Permission>,
         actual: FlagSet<Permission>,
+    },
+    #[error("sender does not fit roles {roles:?}")]
+    SpecificPermissionDenied { roles: Vec<String> },
+    #[error("sender with role '{actual}' does not fit roles {roles:?}, or have '{expected}' permissions")]
+    GeneralAndSpecificPermissionDenied {
+        expected: FlagSet<Permission>,
+        actual: FlagSet<Permission>,
+        roles: Vec<String>,
     },
     #[error("sender '{actual}' must be one of the addresses {expected:?}")]
     AddressNotWhitelisted { expected: Vec<Addr>, actual: Addr },
