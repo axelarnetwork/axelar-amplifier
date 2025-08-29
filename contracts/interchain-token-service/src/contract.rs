@@ -8,6 +8,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage};
 use error_stack::{Report, ResultExt};
 use execute::{freeze_chain, unfreeze_chain};
+use limit::Limit;
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{self, Config};
@@ -176,7 +177,7 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
             filter,
             start_after,
             limit,
-        } => query::its_chains(deps, filter, start_after, limit)
+        } => query::its_chains(deps, filter, start_after, Limit::from(limit))
             .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)

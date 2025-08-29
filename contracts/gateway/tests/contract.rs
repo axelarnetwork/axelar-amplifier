@@ -15,6 +15,7 @@ use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
+use limit::Limit;
 use rand::{thread_rng, Rng};
 use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 use serde::Serialize;
@@ -316,9 +317,9 @@ fn test_cases_for_duplicate_msgs() -> (
 
     let test_cases = vec![
         // one duplicate
-        duplicate_msgs(all_messages.clone(), 1),
+        duplicate_msgs(all_messages.clone(), Limit::from(1)),
         // multiple duplicates
-        duplicate_msgs(all_messages.clone(), 10),
+        duplicate_msgs(all_messages.clone(), Limit::from(10)),
         // all duplicates
         all_messages
             .clone()
@@ -458,9 +459,9 @@ fn sort_msgs_by_status(
         .map(|(_, msgs)| msgs)
 }
 
-fn duplicate_msgs(msgs: Vec<Message>, amount: usize) -> Vec<Message> {
+fn duplicate_msgs(msgs: Vec<Message>, amount: Limit) -> Vec<Message> {
     msgs.clone()
         .into_iter()
-        .chain(msgs.into_iter().take(amount))
+        .chain(msgs.into_iter().take(amount.into()))
         .collect()
 }
