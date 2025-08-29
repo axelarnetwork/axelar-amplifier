@@ -240,8 +240,8 @@ pub fn deployments(
             None,
             Order::Ascending,
         )
-        .take(limit as usize)
-        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts)))
+        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
+        .take(limit as usize))
 }
 
 pub fn is_prover_registered(
