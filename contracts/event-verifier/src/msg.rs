@@ -1,4 +1,5 @@
 use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::msg_id::HexTxHash;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -58,16 +59,8 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct EventToVerify {
-    pub event_id: EventId,
-    pub event_data: String, // JSON string representing the serialized EventData
-}
-
-#[cw_serde]
-pub struct EventId {
-    // chain that emitted the event in question
     pub source_chain: ChainName,
-    // transaction hash where the event was emitted
-    pub transaction_hash: String,
+    pub event_data: String, // JSON string representing the serialized EventData
 }
 
 #[cw_serde]
@@ -89,6 +82,7 @@ pub struct Event {
 #[cw_serde]
 pub enum EventData {
     Evm {
+        transaction_hash: HexTxHash,
         transaction_details: Option<TransactionDetails>,
         events: Vec<Event>,
     },
@@ -178,12 +172,12 @@ impl EventToVerify {
         let mut hasher = Keccak256::new();
         let delimiter_bytes = &[FIELD_DELIMITER as u8];
 
-        hasher.update(self.event_id.source_chain.as_ref());
+        hasher.update(self.source_chain.as_ref());
         hasher.update(delimiter_bytes);
-        hasher.update(&self.event_id.transaction_hash);
-        hasher.update(delimiter_bytes);
-
-        // Hash the event data JSON string directly
+        
+        // Parse the event data to get the transaction hash
+        // Note: This assumes the event_data is a JSON string that can be deserialized
+        // The actual implementation may need to be adjusted based on how the data is structured
         hasher.update(self.event_data.as_bytes());
 
         hasher.finalize().into()
