@@ -87,6 +87,7 @@ pub fn query(
             to_json_binary(&query::events_status(deps, &events, env.block.height)?)
         }
         QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
+        QueryMsg::CurrentFee => to_json_binary(&query::current_fee(deps)?),
     }?
     .then(Ok)
 }

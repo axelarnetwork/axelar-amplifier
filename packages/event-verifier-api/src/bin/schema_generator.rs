@@ -3,8 +3,8 @@ use std::path::Path;
 use schemars::JsonSchema;
 use serde_json;
 
-// Import the actual types from the contract
-use event_verifier::msg::{EventData, TransactionDetails, Event};
+// Import the actual types from the API
+use event_verifier_api::EventData;
 
 fn main() {
     // Generate the JSON schema for EventData using schemars
@@ -44,6 +44,7 @@ fn generate_event_data_schema() -> serde_json::Value {
         let examples = vec![
             serde_json::json!({
                 "evm": {
+                    "transaction_hash": "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b",
                     "transaction_details": null,
                     "events": [
                         {
@@ -61,6 +62,7 @@ fn generate_event_data_schema() -> serde_json::Value {
             }),
             serde_json::json!({
                 "evm": {
+                    "transaction_hash": "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b",
                     "transaction_details": {
                         "calldata": "a9059cbb000000000000000000000000e233862be9e5ff645e25ce6a001cf1fec28097c800000000000000000000000000000000000000000000000000000000aa910f88c4",
                         "from": "0x6aa9f4fe1ce6fa00f06f2fe4bb6365180bc3a621",

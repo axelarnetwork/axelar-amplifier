@@ -83,7 +83,8 @@
             ]
           }
         ],
-        "transaction_details": null
+        "transaction_details": null,
+        "transaction_hash": "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"
       }
     },
     {
@@ -105,7 +106,8 @@
           "from": "0x6aa9f4fe1ce6fa00f06f2fe4bb6365180bc3a621",
           "to": "0x5425890298aed601595a70AB815c96711a31Bc65",
           "value": "0"
-        }
+        },
+        "transaction_hash": "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"
       }
     }
   ],
@@ -130,10 +132,21 @@
                   "type": "null"
                 }
               ]
+            },
+            "transaction_hash": {
+              "items": {
+                "format": "uint8",
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              "maxItems": 32,
+              "minItems": 32,
+              "type": "array"
             }
           },
           "required": [
-            "events"
+            "events",
+            "transaction_hash"
           ],
           "type": "object"
         }

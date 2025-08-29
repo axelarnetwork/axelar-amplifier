@@ -47,7 +47,8 @@ pub enum ContractError {
     #[error("insufficient fee provided")]
     InsufficientFee,
 
-
+    #[error("serialization failed")]
+    SerializationFailed,
 
     // Generic error to wrap cw_storage_plus errors
     // This should only be used for things that shouldn't happen, such as encountering

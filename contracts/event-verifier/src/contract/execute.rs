@@ -8,6 +8,7 @@ use cosmwasm_std::{
     Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation, Response, Storage,
 };
 use error_stack::{report, Report, Result, ResultExt};
+use crate::hash::hash_event_to_verify;
 use itertools::Itertools;
 use router_api::ChainName;
 use service_registry::WeightedVerifier;
@@ -124,10 +125,10 @@ pub fn verify_events(
     }
 
     // Ensure all events to verify have the same source chain
-    let source_chain = &events_to_verify[0].event_id.source_chain;
+    let source_chain = &events_to_verify[0].source_chain;
     let same_chain = events_to_verify
         .iter()
-        .all(|e| &e.event_id.source_chain == source_chain);
+        .all(|e| &e.source_chain == source_chain);
     if !same_chain {
         return Err(report!(ContractError::SourceChainMismatch(
             source_chain.clone(),
@@ -145,7 +146,7 @@ pub fn verify_events(
         state::poll_events()
             .save(
                 deps.storage,
-                &event.hash(),
+                &hash_event_to_verify(event),
                 &state::PollContent::<crate::msg::EventToVerify>::new(event.clone(), id, idx),
             )
             .change_context(ContractError::StorageError)?;

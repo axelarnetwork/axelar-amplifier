@@ -16,6 +16,8 @@ pub enum Error {
     EventsStatus(Vec<EventToVerify>),
     #[error("failed to query voting verifier for poll. poll_id: {0}")]
     Poll(PollId),
+    #[error("failed to query voting verifier for current fee")]
+    CurrentFee,
 }
 
 impl Error {
@@ -24,6 +26,7 @@ impl Error {
             QueryMsg::EventsStatus(events) => Error::EventsStatus(events),
             QueryMsg::Poll { poll_id } => Error::Poll(poll_id),
             QueryMsg::CurrentThreshold => Error::CurrentThreshold,
+            QueryMsg::CurrentFee => Error::CurrentFee,
         }
     }
 }
@@ -78,6 +81,13 @@ impl Client<'_> {
 
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         let msg = QueryMsg::CurrentThreshold;
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
+    }
+
+    pub fn current_fee(&self) -> Result<cosmwasm_std::Coin> {
+        let msg = QueryMsg::CurrentFee;
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))

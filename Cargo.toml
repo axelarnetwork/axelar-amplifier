@@ -60,6 +60,7 @@ ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
 ] }
 ethers-core = "2.0.14"
+event-verifier-api = { version = "^1.1.0", path = "packages/event-verifier-api" }
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }

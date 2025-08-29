@@ -163,7 +163,7 @@ pub fn verify_event(
     };
     
     match event_data {
-        event_verifier::msg::EventData::Evm { transaction_details, events } => {
+        event_verifier::msg::EventData::Evm { transaction_details, events, .. } => {
             // If transaction details are present, verify the transaction first
             if let Some(tx_details) = transaction_details {
                 let tx = match tx {

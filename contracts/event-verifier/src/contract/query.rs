@@ -2,6 +2,7 @@ use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
+use crate::hash::hash_event_to_verify;
 
 use crate::error::ContractError;
 use crate::msg::{EventStatus, EventToVerify, PollData, PollResponse};
@@ -14,6 +15,13 @@ pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> 
         .voting_threshold)
 }
 
+pub fn current_fee(deps: Deps) -> Result<cosmwasm_std::Coin, ContractError> {
+    Ok(CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::StorageError)?
+        .fee)
+}
+
 pub fn events_status(
     deps: Deps,
     events: &[EventToVerify],
@@ -23,7 +31,10 @@ pub fn events_status(
         .iter()
         .map(|event| {
             event_status(deps, event, cur_block_height)
-                .map(|status| EventStatus::new(event.to_owned(), status))
+                .map(|status| EventStatus {
+            event: event.to_owned(),
+            status,
+        })
         })
         .collect()
 }
@@ -34,7 +45,7 @@ pub fn event_status(
     cur_block_height: u64,
 ) -> Result<VerificationStatus, ContractError> {
     let loaded_poll_content = poll_events()
-        .may_load(deps.storage, &event.hash())
+        .may_load(deps.storage, &hash_event_to_verify(event))
         .change_context(ContractError::StorageError)?;
 
     Ok(verification_status(

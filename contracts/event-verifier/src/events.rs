@@ -110,9 +110,19 @@ impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmat
     fn try_from(
         (event, _msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat),
     ) -> Result<Self, Self::Error> {
+        // Parse the event_data to extract transaction_hash
+        let event_data: event_verifier_api::EventData = serde_json::from_str(&event.event_data)
+            .map_err(|_| ContractError::SerializationFailed)?;
+        
+        let transaction_hash = match event_data {
+            event_verifier_api::EventData::Evm { transaction_hash, .. } => {
+                transaction_hash.tx_hash_as_hex().to_string()
+            }
+        };
+        
         Ok(TxEventConfirmation {
-            transaction_hash: event.event_id.transaction_hash,
-            source_chain: event.event_id.source_chain,
+            transaction_hash,
+            source_chain: event.source_chain,
             event_data: event.event_data,
         })
     }
