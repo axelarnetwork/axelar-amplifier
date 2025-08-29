@@ -1,9 +1,11 @@
-use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::MajorityThreshold;
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{HexBinary, Uint64};
+use msgs_derive::Permissions;
 use multisig::key::KeyType;
+use router_api::CrossChainId;
 
-use crate::encoding::Encoder;
+use crate::payload::Payload;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -26,6 +28,9 @@ pub struct InstantiateMsg {
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
     /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
     pub voting_verifier_address: String,
+    /// Address of the chain codec contract on axelar associated with the destination chain.
+    /// This is the contract that encodes the execute data for the target chain that the relayer will submit.
+    pub chain_codec_address: String,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
@@ -38,18 +43,89 @@ pub struct InstantiateMsg {
     /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
     /// will fail unless the registered verifier set and active verifier set differ by more than 1.
     pub verifier_set_diff_threshold: u32,
-    /// Type of encoding to use for signed payload. Blockchains can encode their execution payloads in various ways (ABI, BCS, etc).
-    /// This defines the specific encoding type to use for this prover, which should correspond to the encoding type used by the gateway
-    /// deployed on the destination chain.
-    pub encoder: Encoder,
     /// Public key type verifiers use for signing payload. Different blockchains support different cryptographic signature algorithms (ECDSA, Ed25519, etc).
     /// This defines the specific signature algorithm to use for this prover, which should correspond to the signature algorithm used by the gateway
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
-    /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
-    /// Value must be a String in hex format without `0x`, e.g. "598ba04d225cec385d1ce3cf3c9a076af803aa5c614bc0e0d176f04ac8d28f55".
-    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
-    pub domain_separator: Hash,
+    /// Address of a contract responsible for signature verification.
+    /// For detailed information, see [`multisig::msg::ExecuteMsg::StartSigningSession::sig_verifier`]
+    pub sig_verifier_address: Option<String>,
+}
+
+#[cw_serde]
+#[derive(Permissions)]
+pub enum ExecuteMsg {
+    // Start building a proof that includes specified messages
+    // Queries the gateway for actual message contents
+    #[permission(Any)]
+    #[cfg(not(feature = "receive-payload"))]
+    ConstructProof(Vec<CrossChainId>),
+    #[permission(Any)]
+    #[cfg(feature = "receive-payload")]
+    ConstructProof {
+        message_ids: Vec<CrossChainId>,
+        /// This contains the full message payloads for each message in `message_ids`.
+        /// The order has to be the same as `message_ids`, i.e. `full_message_payloads[i]` corresponds to `message_ids[i]`.
+        /// The hash of each payload is checked to match the message payload.
+        full_message_payloads: Vec<HexBinary>,
+    },
+
+    #[permission(Elevated)]
+    UpdateVerifierSet,
+
+    #[permission(Any)]
+    ConfirmVerifierSet,
+    // Updates the signing threshold. The threshold currently in use does not change.
+    // The verifier set must be updated and confirmed for the change to take effect.
+    #[permission(Governance)]
+    UpdateSigningThreshold {
+        new_signing_threshold: MajorityThreshold,
+    },
+    #[permission(Governance)]
+    UpdateAdmin { new_admin_address: String },
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(ProofResponse)]
+    Proof { multisig_session_id: Uint64 },
+
+    /// Returns a `VerifierSetResponse` with the current verifier set id and the verifier set itself.
+    #[returns(Option<VerifierSetResponse>)]
+    CurrentVerifierSet,
+
+    /// Returns a `VerifierSetResponse` with the next verifier set id and the verifier set itself.
+    #[returns(Option<VerifierSetResponse>)]
+    NextVerifierSet,
+}
+
+#[cw_serde]
+pub enum ProofStatus {
+    Pending,
+    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
+}
+
+#[cw_serde]
+pub struct ProofResponse {
+    pub multisig_session_id: Uint64,
+    pub message_ids: Vec<CrossChainId>,
+    pub payload: Payload,
+    pub status: ProofStatus,
+}
+
+#[cw_serde]
+pub struct VerifierSetResponse {
+    pub id: String,
+    pub verifier_set: multisig::verifier_set::VerifierSet,
+}
+
+impl From<multisig::verifier_set::VerifierSet> for VerifierSetResponse {
+    fn from(set: multisig::verifier_set::VerifierSet) -> Self {
+        VerifierSetResponse {
+            id: set.id(),
+            verifier_set: set,
+        }
+    }
 }

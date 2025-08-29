@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroU64;
 
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -9,7 +10,9 @@ use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coins, to_json_binary, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
-use cw_multi_test::{AppBuilder, AppResponse, Executor};
+use cw_multi_test::{AppBuilder, AppResponse, Executor, WasmKeeper};
+use integration_tests::address_generator::AddressGenerator;
+use integration_tests::chain_codec_contract::ChainCodecContract;
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
@@ -23,7 +26,7 @@ use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use k256::ecdsa;
 use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
-use multisig_prover::msg::VerifierSetResponse;
+use multisig_prover_api::msg::VerifierSetResponse;
 use rewards::PoolId;
 use router_api::{
     chain_name, cosmos_addr, Address, ChainName, CrossChainId, GatewayDirection, Message,
@@ -205,7 +208,7 @@ pub fn construct_proof_and_sign(
     let response = multisig_prover.execute(
         &mut protocol.app,
         cosmos_addr!(RELAYER),
-        &multisig_prover::msg::ExecuteMsg::ConstructProof(
+        &multisig_prover_api::msg::ExecuteMsg::ConstructProof(
             messages.iter().map(|msg| msg.cc_id.clone()).collect(),
         ),
     );
@@ -297,11 +300,11 @@ pub fn proof(
     app: &mut AxelarApp,
     multisig_prover: &MultisigProverContract,
     multisig_session_id: &Uint64,
-) -> multisig_prover::msg::ProofResponse {
-    let query_response: Result<multisig_prover::msg::ProofResponse, StdError> = multisig_prover
+) -> multisig_prover_api::msg::ProofResponse {
+    let query_response: Result<multisig_prover_api::msg::ProofResponse, StdError> = multisig_prover
         .query(
             app,
-            &multisig_prover::msg::QueryMsg::Proof {
+            &multisig_prover_api::msg::QueryMsg::Proof {
                 multisig_session_id: *multisig_session_id,
             },
         );
@@ -314,8 +317,8 @@ pub fn verifier_set_from_prover(
     app: &mut AxelarApp,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
-    let query_response: Result<Option<VerifierSetResponse>, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::CurrentVerifierSet);
+    let query_response: Result<Option<VerifierSetResponse>, StdError> = multisig_prover_contract
+        .query(app, &multisig_prover_api::msg::QueryMsg::CurrentVerifierSet);
     assert!(query_response.is_ok());
 
     query_response.unwrap().unwrap().verifier_set
@@ -408,6 +411,8 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
 }
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
+    let address_generator = AddressGenerator::new();
+
     let genesis = cosmos_addr!("genesis");
     let mut app = AppBuilder::new_custom()
         .with_custom(AxelarModule {
@@ -418,6 +423,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
                 })?)
             }),
         })
+        .with_wasm(WasmKeeper::default().with_address_generator(address_generator.clone()))
         .build(|router, _, storage| {
             router
                 .bank
@@ -482,6 +488,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         service_name,
         rewards,
         rewards_params,
+        address_generator,
         app,
     }
 }
@@ -565,7 +572,7 @@ pub fn confirm_verifier_set(
     let response = multisig_prover.execute(
         app,
         relayer_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::ConfirmVerifierSet,
     );
     assert!(response.is_ok());
 }
@@ -677,7 +684,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
     let response = chain_multisig_prover.execute(
         &mut protocol.app,
         cosmos_addr!(RELAYER),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
     sign_proof(protocol, current_verifiers, response.unwrap())
@@ -713,16 +720,29 @@ pub fn execute_verifier_set_poll(
 #[derive(Clone)]
 pub struct Chain {
     pub gateway: GatewayContract,
+    pub chain_codec: ChainCodecContract,
     pub voting_verifier: VotingVerifierContract,
     pub multisig_prover: MultisigProverContract,
     pub chain_name: ChainName,
 }
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+    let prover_address = protocol.app.init_modules(|_, api, storage| {
+        protocol
+            .address_generator
+            // order is: chain codec, voting verifier, gateway, multisig prover, so 4 addresses ahead should be the prover address
+            .future_address(api, storage, NonZeroU64::new(4).unwrap())
+            .unwrap()
+    });
+
+    let chain_codec =
+        ChainCodecContract::instantiate_contract(protocol, [0; 32], prover_address.clone());
+
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
+        &chain_codec.contract_addr,
     );
 
     let gateway = GatewayContract::instantiate_contract(
@@ -738,8 +758,13 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),
         voting_verifier.contract_addr.clone(),
+        chain_codec.contract_addr.clone(),
         chain_name.to_string(),
+        None,
     );
+
+    // sanity check
+    assert_eq!(multisig_prover.contract_addr, prover_address);
 
     let response = protocol.coordinator.execute(
         &mut protocol.app,
@@ -756,7 +781,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -843,6 +868,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     Chain {
         gateway,
+        chain_codec,
         voting_verifier,
         multisig_prover,
         chain_name,
@@ -874,8 +900,9 @@ pub fn rotate_active_verifier_set(
     let response = chain.multisig_prover.execute(
         &mut protocol.app,
         chain.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
+    println!("Response: {:?}", response);
     assert!(response.is_ok());
 
     let session_id = sign_proof(protocol, previous_verifiers, response.unwrap());
@@ -883,7 +910,7 @@ pub fn rotate_active_verifier_set(
     let proof = proof(&mut protocol.app, &chain.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
-        multisig_prover::msg::ProofStatus::Completed { .. }
+        multisig_prover_api::msg::ProofStatus::Completed { .. }
     ));
     assert_eq!(proof.message_ids.len(), 0);
 
