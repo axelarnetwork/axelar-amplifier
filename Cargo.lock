@@ -3648,6 +3648,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "event-verifier-api"
+version = "1.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "msgs-derive",
+ "router-api",
+ "schemars",
+ "serde_json",
+]
+
+[[package]]
 name = "events"
 version = "1.0.0"
 dependencies = [
