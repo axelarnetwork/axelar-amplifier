@@ -21,14 +21,6 @@ pub fn verify_message(tx: (&Signature, &UiTransactionStatusMeta), message: &Mess
                     &event.destination_chain,
                     &event.destination_contract_address,
                 ),
-                // This event is emitted when a contract call is initiated to an external chain with call data
-                // being passed offchain.
-                GatewayEvent::CallContractOffchainData(event) => (
-                    &event.sender_key,
-                    &event.payload_hash,
-                    &event.destination_chain,
-                    &event.destination_contract_address,
-                ),
                 _ => return false,
             };
 
