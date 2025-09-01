@@ -321,7 +321,7 @@ pub fn register_deployment(
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
-    let deployed_contracts = state::deployed_contracts(deps.storage, deployment_name.clone())
+    let deployed_contracts = state::deployment(deps.storage, deployment_name.clone())
         .change_context(Error::ChainContractsInfo)?;
 
     let protocol_contracts =

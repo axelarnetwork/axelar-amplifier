@@ -5,7 +5,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdError, Storage};
 use cw_storage_plus::{
-    index_list, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
+    index_list, Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
 };
 use error_stack::{bail, report, Result, ResultExt};
 use router_api::ChainName;
@@ -42,8 +42,8 @@ pub enum Error {
     #[error("deployment name {0} is in use")]
     DeploymentNameInUse(nonempty::String),
 
-    #[error("deployment name {0} not found")]
-    DeploymentNameNotFound(nonempty::String),
+    #[error("deployment {0} not found")]
+    DeploymentNotFound(nonempty::String),
 }
 
 #[cw_serde]
@@ -218,14 +218,30 @@ pub fn save_deployed_contracts(
         .change_context(Error::PersistingState)
 }
 
-pub fn deployed_contracts(
+pub fn deployment(
     storage: &dyn Storage,
     deployment_name: nonempty::String,
 ) -> Result<ChainContracts, Error> {
     DEPLOYED_CHAINS
         .may_load(storage, deployment_name.to_string())
         .change_context(Error::StateParseFailed)?
-        .ok_or(report!(Error::DeploymentNameNotFound(deployment_name)))
+        .ok_or(report!(Error::DeploymentNotFound(deployment_name)))
+}
+
+pub fn deployments(
+    storage: &dyn Storage,
+    start_after: Option<nonempty::String>,
+    limit: u32,
+) -> Result<impl Iterator<Item = ChainContracts> + '_, Error> {
+    Ok(DEPLOYED_CHAINS
+        .range(
+            storage,
+            start_after.map(Bound::exclusive),
+            None,
+            Order::Ascending,
+        )
+        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
+        .take(limit as usize))
 }
 
 pub fn is_prover_registered(
