@@ -2,7 +2,6 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Deps, Order, StdError};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
-use limit::Limit;
 use service_registry_api::msg::VerifierDetails;
 
 use crate::contract::errors::Error;
@@ -100,7 +99,7 @@ pub fn chain_contracts_info(
 pub fn deployments(
     deps: Deps,
     start_after: Option<nonempty::String>,
-    limit: Limit,
+    limit: u32,
 ) -> Result<Vec<ChainContractsResponse>, Error> {
     Ok(state::deployments(deps.storage, start_after, limit)
         .change_context(Error::ChainContractsInfo)?

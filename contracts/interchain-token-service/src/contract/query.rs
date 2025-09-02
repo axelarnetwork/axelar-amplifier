@@ -3,7 +3,6 @@ use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use interchain_token_service_std::TokenId;
 use itertools::Itertools;
-use limit::Limit;
 use router_api::ChainNameRaw;
 
 use crate::{msg, state};
@@ -50,7 +49,7 @@ pub fn its_chains(
     deps: Deps,
     filter: Option<msg::ChainFilter>,
     start_after: Option<ChainNameRaw>,
-    limit: Limit,
+    limit: u32,
 ) -> Result<Binary, Error> {
     let filtered_chain_configs: Vec<_> = state::load_chain_configs(
         deps.storage,

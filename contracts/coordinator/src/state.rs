@@ -8,7 +8,6 @@ use cw_storage_plus::{
     index_list, Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex,
 };
 use error_stack::{bail, report, Result, ResultExt};
-use limit::Limit;
 use router_api::ChainName;
 
 use crate::msg::ChainContractsResponse;
@@ -232,7 +231,7 @@ pub fn deployment(
 pub fn deployments(
     storage: &dyn Storage,
     start_after: Option<nonempty::String>,
-    limit: Limit,
+    limit: u32,
 ) -> Result<impl Iterator<Item = ChainContracts> + '_, Error> {
     Ok(DEPLOYED_CHAINS
         .range(
@@ -241,7 +240,7 @@ pub fn deployments(
             None,
             Order::Ascending,
         )
-        .take(limit.into())
+        .take(limit as usize)
         .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts)))
 }
 
