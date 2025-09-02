@@ -4,7 +4,6 @@ use std::path::Path;
 // Import the actual types from the API
 use event_verifier_api::EventData;
 use schemars::JsonSchema;
-use serde_json;
 
 fn main() {
     // Generate the JSON schema for EventData using schemars
