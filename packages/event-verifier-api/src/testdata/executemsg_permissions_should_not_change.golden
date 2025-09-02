@@ -1,0 +1,37 @@
+{
+  "UpdateFee": {
+    "external": [],
+    "general": [
+      "Admin"
+    ],
+    "specific": []
+  },
+  "UpdateVotingThreshold": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "VerifyEvents": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Vote": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Withdraw": {
+    "external": [],
+    "general": [
+      "Admin"
+    ],
+    "specific": []
+  }
+}

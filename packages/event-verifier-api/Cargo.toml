@@ -18,11 +18,11 @@ client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
+goldie = { workspace = true }
 msgs-derive = { workspace = true }
 router-api = { workspace = true }
 schemars = "0.8"
 serde_json = { workspace = true }
-goldie = { workspace = true }
 
 [lints]
 workspace = true
