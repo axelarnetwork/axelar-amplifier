@@ -1,0 +1,60 @@
+{
+  "Any": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Proxy1": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "Proxy2": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [],
+    "specific": [
+      "gateway1"
+    ]
+  },
+  "Proxy3": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Proxy4": {
+    "external": [
+      "gateway1",
+      "gateway2",
+      "gateway3"
+    ],
+    "general": [
+      "NoPrivilege"
+    ],
+    "specific": [
+      "gateway2"
+    ]
+  },
+  "Proxy5": {
+    "external": [
+      "gateway1"
+    ],
+    "general": [],
+    "specific": [
+      "gateway2"
+    ]
+  }
+}

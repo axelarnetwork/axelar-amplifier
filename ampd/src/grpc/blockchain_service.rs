@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -10,13 +9,12 @@ use ampd_proto::{
 };
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
-use axelar_wasm_std::FnExt;
-use futures::{Stream, TryFutureExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 use monitoring::metrics::Msg;
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
-use tracing::instrument;
+use tracing::{info, instrument};
 use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
@@ -86,7 +84,8 @@ where
         )))
     }
 
-    #[instrument]
+    // TODO: Remove the feature flag when analysis is complete and restore original broadcast
+    #[cfg_attr(not(feature = "dummy-grpc-broadcast"), instrument)]
     async fn broadcast(
         &self,
         req: Request<BroadcastRequest>,
@@ -96,21 +95,38 @@ where
             .inspect_err(status::log("invalid broadcast request"))
             .map_err(status::StatusExt::into_status)?;
 
-        self.msg_queue_client
-            .clone()
-            .enqueue(msg)
-            .inspect_err(|_| {
-                self.monitoring_client
-                    .metrics()
-                    .record_metric(Msg::MessageEnqueueError);
-            })
-            .map_err(Arc::new)
-            .and_then(|rx| rx)
-            .await
-            .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
-            .map(Response::new)
-            .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
-            .map_err(|err| status::StatusExt::into_status(err.as_ref()))
+        #[cfg(feature = "dummy-grpc-broadcast")]
+        {
+            info!(
+                msg_type_url = %msg.type_url,
+                msg_value = ?msg.value,
+                "gRPC EVM handler message details"
+            );
+
+            Ok(Response::new(BroadcastResponse {
+                tx_hash: "dummy_tx_hash_for_testing".to_string(),
+                index: 0,
+            }))
+        }
+
+        #[cfg(not(feature = "dummy-grpc-broadcast"))]
+        {
+            self.msg_queue_client
+                .clone()
+                .enqueue(msg)
+                .inspect_err(|_| {
+                    self.monitoring_client
+                        .metrics()
+                        .record_metric(Msg::MessageEnqueueError);
+                })
+                .map_err(Arc::new)
+                .and_then(|rx| rx)
+                .await
+                .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
+                .map(Response::new)
+                .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
+                .map_err(|err| status::StatusExt::into_status(err.as_ref()))
+        }
     }
 
     #[instrument]
@@ -679,6 +695,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_error_if_enqueue_failed() {
         let mut mock_cosmos_client = MockCosmosClient::new();
         mock_cosmos_client.expect_clone().return_once(|| {
@@ -716,6 +733,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_error_if_broadcast_failed() {
         let mut mock_cosmos_client = MockCosmosClient::new();
         mock_cosmos_client.expect_clone().return_once(move || {
@@ -760,6 +778,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_tx_hash_and_index() {
         let tx_hash = "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b";
         let msg_count = 10;
@@ -1129,6 +1148,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn should_record_enqueue_err_when_simulate_failed() {
         let mut mock_cosmos_client = MockCosmosClient::new();
         mock_cosmos_client.expect_clone().return_once(|| {
