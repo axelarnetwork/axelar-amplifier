@@ -122,7 +122,7 @@ pub fn save_authorized_caller(
 ) -> StdResult<()> {
     AUTHORIZED_CALLERS.save(storage, &contract_address, &chain_name)?;
     CHAIN_CALLER_PAIRS.save(storage, (chain_name, contract_address), &())?;
-     
+
     Ok(())
 }
 
@@ -130,9 +130,12 @@ pub fn remove_authorized_caller(
     storage: &mut dyn Storage,
     contract_address: Addr,
 ) -> StdResult<()> {
-    let chain_name = AUTHORIZED_CALLERS.load(storage, &contract_address)?;
-    AUTHORIZED_CALLERS.remove(storage, &contract_address);
-    CHAIN_CALLER_PAIRS.remove(storage, (chain_name, contract_address));
+    let chain_name = AUTHORIZED_CALLERS.may_load(storage, &contract_address)?;
+
+    if let Some(chain_name) = chain_name {
+        AUTHORIZED_CALLERS.remove(storage, &contract_address);
+        CHAIN_CALLER_PAIRS.remove(storage, (chain_name, contract_address));
+    }
 
     Ok(())
 }
@@ -147,7 +150,7 @@ pub fn load_authorized_caller(
 pub fn load_authorized_callers_for_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
-) -> impl Iterator<Item = Addr> + '_{
+) -> impl Iterator<Item = Addr> + '_ {
     CHAIN_CALLER_PAIRS
         .prefix(chain_name)
         .keys(storage, None, None, Order::Ascending)

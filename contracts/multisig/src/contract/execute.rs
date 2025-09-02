@@ -216,11 +216,10 @@ pub fn unauthorize_callers(
     deps: DepsMut,
     contracts: HashMap<Addr, ChainName>,
 ) -> error_stack::Result<Response, ContractError> {
-    contracts.iter().for_each(|(contract_address, _)| {
-        // TODO: sdavidson1177 what to do with error here. May panic,
-        // since error should never happen (invalid configuration/migration)
-        let _ = remove_authorized_caller(deps.storage, contract_address.clone());
-    });
+    for contract in contracts.keys() {
+        remove_authorized_caller(deps.storage, contract.clone())
+            .map_err(|_| error_stack::report!(ContractError::CallerNotFound(contract.clone())))?;
+    }
 
     Ok(
         Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {

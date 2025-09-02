@@ -1,7 +1,5 @@
 mod legacy_state;
 
-use std::collections::HashSet;
-
 use axelar_wasm_std::{address, migrate_from_version};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -58,7 +56,6 @@ fn migrate_authorized_callers(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::str::FromStr;
 
     use axelar_wasm_std::address;
@@ -142,7 +139,10 @@ mod tests {
             .is_ok());
 
         assert!(CHAIN_CALLER_PAIRS
-            .load(&deps.storage, (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER)))
+            .load(
+                &deps.storage,
+                (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER))
+            )
             .is_err());
 
         assert!(migrate(
@@ -154,10 +154,11 @@ mod tests {
         )
         .is_ok());
 
-        assert!(
-            CHAIN_CALLER_PAIRS
-                .load(&deps.storage, (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER)))
-                .is_ok()
-        );
+        assert!(CHAIN_CALLER_PAIRS
+            .load(
+                &deps.storage,
+                (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER))
+            )
+            .is_ok());
     }
 }

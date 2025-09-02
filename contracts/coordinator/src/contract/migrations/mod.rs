@@ -146,8 +146,17 @@ fn migrate_registered_provers(
     contracts_map: &mut HashMap<ChainName, ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     for (chain_name, prover_addr) in provers_by_chain {
-        let contracts: ChainContracts = match contracts_for_chain(chain_name.clone(), contracts_map) {
-            Err(..) if prover_exists_in_multisig(&deps.as_ref(), multisig.clone(), chain_name.clone())? => return Err(MigrationError::MissingContracts(chain_name.clone()).into()),
+        let contracts: ChainContracts = match contracts_for_chain(chain_name.clone(), contracts_map)
+        {
+            Err(..)
+                if prover_exists_in_multisig(
+                    &deps.as_ref(),
+                    multisig.clone(),
+                    chain_name.clone(),
+                )? =>
+            {
+                return Err(MigrationError::MissingContracts(chain_name.clone()).into())
+            }
             Err(..) => continue,
             Ok(c) => c,
         };
@@ -240,12 +249,9 @@ fn prover_exists_in_multisig(
     multisig: Addr,
     chain_name: ChainName,
 ) -> Result<bool, axelar_wasm_std::error::ContractError> {
-    let multisig: multisig::Client =
-        client::ContractClient::new(deps.querier, &multisig).into();
+    let multisig: multisig::Client = client::ContractClient::new(deps.querier, &multisig).into();
 
-    Ok(!multisig
-        .authorized_callers(chain_name)?
-        .is_empty())
+    Ok(!multisig.authorized_callers(chain_name)?.is_empty())
 }
 
 #[cfg(test)]

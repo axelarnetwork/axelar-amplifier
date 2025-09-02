@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Deps, Order, StdError};
-use error_stack::{report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
 
@@ -95,7 +95,6 @@ pub fn chain_contracts_info(
     .change_context(Error::ChainContractsInfo)
     .map(ChainContractsResponse::from)
 }
-
 
 pub fn deployments(
     deps: Deps,

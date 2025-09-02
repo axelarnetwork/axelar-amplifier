@@ -179,10 +179,7 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    pub fn authorized_callers(
-        &self,
-        chain_name: ChainName,
-    ) -> Result<HashSet<Addr>, Error> {
+    pub fn authorized_callers(&self, chain_name: ChainName) -> Result<HashSet<Addr>, Error> {
         let msg = QueryMsg::AuthorizedCallers { chain_name };
         self.client
             .query(&msg)
