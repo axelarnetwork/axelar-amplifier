@@ -9,7 +9,6 @@ The `event-verifier-api` package provides:
 
 - **API Types**: All the message types, structs, and enums used by the event-verifier contract
 - **Schema Generation**: Tools to generate JSON schemas for the contract and EventData
-- **Client Support**: Types for building contract clients
 
 ## Structure
 
@@ -19,7 +18,6 @@ src/
 ├── msg.rs          # API types (InstantiateMsg, ExecuteMsg, QueryMsg, etc.)
 ├── evm.rs          # EVM-specific types (Event, TransactionDetails)
 └── bin/
-    ├── schema.rs           # Contract schema generator
     └── schema_generator.rs # EventData JSON schema generator
 ```
 
@@ -51,9 +49,6 @@ For detailed schema information, see [`EVENT_DATA_SCHEMA.md`](./EVENT_DATA_SCHEM
 ### Generating Schemas
 
 ```bash
-# Generate contract schema
-cargo run --bin event-verifier-schema
-
 # Generate EventData JSON schema
 cargo run --bin schema_generator
 ```

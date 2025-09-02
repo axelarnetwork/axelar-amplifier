@@ -5,18 +5,56 @@ use std::path::Path;
 use event_verifier_api::EventData;
 use schemars::JsonSchema;
 
+#[derive(Debug)]
+enum SchemaGeneratorError {
+    Io(std::io::Error),
+    Json(serde_json::Error),
+}
+
+impl std::fmt::Display for SchemaGeneratorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SchemaGeneratorError::Io(e) => write!(f, "IO error: {}", e),
+            SchemaGeneratorError::Json(e) => write!(f, "JSON serialization error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for SchemaGeneratorError {}
+
+impl From<std::io::Error> for SchemaGeneratorError {
+    fn from(error: std::io::Error) -> Self {
+        SchemaGeneratorError::Io(error)
+    }
+}
+
+impl From<serde_json::Error> for SchemaGeneratorError {
+    fn from(error: serde_json::Error) -> Self {
+        SchemaGeneratorError::Json(error)
+    }
+}
+
 fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), SchemaGeneratorError> {
     // Generate the JSON schema for EventData using schemars
-    let schema = generate_event_data_schema();
+    let schema = generate_event_data_schema()?;
 
     // Write to a file
     let output_path = Path::new("event_data_schema.json");
-    fs::write(output_path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
+    let json_string = serde_json::to_string_pretty(&schema)?;
+    fs::write(output_path, json_string)?;
 
     println!("EventData JSON schema generated: {}", output_path.display());
+    Ok(())
 }
 
-fn generate_event_data_schema() -> serde_json::Value {
+fn generate_event_data_schema() -> Result<serde_json::Value, SchemaGeneratorError> {
     // Use schemars to generate the schema from the actual Rust type
     let settings = schemars::gen::SchemaSettings::default();
     let mut generator = schemars::gen::SchemaGenerator::new(settings);
@@ -26,13 +64,13 @@ fn generate_event_data_schema() -> serde_json::Value {
     let definitions = generator.definitions();
 
     // Convert to serde_json::Value and add metadata
-    let mut schema_value = serde_json::to_value(schema).unwrap();
+    let mut schema_value = serde_json::to_value(schema)?;
 
     // Add definitions
     if let serde_json::Value::Object(ref mut map) = schema_value {
         map.insert(
             "definitions".to_string(),
-            serde_json::to_value(definitions).unwrap(),
+            serde_json::to_value(definitions)?,
         );
     }
 
@@ -95,5 +133,5 @@ fn generate_event_data_schema() -> serde_json::Value {
         map.insert("examples".to_string(), serde_json::Value::Array(examples));
     }
 
-    schema_value
+    Ok(schema_value)
 }
