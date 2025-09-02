@@ -32,7 +32,6 @@ error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
 gateway-api = { workspace = true }
 itertools = { workspace = true }
-limit = { workspace = true }
 mockall = { workspace = true }
 msgs-derive = { workspace = true }
 report = { workspace = true }

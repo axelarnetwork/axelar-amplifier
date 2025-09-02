@@ -6,13 +6,6 @@ use msgs_derive::Permissions;
 
 use crate::primitives::*;
 
-// Pagination limits
-const DEFAULT_PAGINATION_LIMIT: u32 = u32::MAX;
-
-const fn default_pagination_limit() -> u32 {
-    DEFAULT_PAGINATION_LIMIT
-}
-
 #[cw_serde]
 #[derive(Permissions)]
 pub enum ExecuteMsg {
@@ -67,8 +60,7 @@ pub enum QueryMsg {
     #[returns(Vec<ChainEndpoint>)]
     Chains {
         start_after: Option<ChainName>,
-        #[serde(default = "default_pagination_limit")]
-        limit: u32,
+        limit: Option<u32>,
     },
     #[returns(bool)]
     IsEnabled,

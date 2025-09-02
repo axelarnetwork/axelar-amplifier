@@ -32,7 +32,6 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 gateway-api = { workspace = true }
 itertools = { workspace = true }
-limit = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
