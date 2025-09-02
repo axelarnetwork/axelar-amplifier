@@ -40,9 +40,6 @@ pub fn caller_authorized(deps: Deps, address: Addr, chain_name: ChainName) -> St
         .is_some())
 }
 
-pub fn callers_for_chain(deps: Deps, chain_name: ChainName) -> StdResult<HashSet<Addr>> {
-    match load_authorized_callers_for_chain(deps.storage, chain_name.clone())? {
-        None => Ok(HashSet::from([])),
-        Some(set) => Ok(set),
-    }
+pub fn callers_for_chain(deps: Deps, chain_name: ChainName) -> HashSet<Addr> {
+    load_authorized_callers_for_chain(deps.storage, chain_name.clone()).collect()
 }

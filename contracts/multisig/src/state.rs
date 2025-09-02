@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
@@ -26,7 +26,7 @@ pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_cou
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 // The keys represent the addresses that can start a signing session.
 pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
-pub const CALLERS_FOR_CHAIN: Map<&ChainName, HashSet<Addr>> = Map::new("callers_for_chain");
+pub const CHAIN_CALLER_PAIRS: Map<(ChainName, Addr), ()> = Map::new("callers_for_chain");
 pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 
 /// Signatures by session id and signer address
@@ -121,16 +121,9 @@ pub fn save_authorized_caller(
     chain_name: ChainName,
 ) -> StdResult<()> {
     AUTHORIZED_CALLERS.save(storage, &contract_address, &chain_name)?;
-    match CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
-        Err(e) => Err(e),
-        Ok(Some(mut addresses)) => {
-            addresses.insert(contract_address.clone());
-            CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)
-        }
-        Ok(None) => {
-            CALLERS_FOR_CHAIN.save(storage, &chain_name, &HashSet::from([contract_address]))
-        }
-    }
+    CHAIN_CALLER_PAIRS.save(storage, (chain_name, contract_address), &())?;
+     
+    Ok(())
 }
 
 pub fn remove_authorized_caller(
@@ -139,14 +132,7 @@ pub fn remove_authorized_caller(
 ) -> StdResult<()> {
     let chain_name = AUTHORIZED_CALLERS.load(storage, &contract_address)?;
     AUTHORIZED_CALLERS.remove(storage, &contract_address);
-    if let Ok(Some(mut addresses)) = CALLERS_FOR_CHAIN.may_load(storage, &chain_name) {
-        addresses.remove(&contract_address);
-        if addresses.is_empty() {
-            CALLERS_FOR_CHAIN.remove(storage, &chain_name);
-        } else {
-            CALLERS_FOR_CHAIN.save(storage, &chain_name, &addresses)?;
-        }
-    }
+    CHAIN_CALLER_PAIRS.remove(storage, (chain_name, contract_address));
 
     Ok(())
 }
@@ -161,8 +147,11 @@ pub fn load_authorized_caller(
 pub fn load_authorized_callers_for_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
-) -> StdResult<Option<HashSet<Addr>>> {
-    CALLERS_FOR_CHAIN.may_load(storage, &chain_name)
+) -> impl Iterator<Item = Addr> + '_{
+    CHAIN_CALLER_PAIRS
+        .prefix(chain_name)
+        .keys(storage, None, None, Order::Ascending)
+        .filter_map(|k| k.ok())
 }
 
 #[cfg(test)]

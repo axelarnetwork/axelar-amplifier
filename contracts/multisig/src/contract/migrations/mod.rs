@@ -8,7 +8,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, Order, Response};
 
-use crate::state::{Config, AUTHORIZED_CALLERS, CALLERS_FOR_CHAIN, CONFIG};
+use crate::state::{Config, AUTHORIZED_CALLERS, CHAIN_CALLER_PAIRS, CONFIG};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -50,20 +50,7 @@ fn migrate_authorized_callers(
         .collect();
 
     for (contract_address, chain_name) in authorized_callers {
-        match CALLERS_FOR_CHAIN.may_load(deps.storage, &chain_name) {
-            Ok(Some(mut addresses)) => {
-                addresses.insert(contract_address.clone());
-                let _ = CALLERS_FOR_CHAIN.save(deps.storage, &chain_name, &addresses);
-            }
-            Ok(None) => {
-                let _ = CALLERS_FOR_CHAIN.save(
-                    deps.storage,
-                    &chain_name,
-                    &HashSet::from([contract_address]),
-                );
-            }
-            _ => {}
-        }
+        CHAIN_CALLER_PAIRS.save(deps.storage, (chain_name, contract_address), &())?;
     }
 
     Ok(())
@@ -81,7 +68,7 @@ mod tests {
 
     use super::legacy_state;
     use crate::contract::{migrate, MigrateMsg};
-    use crate::state::{AUTHORIZED_CALLERS, CALLERS_FOR_CHAIN, CONFIG};
+    use crate::state::{AUTHORIZED_CALLERS, CHAIN_CALLER_PAIRS, CONFIG};
 
     const REWARDS: &str = "rewards";
 
@@ -154,8 +141,8 @@ mod tests {
             )
             .is_ok());
 
-        assert!(CALLERS_FOR_CHAIN
-            .load(&deps.storage, &ChainName::from_str("chain1").unwrap())
+        assert!(CHAIN_CALLER_PAIRS
+            .load(&deps.storage, (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER)))
             .is_err());
 
         assert!(migrate(
@@ -167,11 +154,10 @@ mod tests {
         )
         .is_ok());
 
-        assert_eq!(
-            CALLERS_FOR_CHAIN
-                .load(&deps.storage, &ChainName::from_str("chain1").unwrap())
-                .unwrap(),
-            HashSet::from([cosmos_addr!(PROVER)])
+        assert!(
+            CHAIN_CALLER_PAIRS
+                .load(&deps.storage, (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER)))
+                .is_ok()
         );
     }
 }
