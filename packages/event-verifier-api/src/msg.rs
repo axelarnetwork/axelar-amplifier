@@ -60,8 +60,6 @@ pub struct EventToVerify {
     pub event_data: String, // JSON string representing the serialized EventData
 }
 
-
-
 #[cw_serde]
 pub enum EventData {
     Evm {

@@ -1,19 +1,19 @@
 use std::fs;
 use std::path::Path;
-use schemars::JsonSchema;
-use serde_json;
 
 // Import the actual types from the API
 use event_verifier_api::EventData;
+use schemars::JsonSchema;
+use serde_json;
 
 fn main() {
     // Generate the JSON schema for EventData using schemars
     let schema = generate_event_data_schema();
-    
+
     // Write to a file
     let output_path = Path::new("event_data_schema.json");
     fs::write(output_path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
-    
+
     println!("EventData JSON schema generated: {}", output_path.display());
 }
 
@@ -22,24 +22,33 @@ fn generate_event_data_schema() -> serde_json::Value {
     let settings = schemars::gen::SchemaSettings::default();
     let mut generator = schemars::gen::SchemaGenerator::new(settings);
     let schema = EventData::json_schema(&mut generator);
-    
+
     // Get the definitions from the generator
     let definitions = generator.definitions();
-    
+
     // Convert to serde_json::Value and add metadata
     let mut schema_value = serde_json::to_value(schema).unwrap();
-    
+
     // Add definitions
     if let serde_json::Value::Object(ref mut map) = schema_value {
-        map.insert("definitions".to_string(), serde_json::to_value(definitions).unwrap());
+        map.insert(
+            "definitions".to_string(),
+            serde_json::to_value(definitions).unwrap(),
+        );
     }
-    
+
     // Add schema metadata
     if let serde_json::Value::Object(ref mut map) = schema_value {
-        map.insert("$schema".to_string(), serde_json::Value::String("http://json-schema.org/draft-07/schema#".to_string()));
-        map.insert("title".to_string(), serde_json::Value::String("EventData Schema".to_string()));
+        map.insert(
+            "$schema".to_string(),
+            serde_json::Value::String("http://json-schema.org/draft-07/schema#".to_string()),
+        );
+        map.insert(
+            "title".to_string(),
+            serde_json::Value::String("EventData Schema".to_string()),
+        );
         map.insert("description".to_string(), serde_json::Value::String("JSON schema for the EventData structure that gets serialized into the event_data string field".to_string()));
-        
+
         // Add examples
         let examples = vec![
             serde_json::json!({
@@ -82,10 +91,10 @@ fn generate_event_data_schema() -> serde_json::Value {
                         }
                     ]
                 }
-            })
+            }),
         ];
         map.insert("examples".to_string(), serde_json::Value::Array(examples));
     }
-    
+
     schema_value
 }
