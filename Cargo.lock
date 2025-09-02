@@ -6463,11 +6463,13 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
+ "goldie",
  "itertools 0.14.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "router-api",
  "serde",
+ "serde_json",
  "syn 2.0.101",
  "thiserror 1.0.69",
 ]
@@ -8662,6 +8664,7 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "error-stack",
+ "goldie",
  "itertools 0.11.0",
  "msgs-derive",
  "router-api",
@@ -8867,6 +8870,7 @@ dependencies = [
  "cw-storage-plus",
  "error-stack",
  "flagset",
+ "goldie",
  "hex",
  "msgs-derive",
  "rand 0.8.5",
@@ -9680,7 +9684,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -9864,6 +9868,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
+ "goldie",
  "msgs-derive",
  "thiserror 1.0.69",
 ]
