@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, Response, Storage, WasmMsg, WasmQuery};
-use error_stack::{report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::contract::errors::Error;

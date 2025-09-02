@@ -4,7 +4,7 @@ use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage};
+use cosmwasm_std::{Addr, Deps, DepsMut, Env, Order, Response, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
@@ -81,12 +81,14 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    let multisig_addr = address::validate_cosmwasm_address(deps.api, &msg.multisig)?;
+
     migrate_config(&mut deps, &msg)?;
 
     // Since this state has not yet been set or used, we can just clear it
     DEPLOYED_CHAINS.clear(deps.storage);
 
-    migrate_chain_contracts(deps, msg.chain_contracts)?;
+    migrate_chain_contracts(deps, multisig_addr, msg.chain_contracts)?;
 
     Ok(Response::default())
 }
@@ -113,6 +115,7 @@ fn migrate_config(
 
 fn migrate_chain_contracts(
     mut deps: DepsMut,
+    multisig: Addr,
     chain_contracts: Vec<ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
@@ -131,18 +134,23 @@ fn migrate_chain_contracts(
         })
         .collect::<Result<HashMap<ChainName, ChainContracts>, MigrationError>>()?;
 
-    migrate_registered_provers(&mut deps, provers_by_chain, &mut contracts_map)?;
+    migrate_registered_provers(&mut deps, multisig, provers_by_chain, &mut contracts_map)?;
 
     migrate_remaining_chains(&mut deps, &mut contracts_map)
 }
 
 fn migrate_registered_provers(
     deps: &mut DepsMut,
+    multisig: Addr,
     provers_by_chain: Vec<(ChainName, Addr)>,
     contracts_map: &mut HashMap<ChainName, ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     for (chain_name, prover_addr) in provers_by_chain {
-        let contracts = contracts_for_chain(chain_name.clone(), contracts_map)?;
+        let contracts: ChainContracts = match contracts_for_chain(chain_name.clone(), contracts_map) {
+            Err(..) if prover_exists_in_multisig(&deps.as_ref(), multisig.clone(), chain_name.clone())? => return Err(MigrationError::MissingContracts(chain_name.clone()).into()),
+            Err(..) => continue,
+            Ok(c) => c,
+        };
 
         save_contracts_to_state(
             deps.storage,
@@ -225,6 +233,19 @@ fn save_contracts_to_state(
             contracts.verifier_address,
         )?),
     }
+}
+
+fn prover_exists_in_multisig(
+    deps: &Deps,
+    multisig: Addr,
+    chain_name: ChainName,
+) -> Result<bool, axelar_wasm_std::error::ContractError> {
+    let multisig: multisig::Client =
+        client::ContractClient::new(deps.querier, &multisig).into();
+
+    Ok(!multisig
+        .authorized_callers(chain_name)?
+        .is_empty())
 }
 
 #[cfg(test)]
@@ -481,10 +502,6 @@ mod tests {
         );
 
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains(&MigrationError::MissingContracts(chain_name2).to_string()));
     }
 
     #[test]

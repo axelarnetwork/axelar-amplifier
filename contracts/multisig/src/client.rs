@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint64};
@@ -174,6 +174,16 @@ impl Client<'_> {
             contract_address,
             chain_name,
         };
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
+    }
+
+    pub fn authorized_callers(
+        &self,
+        chain_name: ChainName,
+    ) -> Result<HashSet<Addr>, Error> {
+        let msg = QueryMsg::AuthorizedCallers { chain_name };
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
