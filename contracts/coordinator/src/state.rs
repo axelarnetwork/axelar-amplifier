@@ -241,8 +241,8 @@ pub fn deployments(
             None,
             Order::Ascending,
         )
-        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts))
-        .take(limit.into()))
+        .take(limit.into())
+        .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts)))
 }
 
 pub fn is_prover_registered(
