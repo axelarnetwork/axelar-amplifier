@@ -10,8 +10,6 @@ description = "Event verifier API types and schema"
 name = "schema_generator"
 path = "src/bin/schema_generator.rs"
 
-
-
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 client = { workspace = true }
