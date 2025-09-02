@@ -10,9 +10,7 @@ description = "Event verifier API types and schema"
 name = "schema_generator"
 path = "src/bin/schema_generator.rs"
 
-[[bin]]
-name = "event-verifier-schema"
-path = "src/bin/schema.rs"
+
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
@@ -24,6 +22,7 @@ msgs-derive = { workspace = true }
 router-api = { workspace = true }
 schemars = "0.8"
 serde_json = { workspace = true }
+goldie = { workspace = true }
 
 [lints]
 workspace = true

@@ -3656,6 +3656,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
+ "goldie",
  "msgs-derive",
  "router-api",
  "schemars",
