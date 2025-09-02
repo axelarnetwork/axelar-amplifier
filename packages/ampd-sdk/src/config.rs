@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::event;
 
 pub const DEFAULT_CONFIG_FILE: &str = "config.toml";
-pub const DEFAULT_CONFIG_PREFIX: &str = "HANDLER";
+pub const DEFAULT_CONFIG_PREFIX: &str = "AMPD_HANDLERS";
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -15,7 +15,7 @@ pub enum Error {
     Build,
 }
 
-/// The config struct for the Handler
+/// The config struct used by handlers to manage connections to the ampd gRPC server
 ///
 /// # Examples
 ///
@@ -74,7 +74,7 @@ impl Config {
 pub struct ConfigBuilder(config::ConfigBuilder<config::builder::DefaultState>);
 
 impl ConfigBuilder {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self(config::Config::builder())
     }
 
@@ -87,7 +87,7 @@ impl ConfigBuilder {
     }
 
     /// Adds an environment source with the given prefix to the config builder.
-    /// For example, if the prefix is "HANDLER", the environment variable HANDLER_AMPD_URL
+    /// For example, if the prefix is "AMPD_HANDLERS", the environment variable AMPD_HANDLERS_AMPD_URL
     /// will be used to set the ampd_url field in the config.
     pub fn add_env_source(self, prefix: &str) -> Self {
         Self(self.0.add_source(config::Environment::with_prefix(prefix)))
