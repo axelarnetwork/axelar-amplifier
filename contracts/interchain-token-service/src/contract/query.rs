@@ -1,4 +1,4 @@
-use axelar_wasm_std::{killswitch, IntoContractError};
+use axelar_wasm_std::{killswitch, nonempty, IntoContractError};
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use interchain_token_service_std::TokenId;
@@ -49,7 +49,7 @@ pub fn its_chains(
     deps: Deps,
     filter: Option<msg::ChainFilter>,
     start_after: Option<ChainNameRaw>,
-    limit: u32,
+    limit: nonempty::Usize,
 ) -> Result<Binary, Error> {
     let filtered_chain_configs: Vec<_> = state::load_chain_configs(
         deps.storage,

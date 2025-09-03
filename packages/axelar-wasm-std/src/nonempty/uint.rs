@@ -24,6 +24,30 @@ impl TryFrom<usize> for Usize {
     }
 }
 
+impl TryFrom<u32> for Usize {
+    type Error = Error;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Err(Error::InvalidValue(value.to_string()))
+        } else {
+            Ok(Usize(value as usize))
+        }
+    }
+}
+
+impl TryFrom<i32> for Usize {
+    type Error = Error;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Err(Error::InvalidValue(value.to_string()))
+        } else {
+            Ok(Usize(value as usize))
+        }
+    }
+}
+
 impl From<Usize> for usize {
     fn from(value: Usize) -> Self {
         value.into_inner()
@@ -180,10 +204,34 @@ mod tests {
     #[test]
     fn convert_between_usize_and_nonempty_usize() {
         assert_eq!(
-            Usize::try_from(0).unwrap_err(),
+            Usize::try_from(0_usize).unwrap_err(),
             Error::InvalidValue("0".to_string())
         );
-        assert_eq!(usize::from(Usize::try_from(100).unwrap()), 100);
+        assert_eq!(usize::from(Usize::try_from(100_usize).unwrap()), 100);
+    }
+
+    #[test]
+    fn convert_from_u32_to_usize() {
+        // zero
+        assert_eq!(
+            Usize::try_from(0u32).unwrap_err(),
+            Error::InvalidValue("0".into())
+        );
+
+        // non-zero
+        assert_eq!(usize::from(Usize::try_from(100u32).unwrap()), 100_usize);
+    }
+
+    #[test]
+    fn convert_from_i32_to_usize() {
+        // zero
+        assert_eq!(
+            Usize::try_from(0i32).unwrap_err(),
+            Error::InvalidValue("0".into())
+        );
+
+        // non-zero
+        assert_eq!(usize::from(Usize::try_from(100i32).unwrap()), 100_usize);
     }
 
     #[test]

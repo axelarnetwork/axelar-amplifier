@@ -231,7 +231,7 @@ pub fn deployment(
 pub fn deployments(
     storage: &dyn Storage,
     start_after: Option<nonempty::String>,
-    limit: u32,
+    limit: nonempty::Usize,
 ) -> Result<impl Iterator<Item = ChainContracts> + '_, Error> {
     Ok(DEPLOYED_CHAINS
         .range(
@@ -240,7 +240,7 @@ pub fn deployments(
             None,
             Order::Ascending,
         )
-        .take(limit as usize)
+        .take(limit.into())
         .filter_map(|entry| entry.ok().map(|(_, contracts)| contracts)))
 }
 

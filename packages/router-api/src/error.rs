@@ -58,4 +58,7 @@ pub enum Error {
 
     #[error("failed to create '{0}' message")]
     CreateMessage(nonempty::String),
+
+    #[error("invalid limit")]
+    InvalidLimit,
 }

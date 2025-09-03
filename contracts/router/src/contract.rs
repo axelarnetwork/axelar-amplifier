@@ -1,4 +1,4 @@
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, nonempty, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -135,9 +135,11 @@ pub fn query(
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
-        QueryMsg::Chains { start_after, limit } => {
-            to_json_binary(&query::chains(deps.storage, start_after, limit)?)
-        }
+        QueryMsg::Chains { start_after, limit } => to_json_binary(&query::chains(
+            deps.storage,
+            start_after,
+            nonempty::Usize::try_from(limit).map_err(|_| Error::InvalidLimit)?,
+        )?),
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
     .map_err(axelar_wasm_std::error::ContractError::from)
@@ -1088,7 +1090,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: None,
+                limit: u32::MAX,
             },
         )
         .unwrap()
@@ -1127,7 +1129,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: None,
+                limit: u32::MAX,
             },
         )
         .unwrap()
@@ -1162,17 +1164,12 @@ mod test {
             assert!(result_check(&res));
         }
 
-        let chains = query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::Chains {
-                start_after: None,
-                limit: None,
-            },
-        )
-        .unwrap()
-        .then(|chains| from_json::<Vec<ChainEndpoint>>(&chains))
-        .unwrap();
+        let msg = serde_json::from_str::<QueryMsg>(r#"{"chains": {}}"#).unwrap();
+
+        let chains = query(deps.as_ref(), mock_env(), msg)
+            .unwrap()
+            .then(|chains| from_json::<Vec<ChainEndpoint>>(&chains))
+            .unwrap();
 
         for chain in chains.iter() {
             assert!(!chain.incoming_frozen() && !chain.outgoing_frozen())

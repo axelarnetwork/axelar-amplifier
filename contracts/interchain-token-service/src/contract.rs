@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{
+    address, killswitch, nonempty, permission_control, FnExt, IntoContractError,
+};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -56,6 +58,8 @@ pub enum Error {
     QueryContractStatus,
     #[error("failed to query chain configs")]
     QueryAllChainConfigs,
+    #[error("invalid limit")]
+    InvalidLimit,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -176,8 +180,13 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
             filter,
             start_after,
             limit,
-        } => query::its_chains(deps, filter, start_after, limit)
-            .change_context(Error::QueryAllChainConfigs),
+        } => query::its_chains(
+            deps,
+            filter,
+            start_after,
+            nonempty::Usize::try_from(limit).map_err(|_| Error::InvalidLimit)?,
+        )
+        .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }

@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Order, Storage};
 use cw_storage_plus::Bound;
 use error_stack::{Result, ResultExt};
@@ -5,9 +6,6 @@ use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
 
 use crate::state::chain_endpoints;
-
-// Pagination limits
-const DEFAULT_LIMIT: u32 = u32::MAX;
 
 pub fn chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEndpoint, Error> {
     chain_endpoints()
@@ -19,14 +17,13 @@ pub fn chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEndpoi
 pub fn chains(
     storage: &dyn Storage,
     start_after: Option<ChainName>,
-    limit: Option<u32>,
+    limit: nonempty::Usize,
 ) -> Result<Vec<ChainEndpoint>, Error> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive);
 
     chain_endpoints()
         .range(storage, start, None, Order::Ascending)
-        .take(limit)
+        .take(limit.into())
         .map(|item| {
             item.map(|(_, endpoint)| endpoint)
                 .change_context(Error::StoreFailure)
@@ -37,6 +34,7 @@ pub fn chains(
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::flagset::FlagSet;
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use router_api::error::Error;
     use router_api::{
@@ -106,29 +104,51 @@ mod test {
         }
 
         // no pagination
-        let result = super::chains(deps.as_ref().storage, None, None).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            None,
+            nonempty::Usize::try_from(u32::MAX).unwrap(),
+        )
+        .unwrap();
         assert_eq!(result.len(), 4);
         assert_eq!(result, endpoints);
 
         // with limit
-        let result = super::chains(deps.as_ref().storage, None, Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            None,
+            nonempty::Usize::try_from(2u32).unwrap(),
+        )
+        .unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result, vec![endpoints[0].clone(), endpoints[1].clone()]);
 
         // with page
-        let result =
-            super::chains(deps.as_ref().storage, Some(chain_name!("c-chain")), Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            Some(chain_name!("c-chain")),
+            nonempty::Usize::try_from(2u32).unwrap(),
+        )
+        .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result, vec![endpoints[3].clone()]);
 
         // start after the last chain
-        let result =
-            super::chains(deps.as_ref().storage, Some(chain_name!("d-chain")), Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            Some(chain_name!("d-chain")),
+            nonempty::Usize::try_from(2u32).unwrap(),
+        )
+        .unwrap();
         assert_eq!(result.len(), 0);
 
         // with a key out of the scope
-        let result =
-            super::chains(deps.as_ref().storage, Some(chain_name!("e-chain")), Some(2)).unwrap();
+        let result = super::chains(
+            deps.as_ref().storage,
+            Some(chain_name!("e-chain")),
+            nonempty::Usize::try_from(2u32).unwrap(),
+        )
+        .unwrap();
         assert_eq!(result.len(), 0);
     }
 }
