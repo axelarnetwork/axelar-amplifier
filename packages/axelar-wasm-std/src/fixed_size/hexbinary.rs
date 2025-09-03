@@ -2,16 +2,18 @@ use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::schemars;
 use cosmwasm_std::StdResult;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::fixed_size::Error;
 
 /// A HexBinary wrapper that enforces a fixed length at compile time
-#[cw_serde]
-#[serde(try_from = "cosmwasm_std::HexBinary")]
-#[derive(Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "cosmwasm_std::HexBinary", into = "cosmwasm_std::HexBinary")]
+#[schemars(transparent)]
 pub struct HexBinary<const N: usize>(cosmwasm_std::HexBinary, PhantomData<[u8; N]>);
 
 impl<const N: usize> TryFrom<cosmwasm_std::HexBinary> for HexBinary<N> {

@@ -1,13 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
-    "Address": {
-      "$ref": "#/definitions/String"
-    },
     "Event": {
       "properties": {
         "contract_address": {
-          "$ref": "#/definitions/Address"
+          "$ref": "#/definitions/HexBinary"
         },
         "data": {
           "$ref": "#/definitions/HexBinary"
@@ -36,19 +33,16 @@
       "description": "This is a wrapper around Vec<u8> to add hex de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is similar to `cosmwasm_std::Binary` but uses hex. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
       "type": "string"
     },
-    "String": {
-      "type": "string"
-    },
     "TransactionDetails": {
       "properties": {
         "calldata": {
           "$ref": "#/definitions/HexBinary"
         },
         "from": {
-          "$ref": "#/definitions/Address"
+          "$ref": "#/definitions/HexBinary"
         },
         "to": {
-          "$ref": "#/definitions/Address"
+          "$ref": "#/definitions/HexBinary"
         },
         "value": {
           "$ref": "#/definitions/Uint256"
@@ -73,7 +67,7 @@
       "evm": {
         "events": [
           {
-            "contract_address": "0x5425890298aed601595a70AB815c96711a31Bc65",
+            "contract_address": "5425890298aed601595a70ab815c96711a31bc65",
             "data": "000000000000000000000000000000000000000000000000000000aa910f88c4",
             "event_index": 0,
             "topics": [
@@ -84,14 +78,14 @@
           }
         ],
         "transaction_details": null,
-        "transaction_hash": "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"
+        "transaction_hash": "7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"
       }
     },
     {
       "evm": {
         "events": [
           {
-            "contract_address": "0x5425890298aed601595a70AB815c96711a31Bc65",
+            "contract_address": "5425890298aed601595a70ab815c96711a31bc65",
             "data": "000000000000000000000000000000000000000000000000000000aa910f88c4",
             "event_index": 0,
             "topics": [
@@ -103,11 +97,11 @@
         ],
         "transaction_details": {
           "calldata": "a9059cbb000000000000000000000000e233862be9e5ff645e25ce6a001cf1fec28097c800000000000000000000000000000000000000000000000000000000aa910f88c4",
-          "from": "0x6aa9f4fe1ce6fa00f06f2fe4bb6365180bc3a621",
-          "to": "0x5425890298aed601595a70AB815c96711a31Bc65",
+          "from": "6aa9f4fe1ce6fa00f06f2fe4bb6365180bc3a621",
+          "to": "5425890298aed601595a70ab815c96711a31bc65",
           "value": "0"
         },
-        "transaction_hash": "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"
+        "transaction_hash": "7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"
       }
     }
   ],
@@ -134,14 +128,7 @@
               ]
             },
             "transaction_hash": {
-              "items": {
-                "format": "uint8",
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              "maxItems": 32,
-              "minItems": 32,
-              "type": "array"
+              "$ref": "#/definitions/HexBinary"
             }
           },
           "required": [
