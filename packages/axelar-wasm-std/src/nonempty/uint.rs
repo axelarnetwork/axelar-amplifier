@@ -43,7 +43,7 @@ impl TryFrom<i32> for Usize {
         if value == 0 {
             Err(Error::InvalidValue(value.to_string()))
         } else {
-            Ok(Usize(value as usize))
+            Ok(Usize(value.unsigned_abs() as usize))
         }
     }
 }
