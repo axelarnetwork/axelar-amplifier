@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, Binary, DepsMut, Env, Response, Storage, WasmMsg, WasmQuery};
-use error_stack::{report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::contract::errors::Error;
@@ -321,11 +321,8 @@ pub fn register_deployment(
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
-    let deployed_contracts = state::deployments(deps.storage, Some(deployment_name.clone()), 1)
-        .change_context(Error::ChainContractsInfo)?
-        .first()
-        .ok_or(report!(Error::DeploymentsNotFound))?
-        .clone();
+    let deployed_contracts = state::deployment(deps.storage, deployment_name.clone())
+        .change_context(Error::ChainContractsInfo)?;
 
     let protocol_contracts =
         state::protocol_contracts(deps.storage).change_context(Error::ProtocolNotRegistered)?;
