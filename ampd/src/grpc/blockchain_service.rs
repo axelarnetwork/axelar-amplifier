@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 use std::pin::Pin;
+#[cfg(not(feature = "dummy-grpc-broadcast"))]
+use std::sync::Arc;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
@@ -9,12 +11,18 @@ use ampd_proto::{
 };
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
+#[cfg(not(feature = "dummy-grpc-broadcast"))]
+use axelar_wasm_std::FnExt;
+#[cfg(not(feature = "dummy-grpc-broadcast"))]
+use futures::TryFutureExt;
 use futures::{Stream, TryStreamExt};
 use monitoring::metrics::Msg;
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
-use tracing::{info, instrument};
+#[cfg(feature = "dummy-grpc-broadcast")]
+use tracing::info;
+use tracing::instrument;
 use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
