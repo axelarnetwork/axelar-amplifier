@@ -99,7 +99,7 @@ pub fn chain_contracts_info(
 pub fn deployments(
     deps: Deps,
     start_after: Option<nonempty::String>,
-    limit: u32,
+    limit: nonempty::Usize,
 ) -> Result<Vec<ChainContractsResponse>, Error> {
     Ok(state::deployments(deps.storage, start_after, limit)
         .change_context(Error::ChainContractsInfo)?

@@ -4,7 +4,7 @@ mod migrations;
 mod query;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::{address, nonempty, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -139,7 +139,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::Deployments { start_after, limit } => Ok(to_json_binary(&query::deployments(
             deps,
             start_after,
-            limit,
+            nonempty::Usize::try_from(limit).map_err(|_| Error::InvalidLimit)?,
         )?)?),
         QueryMsg::Deployment { deployment_name } => {
             Ok(to_json_binary(&query::deployment(deps, deployment_name)?)?)
