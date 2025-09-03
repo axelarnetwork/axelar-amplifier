@@ -108,10 +108,10 @@ pub fn instantiate2_addr(deps: &Deps, env: &Env, code_id: u64, salt: &[u8]) -> R
                 &deps
                     .api
                     .addr_canonicalize(&env.contract.address.to_string().clone())
-                    .change_context(Error::Instantiate2Address)?,
+                    .change_context(Error::CanonicalizeAddress)?,
                 salt,
             )
-            .change_context(Error::Instantiate2Address)?,
+            .change_context(Error::CanonicalizeAddress)?,
         )
-        .change_context(Error::Instantiate2Address)
+        .change_context(Error::CanonicalizeAddress)
 }

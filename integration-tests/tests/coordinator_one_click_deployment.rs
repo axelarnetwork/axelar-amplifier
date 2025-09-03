@@ -633,6 +633,15 @@ fn coordinator_instantiate2_query_succeeds() {
         ..
     } = test_utils::setup_test_case();
 
+    let query_addr_res = protocol.coordinator.query::<Addr>(
+        &protocol.app,
+        &coordinator::msg::QueryMsg::Instantiate2Address {
+            code_id: chain1.gateway.code_id,
+            salt: Binary::new(vec![1, 2, 3]),
+        },
+    );
+    assert!(query_addr_res.is_ok());
+
     let deployment_name = nonempty_str!("testchain-1");
 
     let res = instantiate_contracts(
@@ -640,21 +649,13 @@ fn coordinator_instantiate2_query_succeeds() {
         TESTCHAIN,
         &chain1,
         deployment_name.clone(),
-        Binary::new(vec![1]),
+        Binary::new(vec![1, 2, 3]),
     );
     assert!(res.is_ok());
 
     let contracts = gather_contracts(&protocol, res.unwrap());
 
-    let res = protocol.coordinator.query::<Addr>(
-        &protocol.app,
-        &coordinator::msg::QueryMsg::Instantiate2Address {
-            code_id: contracts.gateway.code_id,
-            salt: Binary::new(vec![1]),
-        },
-    );
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap(), contracts.gateway.contract_addr)
+    assert_eq!(query_addr_res.unwrap(), contracts.gateway.contract_addr)
 }
 
 #[test]

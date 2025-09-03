@@ -137,7 +137,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
         QueryMsg::Instantiate2Address { code_id, salt } => Ok(to_json_binary(
-            &query::instantiate2_addr(&deps, &env, code_id, salt.as_slice())?,
+            &query::instantiate2_addr(&deps, &env, code_id, salt.as_slice())
+                .change_context(Error::Instantiate2Address)?,
         )?),
     }
 }

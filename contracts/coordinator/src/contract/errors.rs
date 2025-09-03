@@ -24,6 +24,8 @@ pub enum Error {
     ChainNotRegistered(ChainName),
     #[error("prover {0} is not registered")]
     ProverNotRegistered(Addr),
+    #[error("failed to canonicalize address")]
+    CanonicalizeAddress,
     #[error("failed to generate instantiate2 address")]
     Instantiate2Address,
     #[error("failed to instantiate core contracts")]
