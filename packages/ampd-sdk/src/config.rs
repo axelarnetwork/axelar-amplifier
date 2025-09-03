@@ -1,6 +1,6 @@
 use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
-use error_stack::{Result, ResultExt};
+use error_stack::{Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -35,9 +35,23 @@ pub enum Error {
 /// # use std::error::Error;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// let config = Config::builder()
-///              .add_file_source("custom_config.toml", true)
-///              .add_env_source("MY_HANDLER")
-///              .build();
+///     .add_file_source("custom_config.toml", true)
+///     .add_env_source("MY_HANDLER")
+///     .build();
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Using `config` crate
+/// ```rust
+/// # use ampd_sdk::config::Config;
+/// # use std::error::Error;
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// let config = config::Config::builder()
+///     .add_source(config::File::with_name("custom_config.toml").required(false))
+///     .add_source(config::Environment::with_prefix("MY_HANDLER"))
+///     .build()?;
+/// let config = Config::try_from(config);
 /// # Ok(())
 /// # }
 /// ```
@@ -57,9 +71,11 @@ impl Config {
 
     /// Loads the config from the default sources.
     ///
-    /// The default sources are:
+    /// The default sources are added in the following order:
     /// - `config.toml` in the current directory
-    /// - `HANDLER_*` environment variables
+    /// - `AMPD_HANDLERS_*` environment variables
+    ///
+    /// Configuration loaded from the environment variables will override the configuration loaded from the file.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
     pub fn from_default_sources() -> Result<Self, Error> {
@@ -70,6 +86,20 @@ impl Config {
     }
 }
 
+impl TryFrom<config::Config> for Config {
+    type Error = Report<Error>;
+
+    fn try_from(config: config::Config) -> Result<Config, Error> {
+        config
+            .try_deserialize::<Config>()
+            .change_context(Error::Build)
+    }
+}
+
+/// Configuration builder used to construct a `Config` struct.
+///
+/// The order in which the sources are added is important. If a field is set in multiple sources,
+/// the last added source will override the previous ones.
 #[derive(Default)]
 pub struct ConfigBuilder(config::ConfigBuilder<config::builder::DefaultState>);
 
