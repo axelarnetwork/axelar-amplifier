@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{Addr, CosmosMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
@@ -22,6 +23,12 @@ pub enum Error {
 
     #[error("failed to query ChainContractsInfo by verifier {0}")]
     VerifierNotRegistered(Addr),
+
+    #[error("deployment {0} not found")]
+    DeploymentNotFound(nonempty::String),
+
+    #[error("failed to retrieve deployments")]
+    Deployments,
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -100,10 +107,34 @@ impl Client<'_> {
                 }
             })
     }
+
+    pub fn deployment(
+        &self,
+        deployment_name: nonempty::String,
+    ) -> Result<ChainContractsResponse, Error> {
+        let msg = QueryMsg::Deployment {
+            deployment_name: deployment_name.clone(),
+        };
+        self.client
+            .query(&msg)
+            .change_context(Error::DeploymentNotFound(deployment_name))
+    }
+
+    pub fn deployments(
+        &self,
+        start_after: Option<nonempty::String>,
+        limit: u32,
+    ) -> Result<Vec<ChainContractsResponse>, Error> {
+        let msg = QueryMsg::Deployments { start_after, limit };
+        self.client.query(&msg).change_context(Error::Deployments)
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, to_json_binary, Addr, QuerierWrapper, SystemError, WasmQuery};
     use router_api::{chain_name, cosmos_addr};
@@ -214,6 +245,28 @@ mod test {
         goldie::assert_json!(res.unwrap_err().to_string());
     }
 
+    #[test]
+    fn query_deployment_returns_correct_result() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.deployment(nonempty::String::from_str(AXELAR).unwrap());
+
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
+    #[test]
+    fn query_deployments_returns_correct_results() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+        let res = client.deployments(None, 1);
+
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
         const ADDR: &str = "coordinator";
 
@@ -258,6 +311,27 @@ mod test {
                         .into())
                         .into()
                     }
+                    QueryMsg::Deployment { deployment_name: _ } => {
+                        Ok(to_json_binary(&ChainContractsResponse {
+                            chain_name: chain_name!(AXELAR),
+                            prover_address: Addr::unchecked("prover"),
+                            verifier_address: Addr::unchecked(VERIFIER),
+                            gateway_address: Addr::unchecked("gateway"),
+                        })
+                        .into())
+                        .into()
+                    }
+                    QueryMsg::Deployments {
+                        start_after: _,
+                        limit: _,
+                    } => Ok(to_json_binary(&vec![ChainContractsResponse {
+                        chain_name: chain_name!(AXELAR),
+                        prover_address: Addr::unchecked("prover"),
+                        verifier_address: Addr::unchecked(VERIFIER),
+                        gateway_address: Addr::unchecked("gateway"),
+                    }])
+                    .into())
+                    .into(),
                     _ => panic!("unexpected query: {:?}", msg),
                 }
             }

@@ -140,6 +140,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             &query::instantiate2_addr(&deps, &env, code_id, salt.as_slice())
                 .change_context(Error::Instantiate2Address)?,
         )?),
+        QueryMsg::Deployments { start_after, limit } => Ok(to_json_binary(&query::deployments(
+            deps,
+            start_after,
+            limit,
+        )?)?),
+        QueryMsg::Deployment { deployment_name } => {
+            Ok(to_json_binary(&query::deployment(deps, deployment_name)?)?)
+        }
     }
 }
 

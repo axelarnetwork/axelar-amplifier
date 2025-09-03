@@ -1,4 +1,5 @@
 use cosmwasm_std::{Addr, Deps, Env, Order, StdError, WasmQuery};
+use axelar_wasm_std::nonempty;
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
@@ -114,4 +115,34 @@ pub fn instantiate2_addr(deps: &Deps, env: &Env, code_id: u64, salt: &[u8]) -> R
             .change_context(Error::CanonicalizeAddress)?,
         )
         .change_context(Error::CanonicalizeAddress)
+    }
+    
+pub fn deployments(
+    deps: Deps,
+    start_after: Option<nonempty::String>,
+    limit: u32,
+) -> Result<Vec<ChainContractsResponse>, Error> {
+    Ok(state::deployments(deps.storage, start_after, limit)
+        .change_context(Error::ChainContractsInfo)?
+        .map(|chains| ChainContractsResponse {
+            chain_name: chains.chain_name,
+            prover_address: chains.multisig_prover,
+            verifier_address: chains.voting_verifier,
+            gateway_address: chains.gateway,
+        })
+        .collect::<Vec<ChainContractsResponse>>())
+}
+
+pub fn deployment(
+    deps: Deps,
+    deployment_name: nonempty::String,
+) -> Result<ChainContractsResponse, Error> {
+    state::deployment(deps.storage, deployment_name.clone())
+        .map(|chains| ChainContractsResponse {
+            chain_name: chains.chain_name,
+            prover_address: chains.multisig_prover,
+            verifier_address: chains.voting_verifier,
+            gateway_address: chains.gateway,
+        })
+        .change_context(Error::DeploymentNotFound(deployment_name))
 }
