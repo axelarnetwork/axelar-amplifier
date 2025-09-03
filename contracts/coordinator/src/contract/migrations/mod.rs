@@ -4,7 +4,7 @@ use axelar_wasm_std::{address, migrate_from_version, nonempty, IntoContractError
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, Deps, DepsMut, Env, Order, Response, Storage};
+use cosmwasm_std::{Addr, DepsMut, Env, Order, Response, Storage};
 use cw_storage_plus::{index_list, IndexedMap, Item, UniqueIndex};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
@@ -81,14 +81,12 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    let multisig_addr = address::validate_cosmwasm_address(deps.api, &msg.multisig)?;
-
     migrate_config(&mut deps, &msg)?;
 
     // Since this state has not yet been set or used, we can just clear it
     DEPLOYED_CHAINS.clear(deps.storage);
 
-    migrate_chain_contracts(deps, multisig_addr, msg.chain_contracts)?;
+    migrate_chain_contracts(deps, msg.chain_contracts)?;
 
     Ok(Response::default())
 }
@@ -115,7 +113,6 @@ fn migrate_config(
 
 fn migrate_chain_contracts(
     mut deps: DepsMut,
-    multisig: Addr,
     chain_contracts: Vec<ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
@@ -134,29 +131,22 @@ fn migrate_chain_contracts(
         })
         .collect::<Result<HashMap<ChainName, ChainContracts>, MigrationError>>()?;
 
-    migrate_registered_provers(&mut deps, multisig, provers_by_chain, &mut contracts_map)?;
+    migrate_registered_provers(&mut deps, provers_by_chain, &mut contracts_map)?;
 
     migrate_remaining_chains(&mut deps, &mut contracts_map)
 }
 
 fn migrate_registered_provers(
     deps: &mut DepsMut,
-    multisig: Addr,
     provers_by_chain: Vec<(ChainName, Addr)>,
     contracts_map: &mut HashMap<ChainName, ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     for (chain_name, prover_addr) in provers_by_chain {
+        // If the migration script is used, a chain will be missing only if
+        // that prover does not have a corresponding gateway and verifier.
+        // Consequently, we can safely ignore missing chain contracts.
         let contracts: ChainContracts = match contracts_for_chain(chain_name.clone(), contracts_map)
         {
-            Err(..)
-                if prover_exists_in_multisig(
-                    &deps.as_ref(),
-                    multisig.clone(),
-                    chain_name.clone(),
-                )? =>
-            {
-                return Err(MigrationError::MissingContracts(chain_name.clone()).into())
-            }
             Err(..) => continue,
             Ok(c) => c,
         };
@@ -189,14 +179,12 @@ fn migrate_remaining_chains(
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
     for contracts in contracts_map.values_mut() {
         if let Some(prover_address) = &contracts.prover_address {
-            let prover_address = address::validate_cosmwasm_address(deps.api, prover_address)
-                .change_context(MigrationError::InvalidChainContracts)?;
-
             save_contracts_to_state(
                 deps.storage,
                 ChainContractsRecord {
                     chain_name: contracts.chain_name.clone(),
-                    prover_address,
+                    prover_address: address::validate_cosmwasm_address(deps.api, prover_address)
+                        .change_context(MigrationError::InvalidChainContracts)?,
                     verifier_address: address::validate_cosmwasm_address(
                         deps.api,
                         &contracts.verifier_address,
@@ -242,16 +230,6 @@ fn save_contracts_to_state(
             contracts.verifier_address,
         )?),
     }
-}
-
-fn prover_exists_in_multisig(
-    deps: &Deps,
-    multisig: Addr,
-    chain_name: ChainName,
-) -> Result<bool, axelar_wasm_std::error::ContractError> {
-    let multisig: multisig::Client = client::ContractClient::new(deps.querier, &multisig).into();
-
-    Ok(!multisig.authorized_callers(chain_name)?.is_empty())
 }
 
 #[cfg(test)]
@@ -456,58 +434,6 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains(&MigrationError::ExtraChainProvided.to_string()));
-    }
-
-    #[test]
-    fn migrate_fails_when_missing_a_registered_chain() {
-        let mut deps = mock_dependencies();
-        let env = mock_env();
-        let info = message_info(&cosmos_addr!(SENDER), &[]);
-
-        assert!(old_instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            OldInstantiateMsg {
-                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
-                service_registry: cosmos_addr!(SERVICE_REGISTRY).to_string(),
-            },
-        )
-        .is_ok());
-
-        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
-        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
-        let prover_addr1 = cosmos_addr!(PROVER_1);
-        let prover_addr2 = cosmos_addr!(PROVER_2);
-        let gateway_addr = cosmos_addr!(GATEWAY_1);
-        let verifier_addr = cosmos_addr!(VERIFIER_1);
-
-        assert!(add_old_prover_registration(
-            deps.as_mut(),
-            vec![
-                (chain_name1.clone(), prover_addr1.clone()),
-                (chain_name2.clone(), prover_addr2.clone())
-            ]
-        )
-        .is_ok());
-
-        let res = migrate(
-            deps.as_mut(),
-            env,
-            MigrateMsg {
-                router: cosmos_addr!(ROUTER).to_string(),
-                multisig: cosmos_addr!(MULTISIG).to_string(),
-                chain_contracts: vec![ChainContracts {
-                    chain_name: chain_name1.clone(),
-                    prover_address: None,
-                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
-                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
-                        .unwrap(),
-                }],
-            },
-        );
-
-        assert!(res.is_err());
     }
 
     #[test]
