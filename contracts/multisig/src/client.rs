@@ -311,6 +311,18 @@ mod test {
         goldie::assert_json!(res.unwrap());
     }
 
+    #[test]
+    fn query_authorized_caller_returns_authorized_prover_address() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let chain_name = chain_name!(ETHEREUM);
+        let res = client.authorized_callers(chain_name);
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
         const ADDR: &str = "multisig";
 
