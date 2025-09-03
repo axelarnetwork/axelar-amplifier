@@ -137,6 +137,68 @@ fn is_avalanche_evm_handler(handler_label: &str) -> bool {
     evm_handlers.iter().any(|handler| handler_label == *handler)
 }
 
+fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
+    use prost::encoding::{decode_key, decode_varint, WireType};
+
+    let mut result = Vec::new();
+    let mut buf = bytes;
+    let mut field_count = 0;
+
+    while !buf.is_empty() && field_count < 20 {
+        if let Ok((field_num, wire_type)) = decode_key(&mut buf) {
+            match wire_type {
+                WireType::Varint => {
+                    if let Ok(value) = decode_varint(&mut buf) {
+                        result.push(format!("Field {}: Varint = {}", field_num, value));
+                    }
+                }
+                WireType::LengthDelimited => {
+                    if let Ok(len) = decode_varint(&mut buf) {
+                        if buf.len() >= len as usize {
+                            let data = &buf[..len as usize];
+                            buf = &buf[len as usize..];
+
+                            if let Ok(s) = String::from_utf8(data.to_vec()) {
+                                result.push(format!("Field {}: String = \"{}\"", field_num, s));
+                            } else {
+                                result.push(format!(
+                                    "Field {}: Bytes = {} bytes",
+                                    field_num,
+                                    data.len()
+                                ));
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                WireType::SixtyFourBit => {
+                    if buf.len() >= 8 {
+                        let value = u64::from_le_bytes([
+                            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+                        ]);
+                        buf = &buf[8..];
+                        result.push(format!("Field {}: 64-bit = {}", field_num, value));
+                    }
+                }
+                WireType::ThirtyTwoBit => {
+                    if buf.len() >= 4 {
+                        let value = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                        buf = &buf[4..];
+                        result.push(format!("Field {}: 32-bit = {}", field_num, value));
+                    }
+                }
+                _ => break,
+            }
+        } else {
+            break;
+        }
+        field_count += 1;
+    }
+
+    Ok(result.join("\n"))
+}
+
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
     handler_label: &str,
@@ -164,11 +226,14 @@ where
         Ok(msgs) => {
             if is_avalanche_evm_handler(handler_label) {
                 for (i, msg) in msgs.iter().enumerate() {
+                    let deserialized_values = show_protobuf_structure(&msg.value).unwrap();
                     info!(
                         handler = %handler_label,
                         msg_index = i,
                         msg_type_url = %msg.type_url,
-                        msg_value = ?msg.value,
+                        msg_value_plain = ?msg.value,
+                        msg_value_deserialized = %deserialized_values,
+                        msg_value_hex = %hex::encode(&msg.value),
                         "AMPD EVM handler message details"
                     );
                 }
