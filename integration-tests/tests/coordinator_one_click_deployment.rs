@@ -116,7 +116,7 @@ fn instantiate_contracts(
     )
 }
 
-fn register_deployment(
+fn enable_deployment_with_protocol(
     protocol: &mut Protocol,
     deployment_name: nonempty::String,
 ) -> Result<AppResponse, Report<ContractError>> {
@@ -176,7 +176,7 @@ fn coordinator_one_click_deploys_each_contract_using_correct_code_ids_and_byteco
     );
     assert!(res.is_ok());
 
-    assert!(register_deployment(&mut protocol, deployment_name.clone()).is_ok());
+    assert!(enable_deployment_with_protocol(&mut protocol, deployment_name.clone()).is_ok());
 
     let new_contracts = gather_contracts(&protocol, deployment_name, &chain1);
 
@@ -374,7 +374,7 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         Binary::new(vec![1]),
     );
     assert!(res.is_ok());
-    assert!(register_deployment(
+    assert!(enable_deployment_with_protocol(
         &mut protocol,
         nonempty::String::try_from(TESTCHAIN).unwrap()
     )
@@ -540,7 +540,7 @@ fn coordinator_one_click_query_verifier_info_fails() {
 }
 
 #[test]
-fn coordinator_one_click_register_deployment_with_router_succeeds() {
+fn coordinator_one_click_enable_deployment_with_protocol_succeeds() {
     let test_utils::TestCase {
         mut protocol,
         chain1,
@@ -557,7 +557,7 @@ fn coordinator_one_click_register_deployment_with_router_succeeds() {
         Binary::new(vec![1]),
     );
     assert!(res.is_ok());
-    assert!(register_deployment(&mut protocol, deployment_name).is_ok());
+    assert!(enable_deployment_with_protocol(&mut protocol, deployment_name).is_ok());
 }
 
 #[test]
@@ -581,7 +581,7 @@ fn coordinator_one_click_authorize_callers_succeeds() {
 
     let contracts = gather_contracts(&protocol, deployment_name.clone(), &chain1);
 
-    assert!(register_deployment(&mut protocol, deployment_name,).is_ok());
+    assert!(enable_deployment_with_protocol(&mut protocol, deployment_name,).is_ok());
 
     let res = protocol.multisig.query::<bool>(
         &protocol.app,
@@ -623,11 +623,7 @@ fn coordinator_one_click_query_deployments_succeeds() {
         Binary::new(vec![1]),
     );
     assert!(res.is_ok());
-<<<<<<< HEAD
     let contracts = gather_contracts(&protocol, deployment_name, &chain1);
-=======
-    let contracts = gather_contracts(&protocol, res.unwrap());
->>>>>>> main
 
     let deployments: coordinator::msg::QueryMsg =
         serde_json::from_str(r#"{"deployments" : {}}"#).unwrap();
@@ -667,11 +663,7 @@ fn coordinator_one_click_query_single_deployment_succeeds() {
         Binary::new(vec![1]),
     );
     assert!(res.is_ok());
-<<<<<<< HEAD
     let contracts = gather_contracts(&protocol, deployment_name.clone(), &chain1);
-=======
-    let contracts = gather_contracts(&protocol, res.unwrap());
->>>>>>> main
 
     let res = protocol.coordinator.query::<ChainContractsResponse>(
         &protocol.app,
@@ -685,35 +677,3 @@ fn coordinator_one_click_query_single_deployment_succeeds() {
         verifier_address: contracts.voting_verifier.contract_addr
     }));
 }
-<<<<<<< HEAD
-=======
-
-#[test]
-fn coordinator_one_click_query_single_deployment_fails() {
-    let test_utils::TestCase {
-        mut protocol,
-        chain1,
-        ..
-    } = test_utils::setup_test_case();
-
-    let chain_name = String::from("testchain");
-    let deployment_name = nonempty_str!("testchain-1");
-
-    let res = instantiate_contracts(
-        &mut protocol,
-        chain_name.as_str(),
-        &chain1,
-        deployment_name.clone(),
-        Binary::new(vec![1]),
-    );
-    assert!(res.is_ok());
-
-    let res = protocol.coordinator.query::<ChainContractsResponse>(
-        &protocol.app,
-        &coordinator::msg::QueryMsg::Deployment {
-            deployment_name: nonempty_str!("randomdeployment"),
-        },
-    );
-    assert!(res.is_err());
-}
->>>>>>> main
