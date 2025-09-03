@@ -134,7 +134,7 @@ pub enum QueryMsg {
 
     #[returns(Addr)]
     Instantiate2Address { code_id: u64, salt: Binary },
-    
+
     #[returns(Vec<ChainContractsResponse>)]
     Deployments {
         start_after: Option<nonempty::String>,
