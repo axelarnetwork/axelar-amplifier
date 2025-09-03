@@ -218,7 +218,7 @@ pub fn unauthorize_callers(
 ) -> error_stack::Result<Response, ContractError> {
     for contract in contracts.keys() {
         remove_authorized_caller(deps.storage, contract.clone())
-            .map_err(|_| error_stack::report!(ContractError::CallerNotFound(contract.clone())))?;
+            .map_err(|_| error_stack::report!(ContractError::InvalidCaller))?;
     }
 
     Ok(

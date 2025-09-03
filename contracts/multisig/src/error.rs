@@ -72,6 +72,6 @@ pub enum ContractError {
     #[error("specified chain name is incorrect. expected: {expected}")]
     WrongChainName { expected: ChainName },
 
-    #[error("caller not found")]
-    CallerNotFound(Addr),
+    #[error("could not parse caller")]
+    InvalidCaller,
 }
