@@ -1,0 +1,45 @@
+{
+  "Any": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Specific1": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway1"
+    ]
+  },
+  "Specific2": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": [
+      "gateway1"
+    ]
+  },
+  "Specific3": {
+    "external": [],
+    "general": [
+      "Admin",
+      "NoPrivilege"
+    ],
+    "specific": [
+      "gateway1",
+      "gateway2"
+    ]
+  },
+  "Specific4": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway1",
+      "gateway2",
+      "gateway3"
+    ]
+  }
+}
