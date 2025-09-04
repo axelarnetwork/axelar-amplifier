@@ -210,6 +210,43 @@ mod tests {
         assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
     }
 
+    #[tokio::test]
+    async fn config_loads_from_file_can_be_used_concurrently() {
+        let ampd_url = "http://localhost:8080";
+        let chain_name = "some-chain";
+        let concurrent_tasks = 1000;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("custom-config.toml");
+        let content = format!(
+            r#"
+            ampd_url="{ampd_url}"
+            chain_name="{chain_name}"
+            "#
+        );
+        fs::write(&config_path, content).unwrap();
+
+        let handles = (0..concurrent_tasks)
+            .map(|_| {
+                let config_path_clone = config_path.clone();
+
+                tokio::spawn(async move {
+                    let config = Config::builder()
+                        .add_file_source(config_path_clone.to_str().unwrap(), true)
+                        .build()
+                        .unwrap();
+
+                    assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
+                    assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+    }
+
     #[test]
     fn config_load_fails_if_field_is_missing() {
         let ampd_url = "http://localhost:8080";
