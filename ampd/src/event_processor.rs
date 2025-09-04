@@ -138,6 +138,7 @@ fn is_avalanche_evm_handler(handler_label: &str) -> bool {
     evm_handlers.iter().any(|handler| handler_label == *handler)
 }
 
+// TODO: Remove this function once all handlers are migrated to the new sdk
 fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
     let mut result = Vec::new();
     let mut buf = bytes;
@@ -168,33 +169,47 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
                                     ));
                                 }
                             } else {
-                                break;
+                                continue;
                             }
                         } else {
-                            break;
+                            continue;
                         }
                     }
                 }
                 WireType::SixtyFourBit => {
                     if buf.len() >= 8 {
                         let bytes = &buf[..8];
-                        let value = u64::from_le_bytes(bytes.try_into().unwrap());
+                        let value = bytes.try_into().map(u64::from_le_bytes).unwrap_or(0);
                         buf = &buf[8..];
                         result.push(format!("Field {}: 64-bit = {}", field_num, value));
+                    } else {
+                        result.push(format!(
+                            "Field {}: 64-bit = <insufficient bytes: {} available, need 8>",
+                            field_num,
+                            buf.len()
+                        ));
+                        break;
                     }
                 }
                 WireType::ThirtyTwoBit => {
                     if buf.len() >= 4 {
                         let bytes = &buf[..4];
-                        let value = u32::from_le_bytes(bytes.try_into().unwrap());
+                        let value = bytes.try_into().map(u32::from_le_bytes).unwrap_or(0);
                         buf = &buf[4..];
                         result.push(format!("Field {}: 32-bit = {}", field_num, value));
+                    } else {
+                        result.push(format!(
+                            "Field {}: 32-bit = <insufficient bytes: {} available, need 4>",
+                            field_num,
+                            buf.len()
+                        ));
+                        break;
                     }
                 }
-                _ => break,
+                _ => continue,
             }
         } else {
-            break;
+            continue;
         }
         field_count = field_count.saturating_add(1);
     }
@@ -229,16 +244,30 @@ where
         Ok(msgs) => {
             if is_avalanche_evm_handler(handler_label) {
                 for (i, msg) in msgs.iter().enumerate() {
-                    let deserialized_values = show_protobuf_structure(&msg.value).unwrap();
-                    info!(
-                        handler = %handler_label,
-                        msg_index = i,
-                        msg_type_url = %msg.type_url,
-                        msg_value_plain = ?msg.value,
-                        msg_value_deserialized = %deserialized_values,
-                        msg_value_hex = %hex::encode(&msg.value),
-                        "AMPD EVM handler message details"
-                    );
+                    match show_protobuf_structure(&msg.value) {
+                        Ok(deserialized_values) => {
+                            info!(
+                                handler = %handler_label,
+                                msg_index = i,
+                                msg_type_url = %msg.type_url,
+                                msg_value_plain = ?msg.value,
+                                msg_value_deserialized = %deserialized_values,
+                                msg_value_hex = %hex::encode(&msg.value),
+                                "AMPD EVM handler message details"
+                            );
+                        }
+                        Err(e) => {
+                            warn!(
+                                handler = %handler_label,
+                                msg_index = i,
+                                msg_type_url = %msg.type_url,
+                                msg_value_plain = ?msg.value,
+                                msg_value_hex = %hex::encode(&msg.value),
+                                error = %e,
+                                "Failed to parse protobuf structure, showing raw data"
+                            );
+                        }
+                    }
                 }
             }
 
