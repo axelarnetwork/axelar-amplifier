@@ -36,7 +36,7 @@ pub enum Error {
 /// # use std::error::Error;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// let config = Config::builder()
-///     .add_file_source("custom_config.toml", true)
+///     .add_file_source("custom_config.toml")
 ///     .add_env_source("MY_HANDLER")
 ///     .build();
 /// # Ok(())
@@ -88,7 +88,7 @@ impl Config {
     /// The config is deserialized from the sources into a `Config` struct.
     pub fn from_default_sources() -> Result<Self, Error> {
         Self::builder()
-            .add_file_source(DEFAULT_CONFIG_FILE, false)
+            .add_file_source(DEFAULT_CONFIG_FILE)
             .add_env_source(DEFAULT_CONFIG_PREFIX)
             .build()
     }
@@ -117,10 +117,10 @@ impl ConfigBuilder {
     }
 
     /// Adds a file source to the config builder.
-    pub fn add_file_source(self, base_file: &str, required: bool) -> Self {
+    pub fn add_file_source(self, base_file: &str) -> Self {
         Self(
             self.0
-                .add_source(config::File::with_name(base_file).required(required)),
+                .add_source(config::File::with_name(base_file).required(false)),
         )
     }
 
@@ -210,7 +210,7 @@ mod tests {
         fs::write(&config_path, content).unwrap();
 
         let config = Config::builder()
-            .add_file_source(config_path.to_str().unwrap(), true)
+            .add_file_source(config_path.to_str().unwrap())
             .build()
             .unwrap();
 
@@ -240,7 +240,7 @@ mod tests {
 
                 tokio::spawn(async move {
                     let config = Config::builder()
-                        .add_file_source(config_path_clone.to_str().unwrap(), true)
+                        .add_file_source(config_path_clone.to_str().unwrap())
                         .build()
                         .unwrap();
 
@@ -269,7 +269,7 @@ mod tests {
         fs::write(&config_path, content).unwrap();
 
         let res = Config::builder()
-            .add_file_source(config_path.to_str().unwrap(), true)
+            .add_file_source(config_path.to_str().unwrap())
             .build();
 
         assert_err_contains!(res, Error, Error::Build);
@@ -289,7 +289,7 @@ mod tests {
         fs::write(&config_path, content).unwrap();
 
         let config = Config::builder()
-            .add_file_source(config_path.to_str().unwrap(), true)
+            .add_file_source(config_path.to_str().unwrap())
             .build()
             .unwrap();
 
