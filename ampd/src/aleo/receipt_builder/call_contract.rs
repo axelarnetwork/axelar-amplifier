@@ -19,8 +19,7 @@ impl<N: Network> PartialEq<crate::handlers::aleo_verify_msg::Message<N>>
     for CallContractReceipt<N>
 {
     fn eq(&self, message: &crate::handlers::aleo_verify_msg::Message<N>) -> bool {
-        let Ok(aleo_payload) = Value::<N>::from_bytes_le(&self.payload)
-        else {
+        let Ok(aleo_payload) = Value::<N>::from_bytes_le(&self.payload) else {
             return false;
         };
 

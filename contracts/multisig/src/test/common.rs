@@ -185,7 +185,8 @@ pub mod aleo_schnorr_test_data {
     }
 
     pub fn message() -> HexBinary {
-        let group_value = Group::<snarkvm_cosmwasm::console::network::TestnetV0>::from_str("2group").unwrap();
+        let group_value =
+            Group::<snarkvm_cosmwasm::console::network::TestnetV0>::from_str("2group").unwrap();
         let bytes = group_value.to_bytes_le().unwrap();
         HexBinary::from(bytes)
     }

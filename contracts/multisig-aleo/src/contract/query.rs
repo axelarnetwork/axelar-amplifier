@@ -22,11 +22,13 @@ pub fn verify_signature<N: Network>(
 mod tests {
     use std::str::FromStr;
 
-    use super::*;
     use aleo_gmp_types::utils::ToBytesExt;
     use axelar_wasm_std::hash::Hash;
     use snarkos_account::Account;
-    use snarkvm_cosmwasm::{console::network::TestnetV0, prelude::ToBytes as _};
+    use snarkvm_cosmwasm::console::network::TestnetV0;
+    use snarkvm_cosmwasm::prelude::ToBytes as _;
+
+    use super::*;
 
     type CurrentNetwork = TestnetV0;
 

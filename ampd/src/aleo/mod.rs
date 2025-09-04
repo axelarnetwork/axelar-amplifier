@@ -1,5 +1,4 @@
 pub(crate) mod error;
-pub(crate) mod generated_structs;
 pub(crate) mod http_client;
 pub(crate) mod receipt_builder;
 pub(crate) mod utils;

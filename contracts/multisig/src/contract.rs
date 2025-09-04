@@ -205,7 +205,8 @@ mod tests {
     use crate::multisig::Multisig;
     use crate::state::load_session_signatures;
     use crate::test::common::{
-        aleo_schnorr_test_data, build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, VerifierSetId, TestSigner
+        aleo_schnorr_test_data, build_verifier_set, ecdsa_test_data, ed25519_test_data,
+        signature_test_data, TestSigner, VerifierSetId,
     };
     use crate::types::MultisigState;
     use crate::verifier_set::VerifierSet;
@@ -419,7 +420,7 @@ mod tests {
         VerifierSetId, // ECDSA verify address
         VerifierSetId, // Ed25519 verify address
         VerifierSetId, // Aleo Schnorr verify address
-        Addr,   // Aleo Schnorr validate address
+        Addr,          // Aleo Schnorr validate address
     ) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();

@@ -204,7 +204,7 @@ mod test {
     use crate::multisig::Multisig;
     use crate::test::common::{
         aleo_schnorr_test_data, build_verifier_set, ecdsa_test_data, ed25519_test_data,
-        signature_test_data, VerifierSetId, TestSigner,
+        signature_test_data, TestSigner, VerifierSetId,
     };
     use crate::types::MultisigState;
 
@@ -401,7 +401,9 @@ mod test {
 
     fn signing_keys() -> (VerifierSetId, VerifierSetId, VerifierSetId) {
         (
-            VerifierSetId::Ecdsa(build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()).id()),
+            VerifierSetId::Ecdsa(
+                build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()).id(),
+            ),
             VerifierSetId::Ed25519(
                 build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()).id(),
             ),

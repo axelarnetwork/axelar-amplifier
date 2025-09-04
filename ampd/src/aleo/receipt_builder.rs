@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
-use aleo_gmp_types::aleo_struct::generated_structs::SignersRotated;
+use aleo_gmp_types::aleo_struct::generated_structs::{ContractCall, SignersRotated};
 use aleo_string_encoder::StringEncoder;
 use error_stack::{ensure, Report, Result, ResultExt};
 use snarkvm::prelude::{Network, ProgramID, ToBytes, Value};
 
 use crate::aleo::error::Error;
-use crate::aleo::generated_structs::ContractCall;
 use crate::aleo::http_client::ClientTrait;
 use crate::aleo::utils::*;
 
@@ -203,7 +202,8 @@ where
 
     pub fn check_signer_rotation(self) -> Result<Receipt<N, SignersRotated<N>>, Error> {
         let outputs = self.state.transition.outputs;
-        let signer_rotation = find_in_outputs(&outputs).ok_or(Error::SignerRotationNotFound)?;
+        let signer_rotation =
+            find_signers_rotated_in_outputs(&outputs).ok_or(Error::SignerRotationNotFound)?;
         let scm = self.state.transition.scm.as_str();
 
         let signers_rotation_calls = self

@@ -1,12 +1,11 @@
 use std::str::FromStr as _;
 
-use aleo_gmp_types::aleo_struct::generated_structs::SignersRotated;
+use aleo_gmp_types::aleo_struct::generated_structs::{ContractCall, SignersRotated};
 use aleo_utils::block_processor::IdValuePair;
 use error_stack::{Result, ResultExt};
 use snarkvm::prelude::{Field, Literal, LiteralType, Network, Plaintext, ToBits as _};
 
 use crate::aleo::error::Error;
-use crate::aleo::generated_structs::ContractCall;
 
 pub fn read_call_contract<N: Network>(outputs: &IdValuePair) -> Result<ContractCall<N>, Error> {
     let value = outputs.value.as_ref().ok_or(Error::CallContractNotFound)?;
@@ -48,7 +47,9 @@ pub fn find_call_contract_in_outputs<N: Network>(
 }
 
 /// Generic function to find a specific type in the outputs
-pub fn find_in_outputs<N: Network>(outputs: &[IdValuePair]) -> Option<SignersRotated<N>> {
+pub fn find_signers_rotated_in_outputs<N: Network>(
+    outputs: &[IdValuePair],
+) -> Option<SignersRotated<N>> {
     outputs.iter().find_map(|output| {
         let value = output.value.as_ref()?;
         let plaintext = Plaintext::<N>::from_str(value).ok()?;
