@@ -555,10 +555,12 @@ mod tests {
                 chain_name.clone(),
             );
 
-            assert!(res
-                .unwrap_err()
+            assert!(res.unwrap_err().to_string().contains(
+                &permission_control::Error::SpecificPermissionDenied {
+                    roles: vec![String::from("authorized")],
+                }
                 .to_string()
-                .contains(&permission_control::Error::Unauthorized.to_string()));
+            ));
         }
     }
 
@@ -1176,10 +1178,12 @@ mod tests {
                 chain_name.clone(),
             );
 
-            assert!(res
-                .unwrap_err()
+            assert!(res.unwrap_err().to_string().contains(
+                &permission_control::Error::SpecificPermissionDenied {
+                    roles: vec![String::from("authorized")],
+                }
                 .to_string()
-                .contains(&permission_control::Error::Unauthorized.to_string()));
+            ));
         }
 
         let caller_authorization_status =

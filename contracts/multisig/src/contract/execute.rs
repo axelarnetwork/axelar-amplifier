@@ -5,7 +5,6 @@ use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 
 use super::*;
-use crate::error::ContractError as Error;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{
@@ -186,10 +185,7 @@ pub fn require_authorized_caller(
     sender_addr: &Addr,
     chain_name: &ChainName,
 ) -> Result<bool, ContractError> {
-    Ok(
-        load_authorized_caller(storage, sender_addr.clone()).map_err(|_| Error::InvalidCaller)?
-            == *chain_name,
-    )
+    Ok(load_authorized_caller(storage, sender_addr.clone()) == Ok(chain_name.clone()))
 }
 
 pub fn authorize_callers(
