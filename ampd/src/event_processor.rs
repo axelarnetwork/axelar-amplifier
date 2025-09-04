@@ -150,6 +150,9 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
                 WireType::Varint => {
                     if let Ok(value) = decode_varint(&mut buf) {
                         result.push(format!("Field {}: Varint = {}", field_num, value));
+                    } else {
+                        result.push(format!("Field {}: Varint = <decode error>", field_num));
+                        break;
                     }
                 }
                 WireType::LengthDelimited => {
@@ -158,7 +161,6 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
                             if buf.len() >= len_usize {
                                 let data = &buf[..len_usize];
                                 buf = &buf[len_usize..];
-
                                 if let Ok(s) = String::from_utf8(data.to_vec()) {
                                     result.push(format!("Field {}: String = \"{}\"", field_num, s));
                                 } else {
@@ -169,47 +171,35 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
                                     ));
                                 }
                             } else {
-                                continue;
+                                result.push(format!(
+                                    "Field {}: LengthDelimited = <insufficient bytes>",
+                                    field_num
+                                ));
+                                break;
                             }
                         } else {
-                            continue;
+                            result.push(format!(
+                                "Field {}: LengthDelimited = <length error>",
+                                field_num
+                            ));
+                            break;
                         }
-                    }
-                }
-                WireType::SixtyFourBit => {
-                    if buf.len() >= 8 {
-                        let bytes = &buf[..8];
-                        let value = bytes.try_into().map(u64::from_le_bytes).unwrap_or(0);
-                        buf = &buf[8..];
-                        result.push(format!("Field {}: 64-bit = {}", field_num, value));
                     } else {
                         result.push(format!(
-                            "Field {}: 64-bit = <insufficient bytes: {} available, need 8>",
-                            field_num,
-                            buf.len()
+                            "Field {}: LengthDelimited = <length decode error>",
+                            field_num
                         ));
                         break;
                     }
                 }
-                WireType::ThirtyTwoBit => {
-                    if buf.len() >= 4 {
-                        let bytes = &buf[..4];
-                        let value = bytes.try_into().map(u32::from_le_bytes).unwrap_or(0);
-                        buf = &buf[4..];
-                        result.push(format!("Field {}: 32-bit = {}", field_num, value));
-                    } else {
-                        result.push(format!(
-                            "Field {}: 32-bit = <insufficient bytes: {} available, need 4>",
-                            field_num,
-                            buf.len()
-                        ));
-                        break;
-                    }
+                _ => {
+                    result.push(format!("Field {}: Unknown wire type", field_num));
+                    break;
                 }
-                _ => continue,
             }
         } else {
-            continue;
+            result.push(format!("Field {}: <key decode error>", field_count.saturating_add(1)));
+            break;
         }
         field_count = field_count.saturating_add(1);
     }
