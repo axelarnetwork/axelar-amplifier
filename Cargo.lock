@@ -270,6 +270,7 @@ dependencies = [
  "ethers-contract",
  "ethers-core",
  "ethers-providers",
+ "event-verifier-api",
  "events",
  "evm-gateway",
  "faux",
