@@ -43,7 +43,7 @@ pub struct SubscriptionParams {
     include_block_begin_end: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     #[serde(with = "humantime_serde")]
     pub stream_timeout: Duration,
