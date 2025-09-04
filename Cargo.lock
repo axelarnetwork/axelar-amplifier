@@ -389,6 +389,7 @@ dependencies = [
  "mockall 0.12.1",
  "report",
  "serde",
+ "serde-aux",
  "serde_json",
  "temp-env",
  "tempfile",

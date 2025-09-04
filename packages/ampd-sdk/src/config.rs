@@ -2,6 +2,7 @@ use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
 use error_stack::{Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
+use serde_aux::field_attributes::deserialize_default_from_empty_object;
 use thiserror::Error;
 
 use crate::event;
@@ -61,7 +62,9 @@ pub struct Config {
     #[serde(default = "default_ampd_url")]
     pub ampd_url: Url,
     pub chain_name: ChainName,
-    #[serde(default)]
+
+    // Using `serde_aux` to be able to use `default` together with `flatten`. See https://github.com/serde-rs/serde/issues/1626
+    #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
     pub event_handler: event::event_handler::Config,
 }
 

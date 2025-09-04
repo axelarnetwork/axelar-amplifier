@@ -20,6 +20,7 @@ humantime-serde = { workspace = true }
 mockall = { workspace = true }
 report = { workspace = true }
 serde = { workspace = true }
+serde-aux = "4.7.0"
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
