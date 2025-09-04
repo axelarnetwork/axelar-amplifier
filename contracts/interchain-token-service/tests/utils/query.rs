@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
@@ -66,6 +67,22 @@ pub fn query_its_chains(
             filter,
             start_after,
             limit,
+        },
+    )?;
+    Ok(from_json(bin)?)
+}
+
+pub fn query_custom_token_metadata(
+    deps: Deps,
+    chain: ChainNameRaw,
+    token_address: nonempty::HexBinary,
+) -> Result<Option<msg::CustomTokenMetadata>, ContractError> {
+    let bin = query(
+        deps,
+        mock_env(),
+        QueryMsg::CustomTokenMetadata {
+            chain,
+            token_address,
         },
     )?;
     Ok(from_json(bin)?)

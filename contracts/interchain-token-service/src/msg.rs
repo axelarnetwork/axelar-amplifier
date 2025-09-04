@@ -40,6 +40,13 @@ pub struct TokenConfig {
 }
 
 #[cw_serde]
+pub struct CustomTokenMetadata {
+    pub chain: ChainNameRaw,
+    pub decimals: u8,
+    pub token_address: nonempty::HexBinary,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub admin_address: String,
@@ -179,6 +186,13 @@ pub enum QueryMsg {
     /// Query the configuration parameters for a token
     #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
+
+    /// Query custom token metadata
+    #[returns(Option<CustomTokenMetadata>)]
+    CustomTokenMetadata {
+        chain: ChainNameRaw,
+        token_address: nonempty::HexBinary,
+    },
 
     /// Query the state of contract (enabled/disabled)
     #[returns(bool)]

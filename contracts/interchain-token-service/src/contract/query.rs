@@ -1,4 +1,4 @@
-use axelar_wasm_std::{killswitch, IntoContractError};
+use axelar_wasm_std::{killswitch, nonempty, IntoContractError};
 use cosmwasm_std::{to_json_binary, Binary, Deps};
 use error_stack::{Result, ResultExt};
 use interchain_token_service_std::TokenId;
@@ -83,6 +83,21 @@ pub fn token_config(deps: Deps, token_id: TokenId) -> Result<Binary, Error> {
     let token_config =
         state::may_load_token_config(deps.storage, &token_id).change_context(Error::State)?;
     to_json_binary(&token_config).change_context(Error::JsonSerialization)
+}
+
+pub fn custom_token_metadata(
+    deps: Deps,
+    chain: ChainNameRaw,
+    token_address: nonempty::HexBinary,
+) -> Result<Binary, Error> {
+    let custom_token = state::may_load_custom_token(deps.storage, chain, token_address)
+        .change_context(Error::State)?
+        .map(|token| msg::CustomTokenMetadata {
+            chain: token.chain,
+            decimals: token.decimals,
+            token_address: token.token_address,
+        });
+    to_json_binary(&custom_token).change_context(Error::JsonSerialization)
 }
 
 pub fn is_contract_enabled(deps: Deps) -> Result<Binary, Error> {
