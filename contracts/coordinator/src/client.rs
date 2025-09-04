@@ -332,6 +332,7 @@ mod test {
                     }])
                     .into())
                     .into(),
+                    _ => panic!("unexpected query: {:?}", msg),
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
