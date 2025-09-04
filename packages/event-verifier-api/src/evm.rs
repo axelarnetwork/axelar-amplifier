@@ -5,9 +5,6 @@ use cosmwasm_std::{HexBinary, Uint256};
 type Address = fixed_size::HexBinary<20>;
 type Topic = fixed_size::HexBinary<32>;
 
-// TODO: make some of the types here stricter to enforce invariants, i.e. topics are always 32 bytes,
-// addresses have a certain structure, etc.
-// Also, be consistent with 0x vs no 0x prefix
 #[cw_serde]
 pub struct TransactionDetails {
     pub calldata: HexBinary,
