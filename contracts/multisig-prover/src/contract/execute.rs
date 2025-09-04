@@ -68,7 +68,7 @@ pub fn construct_proof(
     receive_full_payloads(deps.branch(), payload_id, &full_message_payloads, messages)?;
 
     let digest = query_payload_digest(
-        deps.branch(),
+        deps.as_ref(),
         &config,
         verifier_set.clone(),
         payload,
