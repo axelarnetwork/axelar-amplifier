@@ -5,11 +5,12 @@ use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 
 use super::*;
+use crate::error::ContractError as Error;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{
-    load_session_signatures, remove_authorized_caller, save_authorized_caller, save_pub_key,
-    save_signature, AUTHORIZED_CALLERS,
+    load_authorized_caller, load_session_signatures, remove_authorized_caller,
+    save_authorized_caller, save_pub_key, save_signature,
 };
 use crate::verifier_set::VerifierSet;
 
@@ -185,10 +186,10 @@ pub fn require_authorized_caller(
     sender_addr: &Addr,
     chain_name: &ChainName,
 ) -> Result<bool, ContractError> {
-    Ok(AUTHORIZED_CALLERS
-        .may_load(storage, sender_addr)
-        .map_err(ContractError::from)?
-        == Some(chain_name.clone()))
+    Ok(
+        load_authorized_caller(storage, sender_addr.clone()).map_err(|_| Error::InvalidCaller)?
+            == *chain_name,
+    )
 }
 
 pub fn authorize_callers(
@@ -214,20 +215,25 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: HashMap<Addr, ChainName>,
+    contracts: Vec<Addr>,
 ) -> error_stack::Result<Response, ContractError> {
-    for contract in contracts.keys() {
-        remove_authorized_caller(deps.storage, contract.clone())
-            .map_err(|_| error_stack::report!(ContractError::InvalidCaller))?;
-    }
+    let callers_and_chains = contracts
+        .into_iter()
+        .map(|contract| {
+            remove_authorized_caller(deps.storage, contract.clone())
+                .map(|cc| cc.map(|chain| (contract, chain)))
+                .map_err(|_| error_stack::report!(ContractError::InvalidCaller))
+        })
+        .filter_map_ok(|contract| contract)
+        .collect::<error_stack::Result<Vec<(Addr, ChainName)>, ContractError>>()?;
 
     Ok(
-        Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {
-            Event::CallerUnauthorized {
+        Response::new().add_events(callers_and_chains.into_iter().map(
+            |(contract_address, chain_name)| Event::CallerUnauthorized {
                 contract_address,
                 chain_name,
-            }
-        })),
+            },
+        )),
     )
 }
 

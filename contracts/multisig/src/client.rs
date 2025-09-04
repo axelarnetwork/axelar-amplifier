@@ -124,7 +124,7 @@ impl Client<'_> {
             .execute_as_proxy(original_sender, ExecuteMsg::AuthorizeCallers { contracts })
     }
 
-    pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
+    pub fn unauthorize_callers(&self, contracts: Vec<String>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
     }
@@ -499,8 +499,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(ETHEREUM))]);
+        let contracts: Vec<String> = vec![cosmos_addr!(PROVER).to_string()];
 
         match client.unauthorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),

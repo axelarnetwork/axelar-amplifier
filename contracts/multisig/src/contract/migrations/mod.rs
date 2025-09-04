@@ -4,9 +4,9 @@ use axelar_wasm_std::{address, migrate_from_version};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Order, Response};
+use cosmwasm_std::{DepsMut, Env, Response};
 
-use crate::state::{Config, AUTHORIZED_CALLERS, CHAIN_CALLER_PAIRS, CONFIG};
+use crate::state::{load_authorized_callers, save_authorized_caller, Config, CONFIG};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -42,13 +42,11 @@ pub fn migrate(
 fn migrate_authorized_callers(
     deps: &mut DepsMut,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
-    let authorized_callers: Vec<_> = AUTHORIZED_CALLERS
-        .range(deps.storage, None, None, Order::Ascending)
-        .filter_map(|item| item.ok())
-        .collect();
+    let authorized_callers: Vec<_> =
+        load_authorized_callers(deps.storage, None, u32::MAX).collect();
 
     for (contract_address, chain_name) in authorized_callers {
-        CHAIN_CALLER_PAIRS.save(deps.storage, (chain_name, contract_address), &())?;
+        save_authorized_caller(deps.storage, contract_address, chain_name)?;
     }
 
     Ok(())
@@ -141,7 +139,10 @@ mod tests {
         assert!(CHAIN_CALLER_PAIRS
             .load(
                 &deps.storage,
-                (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER))
+                (
+                    &ChainName::from_str("chain1").unwrap(),
+                    &cosmos_addr!(PROVER)
+                )
             )
             .is_err());
 
@@ -157,7 +158,10 @@ mod tests {
         assert!(CHAIN_CALLER_PAIRS
             .load(
                 &deps.storage,
-                (ChainName::from_str("chain1").unwrap(), cosmos_addr!(PROVER))
+                (
+                    &ChainName::from_str("chain1").unwrap(),
+                    &cosmos_addr!(PROVER)
+                )
             )
             .is_ok());
     }
