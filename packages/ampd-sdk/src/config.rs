@@ -69,7 +69,7 @@ pub struct Config {
 }
 
 fn default_ampd_url() -> Url {
-    Url::new_sensitive("http://127.0.0.1:9090").unwrap()
+    Url::new_sensitive("http://127.0.0.1:9090").expect("Url should be created validly")
 }
 
 impl Config {
