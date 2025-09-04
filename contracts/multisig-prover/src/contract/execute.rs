@@ -16,14 +16,15 @@ use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
+use crate::flags::{query_payload_digest, receive_full_payloads};
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
 
 pub fn construct_proof(
-    deps: DepsMut,
+    mut deps: DepsMut,
     message_ids: Vec<CrossChainId>,
-    #[cfg(feature = "receive-payload")] full_message_payloads: Vec<cosmwasm_std::HexBinary>,
+    full_message_payloads: Vec<cosmwasm_std::HexBinary>, // this is empty if the `receive-payload` feature is not enabled
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
@@ -64,46 +65,15 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    let chain_codec: chain_codec_api::Client =
-        client::ContractClient::new(deps.querier, &config.chain_codec).into();
+    receive_full_payloads(deps.branch(), payload_id, &full_message_payloads, messages)?;
 
-    #[cfg(feature = "receive-payload")]
-    {
-        if messages.len() != full_message_payloads.len() {
-            return Err(report!(ContractError::PayloadBytesMismatch {
-                full_message_payloads: full_message_payloads.len(),
-                messages: messages.len(),
-            }));
-        }
-
-        use sha3::{Digest, Keccak256};
-
-        for (message, message_payload) in messages.into_iter().zip(&full_message_payloads) {
-            let payload_hash: [u8; 32] = Keccak256::digest(message_payload).into();
-            if message.payload_hash != payload_hash {
-                return Err(report!(ContractError::PayloadHashMismatch {
-                    message_id: message.cc_id,
-                    expected: message.payload_hash,
-                    actual: payload_hash,
-                }));
-            }
-        }
-
-        // save full message payloads to pass it to the chain codec contract later
-        #[cfg(feature = "notify-signing-session")]
-        crate::state::FULL_MESSAGE_PAYLOADS
-            .save(deps.storage, &payload_id, &full_message_payloads)
-            .map_err(ContractError::from)?;
-    }
-
-    #[cfg(feature = "receive-payload")]
-    let digest = chain_codec
-        .payload_digest(verifier_set.clone(), payload.clone(), full_message_payloads)
-        .change_context(ContractError::FailedToQueryChainCodec)?;
-    #[cfg(not(feature = "receive-payload"))]
-    let digest = chain_codec
-        .payload_digest(verifier_set.clone(), payload.clone())
-        .change_context(ContractError::FailedToQueryChainCodec)?;
+    let digest = query_payload_digest(
+        deps.branch(),
+        &config,
+        verifier_set.clone(),
+        payload,
+        full_message_payloads,
+    )?;
 
     let multisig: multisig::Client =
         client::ContractClient::new(deps.querier, &config.multisig).into();
@@ -305,21 +275,13 @@ pub fn update_verifier_set(
                 .save(deps.storage, &payload_id)
                 .map_err(ContractError::from)?;
 
-            let chain_codec: chain_codec_api::Client =
-                client::ContractClient::new(deps.querier, &config.chain_codec).into();
-
-            #[cfg(feature = "receive-payload")]
-            let digest = chain_codec
-                .payload_digest(
-                    cur_verifier_set.clone(),
-                    payload.clone(),
-                    vec![], // empty because we don't have message payloads here and only fill this field for proof construction
-                )
-                .change_context(ContractError::FailedToQueryChainCodec)?;
-            #[cfg(not(feature = "receive-payload"))]
-            let digest = chain_codec
-                .payload_digest(cur_verifier_set.clone(), payload.clone())
-                .change_context(ContractError::FailedToQueryChainCodec)?;
+            let digest = query_payload_digest(
+                deps.as_ref(),
+                &config,
+                cur_verifier_set.clone(),
+                payload.clone(),
+                vec![], // empty because we don't have message payloads here and only fill this field for proof construction
+            )?;
 
             let multisig: multisig::Client =
                 client::ContractClient::new(deps.querier, &config.multisig).into();

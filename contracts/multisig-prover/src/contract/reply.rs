@@ -3,6 +3,7 @@ use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseRep
 
 use crate::error::ContractError;
 use crate::events::Event;
+use crate::flags::notify_signing_session;
 use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -30,41 +31,15 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let payload = PAYLOAD.load(deps.storage, &payload_id)?;
             let msg_ids = payload.message_ids().unwrap_or_default();
 
-            #[allow(unused_mut)]
-            let mut response = Response::new();
-
-            #[cfg(feature = "notify-signing-session")]
-            {
-                let verifier_set = crate::state::CURRENT_VERIFIER_SET
-                    .may_load(deps.storage)
-                    .map_err(ContractError::from)?
-                    .ok_or(ContractError::NoVerifierSet)?;
-
-                let chain_codec: chain_codec_api::Client =
-                    client::ContractClient::new(deps.querier, &config.chain_codec).into();
-
-                #[cfg(feature = "receive-payload")]
-                let notify_msg = {
-                    // full message payloads are only stored during proof construction.
-                    // if this is a reply to a verifier set update, there are no full message payloads,
-                    // so we use `may_load` and pass an empty vec in that case
-                    let full_message_payloads =
-                        crate::state::FULL_MESSAGE_PAYLOADS.may_load(deps.storage, &payload_id)?;
-                    chain_codec.notify_signing_session(
-                        multisig_session_id,
-                        verifier_set,
-                        payload,
-                        full_message_payloads.unwrap_or_default(),
-                    )
-                };
-                #[cfg(not(feature = "receive-payload"))]
-                let notify_msg =
-                    chain_codec.notify_signing_session(multisig_session_id, verifier_set, payload);
-
-                response = response.add_message(notify_msg);
-            }
-
-            response = response.add_event(Event::ProofUnderConstruction {
+            let response = notify_signing_session(
+                deps,
+                &config,
+                Response::new(),
+                &payload_id,
+                payload,
+                multisig_session_id,
+            )?
+            .add_event(Event::ProofUnderConstruction {
                 destination_chain: config.chain_name,
                 msg_ids,
                 payload_id,

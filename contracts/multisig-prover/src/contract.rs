@@ -75,7 +75,9 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         #[cfg(not(feature = "receive-payload"))]
-        ExecuteMsg::ConstructProof(message_ids) => Ok(execute::construct_proof(deps, message_ids)?),
+        ExecuteMsg::ConstructProof(message_ids) => {
+            Ok(execute::construct_proof(deps, message_ids, Vec::new())?)
+        }
         #[cfg(feature = "receive-payload")]
         ExecuteMsg::ConstructProof {
             message_ids,
