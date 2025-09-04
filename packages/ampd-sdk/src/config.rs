@@ -58,10 +58,15 @@ pub enum Error {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
+    #[serde(default = "default_ampd_url")]
     pub ampd_url: Url,
     pub chain_name: ChainName,
     #[serde(default)]
     pub event_handler: event::event_handler::Config,
+}
+
+fn default_ampd_url() -> Url {
+    Url::new_sensitive("http://127.0.0.1:9090").unwrap()
 }
 
 impl Config {
@@ -248,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn config_load_fails_if_field_is_missing() {
+    fn config_load_fails_if_required_field_is_missing() {
         let ampd_url = "http://localhost:8080";
 
         let temp_dir = TempDir::new().unwrap();
@@ -265,5 +270,30 @@ mod tests {
             .build();
 
         assert_err_contains!(res, Error, Error::Build);
+    }
+
+    #[test]
+    fn config_loads_default_values_when_missing() {
+        let chain_name = "some-chain";
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("custom-config.toml");
+        let content = format!(
+            r#"
+            chain_name="{chain_name}"
+            "#
+        );
+        fs::write(&config_path, content).unwrap();
+
+        let config = Config::builder()
+            .add_file_source(config_path.to_str().unwrap(), true)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.ampd_url, default_ampd_url());
+        assert_eq!(
+            config.event_handler,
+            event::event_handler::Config::default()
+        );
     }
 }
