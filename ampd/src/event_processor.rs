@@ -5,6 +5,7 @@ use cosmrs::Any;
 use error_stack::{Context, Report, Result};
 use events::Event;
 use futures::{future, pin_mut, Stream, StreamExt, TryStreamExt};
+use prost::encoding::{decode_key, decode_varint, WireType};
 use report::LoggableError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -138,11 +139,9 @@ fn is_avalanche_evm_handler(handler_label: &str) -> bool {
 }
 
 fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
-    use prost::encoding::{decode_key, decode_varint, WireType};
-
     let mut result = Vec::new();
     let mut buf = bytes;
-    let mut field_count = 0;
+    let mut field_count: usize = 0;
 
     while !buf.is_empty() && field_count < 20 {
         if let Ok((field_num, wire_type)) = decode_key(&mut buf) {
@@ -154,18 +153,22 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
                 }
                 WireType::LengthDelimited => {
                     if let Ok(len) = decode_varint(&mut buf) {
-                        if buf.len() >= len as usize {
-                            let data = &buf[..len as usize];
-                            buf = &buf[len as usize..];
+                        if let Ok(len_usize) = usize::try_from(len) {
+                            if buf.len() >= len_usize {
+                                let data = &buf[..len_usize];
+                                buf = &buf[len_usize..];
 
-                            if let Ok(s) = String::from_utf8(data.to_vec()) {
-                                result.push(format!("Field {}: String = \"{}\"", field_num, s));
+                                if let Ok(s) = String::from_utf8(data.to_vec()) {
+                                    result.push(format!("Field {}: String = \"{}\"", field_num, s));
+                                } else {
+                                    result.push(format!(
+                                        "Field {}: Bytes = {} bytes",
+                                        field_num,
+                                        data.len()
+                                    ));
+                                }
                             } else {
-                                result.push(format!(
-                                    "Field {}: Bytes = {} bytes",
-                                    field_num,
-                                    data.len()
-                                ));
+                                break;
                             }
                         } else {
                             break;
@@ -174,16 +177,16 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
                 }
                 WireType::SixtyFourBit => {
                     if buf.len() >= 8 {
-                        let value = u64::from_le_bytes([
-                            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-                        ]);
+                        let bytes = &buf[..8];
+                        let value = u64::from_le_bytes(bytes.try_into().unwrap());
                         buf = &buf[8..];
                         result.push(format!("Field {}: 64-bit = {}", field_num, value));
                     }
                 }
                 WireType::ThirtyTwoBit => {
                     if buf.len() >= 4 {
-                        let value = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                        let bytes = &buf[..4];
+                        let value = u32::from_le_bytes(bytes.try_into().unwrap());
                         buf = &buf[4..];
                         result.push(format!("Field {}: 32-bit = {}", field_num, value));
                     }
@@ -193,7 +196,7 @@ fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::E
         } else {
             break;
         }
-        field_count += 1;
+        field_count = field_count.saturating_add(1);
     }
 
     Ok(result.join("\n"))
