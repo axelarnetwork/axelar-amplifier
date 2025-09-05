@@ -372,17 +372,22 @@ mod tests {
 
     #[test]
     fn test_voting_verifier_event_vs_legacy_event_parsing() {
-        use events::Event as EventsEvent;
-        use voting_verifier::legacy_events::{PollStarted, PollMetadata, TxEventConfirmation as LegacyTxEventConfirmation};
-        use voting_verifier::events::{Event as VotingVerifierEvent, TxEventConfirmation};
-        use router_api::chain_name;
-        use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, voting::PollId, nonempty::String};
+        use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+        use axelar_wasm_std::nonempty::String;
+        use axelar_wasm_std::voting::PollId;
         use cosmwasm_std::Addr;
+        use events::Event as EventsEvent;
+        use router_api::chain_name;
+        use voting_verifier::events::{Event as VotingVerifierEvent, TxEventConfirmation};
+        use voting_verifier::legacy_events::{
+            PollMetadata, PollStarted, TxEventConfirmation as LegacyTxEventConfirmation,
+        };
 
         let participants = participants(3, None);
         let expires_at = 100u64;
         let poll_id: PollId = "100".parse().unwrap();
-        let source_gateway_address: String = String::from_str("0x4f4495243837681061c4743b74eedf548d5686a5").unwrap();
+        let source_gateway_address: String =
+            String::from_str("0x4f4495243837681061c4743b74eedf548d5686a5").unwrap();
         let confirmation_height = 15u64;
 
         let msg_ids = [
@@ -396,7 +401,10 @@ mod tests {
             source_gateway_address: source_gateway_address.clone(),
             confirmation_height,
             expires_at,
-            participants: participants.iter().map(|addr| Addr::unchecked(addr.to_string())).collect(),
+            participants: participants
+                .iter()
+                .map(|addr| Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)]
             messages: vec![
                 TxEventConfirmation {
@@ -418,7 +426,8 @@ mod tests {
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
             ],
-        }.non_generic();
+        }
+        .non_generic();
 
         let legacy_event = PollStarted::Messages {
             messages: vec![
@@ -447,52 +456,89 @@ mod tests {
                 source_gateway_address: source_gateway_address.clone(),
                 confirmation_height,
                 expires_at,
-                participants: participants.iter().map(|addr| Addr::unchecked(addr.to_string())).collect(),
+                participants: participants
+                    .iter()
+                    .map(|addr| Addr::unchecked(addr.to_string()))
+                    .collect(),
             },
         };
 
         // Convert both to structured events
-        let current_structured_event: EventsEvent = into_structured_event(
-            current_event,
-            &TMAddress::random(PREFIX),
-        );
+        let current_structured_event: EventsEvent =
+            into_structured_event(current_event, &TMAddress::random(PREFIX));
 
-        let legacy_structured_event: EventsEvent = into_structured_event(
-            legacy_event,
-            &TMAddress::random(PREFIX),
-        );
+        let legacy_structured_event: EventsEvent =
+            into_structured_event(legacy_event, &TMAddress::random(PREFIX));
 
         // Try to deserialize both into PollStartedEvent
         let current_result: Result<PollStartedEvent, _> = current_structured_event.try_into();
         let legacy_result: Result<PollStartedEvent, _> = legacy_structured_event.try_into();
 
         // Both should succeed
-        assert!(current_result.is_ok(), "Current event should deserialize successfully");
-        assert!(legacy_result.is_ok(), "Legacy event should deserialize successfully");
+        assert!(
+            current_result.is_ok(),
+            "Current event should deserialize successfully"
+        );
+        assert!(
+            legacy_result.is_ok(),
+            "Legacy event should deserialize successfully"
+        );
 
         let current_poll_started = current_result.unwrap();
         let legacy_poll_started = legacy_result.unwrap();
 
         // Both should produce equal PollStartedEvent instances
         assert_eq!(current_poll_started.poll_id, legacy_poll_started.poll_id);
-        assert_eq!(current_poll_started.source_chain, legacy_poll_started.source_chain);
-        assert_eq!(current_poll_started.source_gateway_address, legacy_poll_started.source_gateway_address);
-        assert_eq!(current_poll_started.confirmation_height, legacy_poll_started.confirmation_height);
-        assert_eq!(current_poll_started.expires_at, legacy_poll_started.expires_at);
-        assert_eq!(current_poll_started.messages.len(), legacy_poll_started.messages.len());
-        assert_eq!(current_poll_started.participants.len(), legacy_poll_started.participants.len());
+        assert_eq!(
+            current_poll_started.source_chain,
+            legacy_poll_started.source_chain
+        );
+        assert_eq!(
+            current_poll_started.source_gateway_address,
+            legacy_poll_started.source_gateway_address
+        );
+        assert_eq!(
+            current_poll_started.confirmation_height,
+            legacy_poll_started.confirmation_height
+        );
+        assert_eq!(
+            current_poll_started.expires_at,
+            legacy_poll_started.expires_at
+        );
+        assert_eq!(
+            current_poll_started.messages.len(),
+            legacy_poll_started.messages.len()
+        );
+        assert_eq!(
+            current_poll_started.participants.len(),
+            legacy_poll_started.participants.len()
+        );
 
         // Compare messages
-        for (current_msg, legacy_msg) in current_poll_started.messages.iter().zip(legacy_poll_started.messages.iter()) {
-            assert_eq!(current_msg.message_id.to_string(), legacy_msg.message_id.to_string());
-            assert_eq!(current_msg.destination_address, legacy_msg.destination_address);
+        for (current_msg, legacy_msg) in current_poll_started
+            .messages
+            .iter()
+            .zip(legacy_poll_started.messages.iter())
+        {
+            assert_eq!(
+                current_msg.message_id.to_string(),
+                legacy_msg.message_id.to_string()
+            );
+            assert_eq!(
+                current_msg.destination_address,
+                legacy_msg.destination_address
+            );
             assert_eq!(current_msg.destination_chain, legacy_msg.destination_chain);
             assert_eq!(current_msg.source_address, legacy_msg.source_address);
             assert_eq!(current_msg.payload_hash, legacy_msg.payload_hash);
         }
 
         // Compare participants
-        for (current_participant, legacy_participant) in current_poll_started.participants.iter().zip(legacy_poll_started.participants.iter()) {
+        for (current_participant, legacy_participant) in current_poll_started
+            .participants
+            .iter()
+            .zip(legacy_poll_started.participants.iter())
+        {
             assert_eq!(current_participant, legacy_participant);
         }
     }

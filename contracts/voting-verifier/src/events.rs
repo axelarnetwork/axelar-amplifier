@@ -210,7 +210,7 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message, cosmos_addr, chain_name, address};
+    use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
     use crate::Event;

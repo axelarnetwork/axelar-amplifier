@@ -376,9 +376,12 @@ mod tests {
         VotingVerifierEvent::MessagesPollStarted {
             poll_id: "100".parse().unwrap(),
             source_chain: chain_name!("stellar"),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([1; 32]).into()).to_string()
-                .try_into()
-                .unwrap(),
+            source_gateway_address: ScAddress::Contract(
+                stellar_xdr::curr::Hash::from([1; 32]).into(),
+            )
+            .to_string()
+            .try_into()
+            .unwrap(),
             confirmation_height: 15,
             expires_at,
             participants: participants
