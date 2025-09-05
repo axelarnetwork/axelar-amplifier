@@ -389,6 +389,7 @@ mod tests {
         let source_gateway_address: String =
             String::from_str("0x4f4495243837681061c4743b74eedf548d5686a5").unwrap();
         let confirmation_height = 15u64;
+        let avalanche = chain_name!("avalanche");
 
         let msg_ids = [
             HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
@@ -396,7 +397,7 @@ mod tests {
         ];
 
         let current_event = VotingVerifierEvent::MessagesPollStarted {
-            poll_id: poll_id.clone(),
+            poll_id: poll_id,
             source_chain: chain_name!(ETHEREUM),
             source_gateway_address: source_gateway_address.clone(),
             confirmation_height,
@@ -421,7 +422,7 @@ mod tests {
                     event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
-                    destination_chain: chain_name!(ETHEREUM),
+                    destination_chain: avalanche.clone(),
                     destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
@@ -441,17 +442,17 @@ mod tests {
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
                 LegacyTxEventConfirmation {
-                    tx_id: msg_ids[0].tx_hash_as_hex(),
+                    tx_id: msg_ids[1].tx_hash_as_hex(),
                     event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
-                    destination_chain: chain_name!(ETHEREUM),
+                    destination_chain: avalanche.clone(),
                     destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
             ],
             metadata: PollMetadata {
-                poll_id: poll_id.clone(),
+                poll_id: poll_id,
                 source_chain: chain_name!(ETHEREUM),
                 source_gateway_address: source_gateway_address.clone(),
                 confirmation_height,
