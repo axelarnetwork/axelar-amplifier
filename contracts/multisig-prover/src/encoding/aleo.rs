@@ -159,7 +159,7 @@ fn encode_execute_data_inner<N: Network>(
                 .chain(std::iter::repeat(Message::<N>::default()))
                 .take(48);
 
-            // Its safe to unwrap because we are taking 48 elements
+            // It's safe to unwrap because we are taking 48 elements
             let array1: [Message<N>; 24] = std::array::from_fn(|_| messages.next().unwrap());
             let array2: [Message<N>; 24] = std::array::from_fn(|_| messages.next().unwrap());
 
@@ -212,7 +212,7 @@ mod tests {
     use multisig::msg::Signer;
     use router_api::ChainNameRaw;
     use snarkos_account::Account;
-    use snarkvm::prelude::{Address, FromBytes as _, ToBytes, ToFields};
+    use snarkvm::prelude::{Address, FromBytes as _, PrivateKey, ToBytes, ToFields};
 
     use super::*;
 
@@ -243,18 +243,17 @@ mod tests {
     // They are useful for manually verifying the function.
     // APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo
     // aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss
-    fn aleo_sig(digest: [u8; 32]) -> SignerWithSig {
-        let group_hash = Group::<CurrentNetwork>::from_bytes_le(&digest).unwrap();
+    fn aleo_sig<N: Network>(digest: [u8; 32], private_key: PrivateKey<N>) -> SignerWithSig {
+        let group_hash = Group::<N>::from_bytes_le(&digest).unwrap();
 
-        let aleo_account =
-            Account::new(&mut rand::thread_rng()).expect("Failed to create Aleo account");
+        let aleo_account = Account::try_from(private_key).unwrap();
         let encoded_signature = aleo_account
             .sign(&group_hash.to_fields().unwrap(), &mut rand::thread_rng())
             .and_then(|signature| signature.to_bytes_le())
             .unwrap()
             .into();
 
-        let verify_key: Address<CurrentNetwork> = aleo_account.address();
+        let verify_key: Address<N> = aleo_account.address();
         let verify_key_encoded = verify_key.to_bytes_le().unwrap().into();
 
         let signer = Signer {
@@ -304,7 +303,11 @@ mod tests {
         let _execute_data = encode_execute_data(
             &network,
             &verifier_set,
-            vec![aleo_sig(digest)],
+            vec![aleo_sig::<CurrentNetwork>(
+                digest,
+                PrivateKey::from_str("APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo")
+                    .unwrap(),
+            )],
             &Payload::Messages(vec![message()]),
         )
         .unwrap();
