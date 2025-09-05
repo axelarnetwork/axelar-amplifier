@@ -130,7 +130,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use multisig_prover_api::encoding::Encoder;
     use prost::Message;
-    use router_api::CrossChainId;
+    use router_api::{cosmos_addr, CrossChainId};
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
@@ -146,7 +146,6 @@ mod tests {
 
     pub fn setup_test_case() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
-        let api = deps.api;
 
         deps.querier.update_wasm(mock_querier_handler(
             test_data::operators(),
@@ -156,15 +155,15 @@ mod tests {
         instantiate(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             InstantiateMsg {
-                admin_address: api.addr_make(ADMIN).to_string(),
-                governance_address: api.addr_make(GOVERNANCE).to_string(),
-                gateway_address: api.addr_make(GATEWAY_ADDRESS).to_string(),
-                multisig_address: api.addr_make(MULTISIG_ADDRESS).to_string(),
-                coordinator_address: api.addr_make(COORDINATOR_ADDRESS).to_string(),
-                service_registry_address: api.addr_make(SERVICE_REGISTRY_ADDRESS).to_string(),
-                voting_verifier_address: api.addr_make(VOTING_VERIFIER_ADDRESS).to_string(),
+                admin_address: cosmos_addr!(ADMIN).to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                gateway_address: cosmos_addr!(GATEWAY_ADDRESS).to_string(),
+                multisig_address: cosmos_addr!(MULTISIG_ADDRESS).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
+                service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: cosmos_addr!(VOTING_VERIFIER_ADDRESS).to_string(),
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
@@ -186,7 +185,7 @@ mod tests {
         execute(
             deps,
             mock_env(),
-            message_info(&MockApi::default().addr_make(ADMIN), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             msg,
         )
     }
@@ -234,7 +233,7 @@ mod tests {
         execute(
             deps,
             mock_env(),
-            message_info(&MockApi::default().addr_make(RELAYER), &[]),
+            message_info(&cosmos_addr!(RELAYER), &[]),
             msg,
         )
     }
@@ -308,15 +307,14 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
-        let api = MockApi::default();
-        let instantiator = api.addr_make("instantiator");
-        let admin = api.addr_make("admin");
-        let governance = api.addr_make("governance");
-        let gateway_address = api.addr_make("gateway_address");
-        let multisig_address = api.addr_make("multisig_address");
-        let coordinator_address = api.addr_make("coordinator_address");
-        let service_registry_address = api.addr_make("service_registry_address");
-        let voting_verifier_address = api.addr_make("voting_verifier");
+        let instantiator = cosmos_addr!("instantiator");
+        let admin = cosmos_addr!(ADMIN);
+        let governance = cosmos_addr!(GOVERNANCE);
+        let gateway_address = cosmos_addr!("gateway_address");
+        let multisig_address = cosmos_addr!("multisig_address");
+        let coordinator_address = cosmos_addr!("coordinator_address");
+        let service_registry_address = cosmos_addr!("service_registry_address");
+        let voting_verifier_address = cosmos_addr!(VOTING_VERIFIER_ADDRESS);
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -423,18 +421,17 @@ mod tests {
     #[test]
     fn test_update_verifier_set_from_non_admin_or_governance_should_fail() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make("some random address"), &[]),
+            message_info(&cosmos_addr!("some random address"), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
             axelar_wasm_std::error::ContractError::from(
-                permission_control::Error::PermissionDenied {
+                permission_control::Error::GeneralPermissionDenied {
                     expected: Permission::Elevated.into(),
                     actual: Permission::NoPrivilege.into()
                 }
@@ -446,11 +443,10 @@ mod tests {
     #[test]
     fn test_update_verifier_set_from_governance_should_succeed() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(GOVERNANCE), &[]),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
@@ -459,11 +455,10 @@ mod tests {
     #[test]
     fn test_update_verifier_set_from_admin_should_succeed() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute(
             deps.as_mut(),
             mock_env(),
-            message_info(&api.addr_make(ADMIN), &[]),
+            message_info(&cosmos_addr!(ADMIN), &[]),
             ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
@@ -587,7 +582,6 @@ mod tests {
     #[test]
     fn test_confirm_verifier_set_unconfirmed() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
@@ -602,7 +596,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -614,7 +608,6 @@ mod tests {
     #[test]
     fn test_confirm_verifier_set_wrong_set() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
@@ -633,7 +626,7 @@ mod tests {
             VerificationStatus::Unknown,
         ));
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -645,9 +638,8 @@ mod tests {
     #[test]
     fn confirm_verifier_no_update_in_progress_should_fail() {
         let mut deps = setup_test_case();
-        let api = deps.api;
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -715,10 +707,9 @@ mod tests {
     #[test]
     fn non_governance_should_not_be_able_to_call_update_signing_threshold() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_signing_threshold(
             deps.as_mut(),
-            api.addr_make("random"),
+            cosmos_addr!("random"),
             Threshold::try_from((6, 10)).unwrap().try_into().unwrap(),
         );
         assert!(res.is_err());
@@ -727,7 +718,7 @@ mod tests {
     #[test]
     fn governance_should_be_able_to_call_update_signing_threshold() {
         let mut deps = setup_test_case();
-        let governance = deps.api.addr_make(GOVERNANCE);
+        let governance = cosmos_addr!(GOVERNANCE);
         let res = execute_update_signing_threshold(
             deps.as_mut(),
             governance,
@@ -752,7 +743,7 @@ mod tests {
             });
         let new_threshold = initial_threshold.checked_add(Uint128::one()).unwrap();
 
-        let governance = MockApi::default().addr_make(GOVERNANCE);
+        let governance = cosmos_addr!(GOVERNANCE);
         execute_update_signing_threshold(
             deps,
             governance.clone(),
@@ -787,7 +778,6 @@ mod tests {
     #[test]
     fn update_signing_threshold_should_change_future_threshold() {
         let mut deps = setup_test_case();
-        let api = deps.api;
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
@@ -797,7 +787,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let governance = api.addr_make(GOVERNANCE);
+        let governance = cosmos_addr!(GOVERNANCE);
         confirm_verifier_set(deps.as_mut(), governance).unwrap();
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -810,7 +800,6 @@ mod tests {
     #[test]
     fn should_confirm_new_threshold() {
         let mut deps = setup_test_case();
-        let api = deps.api;
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
@@ -820,7 +809,7 @@ mod tests {
 
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let res = confirm_verifier_set(deps.as_mut(), api.addr_make("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), cosmos_addr!(RELAYER));
         assert!(res.is_ok());
 
         let verifier_set = query_verifier_set(deps.as_ref())
@@ -902,10 +891,9 @@ mod tests {
     #[test]
     fn non_governance_should_not_be_able_to_call_update_admin() {
         let mut deps = setup_test_case();
-        let api = deps.api;
         let res = execute_update_admin(
             deps.as_mut(),
-            api.addr_make("unauthorized"),
+            cosmos_addr!("unauthorized"),
             "new admin".to_string(),
         );
         assert!(res.is_err());
@@ -914,12 +902,11 @@ mod tests {
     #[test]
     fn governance_should_be_able_to_call_update_admin() {
         let mut deps = setup_test_case();
-        let api = deps.api;
-        let new_admin = api.addr_make("new admin");
+        let new_admin = cosmos_addr!("new admin");
 
         let res = execute_update_admin(
             deps.as_mut(),
-            api.addr_make(GOVERNANCE),
+            cosmos_addr!(GOVERNANCE),
             new_admin.to_string(),
         );
         assert!(res.is_ok(), "{:?}", res);
@@ -930,7 +917,7 @@ mod tests {
         );
 
         assert_eq!(
-            permission_control::sender_role(deps.as_ref().storage, &api.addr_make(ADMIN)).unwrap(),
+            permission_control::sender_role(deps.as_ref().storage, &cosmos_addr!(ADMIN)).unwrap(),
             Permission::NoPrivilege.into()
         );
     }

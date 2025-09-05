@@ -215,7 +215,7 @@ pub fn verify_verifier_set(
     }
 }
 
-pub fn get_type_signature_contract_call() -> Result<TypeSignature, Error> {
+pub fn type_signature_contract_call() -> Result<TypeSignature, Error> {
     let tuple_type_contract_call = TupleTypeSignature::try_from(vec![
         (
             ClarityName::from(CLARITY_NAME_TYPE),
@@ -250,7 +250,7 @@ pub fn get_type_signature_contract_call() -> Result<TypeSignature, Error> {
     Ok(TypeSignature::TupleType(tuple_type_contract_call))
 }
 
-pub fn get_type_signature_signers_rotated() -> Result<TypeSignature, Error> {
+pub fn type_signature_signers_rotated() -> Result<TypeSignature, Error> {
     let tutple_type_signers_rotated = TupleTypeSignature::try_from(vec![
         (
             ClarityName::from(CLARITY_NAME_TYPE),
@@ -278,6 +278,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
+    use router_api::chain_name;
     use tokio::test as async_test;
 
     use crate::handlers::stacks_verify_msg::Message;
@@ -286,7 +287,7 @@ mod tests {
         ContractLog, ContractLogValue, Transaction, TransactionEvents,
     };
     use crate::stacks::verifier::{
-        get_type_signature_contract_call, get_type_signature_signers_rotated, verify_message,
+        type_signature_contract_call, type_signature_signers_rotated, verify_message,
         verify_verifier_set, SIGNERS_ROTATED_TYPE,
     };
     use crate::types::Hash;
@@ -295,7 +296,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_tx_id_does_not_match() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         msg.message_id.tx_hash = Hash::random().into();
 
@@ -308,7 +309,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_no_log_for_event_index() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         msg.message_id.event_index = 2;
 
@@ -321,7 +322,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_event_index_does_not_match() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         msg.message_id.event_index = 0;
 
@@ -334,7 +335,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_not_gateway() {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -350,7 +351,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_invalid_topic() {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -366,7 +367,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_invalid_type() {
         let (gateway_address, mut tx, msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -388,7 +389,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_invalid_sender() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         msg.source_address =
             PrincipalData::parse("SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway")
@@ -403,9 +404,9 @@ mod tests {
     #[async_test]
     async fn should_not_verify_invalid_destination_chain() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
-        msg.destination_chain = "other".parse().unwrap();
+        msg.destination_chain = chain_name!("other");
 
         assert_eq!(
             verify_message(&gateway_address, &tx, &msg, &tuple_type_contract_call),
@@ -416,7 +417,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_invalid_destination_address() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         msg.destination_address = "other".parse().unwrap();
 
@@ -429,7 +430,7 @@ mod tests {
     #[async_test]
     async fn should_not_verify_invalid_payload_hash() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         msg.payload_hash = "0xaa38573718f5cd6d7e5a90adcdebd28b097f99574ad6febffea9a40adb17f4aa"
             .parse()
@@ -444,7 +445,7 @@ mod tests {
     #[async_test]
     async fn should_verify_msg() {
         let (gateway_address, tx, msg) = get_matching_msg_and_tx();
-        let tuple_type_contract_call = get_type_signature_contract_call().unwrap();
+        let tuple_type_contract_call = type_signature_contract_call().unwrap();
 
         assert_eq!(
             verify_message(&gateway_address, &tx, &msg, &tuple_type_contract_call),
@@ -456,7 +457,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         verifier_set.message_id.tx_hash = Hash::random().into();
 
@@ -474,7 +475,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_no_log_for_event_index() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         verifier_set.message_id.event_index = 2;
 
@@ -492,7 +493,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_event_index_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         verifier_set.message_id.event_index = 0;
 
@@ -510,7 +511,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_not_from_gateway() {
         let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -531,7 +532,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_invalid_topic() {
         let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let contract_call = transaction_events.contract_log.as_mut().unwrap();
@@ -552,7 +553,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_invalid_type() {
         let (gateway_address, mut tx, verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         let transaction_events = tx.events.get_mut(1).unwrap();
         let signers_rotated = transaction_events.contract_log.as_mut().unwrap();
@@ -579,7 +580,7 @@ mod tests {
     #[test]
     fn should_not_verify_worker_set_if_verifier_set_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         verifier_set.verifier_set.threshold = Uint128::from(10u128);
         assert_eq!(
@@ -596,7 +597,7 @@ mod tests {
     #[test]
     fn should_verify_verifier_set() {
         let (gateway_address, tx, verifier_set) = get_matching_verifier_set_and_tx();
-        let tuple_type_signers_rotated = get_type_signature_signers_rotated().unwrap();
+        let tuple_type_signers_rotated = type_signature_signers_rotated().unwrap();
 
         assert_eq!(
             verify_verifier_set(
@@ -620,7 +621,7 @@ mod tests {
             message_id: message_id.clone(),
             source_address: PrincipalData::parse("ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG")
                 .unwrap(),
-            destination_chain: "Destination".parse().unwrap(),
+            destination_chain: chain_name!("Destination"),
             destination_address: "0x123abc".to_string(),
             payload_hash: "0x9ed02951dbf029855b46b102cc960362732569e83d00a49a7575d7aed229890e"
                 .parse()

@@ -25,7 +25,7 @@ use crate::monitoring::metrics;
 use crate::stacks::error::Error as StacksError;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
-use crate::stacks::verifier::{get_type_signature_contract_call, verify_message};
+use crate::stacks::verifier::{type_signature_contract_call, verify_message};
 use crate::types::{Hash, TMAddress};
 
 type CustomResult<T> = error_stack::Result<T, Error>;
@@ -72,7 +72,7 @@ impl Handler {
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
     ) -> error_stack::Result<Self, StacksError> {
-        let type_signature_contract_call = get_type_signature_contract_call()?;
+        let type_signature_contract_call = type_signature_contract_call()?;
 
         Ok(Self {
             chain_name,
@@ -208,7 +208,6 @@ impl EventHandler for Handler {
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -217,7 +216,7 @@ mod tests {
     use cosmwasm_std;
     use error_stack::Result;
     use ethers_core::types::H160;
-    use router_api::ChainName;
+    use router_api::{address, chain_name};
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{Event, TxEventConfirmation};
@@ -229,6 +228,8 @@ mod tests {
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
+
+    const STACKS: &str = "stacks";
 
     #[test]
     fn stacks_should_deserialize_poll_started_event() {
@@ -298,7 +299,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("other").unwrap(),
+            chain_name!("other"),
             worker,
             voting_verifier,
             client,
@@ -322,7 +323,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             voting_verifier,
             client,
@@ -354,7 +355,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -388,7 +389,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -404,7 +405,7 @@ mod tests {
             metric,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: ChainName::from_str("stacks").unwrap(),
+                chain_name: chain_name!(STACKS),
             }
         );
 
@@ -434,7 +435,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -459,7 +460,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             client,
@@ -474,7 +475,7 @@ mod tests {
 
         Event::MessagesPollStarted {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stacks".parse().unwrap(),
+                source_chain: chain_name!(STACKS),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),
@@ -491,8 +492,8 @@ mod tests {
                 tx_id: msg_id.tx_hash_as_hex(),
                 event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
-                source_address: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM".parse().unwrap(),
-                destination_chain: "ethereum".parse().unwrap(),
+                source_address: address!("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"),
+                destination_chain: chain_name!("ethereum"),
                 destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
                 payload_hash: [1; 32],
             }],

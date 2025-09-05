@@ -183,6 +183,7 @@ mod tests {
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
     use events::Event;
+    use router_api::chain_name;
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -416,7 +417,7 @@ mod tests {
         let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
         VotingVerifierEvent::MessagesPollStarted {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "sui".parse().unwrap(),
+                source_chain: chain_name!("sui"),
                 source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
                     .unwrap()
                     .to_string()
@@ -438,7 +439,7 @@ mod tests {
                     .to_string()
                     .parse()
                     .unwrap(),
-                destination_chain: "ethereum".parse().unwrap(),
+                destination_chain: chain_name!("ethereum"),
                 destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                 payload_hash: [2; 32],
             }],

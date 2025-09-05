@@ -6,6 +6,11 @@ use cosmwasm_std::testing::{mock_dependencies, MockApi, MockStorage};
 use cosmwasm_std::{Addr, DepsMut, MessageInfo, Storage};
 use error_stack::{report, Report};
 use msgs_derive::{ensure_permissions, Permissions};
+use router_api::cosmos_addr;
+
+const REGULAR_USER: &str = "regular user";
+const ADMIN: &str = "admin";
+const GOVERNANCE: &str = "governance";
 
 #[cw_serde]
 #[derive(Permissions)]
@@ -74,10 +79,11 @@ pub fn specific_permission(
     specific_name: &str,
 ) -> impl FnOnce(
     &dyn Storage,
+    &Addr,
     &TestMsg3,
-) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error>
+) -> error_stack::Result<bool, axelar_wasm_std::permission_control::Error>
        + '_ {
-    move |_, _| error_stack::Result::Ok(MockApi::default().addr_make(specific_name))
+    move |_, addr, _| error_stack::Result::Ok(addr == MockApi::default().addr_make(specific_name))
 }
 
 #[ensure_permissions(proxy(gateway1 = proxy_permission("gateway1"), gateway2 = proxy_permission("gateway2"), gateway3 = proxy_permission("gateway3")), direct(gateway1 = specific_permission("gateway1"), gateway2 = specific_permission("gateway2")))]
@@ -91,9 +97,9 @@ pub fn execute(
 
 #[test]
 fn test_general_ensure_permission() {
-    let no_privilege = MockApi::default().addr_make("regular user");
-    let admin = MockApi::default().addr_make("admin");
-    let governance = MockApi::default().addr_make("governance");
+    let no_privilege = cosmos_addr!(REGULAR_USER);
+    let admin = cosmos_addr!(ADMIN);
+    let governance = cosmos_addr!(GOVERNANCE);
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
@@ -107,14 +113,14 @@ fn test_general_ensure_permission() {
             .ensure_permissions(&storage, &admin)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg::NoPrivilege
             .ensure_permissions(&storage, &governance)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
 
     assert!(matches!(
@@ -122,7 +128,7 @@ fn test_general_ensure_permission() {
             .ensure_permissions(&storage, &no_privilege)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(TestMsg::Admin.ensure_permissions(&storage, &admin).is_ok());
     assert!(matches!(
@@ -130,7 +136,7 @@ fn test_general_ensure_permission() {
             .ensure_permissions(&storage, &governance)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
 
     assert!(matches!(
@@ -138,14 +144,14 @@ fn test_general_ensure_permission() {
             .ensure_permissions(&storage, &no_privilege)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg::Governance
             .ensure_permissions(&storage, &admin)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(TestMsg::Governance
         .ensure_permissions(&storage, &governance)
@@ -166,7 +172,7 @@ fn test_general_ensure_permission() {
             .ensure_permissions(&storage, &no_privilege)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(TestMsg::Elevated(true)
         .ensure_permissions(&storage, &admin)
@@ -184,28 +190,28 @@ fn test_general_ensure_permission() {
             .ensure_permissions(&storage, &governance)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
 }
 
 #[test]
 fn ensure_specific_permissions() {
-    let no_privilege = MockApi::default().addr_make("regular user");
-    let admin = MockApi::default().addr_make("admin");
-    let governance = MockApi::default().addr_make("governance");
+    let no_privilege = cosmos_addr!(REGULAR_USER);
+    let admin = cosmos_addr!(ADMIN);
+    let governance = cosmos_addr!(GOVERNANCE);
 
-    let gateway1_addr = MockApi::default().addr_make("gateway1");
-    let gateway2_addr = MockApi::default().addr_make("gateway2");
-    let gateway3_addr = MockApi::default().addr_make("gateway3");
+    let gateway1_addr = cosmos_addr!("gateway1");
+    let gateway2_addr = cosmos_addr!("gateway2");
+    let gateway3_addr = cosmos_addr!("gateway3");
 
-    let gateway1 = |_: &dyn Storage, _: &TestMsg2| {
-        Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway1"))
+    let gateway1 = |_: &dyn Storage, sender_addr: &Addr, _: &TestMsg2| {
+        Ok::<bool, Report<Error>>(sender_addr == cosmos_addr!("gateway1"))
     };
-    let gateway2 = |_: &dyn Storage, _: &TestMsg2| {
-        Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway2"))
+    let gateway2 = |_: &dyn Storage, sender_addr: &Addr, _: &TestMsg2| {
+        Ok::<bool, Report<Error>>(sender_addr == cosmos_addr!("gateway2"))
     };
-    let gateway3 = |_: &dyn Storage, _: &TestMsg2| {
-        Ok::<Addr, Report<Error>>(MockApi::default().addr_make("gateway3"))
+    let gateway3 = |_: &dyn Storage, sender_addr: &Addr, _: &TestMsg2| {
+        Ok::<bool, Report<Error>>(sender_addr == cosmos_addr!("gateway3"))
     };
 
     let mut storage = MockStorage::new();
@@ -236,21 +242,21 @@ fn ensure_specific_permissions() {
             .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific1
             .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific1
             .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(TestMsg2::Specific1
         .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
@@ -260,14 +266,14 @@ fn ensure_specific_permissions() {
             .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific1
             .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
 
     assert!(matches!(
@@ -275,7 +281,7 @@ fn ensure_specific_permissions() {
             .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(TestMsg2::Specific2
         .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
@@ -291,14 +297,14 @@ fn ensure_specific_permissions() {
             .ensure_permissions(&storage, &gateway2_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific2
             .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
 
     assert!(TestMsg2::Specific3
@@ -312,7 +318,7 @@ fn ensure_specific_permissions() {
             .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(TestMsg2::Specific3
         .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
@@ -329,21 +335,22 @@ fn ensure_specific_permissions() {
             .ensure_permissions(&storage, &no_privilege, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
+
     assert!(matches!(
         TestMsg2::Specific4
             .ensure_permissions(&storage, &admin, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         TestMsg2::Specific4
             .ensure_permissions(&storage, &governance, gateway1, gateway2, gateway3)
             .unwrap_err()
             .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(TestMsg2::Specific4
         .ensure_permissions(&storage, &gateway1_addr, gateway1, gateway2, gateway3)
@@ -355,7 +362,7 @@ fn ensure_specific_permissions() {
         .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
         .is_ok());
 
-    let gateway3 = |_: &dyn Storage, _: &TestMsg2| Err(report!(Error));
+    let gateway3 = |_: &dyn Storage, _: &Addr, _: &TestMsg2| Err(report!(Error));
 
     assert!(matches!(
         TestMsg2::Specific4
@@ -368,13 +375,13 @@ fn ensure_specific_permissions() {
 
 #[test]
 fn ensure_proxy_permissions() {
-    let no_privilege = MockApi::default().addr_make("regular user");
-    let admin = MockApi::default().addr_make("admin");
-    let governance = MockApi::default().addr_make("governance");
+    let no_privilege = cosmos_addr!(REGULAR_USER);
+    let admin = cosmos_addr!(ADMIN);
+    let governance = cosmos_addr!(GOVERNANCE);
 
-    let gateway1_addr = MockApi::default().addr_make("gateway1");
-    let gateway2_addr = MockApi::default().addr_make("gateway2");
-    let gateway3_addr = MockApi::default().addr_make("gateway3");
+    let gateway1_addr = cosmos_addr!("gateway1");
+    let gateway2_addr = cosmos_addr!("gateway2");
+    let gateway3_addr = cosmos_addr!("gateway3");
 
     let mut deps = mock_dependencies();
     permission_control::set_admin(&mut deps.storage, &admin).unwrap();
@@ -476,7 +483,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(execute(
         deps.as_mut(),
@@ -516,7 +523,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -532,7 +539,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -548,7 +555,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
 
     assert!(execute(
@@ -571,7 +578,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -587,7 +594,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -603,7 +610,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -619,7 +626,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(execute(
         deps.as_mut(),
@@ -647,7 +654,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -663,7 +670,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
 
     assert!(execute(
@@ -799,7 +806,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -815,7 +822,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(
@@ -831,7 +838,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::PermissionDenied { .. }
+        permission_control::Error::GeneralPermissionDenied { .. }
     ));
 
     assert!(matches!(
@@ -848,7 +855,7 @@ fn ensure_proxy_permissions() {
         )
         .unwrap_err()
         .current_context(),
-        permission_control::Error::AddressNotWhitelisted { .. }
+        permission_control::Error::SpecificPermissionDenied { .. }
     ));
     assert!(matches!(
         execute(

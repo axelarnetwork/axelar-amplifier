@@ -210,10 +210,12 @@ mod test {
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use multisig::verifier_set::VerifierSet;
-    use router_api::{CrossChainId, Message};
+    use router_api::{CrossChainId, Message, chain_name};
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
     use crate::Event;
+
+    const SOURCE_CHAIN: &str = "sourceChain";
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
@@ -226,9 +228,9 @@ mod test {
     fn generate_msg(msg_id: nonempty::String) -> Message {
         Message {
             cc_id: CrossChainId::new("source-chain", msg_id).unwrap(),
-            source_address: "source-address".parse().unwrap(),
-            destination_chain: "destination-chain".parse().unwrap(),
-            destination_address: "destination-address".parse().unwrap(),
+            source_address: address!("source-address"),
+            destination_chain: chain_name!("destination-chain"),
+            destination_address: address!("destination-address"),
             payload_hash: [0; 32],
         }
     }
@@ -404,8 +406,8 @@ mod test {
             voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             block_expiry: 10u64.try_into().unwrap(),
             confirmation_height: 1,
-            source_chain: "sourceChain".try_into().unwrap(),
-            rewards_contract: api.addr_make("rewardsContract"),
+            source_chain: chain_name!(SOURCE_CHAIN),
+            rewards_contract: cosmos_addr!("rewardsContract"),
             msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
             address_format: AddressFormat::Eip55,
         }
@@ -426,23 +428,23 @@ mod test {
                     tx_id: "txId1".try_into().unwrap(),
                     event_index: 1,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress1".parse().unwrap(),
-                    destination_chain: "destinationChain".try_into().unwrap(),
-                    source_address: "sourceAddress1".parse().unwrap(),
+                    destination_address: address!("destinationAddress1"),
+                    destination_chain: chain_name!("destinationChain"),
+                    source_address: address!("sourceAddress1"),
                     payload_hash: [0; 32],
                 },
                 TxEventConfirmation {
                     tx_id: "txId2".try_into().unwrap(),
                     event_index: 2,
                     message_id: "messageId".try_into().unwrap(),
-                    destination_address: "destinationAddress2".parse().unwrap(),
-                    destination_chain: "destinationChain".try_into().unwrap(),
-                    source_address: "sourceAddress2".parse().unwrap(),
+                    destination_address: address!("destinationAddress2"),
+                    destination_chain: chain_name!("destinationChain"),
+                    source_address: address!("sourceAddress2"),
                     payload_hash: [1; 32],
                 },
             ],
             poll_id: 1.into(),
-            source_chain: "sourceChain".try_into().unwrap(),
+            source_chain: chain_name!(SOURCE_CHAIN),
             source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
             confirmation_height: 1,
             expires_at: 1,
@@ -471,7 +473,7 @@ mod test {
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
             poll_id: 2.into(),
-            source_chain: "sourceChain".try_into().unwrap(),
+            source_chain: chain_name!(SOURCE_CHAIN),
             source_gateway_address: "sourceGatewayAddress".try_into().unwrap(),
             confirmation_height: 1,
             expires_at: 1,
@@ -505,7 +507,7 @@ mod test {
 
         let event_voted: cosmwasm_std::Event = Event::Voted {
             poll_id: 1.into(),
-            voter: api.addr_make("voter"),
+            voter: cosmos_addr!("voter"),
             votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain, Vote::NotFound],
         }
         .non_generic()
@@ -518,7 +520,7 @@ mod test {
     fn event_poll_ended_should_not_change() {
         let event_poll_ended: cosmwasm_std::Event = Event::PollEnded {
             poll_id: 1.into(),
-            source_chain: "sourceChain".try_into().unwrap(),
+            source_chain: chain_name!(SOURCE_CHAIN),
             results: vec![
                 Some(Vote::SucceededOnChain),
                 Some(Vote::FailedOnChain),

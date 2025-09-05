@@ -1,14 +1,16 @@
 Enabled Config:
-Config { bind_address: Some(127.0.0.1:3000) }
+Enabled { bind_address: 127.0.0.1:3000, channel_size: 1000 }
 
 Disabled Config:
-Config { bind_address: None }
+Disabled
 
 Enabled Serialized:
 enabled = true
 bind_address = "127.0.0.1:3000"
+channel_size = 1000
 
 
 Disabled Serialized:
 enabled = false
 bind_address = "127.0.0.1:3000"
+channel_size = 1000

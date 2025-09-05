@@ -419,4 +419,17 @@ mod tests {
 
         pool_task.abort();
     }
+
+    #[tokio::test]
+    async fn request_reconnect_should_succeed() {
+        let (pool, handle) = test_setup().await;
+        let pool_task = tokio::spawn(async move { pool.run(CancellationToken::new()).await });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let result = handle.request_reconnect().await;
+        assert!(result.is_ok());
+
+        pool_task.abort();
+    }
 }

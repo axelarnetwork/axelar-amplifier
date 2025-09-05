@@ -24,7 +24,7 @@ use crate::monitoring;
 use crate::monitoring::metrics;
 use crate::stacks::finalizer::latest_finalized_block_height;
 use crate::stacks::http_client::Client;
-use crate::stacks::verifier::{get_type_signature_signers_rotated, verify_verifier_set};
+use crate::stacks::verifier::{type_signature_signers_rotated, verify_verifier_set};
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -67,7 +67,7 @@ impl Handler {
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
     ) -> error_stack::Result<Self, crate::stacks::error::Error> {
-        let type_signature_signers_rotated = get_type_signature_signers_rotated()?;
+        let type_signature_signers_rotated = type_signature_signers_rotated()?;
 
         Ok(Self {
             chain_name,
@@ -187,7 +187,6 @@ impl EventHandler for Handler {
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::str::FromStr;
 
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
@@ -198,7 +197,7 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::ChainName;
+    use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{Event, VerifierSetConfirmation};
@@ -210,6 +209,8 @@ mod tests {
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
+
+    const STACKS: &str = "stacks";
 
     #[test]
     fn stacks_should_deserialize_verifier_set_poll_started_event() {
@@ -269,7 +270,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -291,7 +292,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             Client::faux(),
@@ -320,7 +321,7 @@ mod tests {
         );
 
         let handler = Handler::new(
-            ChainName::from_str("other").unwrap(),
+            chain_name!("other"),
             verifier,
             voting_verifier,
             client,
@@ -343,7 +344,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             TMAddress::random(PREFIX),
             voting_verifier,
             Client::faux(),
@@ -381,7 +382,7 @@ mod tests {
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             verifier,
             voting_verifier,
             client,
@@ -421,7 +422,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -456,7 +457,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = Handler::new(
-            ChainName::from_str("stacks").unwrap(),
+            chain_name!(STACKS),
             worker,
             voting_verifier,
             client,
@@ -484,7 +485,7 @@ mod tests {
 
         Event::VerifierSetPollStarted {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stacks".parse().unwrap(),
+                source_chain: chain_name!(STACKS),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
                     .parse()
                     .unwrap(),

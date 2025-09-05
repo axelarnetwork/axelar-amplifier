@@ -177,6 +177,7 @@ mod tests {
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
+    use router_api::chain_name;
     use stellar_xdr::curr::ScAddress;
     use tokio::sync::watch;
     use tokio::test as async_test;
@@ -353,8 +354,10 @@ mod tests {
         let msg_id = HexTxHashAndEventIndex::new([1; 32], 0u64);
         VotingVerifierEvent::VerifierSetPollStarted {
                 poll_id: "100".parse().unwrap(),
-                source_chain: "stellar".parse().unwrap(),
-                source_gateway_address: ScAddress::Contract(stellar_xdr::curr::Hash::from([2; 32]))
+                source_chain: chain_name!("stellar"),
+                source_gateway_address: ScAddress::Contract(
+                    stellar_xdr::curr::Hash::from([2; 32]).into(),
+                )
                 .to_string()
                 .try_into()
                 .unwrap(),

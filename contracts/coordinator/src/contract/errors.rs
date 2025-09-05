@@ -14,6 +14,8 @@ pub enum Error {
     SetActiveVerifiers(Addr),
     #[error("failed to register deployment {0} with router")]
     RegisterDeployment(nonempty::String),
+    #[error("deployment {0} not found")]
+    DeploymentNotFound(nonempty::String),
     #[error("failed to instantiate chain contracts")]
     InstantiateChainContracts,
     #[error("main protocol contracts (e.g. the router) are not registered yet")]
@@ -49,4 +51,6 @@ pub enum Error {
     UnableToPersistProtocol,
     #[error("error with router client")]
     RouterClient,
+    #[error("address {0} has incorrect format")]
+    InvalidAddress(String),
 }

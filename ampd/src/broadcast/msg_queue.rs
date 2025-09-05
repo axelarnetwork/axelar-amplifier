@@ -19,8 +19,9 @@ use tracing::{instrument, warn};
 use valuable::Valuable;
 
 use super::{broadcaster, Error, Result};
-use crate::cosmos;
+use crate::monitoring::metrics::Msg;
 use crate::types::TMAddress;
+use crate::{cosmos, monitoring};
 
 type TxResult = std::result::Result<(String, u64), Arc<Report<Error>>>;
 
@@ -174,6 +175,9 @@ where
     /// * `Error::EstimateGas` - If gas estimation fails
     /// * `Error::EnqueueMsg` - If enqueueing fails
     async fn enqueue_with_channel(&mut self, msg: Any) -> Result<oneshot::Receiver<TxResult>> {
+        // TODO: remove this once the commands broadcast through the daemon's broadcaster, so that the sequence does not get out of sync
+        self.broadcaster.reset_sequence().await?;
+
         let (tx, rx) = oneshot::channel();
         let gas = self.broadcaster.estimate_gas(vec![msg.clone()]).await?;
 
@@ -213,6 +217,7 @@ pin_project! {
         deadline: time::Sleep,
         queue: Queue,
         duration: time::Duration,
+        monitoring_client: monitoring::Client,
     }
 }
 
@@ -244,6 +249,7 @@ impl MsgQueue {
         msg_cap: usize,
         gas_cap: Gas,
         duration: time::Duration,
+        monitoring_client: monitoring::Client,
     ) -> (Pin<Box<MsgQueue>>, MsgQueueClient<T>)
     where
         T: cosmos::CosmosClient,
@@ -256,6 +262,7 @@ impl MsgQueue {
                 deadline: time::sleep(duration),
                 queue: Queue::new(gas_cap),
                 duration,
+                monitoring_client,
             }),
             MsgQueueClient { broadcaster, tx },
         )
@@ -286,9 +293,18 @@ impl Stream for MsgQueue {
                         me.deadline.set(time::sleep(*me.duration));
                     }
 
+                    let monitoring_client = me.monitoring_client.clone();
+                    let handle_queue_err = move |msg: QueueMsg, err: Error| {
+                        handle_queue_error(msg, err);
+
+                        monitoring_client
+                            .metrics()
+                            .record_metric(Msg::MessageEnqueueError);
+                    };
+
                     // try to add the message to the queue
                     // if the queue returns Some, it means we have a batch ready to send
-                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_error) {
+                    if let Some(msgs) = me.queue.push_or(msg, handle_queue_err) {
                         return Poll::Ready(Some(msgs));
                     }
                 }
@@ -352,6 +368,7 @@ impl Queue {
                 gas: msg.gas,
                 gas_cap: self.gas_cap,
             };
+
             handle_error(msg, err);
 
             return None;
@@ -404,7 +421,7 @@ mod tests {
     use axelar_wasm_std::{assert_err_contains, err_contains};
     use cosmos_sdk_proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
-    use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
+    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
@@ -412,8 +429,9 @@ mod tests {
     use super::*;
     use crate::broadcast::dec_coin::DecCoin;
     use crate::broadcast::{test_utils, Error};
+    use crate::monitoring::metrics::Msg;
     use crate::types::{random_cosmos_public_key, TMAddress};
-    use crate::PREFIX;
+    use crate::{monitoring, PREFIX};
 
     fn setup_client(address: &TMAddress) -> cosmos::MockCosmosClient {
         let mut cosmos_client = cosmos::MockCosmosClient::new();
@@ -432,6 +450,43 @@ mod tests {
                 }),
             })
         });
+
+        cosmos_client
+    }
+
+    fn setup_client_with_simulate(
+        address: &TMAddress,
+        gas_info: Option<GasInfo>,
+        times: usize,
+    ) -> cosmos::MockCosmosClient {
+        let mut cosmos_client = cosmos::MockCosmosClient::new();
+        let base_account = test_utils::create_base_account(address);
+
+        cosmos_client.expect_balance().return_once(move |_| {
+            Ok(QueryBalanceResponse {
+                balance: Some(Coin {
+                    denom: "uaxl".to_string(),
+                    amount: "1000000".to_string(),
+                }),
+            })
+        });
+        cosmos_client
+            .expect_account()
+            .times(times.saturating_add(1))
+            .returning(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+        cosmos_client
+            .expect_simulate()
+            .times(times)
+            .returning(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: gas_info.clone(),
+                    result: None,
+                })
+            });
 
         cosmos_client
     }
@@ -455,11 +510,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (_msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             1000u64,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         assert_eq!(msg_queue_client.address(), &expected_address);
@@ -472,16 +530,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap,
-                    gas_used: gas_cap,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap,
+            gas_used: gas_cap,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -492,11 +546,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         msg_queue_client
@@ -523,16 +580,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap,
-                    gas_used: gas_cap,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap,
+            gas_used: gas_cap,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -543,11 +596,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
@@ -584,7 +640,24 @@ mod tests {
             .expect_clone()
             .times(client_count)
             .returning(move || {
+                let pub_key = random_cosmos_public_key();
+                let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+                let base_account = BaseAccount {
+                    address: address.to_string(),
+                    pub_key: None,
+                    account_number: 42,
+                    sequence: 10,
+                };
+
                 let mut cosmos_client = cosmos::MockCosmosClient::new();
+                cosmos_client
+                    .expect_account()
+                    .times(msg_count_per_client)
+                    .returning(move |_| {
+                        Ok(QueryAccountResponse {
+                            account: Some(Any::from_msg(&base_account).unwrap()),
+                        })
+                    });
                 cosmos_client
                     .expect_simulate()
                     .times(msg_count_per_client)
@@ -610,11 +683,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
+            monitoring_client,
         );
 
         let handles: Vec<_> = (0..client_count)
@@ -647,13 +723,7 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: None,
-                result: None,
-            })
-        });
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), None, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -664,11 +734,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (_msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             1000u64,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         assert_err_contains!(
@@ -685,16 +758,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().once().returning(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap,
-                    gas_used: gas_cap,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap,
+            gas_used: gas_cap,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -705,11 +774,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
@@ -730,16 +802,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().return_once(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cap / 10,
-                    gas_used: gas_cap / 10,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cap / 10,
+            gas_used: gas_cap / 10,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -750,9 +818,16 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let timeout = time::Duration::from_secs(3);
-        let (mut msg_queue, mut msg_queue_client) =
-            MsgQueue::new_msg_queue_and_client(broadcaster, 10, gas_cap, timeout);
+        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            timeout,
+            monitoring_client,
+        );
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
@@ -784,19 +859,13 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client
-            .expect_simulate()
-            .times(msg_count)
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: gas_cost,
-                        gas_used: gas_cost,
-                    }),
-                    result: None,
-                })
-            });
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
+        });
+
+        let cosmos_client =
+            setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, msg_count);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -807,11 +876,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
+            monitoring_client,
         );
         let handle = tokio::spawn(async move {
             let actual = msg_queue.next().await.unwrap();
@@ -847,16 +919,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client.expect_simulate().once().returning(move |_| {
-            Ok(SimulateResponse {
-                gas_info: Some(GasInfo {
-                    gas_wanted: gas_cost,
-                    gas_used: gas_cost,
-                }),
-                result: None,
-            })
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
         });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -867,11 +935,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
@@ -897,19 +968,12 @@ mod tests {
         let gas_price_amount = 0.025;
         let gas_price_denom = "uaxl";
 
-        let mut cosmos_client = setup_client(&TMAddress::random(PREFIX));
-        cosmos_client
-            .expect_simulate()
-            .times(2)
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: gas_cost,
-                        gas_used: gas_cost,
-                    }),
-                    result: None,
-                })
-            });
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
+        });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 2);
         let broadcaster = broadcaster::Broadcaster::builder()
             .client(cosmos_client)
             .chain_id("chain-id".parse().unwrap())
@@ -920,11 +984,14 @@ mod tests {
             .await
             .unwrap();
 
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
         let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
+            monitoring_client,
         );
 
         msg_queue_client
@@ -961,5 +1028,53 @@ mod tests {
             amount: vec![],
         })
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn should_record_msg_enqueue_err_when_gas_cost_above_cap() {
+        let gas_cap = 100;
+        let gas_cost = 101;
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+
+        let gas_info = Some(GasInfo {
+            gas_wanted: gas_cost,
+            gas_used: gas_cost,
+        });
+
+        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
+
+        let broadcaster = broadcaster::Broadcaster::builder()
+            .client(cosmos_client)
+            .chain_id("chain-id".parse().unwrap())
+            .pub_key(random_cosmos_public_key())
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+
+        let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
+
+        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster,
+            10,
+            gas_cap,
+            time::Duration::from_secs(1),
+            monitoring_client,
+        );
+
+        msg_queue_client
+            .enqueue_and_forget(dummy_msg())
+            .await
+            .unwrap();
+
+        drop(msg_queue_client);
+        assert!(msg_queue.next().await.is_none());
+
+        let metric = receiver.recv().await.unwrap();
+        assert_eq!(metric, Msg::MessageEnqueueError);
+        assert!(receiver.try_recv().is_err());
     }
 }

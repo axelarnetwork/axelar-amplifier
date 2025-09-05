@@ -423,9 +423,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::Threshold;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, MockApi};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use multisig_prover_api::encoding::Encoder;
-    use router_api::ChainName;
+    use router_api::{chain_name, cosmos_addr};
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
     use crate::state::{Config, NEXT_VERIFIER_SET};
@@ -547,15 +547,16 @@ mod tests {
     }
 
     fn mock_config() -> Config {
+        const DUMMY: &str = "doesn't matter";
         Config {
-            gateway: MockApi::default().addr_make("doesn't matter"),
-            multisig: MockApi::default().addr_make("doesn't matter"),
-            coordinator: MockApi::default().addr_make("doesn't matter"),
-            service_registry: MockApi::default().addr_make("doesn't matter"),
-            voting_verifier: MockApi::default().addr_make("doesn't matter"),
+            gateway: cosmos_addr!(DUMMY),
+            multisig: cosmos_addr!(DUMMY),
+            coordinator: cosmos_addr!(DUMMY),
+            service_registry: cosmos_addr!(DUMMY),
+            voting_verifier: cosmos_addr!(DUMMY),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
-            chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
+            chain_name: chain_name!("ethereum"),
             verifier_set_diff_threshold: 0,
             encoder: Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
