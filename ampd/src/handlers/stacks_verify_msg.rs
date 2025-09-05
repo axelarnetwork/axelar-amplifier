@@ -219,7 +219,7 @@ mod tests {
     use router_api::{address, chain_name};
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{Event, TxEventConfirmation};
 
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
@@ -470,11 +470,10 @@ mod tests {
         .unwrap()
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>) -> Event {
         let msg_id = HexTxHashAndEventIndex::new(Hash::from([3; 32]), 1u64);
 
-        PollStarted::Messages {
-            metadata: PollMetadata {
+        Event::MessagesPollStarted {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!(STACKS),
                 source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
@@ -486,7 +485,6 @@ mod tests {
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
-            },
             #[allow(
                 deprecated
             )] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed

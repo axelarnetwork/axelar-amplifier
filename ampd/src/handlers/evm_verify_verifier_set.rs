@@ -224,7 +224,7 @@ mod tests {
     use router_api::chain_name;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, VerifierSetConfirmation};
 
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
@@ -338,9 +338,9 @@ mod tests {
         assert!(receiver.try_recv().is_err());
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> VotingVerifierEvent {
         let msg_id = HexTxHashAndEventIndex::new(H256::repeat_byte(1), 100u64);
-        PollStarted::VerifierSet {
+        VotingVerifierEvent::VerifierSetPollStarted {
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: msg_id.tx_hash_as_hex(),
@@ -348,7 +348,6 @@ mod tests {
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
-            metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!(ETHEREUM),
                 source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
@@ -358,9 +357,8 @@ mod tests {
                 expires_at,
                 participants: participants
                     .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
         }
     }
 }
