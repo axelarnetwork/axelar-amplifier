@@ -25,7 +25,8 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 // The keys represent the addresses that can start a signing session.
-pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
+const PROVER_TO_CHAIN_REGISTRY: Map<&Addr, ChainName> = Map::new("prover_chain_registry");
+const CHAIN_PROVER_PAIRS: Map<(&ChainName, &Addr), ()> = Map::new("chain_prover_pairs");
 pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 
 /// Signatures by session id and signer address
@@ -112,6 +113,48 @@ pub fn save_pub_key(
     }
 
     Ok(pub_keys().save(store, (signer, pub_key.key_type()), &pub_key.into())?)
+}
+
+pub fn save_prover_to_registry(
+    storage: &mut dyn Storage,
+    contract_address: Addr,
+    chain_name: ChainName,
+) -> StdResult<()> {
+    PROVER_TO_CHAIN_REGISTRY.save(storage, &contract_address, &chain_name)?;
+    CHAIN_PROVER_PAIRS.save(storage, (&chain_name, &contract_address), &())?;
+
+    Ok(())
+}
+
+pub fn remove_prover_from_registry(
+    storage: &mut dyn Storage,
+    contract_address: Addr,
+) -> StdResult<Option<ChainName>> {
+    let chain_name = PROVER_TO_CHAIN_REGISTRY.may_load(storage, &contract_address)?;
+
+    if let Some(ref chain_name) = chain_name {
+        PROVER_TO_CHAIN_REGISTRY.remove(storage, &contract_address);
+        CHAIN_PROVER_PAIRS.remove(storage, (chain_name, &contract_address));
+    }
+
+    Ok(chain_name)
+}
+
+pub fn chain_by_prover(
+    storage: &dyn Storage,
+    contract_address: Addr,
+) -> StdResult<Option<ChainName>> {
+    PROVER_TO_CHAIN_REGISTRY.may_load(storage, &contract_address)
+}
+
+pub fn provers_by_chain(
+    storage: &dyn Storage,
+    chain_name: ChainName,
+) -> impl Iterator<Item = Addr> + '_ {
+    CHAIN_PROVER_PAIRS
+        .prefix(&chain_name)
+        .keys(storage, None, None, Order::Ascending)
+        .filter_map(|k| k.ok())
 }
 
 #[cfg(test)]

@@ -7,7 +7,10 @@ use sha3::{Digest, Keccak256};
 use super::*;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
-use crate::state::{load_session_signatures, save_pub_key, save_signature, AUTHORIZED_CALLERS};
+use crate::state::{
+    chain_by_prover, load_session_signatures, remove_prover_from_registry, save_prover_to_registry,
+    save_pub_key, save_signature,
+};
 use crate::verifier_set::VerifierSet;
 
 pub fn start_signing_session(
@@ -181,11 +184,11 @@ pub fn require_authorized_caller(
     storage: &dyn Storage,
     sender_addr: &Addr,
     chain_name: &ChainName,
-) -> Result<bool, ContractError> {
-    Ok(AUTHORIZED_CALLERS
-        .may_load(storage, sender_addr)
-        .map_err(ContractError::from)?
-        == Some(chain_name.clone()))
+) -> error_stack::Result<bool, ContractError> {
+    let chain = chain_by_prover(storage, sender_addr.clone())
+        .change_context(ContractError::InvalidCaller)?;
+
+    Ok(chain == Some(chain_name.clone()))
 }
 
 pub fn authorize_callers(
@@ -195,7 +198,7 @@ pub fn authorize_callers(
     contracts
         .iter()
         .try_for_each(|(contract_address, chain_name)| {
-            AUTHORIZED_CALLERS.save(deps.storage, contract_address, chain_name)
+            save_prover_to_registry(deps.storage, contract_address.clone(), chain_name.clone())
         })
         .map_err(ContractError::from)?;
 
@@ -211,19 +214,25 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: HashMap<Addr, ChainName>,
+    contracts: Vec<Addr>,
 ) -> error_stack::Result<Response, ContractError> {
-    contracts.iter().for_each(|(contract_address, _)| {
-        AUTHORIZED_CALLERS.remove(deps.storage, contract_address)
-    });
+    let callers_and_chains = contracts
+        .into_iter()
+        .map(|contract| {
+            remove_prover_from_registry(deps.storage, contract.clone())
+                .map(|cc| cc.map(|chain| (contract, chain)))
+                .change_context(ContractError::InvalidCaller)
+        })
+        .filter_map_ok(|contract| contract)
+        .collect::<error_stack::Result<Vec<(Addr, ChainName)>, ContractError>>()?;
 
     Ok(
-        Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {
-            Event::CallerUnauthorized {
+        Response::new().add_events(callers_and_chains.into_iter().map(
+            |(contract_address, chain_name)| Event::CallerUnauthorized {
                 contract_address,
                 chain_name,
-            }
-        })),
+            },
+        )),
     )
 }
 

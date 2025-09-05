@@ -1,7 +1,8 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct Config {
@@ -14,6 +15,8 @@ const CONFIG: Item<Config> = Item::new("config");
 pub fn load_config(storage: &dyn Storage) -> Result<Config, cosmwasm_std::StdError> {
     CONFIG.load(storage)
 }
+
+pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
 
 #[cw_serde]
 pub struct InstantiateMsg {
