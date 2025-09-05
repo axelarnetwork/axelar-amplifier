@@ -503,8 +503,6 @@ mod test {
 
     #[test]
     fn event_voted_should_not_change() {
-        let api = MockApi::default();
-
         let event_voted: cosmwasm_std::Event = Event::Voted {
             poll_id: 1.into(),
             voter: cosmos_addr!("voter"),
