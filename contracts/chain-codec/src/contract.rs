@@ -8,7 +8,7 @@ use cosmwasm_std::{
 
 use crate::encoding;
 use crate::error::Error;
-use crate::state::{Config, CONFIG};
+use crate::state::{load_config, save_config, Config};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -22,7 +22,7 @@ pub fn instantiate(
 ) -> Result<Response, Error> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    CONFIG.save(
+    save_config(
         deps.storage,
         &Config {
             domain_separator: msg.domain_separator,
@@ -41,7 +41,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             signers,
             payload,
         } => {
-            let config = CONFIG.load(deps.storage)?;
+            let config = load_config(deps.storage);
 
             to_json_binary(&encoding::encode_execute_data(
                 &config.domain_separator,
@@ -59,7 +59,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             verifier_set,
             payload,
         } => {
-            let config = CONFIG.load(deps.storage)?;
+            let config = load_config(deps.storage);
 
             to_json_binary(&HexBinary::from(encoding::payload_digest(
                 &config.domain_separator,
