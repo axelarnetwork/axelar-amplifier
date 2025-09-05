@@ -5,7 +5,6 @@ use cosmrs::Any;
 use error_stack::{Context, Report, Result};
 use events::Event;
 use futures::{future, pin_mut, Stream, StreamExt, TryStreamExt};
-use prost::encoding::{decode_key, decode_varint, WireType};
 use report::LoggableError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -138,75 +137,6 @@ fn is_avalanche_evm_handler(handler_label: &str) -> bool {
     evm_handlers.iter().any(|handler| handler_label == *handler)
 }
 
-// TODO: Remove this function once all handlers are migrated to the new sdk
-fn show_protobuf_structure(bytes: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
-    let mut result = Vec::new();
-    let mut buf = bytes;
-    let mut field_count: usize = 0;
-
-    while !buf.is_empty() && field_count < 20 {
-        if let Ok((field_num, wire_type)) = decode_key(&mut buf) {
-            match wire_type {
-                WireType::Varint => {
-                    if let Ok(value) = decode_varint(&mut buf) {
-                        result.push(format!("Field {}: Varint = {}", field_num, value));
-                    } else {
-                        result.push(format!("Field {}: Varint = <decode error>", field_num));
-                        break;
-                    }
-                }
-                WireType::LengthDelimited => {
-                    if let Ok(len) = decode_varint(&mut buf) {
-                        if let Ok(len_usize) = usize::try_from(len) {
-                            if buf.len() >= len_usize {
-                                let data = &buf[..len_usize];
-                                buf = &buf[len_usize..];
-                                if let Ok(s) = String::from_utf8(data.to_vec()) {
-                                    result.push(format!("Field {}: String = \"{}\"", field_num, s));
-                                } else {
-                                    result.push(format!(
-                                        "Field {}: Bytes = {} bytes",
-                                        field_num,
-                                        data.len()
-                                    ));
-                                }
-                            } else {
-                                result.push(format!(
-                                    "Field {}: LengthDelimited = <insufficient bytes>",
-                                    field_num
-                                ));
-                                break;
-                            }
-                        } else {
-                            result.push(format!(
-                                "Field {}: LengthDelimited = <length error>",
-                                field_num
-                            ));
-                            break;
-                        }
-                    } else {
-                        result.push(format!(
-                            "Field {}: LengthDelimited = <length decode error>",
-                            field_num
-                        ));
-                        break;
-                    }
-                }
-                _ => {
-                    result.push(format!("Field {}: Unknown wire type", field_num));
-                    break;
-                }
-            }
-        } else {
-            result.push(format!("Field {}: <key decode error>", field_count.saturating_add(1)));
-            break;
-        }
-        field_count = field_count.saturating_add(1);
-    }
-
-    Ok(result.join("\n"))
-}
-
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
     handler_label: &str,
@@ -234,7 +164,7 @@ where
         Ok(msgs) => {
             if is_avalanche_evm_handler(handler_label) {
                 for (i, msg) in msgs.iter().enumerate() {
-                    match show_protobuf_structure(&msg.value) {
+                    match broadcast::deserialize_protobuf(&msg.value) {
                         Ok(deserialized_values) => {
                             info!(
                                 handler = %handler_label,
@@ -254,7 +184,7 @@ where
                                 msg_value_plain = ?msg.value,
                                 msg_value_hex = %hex::encode(&msg.value),
                                 error = %e,
-                                "Failed to parse protobuf structure, showing raw data"
+                                "failed to parse AMPD EVM handler protobuf structure, showing raw data"
                             );
                         }
                     }
