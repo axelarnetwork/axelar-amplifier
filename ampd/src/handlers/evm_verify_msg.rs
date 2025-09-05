@@ -263,8 +263,6 @@ mod tests {
 
     const ETHEREUM: &str = "ethereum";
 
-    const ETHEREUM: &str = "ethereum";
-
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> VotingVerifierEvent {
         let msg_ids = [
             HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
