@@ -4,6 +4,9 @@ pub use client::Client;
 pub mod events;
 pub use events::Event;
 
+pub mod legacy_events;
+pub use events::Event as LegacyEvent;
+
 pub mod contract;
 pub mod error;
 pub mod msg;
