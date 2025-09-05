@@ -4,9 +4,10 @@ use axelar_wasm_std::{address, migrate_from_version};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response};
+use cosmwasm_std::{DepsMut, Env, Order, Response};
 
-use crate::state::{load_authorized_callers, save_authorized_caller, Config, CONFIG};
+use crate::contract::migrations::legacy_state::AUTHORIZED_CALLERS;
+use crate::state::{save_prover_to_registry, Config, CONFIG};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -42,11 +43,13 @@ pub fn migrate(
 fn migrate_authorized_callers(
     deps: &mut DepsMut,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
-    let authorized_callers: Vec<_> =
-        load_authorized_callers(deps.storage, None, u32::MAX).collect();
+    let authorized_callers: Vec<_> = AUTHORIZED_CALLERS
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|value| value.ok())
+        .collect();
 
     for (contract_address, chain_name) in authorized_callers {
-        save_authorized_caller(deps.storage, contract_address, chain_name)?;
+        save_prover_to_registry(deps.storage, contract_address, chain_name)?;
     }
 
     Ok(())
@@ -59,11 +62,12 @@ mod tests {
     use axelar_wasm_std::address;
     use axelar_wasm_std::nonempty::Uint64;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
-    use router_api::{cosmos_addr, ChainName};
+    use router_api::{chain_name, cosmos_addr, ChainName};
 
     use super::legacy_state;
+    use crate::contract::migrations::legacy_state::AUTHORIZED_CALLERS;
     use crate::contract::{migrate, MigrateMsg};
-    use crate::state::{AUTHORIZED_CALLERS, CHAIN_CALLER_PAIRS, CONFIG};
+    use crate::state::{provers_by_chain, CONFIG};
 
     const REWARDS: &str = "rewards";
 
@@ -136,15 +140,9 @@ mod tests {
             )
             .is_ok());
 
-        assert!(CHAIN_CALLER_PAIRS
-            .load(
-                &deps.storage,
-                (
-                    &ChainName::from_str("chain1").unwrap(),
-                    &cosmos_addr!(PROVER)
-                )
-            )
-            .is_err());
+        assert!(provers_by_chain(&deps.storage, chain_name!("chain1"))
+            .next()
+            .is_none());
 
         assert!(migrate(
             deps.as_mut(),
@@ -155,14 +153,9 @@ mod tests {
         )
         .is_ok());
 
-        assert!(CHAIN_CALLER_PAIRS
-            .load(
-                &deps.storage,
-                (
-                    &ChainName::from_str("chain1").unwrap(),
-                    &cosmos_addr!(PROVER)
-                )
-            )
-            .is_ok());
+        assert_eq!(
+            provers_by_chain(&deps.storage, chain_name!("chain1")).next(),
+            Some(cosmos_addr!(PROVER))
+        );
     }
 }

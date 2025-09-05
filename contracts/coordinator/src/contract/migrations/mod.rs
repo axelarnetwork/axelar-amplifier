@@ -239,7 +239,7 @@ mod tests {
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
-    use router_api::{cosmos_addr, ChainName};
+    use router_api::{chain_name, cosmos_addr, ChainName};
 
     use crate::contract::errors::Error;
     use crate::contract::migrations::{MigrationError, OldConfig, ProverAddress, OLD_CONFIG};
@@ -322,7 +322,7 @@ mod tests {
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let chain_name = chain_name!(CHAIN_1);
         let prover_addr = cosmos_addr!(PROVER_1);
         let gateway_addr = cosmos_addr!(GATEWAY_1);
         let verifier_addr = cosmos_addr!(VERIFIER_1);
@@ -386,8 +386,8 @@ mod tests {
         )
         .is_ok());
 
-        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
-        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
+        let chain_name1 = chain_name!(CHAIN_1);
+        let chain_name2 = chain_name!(CHAIN_2);
         let prover_addr1 = cosmos_addr!(PROVER_1);
         let prover_addr2 = cosmos_addr!(PROVER_2);
         let gateway_addr = cosmos_addr!(GATEWAY_1);
@@ -453,7 +453,7 @@ mod tests {
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let chain_name = chain_name!(CHAIN_1);
         let prover_addr = cosmos_addr!(PROVER_1);
         let gateway_addr = cosmos_addr!(GATEWAY_1);
         let verifier_addr = cosmos_addr!(VERIFIER_1);
@@ -516,7 +516,7 @@ mod tests {
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let chain_name = chain_name!(CHAIN_1);
         let prover_addr = cosmos_addr!(PROVER_1);
         let gateway_addr = cosmos_addr!(GATEWAY_1);
         let verifier_addr = cosmos_addr!(VERIFIER_1);
@@ -584,7 +584,7 @@ mod tests {
         )
         .is_ok());
 
-        let chain_name = ChainName::try_from(CHAIN_1).unwrap();
+        let chain_name = chain_name!(CHAIN_1);
         let prover_addr = cosmos_addr!(PROVER_1);
         let gateway_addr = cosmos_addr!(GATEWAY_1);
         let verifier_addr = cosmos_addr!(VERIFIER_1);
@@ -651,8 +651,8 @@ mod tests {
         )
         .is_ok());
 
-        let chain_name1 = ChainName::try_from(CHAIN_1).unwrap();
-        let chain_name2 = ChainName::try_from(CHAIN_2).unwrap();
+        let chain_name1 = chain_name!(CHAIN_1);
+        let chain_name2 = chain_name!(CHAIN_2);
         let prover_addr1 = cosmos_addr!(PROVER_1);
         let prover_addr2 = cosmos_addr!(PROVER_2);
         let gateway_addr1 = cosmos_addr!(GATEWAY_1);

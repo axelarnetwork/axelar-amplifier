@@ -98,9 +98,13 @@ pub fn execute(
             signed_sender_address,
         } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCallers { contracts } => {
-            let (addrs, names): (Vec<_>, Vec<_>) = contracts.into_iter().unzip();
-            let contracts = validate_contract_addresses(&deps, addrs)?;
-            let contracts = std::iter::zip(contracts, names).collect::<HashMap<Addr, ChainName>>();
+            let contracts = contracts
+                .into_iter()
+                .map(|(addr, chain_name)| {
+                    address::validate_cosmwasm_address(deps.api, &addr)
+                        .map(|validated_addr| (validated_addr, chain_name))
+                })
+                .collect::<Result<HashMap<Addr, ChainName>, _>>()?;
 
             execute::authorize_callers(deps, contracts)
         }
