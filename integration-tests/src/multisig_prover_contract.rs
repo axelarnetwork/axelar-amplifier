@@ -4,7 +4,6 @@ use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::contract::{execute, instantiate, query};
-use multisig_prover_api::encoding::Encoder;
 use router_api::cosmos_addr;
 
 use crate::contract::Contract;
@@ -23,7 +22,9 @@ impl MultisigProverContract {
         admin_address: Addr,
         gateway_address: Addr,
         voting_verifier_address: Addr,
+        chain_codec_address: Addr,
         chain_name: String,
+        sig_verifier: Option<Addr>,
     ) -> Self {
         let code =
             ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(custom_reply);
@@ -34,7 +35,7 @@ impl MultisigProverContract {
             .instantiate_contract(
                 code_id,
                 cosmos_addr!("anyone"),
-                &multisig_prover::msg::InstantiateMsg {
+                &multisig_prover_api::msg::InstantiateMsg {
                     admin_address: admin_address.to_string(),
                     governance_address: protocol.governance_address.to_string(),
                     gateway_address: gateway_address.to_string(),
@@ -42,6 +43,7 @@ impl MultisigProverContract {
                     coordinator_address: protocol.coordinator.contract_addr.to_string(),
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
+                    chain_codec_address: chain_codec_address.to_string(),
                     signing_threshold: Threshold::try_from((2u64, 3u64))
                         .unwrap()
                         .try_into()
@@ -49,9 +51,8 @@ impl MultisigProverContract {
                     service_name: protocol.service_name.to_string(),
                     chain_name: chain_name.to_string(),
                     verifier_set_diff_threshold: 0,
-                    encoder: Encoder::Abi,
                     key_type: KeyType::Ecdsa,
-                    domain_separator: [0; 32],
+                    sig_verifier_address: sig_verifier.map(|addr| addr.to_string()),
                 },
                 &[],
                 "multisig_prover",
@@ -86,8 +87,8 @@ fn custom_reply(
 }
 
 impl Contract for MultisigProverContract {
-    type QMsg = multisig_prover::msg::QueryMsg;
-    type ExMsg = multisig_prover::msg::ExecuteMsg;
+    type QMsg = multisig_prover_api::msg::QueryMsg;
+    type ExMsg = multisig_prover_api::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()

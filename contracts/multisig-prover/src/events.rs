@@ -1,8 +1,7 @@
 use axelar_wasm_std::IntoEvent;
 use cosmwasm_std::Uint64;
+use multisig_prover_api::payload::PayloadId;
 use router_api::{ChainName, CrossChainId};
-
-use crate::payload::PayloadId;
 
 #[derive(IntoEvent)]
 pub enum Event {
@@ -16,10 +15,10 @@ pub enum Event {
 
 #[cfg(test)]
 mod tests {
+    use multisig_prover_api::payload::Payload;
     use router_api::{address, chain_name, Message};
 
     use super::*;
-    use crate::Payload;
 
     #[test]
     fn proof_under_construction_is_serializable() {

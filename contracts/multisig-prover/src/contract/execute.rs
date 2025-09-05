@@ -5,25 +5,26 @@ use axelar_wasm_std::snapshot::{Participant, Snapshot};
 use axelar_wasm_std::{
     address, nonempty, permission_control, FnExt, MajorityThreshold, VerificationStatus,
 };
-use cosmwasm_std::{wasm_execute, Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
+use cosmwasm_std::{Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
 use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
+use multisig_prover_api::payload::Payload;
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
-use crate::encoding::EncoderExt;
 use crate::error::ContractError;
+use crate::flags::{query_payload_digest, receive_full_payloads};
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
-use crate::Payload;
 
 pub fn construct_proof(
-    deps: DepsMut,
+    mut deps: DepsMut,
     message_ids: Vec<CrossChainId>,
+    full_message_payloads: Vec<cosmwasm_std::HexBinary>, // this is empty if the `receive-payload` feature is not enabled
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
@@ -34,7 +35,7 @@ pub fn construct_proof(
         config.chain_name.clone(),
     )?;
 
-    let payload = Payload::Messages(messages);
+    let payload = Payload::Messages(messages.clone());
     let payload_id = payload.id();
 
     match PAYLOAD
@@ -64,21 +65,30 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    let digest = config
-        .encoder
-        .digest(&config.domain_separator, &verifier_set, &payload)?;
+    receive_full_payloads(deps.branch(), payload_id, &full_message_payloads, messages)?;
 
-    let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        verifier_set_id: verifier_set.id(),
-        msg: digest.into(),
-        chain_name: config.chain_name,
-        sig_verifier: None,
-    };
+    let digest = query_payload_digest(
+        deps.as_ref(),
+        &config,
+        verifier_set.clone(),
+        payload,
+        full_message_payloads,
+    )?;
 
-    let wasm_msg =
-        wasm_execute(config.multisig, &start_sig_msg, vec![]).map_err(ContractError::from)?;
+    let multisig: multisig::Client =
+        client::ContractClient::new(deps.querier, &config.multisig).into();
 
-    Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
+    let start_sig_msg = multisig.start_signing_session(
+        verifier_set.id(),
+        digest,
+        config.chain_name,
+        config.sig_verifier_address.map(Into::into),
+    );
+
+    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+        start_sig_msg,
+        START_MULTISIG_REPLY_ID,
+    )))
 }
 
 fn messages(
@@ -226,7 +236,7 @@ pub fn update_verifier_set(
     let multisig: multisig::Client =
         client::ContractClient::new(deps.querier, &config.multisig).into();
 
-    let cur_verifier_set = CURRENT_VERIFIER_SET
+    let cur_verifier_set: Option<VerifierSet> = CURRENT_VERIFIER_SET
         .may_load(deps.storage)
         .map_err(ContractError::from)?;
 
@@ -265,21 +275,29 @@ pub fn update_verifier_set(
                 .save(deps.storage, &payload_id)
                 .map_err(ContractError::from)?;
 
-            let digest =
-                config
-                    .encoder
-                    .digest(&config.domain_separator, &cur_verifier_set, &payload)?;
+            let digest = query_payload_digest(
+                deps.as_ref(),
+                &config,
+                cur_verifier_set.clone(),
+                payload.clone(),
+                vec![], // empty because we don't have message payloads here and only fill this field for proof construction
+            )?;
+
+            let multisig: multisig::Client =
+                client::ContractClient::new(deps.querier, &config.multisig).into();
+
+            let start_sig_msg = multisig.start_signing_session(
+                cur_verifier_set.id(),
+                digest,
+                config.chain_name,
+                config.sig_verifier_address.map(Into::into),
+            );
 
             let verifier_union_set = all_active_verifiers(deps.storage)?;
 
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
-                    multisig.start_signing_session(
-                        cur_verifier_set.id(),
-                        digest.into(),
-                        config.chain_name,
-                        None,
-                    ),
+                    start_sig_msg,
                     START_MULTISIG_REPLY_ID,
                 ))
                 .add_message(coordinator.set_active_verifiers(
@@ -424,7 +442,6 @@ mod tests {
 
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use multisig_prover_api::encoding::Encoder;
     use router_api::{chain_name, cosmos_addr};
 
     use super::{different_set_in_progress, next_verifier_set, should_update_verifier_set};
@@ -554,13 +571,13 @@ mod tests {
             coordinator: cosmos_addr!(DUMMY),
             service_registry: cosmos_addr!(DUMMY),
             voting_verifier: cosmos_addr!(DUMMY),
+            chain_codec: cosmos_addr!(DUMMY),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: chain_name!("ethereum"),
             verifier_set_diff_threshold: 0,
-            encoder: Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
-            domain_separator: [0; 32],
+            sig_verifier_address: None,
         }
     }
 }
