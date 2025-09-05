@@ -20,3 +20,10 @@ pub struct Event {
     pub topics: Vec<Topic>,        // 1-4 topics
     pub data: HexBinary,           // arbitrary length hex data
 }
+
+#[cw_serde]
+pub struct EvmEvent {
+    pub transaction_hash: fixed_size::HexBinary<32>,
+    pub transaction_details: Option<TransactionDetails>,
+    pub events: Vec<Event>,
+}
