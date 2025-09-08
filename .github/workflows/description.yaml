@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Check Pull Request Description
         env:
-          DESCRIPTION: "test description"
+          DESCRIPTION: ${{ github.event.pull_request.body }}
         run: |
           if [[ -z "$DESCRIPTION" ]]; then
             echo "Error: Pull request description is empty."
