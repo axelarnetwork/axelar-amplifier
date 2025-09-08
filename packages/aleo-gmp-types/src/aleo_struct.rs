@@ -8,9 +8,7 @@ use snarkvm_cosmwasm::prelude::{
     Zero as _,
 };
 
-pub mod generated_structs;
-
-use generated_structs::{Message, Proof, WeightedSigner, WeightedSigners};
+use aleo_gateway_types::{Message, Proof, WeightedSigner, WeightedSigners};
 
 use crate::error::Error;
 use crate::SafeGmpChainName;
@@ -114,7 +112,7 @@ impl<N: Network> AxelarToLeo<N> for multisig::msg::Signer {
     fn to_leo(&self) -> Result<Self::LeoType, Self::Error> {
         let pub_key = match &self.pub_key {
             multisig::key::PublicKey::AleoSchnorr(key) => key.as_slice(),
-            _ => panic!("Unsupported public key type"),
+            _ => panic!("Unsupported public key type"), // TODO: remove panic
         };
 
         Ok(Self::LeoType {

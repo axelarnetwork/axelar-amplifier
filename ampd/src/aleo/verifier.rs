@@ -1,4 +1,4 @@
-use aleo_gmp_types::aleo_struct::generated_structs::SignersRotated;
+use aleo_gateway_types::SignersRotated;
 use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
 use axelar_wasm_std::voting::Vote;
 use snarkvm::prelude::Network;

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use aleo_gmp_types::aleo_struct::generated_structs::{ContractCall, SignersRotated};
+use aleo_gateway_types::{ContractCall, SignersRotated};
 use aleo_string_encoder::StringEncoder;
 use error_stack::{ensure, Report, Result, ResultExt};
 use snarkvm::prelude::{Network, ProgramID, ToBytes, Value};
@@ -195,7 +195,7 @@ where
             destination_chain: chain_name
                 .try_into()
                 .map_err(|_| Report::new(Error::InvalidChainName))?,
-            source_address: call_contract.sender,
+            source_address: call_contract.caller,
             payload: payload_plaintext_bytes,
         }))
     }

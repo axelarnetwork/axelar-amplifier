@@ -1,6 +1,6 @@
 use std::str::FromStr as _;
 
-use aleo_gmp_types::aleo_struct::generated_structs::SignersRotated;
+use aleo_gateway_types::SignersRotated;
 use async_trait::async_trait;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;

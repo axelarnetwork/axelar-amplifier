@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 aleo-string-encoder = { workspace = true }
+aleo-gateway-types = { workspace = true }
 anyhow = "1.0.99"
 axelar-wasm-std = { workspace = true }
 error-stack = { workspace = true }
@@ -15,7 +16,9 @@ multisig = { workspace = true, features = ["library"] }
 once_cell = "1.21.3"
 router-api = { workspace = true }
 snarkvm-cosmwasm = { workspace = true }
+plaintext-trait = { path = "/home/angelos/Documents/work/reshape-crate/crates/plaintext-trait" }
 thiserror = { workspace = true }
+serde = { workspace = true }
 
 [lints]
 workspace = true

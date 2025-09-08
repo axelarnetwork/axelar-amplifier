@@ -1,5 +1,7 @@
 use cosmwasm_std::HexBinary;
-use snarkvm_cosmwasm::prelude::{Address, FromBytes, Group, Network, Signature, ToFields};
+use snarkvm_cosmwasm::prelude::{
+    Address, Field, FromBytes, Group, Literal, Network, Signature, ToFields, Value,
+};
 
 use crate::ContractError;
 
@@ -12,10 +14,19 @@ pub fn verify_signature<N: Network>(
 
     let address = Address::<N>::from_bytes_le(&public_key)?;
 
-    let group_value = Group::<N>::from_bytes_le(&message)?;
-    let res = signature.verify(&address, &group_value.to_fields()?);
+    let msg = msg_to_fields::<N>(message)?;
+    let res = signature.verify(&address, &msg);
 
     Ok(res)
+}
+
+fn msg_to_fields<N: Network>(msg: HexBinary) -> Result<Vec<Field<N>>, ContractError> {
+    let group_value = Group::from_bytes_le(&msg)?;
+
+    let value = Value::from(Literal::Group(group_value));
+    let fields = value.to_fields()?;
+
+    Ok(fields)
 }
 
 #[cfg(test)]
@@ -34,7 +45,8 @@ mod tests {
 
     #[test]
     fn test_verify_signature() {
-        let message = Group::<CurrentNetwork>::from_str("2group").unwrap();
+        let message_group = Group::<CurrentNetwork>::from_str("2group").unwrap();
+        let message = Value::from(Literal::Group(message_group));
 
         let aleo_account =
             Account::new(&mut rand::thread_rng()).expect("Failed to create Aleo account");
@@ -44,7 +56,7 @@ mod tests {
             .expect("Failed to sign message")
             .into();
 
-        let message: Hash = message.to_bytes_le_array().unwrap();
+        let message: Hash = message_group.to_bytes_le_array().unwrap();
         let message = message.into();
         let public_key: Address<CurrentNetwork> = aleo_account.address();
         let encoded_public_key = public_key

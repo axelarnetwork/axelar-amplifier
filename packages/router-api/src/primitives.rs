@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
 
-pub use axelar_wasm_std::chain::{ChainName, ChainNameRaw};
+pub use axelar_wasm_std::chain::{ChainName, ChainNameRaw, Error as ChainNameError};
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;

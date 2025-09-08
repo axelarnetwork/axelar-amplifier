@@ -159,7 +159,7 @@ impl<N: ::snarkvm_cosmwasm::prelude::Network> TryFrom<&FromRemoteDeployInterchai
             );
         }
         let plaintext =
-            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::once_cell::sync::OnceCell::new());
+            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::std::sync::OnceLock::new());
         Ok(plaintext)
     }
 }
@@ -285,7 +285,7 @@ impl<N: ::snarkvm_cosmwasm::prelude::Network> TryFrom<&ItsIncomingInterchainTran
             });
         }
         let plaintext =
-            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::once_cell::sync::OnceCell::new());
+            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::std::sync::OnceLock::new());
         Ok(plaintext)
     }
 }
@@ -363,7 +363,7 @@ impl<N: ::snarkvm_cosmwasm::prelude::Network> TryFrom<&IncomingInterchainTransfe
             );
         }
         let plaintext =
-            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::once_cell::sync::OnceCell::new());
+            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::std::sync::OnceLock::new());
         Ok(plaintext)
     }
 }
@@ -561,7 +561,7 @@ impl<N: ::snarkvm_cosmwasm::prelude::Network> TryFrom<&ItsMessageDeployInterchai
             });
         }
         let plaintext =
-            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::once_cell::sync::OnceCell::new());
+            ::snarkvm_cosmwasm::prelude::Plaintext::Struct(map, ::std::sync::OnceLock::new());
         Ok(plaintext)
     }
 }

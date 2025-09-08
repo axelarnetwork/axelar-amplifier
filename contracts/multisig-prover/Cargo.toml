@@ -22,8 +22,12 @@ library = []
 
 [dependencies]
 aleo-gmp-types = { workspace = true }
+aleo-gateway-types = { workspace = true }
 aleo-network-config = { workspace = true }
+plaintext-trait = { path = "/home/angelos/Documents/work/reshape-crate/crates/plaintext-trait" }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+bincode = "2.0.1"
+serde = { workspace = true }
 bcs = "0.1.5"
 client = { workspace = true }
 coordinator = { workspace = true }
@@ -69,6 +73,8 @@ prost = "0.12.4"
 rand = { workspace = true }
 snarkos-account = { workspace = true }
 snarkvm = { workspace = true }
+aleo-utils = { workspace = true }
+
 
 [lints]
 workspace = true

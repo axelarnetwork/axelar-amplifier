@@ -1,6 +1,6 @@
 use std::str::FromStr as _;
 
-use aleo_gmp_types::aleo_struct::generated_structs::{ContractCall, SignersRotated};
+use aleo_gateway_types::{ContractCall, SignersRotated};
 use aleo_utils::block_processor::IdValuePair;
 use error_stack::{Result, ResultExt};
 use snarkvm::prelude::{Field, Literal, LiteralType, Network, Plaintext, ToBits as _};

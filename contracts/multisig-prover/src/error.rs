@@ -15,6 +15,15 @@ pub enum ContractError {
     #[error("message is invalid")]
     InvalidMessage,
 
+    #[error("domain separator is invalid")]
+    InvalidDomainSeparator,
+
+    #[error("failed to create payload digest")]
+    CreatePayloadDigestFailed,
+
+    #[error("failed to serialize proof")]
+    SerializeProofFailed,
+
     #[error("public key is invalid: {reason}")]
     InvalidPublicKey { reason: String },
 
@@ -84,9 +93,6 @@ pub enum ContractError {
 
     #[error("failed to get outgoing messages from gateway")]
     FailedToGetMessages,
-
-    #[error("Aleo error: {0}")]
-    AleoError(String),
 
     #[error("failed to build verifier set")]
     FailedToBuildVerifierSet,

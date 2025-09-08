@@ -15,4 +15,6 @@ pub enum Error {
     SnarkVM(#[from] snarkvm_cosmwasm::prelude::Error),
     #[error("Conversion failed")]
     ConversionFailed,
+    #[error("Invalid public key")]
+    InvalidPublicKey,
 }

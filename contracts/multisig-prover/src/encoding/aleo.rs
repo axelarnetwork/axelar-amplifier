@@ -1,205 +1,293 @@
-use aleo_gmp_types::aleo_struct::generated_structs::{
-    ExecuteData, ExecuteDataVerifierSet, Message, MessageGroup, Messages, PayloadDigest,
-};
-use aleo_gmp_types::aleo_struct::AxelarToLeo;
+use aleo_gateway_types::Message;
+use aleo_gateway_types::PayloadDigest;
+use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
+use aleo_gmp_types::multisig_prover::ExecuteSignersRotation;
+use aleo_gmp_types::multisig_prover::Proof;
 use aleo_gmp_types::utils::ToBytesExt;
 use aleo_network_config::network::NetworkConfig;
 use axelar_wasm_std::hash::Hash;
+use cosmwasm_std::to_json_binary;
 use cosmwasm_std::HexBinary;
-use error_stack::{report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
+use plaintext_trait::ToPlaintext as _;
 use snarkvm_cosmwasm::console::program::Network;
-use snarkvm_cosmwasm::prelude::{
-    CanaryV0, Group, MainnetV0, Plaintext, TestnetV0, ToBits as _, ToBytes as _, Zero as _,
-};
+use snarkvm_cosmwasm::prelude::{CanaryV0, Group, MainnetV0, Plaintext, TestnetV0, ToBits as _};
+use thiserror::Error;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
 
+// Constants for message chunking - these values are determined by `gateway_backend.aleo` program
+const MESSAGES_PER_CHUNK: usize = 24;
+const MESSAGE_CHUNKS: usize = 2;
+const TOTAL_MESSAGE_CAPACITY: usize = MESSAGES_PER_CHUNK * MESSAGE_CHUNKS;
+
+#[derive(Error, Debug)]
+enum AleoEncodingError {
+    #[error("Failed to hash messages to group: {0}")]
+    MessagePayloadHashingFailed(String),
+    #[error("Invalid domain separator format")]
+    InvalidDomainSeparator,
+    #[error("Failed to create payload digest plaintext: {0}")]
+    PayloadDigestPlaintextCreationFailed(String),
+    #[error("Failed to hash payload digest to group: {0}")]
+    PayloadDigestHashFailed(String),
+}
+
+macro_rules! dispatch_by_network {
+    ($network:expr, $func:ident, $($args:expr),*) => {
+        match $network {
+            NetworkConfig::TestnetV0 => $func::<TestnetV0>($($args),*),
+            NetworkConfig::MainnetV0 => $func::<MainnetV0>($($args),*),
+            NetworkConfig::CanaryV0 => $func::<CanaryV0>($($args),*),
+        }
+    };
+}
+
+/// Computes a cryptographic digest for a payload that can be signed by validators.
+///
+/// This function creates a standardized hash that represents the combination of:
+/// - A domain separator (for replay protection across different contexts)
+/// - The current verifier set (validators who can sign)
+/// - The actual payload data (either messages or a new verifier set)
+///
+/// The digest is computed using Aleo's BHP256 hash function and follows the
+/// [`PayloadDigest`] structure format expected by the Aleo network.
+///
+/// # Arguments
+///
+/// * `network` - The Aleo network configuration (TestnetV0, MainnetV0, or CanaryV0)
+/// * `domain_separator` - A 32-byte value
+/// * `verifier_set` - The current set of validators and their weights/signatures
+/// * `payload` - The data to be hashed, either a collection of messages or a new verifier set
+///
+/// # Returns
+///
+/// Returns a 32-byte hash that validators can sign to approve the payload.
+///
+/// # Errors
+///
+/// * [`ContractError::InvalidDomainSeparator`] - If the domain separator cannot be parsed
+/// * [`ContractError::InvalidVerifierSet`] - If the verifier set cannot be converted to Aleo format
+/// * [`ContractError::InvalidMessage`] - If messages cannot be processed or hashed
+/// * [`ContractError::CreatePayloadDigestFailed`] - If the final digest creation fails
 pub fn payload_digest(
     network: &NetworkConfig,
     domain_separator: &Hash,
     verifier_set: &VerifierSet,
     payload: &Payload,
 ) -> Result<Hash, ContractError> {
-    match network {
-        NetworkConfig::TestnetV0 => {
-            payload_digest_inner::<TestnetV0>(domain_separator, verifier_set, payload)
-        }
-        NetworkConfig::MainnetV0 => {
-            payload_digest_inner::<MainnetV0>(domain_separator, verifier_set, payload)
-        }
-        NetworkConfig::CanaryV0 => {
-            payload_digest_inner::<CanaryV0>(domain_separator, verifier_set, payload)
-        }
-    }
-}
-
-fn payload_digest_inner<N: Network>(
-    domain_separator: &Hash,
-    verifier_set: &VerifierSet,
-    payload: &Payload,
-) -> Result<Hash, ContractError> {
-    use aleo_gmp_types::aleo_struct::AxelarToLeo;
-
-    let data_hash = match payload {
-        Payload::Messages(messages) => {
-            let aleo_messages: Vec<Group<N>> = messages
-                .iter()
-                .filter_map(|m| {
-                    let leo_verifier_set = m.to_leo().ok()?;
-
-                    aleo_gmp_types::utils::bhp(&leo_verifier_set).ok()
-                })
-                .collect();
-
-            let mut groups = aleo_messages
-                .into_iter()
-                .chain(std::iter::repeat(Group::<N>::zero()))
-                .take(48);
-
-            // Its safe to unwrap because we are taking 48 elements
-            let array1: [Group<N>; 24] = std::array::from_fn(|_| groups.next().unwrap());
-            let array2: [Group<N>; 24] = std::array::from_fn(|_| groups.next().unwrap());
-
-            let messages: MessageGroup<N> = MessageGroup {
-                messages: [array1, array2],
-            };
-
-            Plaintext::try_from(&messages)
-                .and_then(|plaintext| N::hash_to_group_bhp256(&plaintext.to_bits_le()))
-                .map_err(|_| {
-                    report!(ContractError::AleoError(
-                        "Failed to convert messages to plaintext".to_string()
-                    ))
-                })?
-        }
-        Payload::VerifierSet(verifier_set) => verifier_set
-            .to_leo()
-            .and_then(|leo_verifier_set| aleo_gmp_types::utils::bhp(&leo_verifier_set))
-            .change_context_lazy(|| {
-                ContractError::AleoError("Failed to convert verifier set to Leo".to_string())
-            })?,
-    };
-
-    let part1 = u128::from_le_bytes(domain_separator[0..16].try_into().map_err(|_| {
-        report!(ContractError::AleoError(
-            "Failed to convert domain separator to u128".to_string()
-        ))
-    })?);
-    let part2 = u128::from_le_bytes(domain_separator[16..32].try_into().map_err(|_| {
-        report!(ContractError::AleoError(
-            "Failed to convert domain separator to u128".to_string()
-        ))
-    })?);
-    let domain_separator: [u128; 2] = [part1, part2];
-
-    let payload_digest = PayloadDigest {
+    dispatch_by_network!(
+        network,
+        payload_digest_inner,
         domain_separator,
-        signer: verifier_set.to_leo().change_context_lazy(|| {
-            ContractError::AleoError("Failed to convert verifier set to Leo".to_string())
-        })?,
-        data_hash,
-    };
-
-    let group = Plaintext::try_from(&payload_digest)
-        .and_then(|plaintext| N::hash_to_group_bhp256(&plaintext.to_bits_le()))
-        .map_err(|_| {
-            report!(ContractError::AleoError(
-                "Failed to convert group to bytes".to_string()
-            ))
-        })?;
-
-    let hash: Hash = group.to_bytes_le_array().change_context_lazy(|| {
-        ContractError::AleoError("Failed to convert group to bytes".to_string())
-    })?;
-
-    Ok(hash)
+        verifier_set,
+        payload,
+        default_message_hash()
+    )
 }
 
+/// The relayer will use this data to submit the payload to the contract.
+///
+/// The encoded data returned from this function will be translated by the relayer
+/// to the format that the Aleo program expects.
+///
+/// This function covers two cases:
+/// 1. When the payload is a set of messages.
+/// 2. When the payload is a new verifier set.
+///
+/// In the first case, the function encodes the messages along with the proof.
+/// The execute data is as follows:
+/// ExecuteData {
+///     proof: Proof {
+///         weighted_signers: WeightedSigners {
+///             signers: Vec<WeightedSigner>,
+///             quorum: u128,
+///             nonce: u64,
+///         }
+///         signatures: Vec<signature>,
+///     }
+///     message: Vec<router_api::Message>,
+/// }
+///
+/// Aleo is expecting specific number of elements, and the relayer is responsible
+/// to transform the ExecuteData to the ApproveMessagesInputs struct as expected.
+///
+/// The execute data as expected by the Aleo GMP program are as follows:
+///
+/// struct ApproveMessagesInputs {
+///     weighted_signers: WeightedSigners,
+///     signatures: [[signature; 14]; 2],
+///     messages: [[group; 24]; 2],
+/// }
+///
+/// In the second case, the function encodes the new verifier set along with the proof.
+/// The execute data is as follows:
+/// ExecuteSignersRotation {
+///     proof: Proof {
+///         weighted_signers: WeightedSigners {
+///         signers: Vec<WeightedSigner>,
+///         quorum: u128,
+///         nonce: u64,
+///     },
+///     new_verifier_set: VerifierSet,
+/// }
+///
+/// The execute data as expected by the Aleo GMP program are as follows:
+/// struct RotateSignersInputs {
+///    weighted_signers: WeightedSigners,
+///    signatures: [[signature; 14]; 2],
+///    payload: VerifierSet,
+/// }
 pub fn encode_execute_data(
     network: &NetworkConfig,
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,
     payload: &Payload,
 ) -> Result<HexBinary, ContractError> {
-    let res = match network {
-        NetworkConfig::TestnetV0 => {
-            encode_execute_data_inner::<TestnetV0>(verifier_set, signatures, payload)
-        }
-        NetworkConfig::MainnetV0 => {
-            encode_execute_data_inner::<MainnetV0>(verifier_set, signatures, payload)
-        }
-        NetworkConfig::CanaryV0 => {
-            encode_execute_data_inner::<CanaryV0>(verifier_set, signatures, payload)
-        }
-    };
-
-    res.map_err(|e| {
-        report!(ContractError::AleoError(format!(
-            "Failed to encode execute data: {e}"
-        )))
-    })
+    dispatch_by_network!(
+        network,
+        encode_execute_data_inner,
+        verifier_set,
+        signatures,
+        payload
+    )
 }
 
-/// The relayer will use this data to submit the payload to the contract.
+// Use this function to compute the default message hash
+fn default_message_hash<N: Network>() -> Group<N> {
+    let message = Message::<N>::default();
+    let plaintext: Plaintext<N> = Plaintext::try_from(&message).unwrap();
+    N::hash_to_group_bhp256(&plaintext.to_bits_le()).unwrap()
+}
+
+/// Hashes a collection of messages into a single group element
+///
+/// This function:
+/// 1. Converts messages to Aleo format and hashes them
+/// 2. Pads with default hashes to reach the required capacity
+/// 3. Organizes into the chunk structure expected by Aleo programs
+/// 4. Computes final hash of the structured data
+fn hash_messages<N: Network>(
+    messages: &[router_api::Message],
+    default_message_hash: Group<N>,
+) -> Result<Group<N>, ContractError> {
+    let aleo_messages = messages.iter().filter_map(|m| {
+        let leo_verifier_set = m.to_leo().ok()?;
+        aleo_gmp_types::utils::bhp(&leo_verifier_set).ok()
+    });
+
+    let mut groups = aleo_messages
+        .chain(std::iter::repeat(default_message_hash))
+        .take(TOTAL_MESSAGE_CAPACITY);
+
+    // It's safe to unwrap because iterator is infinite due to repeat()
+    let messages: [[Group<N>; MESSAGES_PER_CHUNK]; MESSAGE_CHUNKS] =
+        std::array::from_fn(|_| std::array::from_fn(|_| groups.next().unwrap()));
+
+    let messages_plaintext = messages.to_plaintext();
+
+    N::hash_to_group_bhp256(&messages_plaintext.to_bits_le())
+        .map_err(|e| AleoEncodingError::MessagePayloadHashingFailed(e.to_string()))
+        .change_context_lazy(|| ContractError::InvalidMessage)
+}
+
+/// Parses a 32-byte domain separator into two u128 values
+///
+/// The domain separator is split into two 128-bit values in little-endian format
+/// as required by the Aleo PayloadDigest structure.
+fn parse_domain_separator(domain_separator: &[u8; 32]) -> Result<[u128; 2], ContractError> {
+    let first_half = domain_separator[0..16]
+        .try_into()
+        .map_err(|_| ContractError::InvalidDomainSeparator)?;
+    let second_half = domain_separator[16..32]
+        .try_into()
+        .map_err(|_| ContractError::InvalidDomainSeparator)?;
+
+    Ok([
+        u128::from_le_bytes(first_half),
+        u128::from_le_bytes(second_half),
+    ])
+}
+
+/// Internal implementation of payload digest computation
+///
+/// This function is generic over the network type and performs the actual
+/// digest computation after network-specific dispatching.
+fn payload_digest_inner<N: Network>(
+    domain_separator: &Hash,
+    verifier_set: &VerifierSet,
+    payload: &Payload,
+    default_message_hash: Group<N>,
+) -> Result<Hash, ContractError> {
+    use aleo_gmp_types::aleo_struct::AxelarToLeo;
+
+    let data_hash = match payload {
+        Payload::Messages(messages) => hash_messages::<N>(messages, default_message_hash)?,
+        Payload::VerifierSet(verifier_set) => verifier_set
+            .to_leo()
+            .and_then(|leo_verifier_set| aleo_gmp_types::utils::bhp(&leo_verifier_set))
+            .change_context_lazy(|| ContractError::InvalidVerifierSet)?,
+    };
+
+    let domain_separator = parse_domain_separator(domain_separator)?;
+    let signer = verifier_set
+        .to_leo()
+        .change_context_lazy(|| ContractError::InvalidVerifierSet)?;
+
+    let payload_digest = PayloadDigest {
+        domain_separator,
+        signer,
+        data_hash,
+    };
+
+    let payload_digest_plaintext = Plaintext::try_from(&payload_digest)
+        .map_err(|e| AleoEncodingError::PayloadDigestPlaintextCreationFailed(e.to_string()))
+        .change_context_lazy(|| ContractError::CreatePayloadDigestFailed)?;
+
+    let payload_digest_hash = N::hash_to_group_bhp256(&payload_digest_plaintext.to_bits_le())
+        .map_err(|e| AleoEncodingError::PayloadDigestHashFailed(e.to_string()))
+        .change_context_lazy(|| ContractError::CreatePayloadDigestFailed)?;
+
+    let hash: Hash = payload_digest_hash
+        .to_bytes_le_array()
+        .change_context_lazy(|| ContractError::CreatePayloadDigestFailed)?;
+
+    Ok(hash)
+}
+
 fn encode_execute_data_inner<N: Network>(
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,
     payload: &Payload,
-) -> Result<HexBinary, aleo_gmp_types::error::Error> {
-    match payload {
+) -> Result<HexBinary, ContractError> {
+    let binary = match payload {
         Payload::Messages(messages) => {
-            let aleo_messages: Vec<Message<N>> =
-                messages.iter().map(|m| m.to_leo().unwrap()).collect();
-
-            let mut messages = aleo_messages
-                .into_iter()
-                .chain(std::iter::repeat(Message::<N>::default()))
-                .take(48);
-
-            // It's safe to unwrap because we are taking 48 elements
-            let array1: [Message<N>; 24] = std::array::from_fn(|_| messages.next().unwrap());
-            let array2: [Message<N>; 24] = std::array::from_fn(|_| messages.next().unwrap());
-
-            let message: Messages<N> = Messages {
-                messages: [array1, array2],
-            };
-
-            let weighted_signers = AxelarToLeo::<N>::to_leo(verifier_set)?;
-            let proof =
-                aleo_gmp_types::aleo_struct::AxelarProof::<N>::new(weighted_signers, signatures);
-
-            let execute_data = ExecuteData {
+            let proof = Proof::<N>::new(verifier_set, signatures)
+                .change_context_lazy(|| ContractError::Proof)?;
+            let execute_data = aleo_gmp_types::multisig_prover::ExecuteData {
                 proof: proof.into(),
-                message,
+                messages: messages.clone(),
             };
-            let plaintext_bytes = Plaintext::try_from(&execute_data)
-                .and_then(|plaintext| plaintext.to_bytes_le())
-                .map_err(|_| aleo_gmp_types::error::Error::ConversionFailed)?;
 
-            Ok(HexBinary::from(plaintext_bytes))
+            to_json_binary(&execute_data)
+                .change_context_lazy(|| ContractError::SerializeProofFailed)?
         }
         Payload::VerifierSet(new_verifier_set) => {
-            let new_weighted_signers = AxelarToLeo::<N>::to_leo(new_verifier_set)?;
-            let proof = aleo_gmp_types::aleo_struct::AxelarProof::<N>::new(
-                new_weighted_signers,
-                signatures,
-            );
-
-            let weighted_signers = AxelarToLeo::<N>::to_leo(verifier_set)?;
-            let execute_data = ExecuteDataVerifierSet {
-                proof: proof.into(),
-                payload: weighted_signers,
+            let execute_signers_rotation = ExecuteSignersRotation::<N> {
+                proof: Proof::<N>::new(verifier_set, signatures)
+                    .change_context_lazy(|| ContractError::Proof)?,
+                new_verifier_set: new_verifier_set.clone(),
             };
-            let plaintext_bytes = Plaintext::try_from(&execute_data)
-                .and_then(|plaintext| plaintext.to_bytes_le())
-                .map_err(|_| aleo_gmp_types::error::Error::ConversionFailed)?;
 
-            Ok(HexBinary::from(plaintext_bytes))
+            to_json_binary(&execute_signers_rotation)
+                .change_context_lazy(|| ContractError::SerializeProofFailed)?
         }
-    }
+    };
+
+    Ok(HexBinary::from(binary))
 }
 
 #[cfg(test)]
@@ -212,23 +300,74 @@ mod tests {
     use multisig::msg::Signer;
     use router_api::ChainNameRaw;
     use snarkos_account::Account;
-    use snarkvm::prelude::{Address, FromBytes as _, PrivateKey, ToBytes, ToFields};
+    use snarkvm::prelude::{
+        Address, FromBytes as _, Literal, PrivateKey, ToBytes, ToFields, Value,
+    };
 
     use super::*;
+
+    fn new_verifier_set() -> VerifierSet {
+        // APrivateKey1zkpGiDEvxPujW3BtvU9J3DYbzDAqnYXKjVTQsxcAmxqgcEq
+        // AViewKey1fYjUQK5MrZywnhnqYyTgF2MgMGhWpWxj686dfE9pPPZD
+        // aleo1wps7pkq6x02mfke684t0wehawykjmvev9suuz3l4dwteqswg9sgqe7xhw9
+        let aleo_address: Address<CurrentNetwork> =
+            Address::from_str("aleo1wps7pkq6x02mfke684t0wehawykjmvev9suuz3l4dwteqswg9sgqe7xhw9")
+                .expect("Failed to parse Aleo address");
+
+        VerifierSet::new(
+            vec![(
+                Participant {
+                    address: Addr::unchecked("axelar1ckguw8l9peg6sykx30cy35t6l0wpfu23xycme7"),
+                    weight: 1.try_into().expect("Failed to convert weight"),
+                },
+                PublicKey::AleoSchnorr(HexBinary::from(
+                    aleo_address
+                        .to_bytes_le()
+                        .expect("Failed to convert address to bytes"),
+                )),
+            )],
+            1u128.into(),
+            4860541,
+        )
+    }
+
+    fn current_verifier_set() -> VerifierSet {
+        let aleo_address: Address<CurrentNetwork> =
+            Address::from_str("aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss")
+                .expect("Failed to parse Aleo address");
+
+        VerifierSet::new(
+            vec![(
+                Participant {
+                    address: Addr::unchecked("axelar1ckguw8l9peg6sykx30cy35t6l0wpfu23xycme7"),
+                    weight: 1.try_into().expect("Failed to convert weight"),
+                },
+                PublicKey::AleoSchnorr(HexBinary::from(
+                    aleo_address
+                        .to_bytes_le()
+                        .expect("Failed to convert address to bytes"),
+                )),
+            )],
+            1u128.into(),
+            4860541,
+        )
+    }
 
     fn message() -> router_api::Message {
         router_api::Message {
             cc_id: router_api::CrossChainId {
-                source_chain: ChainNameRaw::from_str("aleo-2").unwrap(),
+                source_chain: ChainNameRaw::from_str("aleo-2").expect("Failed to parse chain name"),
                 message_id: "au1h9zxxrshyratfx0g0p5w8myqxk3ydfyxc948jysk0nxcna59ssqq0n3n3y"
                     .parse()
-                    .unwrap(),
+                    .expect("Failed to parse message id"),
             },
             source_address: "aleo10fmsqwh059uqm74x6t6zgj93wfxtep0avevcxz0n4w9uawymkv9s7whsau"
                 .parse()
-                .unwrap(),
-            destination_chain: "aleo-2".parse().unwrap(),
-            destination_address: "foo.aleo".parse().unwrap(),
+                .expect("Failed to parse source address"),
+            destination_chain: "aleo-2".parse().expect("Failed to parse chain name"),
+            destination_address: "foo.aleo"
+                .parse()
+                .expect("Failed to parse destination address"),
             payload_hash: [
                 0xa4, 0x32, 0xdc, 0x98, 0x3d, 0xfe, 0x6f, 0xc4, 0x8b, 0xb4, 0x7a, 0x90, 0x91, 0x54,
                 0x65, 0xd9, 0xc8, 0x18, 0x5b, 0x1c, 0x2a, 0xea, 0x5c, 0x87, 0xf8, 0x58, 0x18, 0xcb,
@@ -244,17 +383,28 @@ mod tests {
     // APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo
     // aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss
     fn aleo_sig<N: Network>(digest: [u8; 32], private_key: PrivateKey<N>) -> SignerWithSig {
-        let group_hash = Group::<N>::from_bytes_le(&digest).unwrap();
+        let group_hash =
+            Group::<N>::from_bytes_le(&digest).expect("Failed to convert digest to group");
+        let value_hash = Value::from(Literal::Group(group_hash));
 
-        let aleo_account = Account::try_from(private_key).unwrap();
-        let encoded_signature = aleo_account
-            .sign(&group_hash.to_fields().unwrap(), &mut rand::thread_rng())
-            .and_then(|signature| signature.to_bytes_le())
-            .unwrap()
+        let vlaue_hash_fields = value_hash
+            .to_fields()
+            .expect("Failed to convert value to fields");
+        let aleo_account = Account::try_from(private_key).expect("Failed to create Aleo account");
+        let signature = aleo_account
+            .sign(&vlaue_hash_fields, &mut rand::thread_rng())
+            .expect("Failed to sign digest");
+
+        let encoded_signature: HexBinary = signature
+            .to_bytes_le()
+            .expect("Failed to encode signature")
             .into();
 
         let verify_key: Address<N> = aleo_account.address();
-        let verify_key_encoded = verify_key.to_bytes_le().unwrap().into();
+        let verify_key_encoded = verify_key
+            .to_bytes_le()
+            .expect("Failed to encode verify key")
+            .into();
 
         let signer = Signer {
             address: Addr::unchecked("aleo-validator".to_string()),
@@ -268,7 +418,54 @@ mod tests {
     }
 
     #[test]
-    fn aleo_execute_data() {
+    fn aleo_execute_data_with_signers() {
+        let domain_separator = [
+            105u8, 115u8, 199u8, 41u8, 53u8, 96u8, 68u8, 100u8, 178u8, 136u8, 39u8, 20u8, 27u8,
+            10u8, 70u8, 58u8, 248u8, 227u8, 72u8, 118u8, 22u8, 222u8, 105u8, 197u8, 170u8, 12u8,
+            120u8, 83u8, 146u8, 201u8, 251u8, 159u8,
+        ];
+
+        let new_verifier_set = new_verifier_set();
+        let verifier_set = current_verifier_set();
+        let network = NetworkConfig::TestnetV0;
+        let digest = payload_digest(
+            &network,
+            &domain_separator,
+            &verifier_set,
+            &Payload::VerifierSet(new_verifier_set.clone()),
+        )
+        .expect("Failed to compute payload digest");
+
+        let private_key =
+            PrivateKey::from_str("APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo")
+                .expect("Failed to parse private key");
+        let signed_digest = aleo_sig::<CurrentNetwork>(digest, private_key);
+        let execute_data = encode_execute_data(
+            &network,
+            &verifier_set,
+            vec![signed_digest],
+            &Payload::VerifierSet(new_verifier_set),
+        )
+        .expect("Failed to encode execute data");
+
+        println!("Execute data: {}", execute_data);
+
+        let transformed_signers_rotation_proof =
+            aleo_utils::axelar_proof_transformation::transformed_signers_rotation_proof::<
+                CurrentNetwork,
+            >(execute_data.as_slice())
+            .expect("Failed to transform proof");
+
+        let validated = aleo_utils::axelar_proof_transformation::validate_proof2::<CurrentNetwork>(
+            &transformed_signers_rotation_proof,
+        )
+        .expect("Failed to validate proof");
+
+        assert!(validated);
+    }
+
+    #[test]
+    fn aleo_execute_data_with_messages() {
         let domain_separator = [
             105u8, 115u8, 199u8, 41u8, 53u8, 96u8, 68u8, 100u8, 178u8, 136u8, 39u8, 20u8, 27u8,
             10u8, 70u8, 58u8, 248u8, 227u8, 72u8, 118u8, 22u8, 222u8, 105u8, 197u8, 170u8, 12u8,
@@ -277,15 +474,19 @@ mod tests {
 
         let aleo_address: Address<CurrentNetwork> =
             Address::from_str("aleo1v7mmux8wkue8zmuxdfks03rh85qchfmms9fkpflgs4dt87n4jy9s8nzfss")
-                .unwrap();
+                .expect("Failed to parse Aleo address");
 
         let verifier_set = VerifierSet::new(
             vec![(
                 Participant {
                     address: Addr::unchecked("axelar1ckguw8l9peg6sykx30cy35t6l0wpfu23xycme7"),
-                    weight: 1.try_into().unwrap(),
+                    weight: 1.try_into().expect("Failed to convert weight"),
                 },
-                PublicKey::AleoSchnorr(HexBinary::from(aleo_address.to_bytes_le().unwrap())),
+                PublicKey::AleoSchnorr(HexBinary::from(
+                    aleo_address
+                        .to_bytes_le()
+                        .expect("Failed to convert address to bytes"),
+                )),
             )],
             1u128.into(),
             4860541,
@@ -298,18 +499,30 @@ mod tests {
             &verifier_set,
             &Payload::Messages(vec![message()]),
         )
-        .unwrap();
+        .expect("Failed to compute payload digest");
 
-        let _execute_data = encode_execute_data(
+        let private_key =
+            PrivateKey::from_str("APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo")
+                .expect("Failed to parse private key");
+        let signed_digest = aleo_sig::<CurrentNetwork>(digest, private_key);
+        let execute_data = encode_execute_data(
             &network,
             &verifier_set,
-            vec![aleo_sig::<CurrentNetwork>(
-                digest,
-                PrivateKey::from_str("APrivateKey1zkpFMDCJZbRdcBcjnqjRqCrhcWFf4L9FRRSgbLpS6D47Cmo")
-                    .unwrap(),
-            )],
+            vec![signed_digest],
             &Payload::Messages(vec![message()]),
         )
-        .unwrap();
+        .expect("Failed to encode execute data");
+
+        let transformed_proof = aleo_utils::axelar_proof_transformation::transform_proof::<
+            CurrentNetwork,
+        >(execute_data.as_slice())
+        .expect("Failed to transform proof");
+
+        let validated = aleo_utils::axelar_proof_transformation::validate_proof::<CurrentNetwork>(
+            &transformed_proof,
+        )
+        .expect("Failed to validate proof");
+
+        assert!(validated);
     }
 }
