@@ -5,11 +5,11 @@ use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 
 use super::*;
+use crate::contract::query::caller_authorized;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{
-    chain_by_prover, load_session_signatures, remove_prover_from_registry, save_prover_to_registry,
-    save_pub_key, save_signature,
+    load_session_signatures, remove_prover, save_prover, save_pub_key, save_signature,
 };
 use crate::verifier_set::VerifierSet;
 
@@ -185,10 +185,8 @@ pub fn require_authorized_caller(
     sender_addr: &Addr,
     chain_name: &ChainName,
 ) -> error_stack::Result<bool, ContractError> {
-    let chain = chain_by_prover(storage, sender_addr.clone())
-        .change_context(ContractError::InvalidCaller)?;
-
-    Ok(chain == Some(chain_name.clone()))
+    caller_authorized(storage, sender_addr.clone(), chain_name.clone())
+        .change_context(ContractError::InvalidProver)
 }
 
 pub fn authorize_callers(
@@ -198,7 +196,7 @@ pub fn authorize_callers(
     contracts
         .iter()
         .try_for_each(|(contract_address, chain_name)| {
-            save_prover_to_registry(deps.storage, contract_address.clone(), chain_name.clone())
+            save_prover(deps.storage, contract_address.clone(), chain_name.clone())
         })
         .map_err(ContractError::from)?;
 
@@ -214,16 +212,16 @@ pub fn authorize_callers(
 
 pub fn unauthorize_callers(
     deps: DepsMut,
-    contracts: Vec<Addr>,
+    callers: Vec<Addr>,
 ) -> error_stack::Result<Response, ContractError> {
-    let callers_and_chains = contracts
+    let callers_and_chains = callers
         .into_iter()
-        .map(|contract| {
-            remove_prover_from_registry(deps.storage, contract.clone())
+        .filter_map(|contract| {
+            remove_prover(deps.storage, &contract)
                 .map(|cc| cc.map(|chain| (contract, chain)))
-                .change_context(ContractError::InvalidCaller)
+                .change_context(ContractError::InvalidProver)
+                .transpose()
         })
-        .filter_map_ok(|contract| contract)
         .collect::<error_stack::Result<Vec<(Addr, ChainName)>, ContractError>>()?;
 
     Ok(

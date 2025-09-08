@@ -172,12 +172,12 @@ pub fn query(
             contract_address,
             chain_name,
         } => to_json_binary(&query::caller_authorized(
-            deps,
+            deps.storage,
             address::validate_cosmwasm_address(deps.api, &contract_address)?,
             chain_name,
         )?)?,
         QueryMsg::AuthorizedCallers { chain_name } => {
-            to_json_binary(&query::callers_for_chain(deps, chain_name))?
+            to_json_binary(&query::prover_for_chain(deps, chain_name)?)?
         }
     }
     .then(Ok)
@@ -1164,7 +1164,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::caller_authorized(deps.as_ref(), prover_address.clone(), chain_name.clone())
+            query::caller_authorized(&deps.storage, prover_address.clone(), chain_name.clone())
                 .unwrap();
         assert!(caller_authorization_status);
 
@@ -1191,7 +1191,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::caller_authorized(deps.as_ref(), prover_address, chain_name.clone()).unwrap();
+            query::caller_authorized(&deps.storage, prover_address, chain_name.clone()).unwrap();
         assert!(!caller_authorization_status);
     }
 
@@ -1208,7 +1208,7 @@ mod tests {
         assert!(contracts
             .iter()
             .all(|(addr, chain_name)| query::caller_authorized(
-                deps.as_ref(),
+                &deps.storage,
                 addr.clone(),
                 chain_name.clone()
             )
@@ -1218,7 +1218,7 @@ mod tests {
         assert!(unauthorized
             .iter()
             .all(|(addr, chain_name)| !query::caller_authorized(
-                deps.as_ref(),
+                &deps.storage,
                 addr.clone(),
                 chain_name.clone()
             )
@@ -1226,7 +1226,7 @@ mod tests {
         assert!(authorized
             .iter()
             .all(|(addr, chain_name)| query::caller_authorized(
-                deps.as_ref(),
+                &deps.storage,
                 addr.clone(),
                 chain_name.clone()
             )
@@ -1405,22 +1405,16 @@ mod tests {
 
         let contracts = vec![
             (cosmos_addr!("addr1"), chain_name!("chain1")),
-            (cosmos_addr!("addr2"), chain_name!("chain1")),
-            (cosmos_addr!("addr3"), chain_name!("chain2")),
+            (cosmos_addr!("addr2"), chain_name!("chain2")),
         ];
         do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
 
-        assert!(
-            query::callers_for_chain(deps.as_ref(), chain_name!("chain1"))
-                .contains(&cosmos_addr!("addr1"))
-        );
-        assert!(
-            query::callers_for_chain(deps.as_ref(), chain_name!("chain1"))
-                .contains(&cosmos_addr!("addr2"))
-        );
-        assert!(
-            query::callers_for_chain(deps.as_ref(), chain_name!("chain2"))
-                .contains(&cosmos_addr!("addr3"))
-        );
+        let res = query::prover_for_chain(deps.as_ref(), chain_name!("chain1"));
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), cosmos_addr!("addr1"));
+
+        let res = query::prover_for_chain(deps.as_ref(), chain_name!("chain2"));
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), cosmos_addr!("addr2"));
     }
 }

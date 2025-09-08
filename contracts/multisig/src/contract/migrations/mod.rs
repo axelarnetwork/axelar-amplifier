@@ -7,7 +7,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, Order, Response};
 
 use crate::contract::migrations::legacy_state::AUTHORIZED_CALLERS;
-use crate::state::{save_prover_to_registry, Config, CONFIG};
+use crate::state::{save_prover, Config, CONFIG};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -49,7 +49,7 @@ fn migrate_authorized_callers(
         .collect();
 
     for (contract_address, chain_name) in authorized_callers {
-        save_prover_to_registry(deps.storage, contract_address, chain_name)?;
+        save_prover(deps.storage, contract_address, chain_name)?;
     }
 
     Ok(())
@@ -67,7 +67,7 @@ mod tests {
     use super::legacy_state;
     use crate::contract::migrations::legacy_state::AUTHORIZED_CALLERS;
     use crate::contract::{migrate, MigrateMsg};
-    use crate::state::{provers_by_chain, CONFIG};
+    use crate::state::{prover_by_chain, CONFIG};
 
     const REWARDS: &str = "rewards";
 
@@ -140,9 +140,9 @@ mod tests {
             )
             .is_ok());
 
-        assert!(provers_by_chain(&deps.storage, chain_name!("chain1"))
-            .next()
-            .is_none());
+        let res = prover_by_chain(&deps.storage, chain_name!("chain1"));
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), None);
 
         assert!(migrate(
             deps.as_mut(),
@@ -153,9 +153,8 @@ mod tests {
         )
         .is_ok());
 
-        assert_eq!(
-            provers_by_chain(&deps.storage, chain_name!("chain1")).next(),
-            Some(cosmos_addr!(PROVER))
-        );
+        let res = prover_by_chain(&deps.storage, chain_name!("chain1"));
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Some(cosmos_addr!(PROVER)));
     }
 }

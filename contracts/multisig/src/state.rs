@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
+use cw_storage_plus::{index_list, Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use error_stack::ResultExt;
 use router_api::ChainName;
 
@@ -25,8 +25,20 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 // The keys represent the addresses that can start a signing session.
-const PROVER_TO_CHAIN_REGISTRY: Map<&Addr, ChainName> = Map::new("prover_chain_registry");
-const CHAIN_PROVER_PAIRS: Map<(&ChainName, &Addr), ()> = Map::new("chain_prover_pairs");
+type ProverChainPair = (Addr, ChainName);
+
+#[index_list(ProverChainPair)]
+struct ProverIndexes<'a> {
+    by_chain: UniqueIndex<'a, ChainName, ProverChainPair, Addr>,
+}
+
+const PROVER_CHAIN: IndexedMap<Addr, ProverChainPair, ProverIndexes> = IndexedMap::new(
+    "prover_chain",
+    ProverIndexes {
+        by_chain: UniqueIndex::new(|(_, chain)| chain.clone(), "prover_chain_by_chain"),
+    },
+);
+
 pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
 
 /// Signatures by session id and signer address
@@ -115,46 +127,49 @@ pub fn save_pub_key(
     Ok(pub_keys().save(store, (signer, pub_key.key_type()), &pub_key.into())?)
 }
 
-pub fn save_prover_to_registry(
+pub fn save_prover(
     storage: &mut dyn Storage,
     contract_address: Addr,
     chain_name: ChainName,
 ) -> StdResult<()> {
-    PROVER_TO_CHAIN_REGISTRY.save(storage, &contract_address, &chain_name)?;
-    CHAIN_PROVER_PAIRS.save(storage, (&chain_name, &contract_address), &())?;
-
+    PROVER_CHAIN.save(
+        storage,
+        contract_address.clone(),
+        &(contract_address, chain_name),
+    )?;
     Ok(())
 }
 
-pub fn remove_prover_from_registry(
+pub fn remove_prover(
     storage: &mut dyn Storage,
-    contract_address: Addr,
+    contract_address: &Addr,
 ) -> StdResult<Option<ChainName>> {
-    let chain_name = PROVER_TO_CHAIN_REGISTRY.may_load(storage, &contract_address)?;
+    let prover_chain_pair = PROVER_CHAIN.may_load(storage, contract_address.clone())?;
 
-    if let Some(ref chain_name) = chain_name {
-        PROVER_TO_CHAIN_REGISTRY.remove(storage, &contract_address);
-        CHAIN_PROVER_PAIRS.remove(storage, (chain_name, &contract_address));
-    }
-
-    Ok(chain_name)
+    Ok(match prover_chain_pair {
+        Some((_, chain)) => {
+            PROVER_CHAIN.remove(storage, contract_address.clone())?;
+            Some(chain)
+        }
+        None => None,
+    })
 }
 
 pub fn chain_by_prover(
     storage: &dyn Storage,
-    contract_address: Addr,
+    contract_address: &Addr,
 ) -> StdResult<Option<ChainName>> {
-    PROVER_TO_CHAIN_REGISTRY.may_load(storage, &contract_address)
+    PROVER_CHAIN
+        .may_load(storage, contract_address.clone())
+        .map(|pair_opt| pair_opt.map(|pair| pair.1))
 }
 
-pub fn provers_by_chain(
-    storage: &dyn Storage,
-    chain_name: ChainName,
-) -> impl Iterator<Item = Addr> + '_ {
-    CHAIN_PROVER_PAIRS
-        .prefix(&chain_name)
-        .keys(storage, None, None, Order::Ascending)
-        .filter_map(|k| k.ok())
+pub fn prover_by_chain(storage: &dyn Storage, chain_name: ChainName) -> StdResult<Option<Addr>> {
+    Ok(PROVER_CHAIN
+        .idx
+        .by_chain
+        .item(storage, chain_name)?
+        .map(|pair| pair.1 .0))
 }
 
 #[cfg(test)]

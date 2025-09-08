@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -94,7 +94,7 @@ pub enum QueryMsg {
         chain_name: ChainName,
     },
 
-    #[returns(HashSet<Addr>)]
+    #[returns(Addr)]
     AuthorizedCallers { chain_name: ChainName },
 }
 

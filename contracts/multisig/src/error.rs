@@ -72,6 +72,12 @@ pub enum ContractError {
     #[error("specified chain name is incorrect. expected: {expected}")]
     WrongChainName { expected: ChainName },
 
-    #[error("could not parse caller")]
-    InvalidCaller,
+    #[error("could not parse chain name")]
+    InvalidChainName,
+
+    #[error("could not parse prover")]
+    InvalidProver,
+
+    #[error("prover not found for chain {0}")]
+    ProverNotFound(ChainName),
 }
