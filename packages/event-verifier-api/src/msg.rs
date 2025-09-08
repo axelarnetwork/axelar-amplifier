@@ -1,11 +1,11 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
-use axelar_wasm_std::{fixed_size, nonempty, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Coin;
 use msgs_derive::Permissions;
 use router_api::ChainName;
 
-use crate::evm::{Event, TransactionDetails};
+use crate::EvmEvent;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -62,11 +62,7 @@ pub struct EventToVerify {
 
 #[cw_serde]
 pub enum EventData {
-    Evm {
-        transaction_hash: fixed_size::HexBinary<32>,
-        transaction_details: Option<TransactionDetails>,
-        events: Vec<Event>,
-    },
+    Evm(EvmEvent),
     // Additional event variants for other blockchain types can be added here
 }
 

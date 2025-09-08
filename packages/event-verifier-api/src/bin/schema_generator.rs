@@ -4,7 +4,7 @@ use std::path::Path;
 // Import the actual types from the API
 use axelar_wasm_std::fixed_size;
 use cosmwasm_std::{HexBinary, Uint256};
-use event_verifier_api::{Event, EventData, TransactionDetails};
+use event_verifier_api::{Event, EventData, EvmEvent, TransactionDetails};
 use schemars::JsonSchema;
 
 #[derive(Debug)]
@@ -118,7 +118,7 @@ fn hexbin(s: &str) -> HexBinary {
 }
 
 fn build_evm_examples() -> Vec<EventData> {
-    let example_evm_no_tx = EventData::Evm {
+    let example_evm_no_tx = EventData::Evm(EvmEvent {
         transaction_hash: hex32("7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b"),
         transaction_details: None,
         events: vec![Event {
@@ -131,9 +131,9 @@ fn build_evm_examples() -> Vec<EventData> {
             ],
             data: hexbin("000000000000000000000000000000000000000000000000000000aa910f88c4"),
         }],
-    };
+    });
 
-    let example_evm_with_tx = EventData::Evm {
+    let example_evm_with_tx = EventData::Evm(EvmEvent {
         transaction_hash: hex32(
             "7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b",
         ),
@@ -155,7 +155,7 @@ fn build_evm_examples() -> Vec<EventData> {
             ],
             data: hexbin("000000000000000000000000000000000000000000000000000000aa910f88c4"),
         }],
-    };
+    });
 
     vec![example_evm_no_tx, example_evm_with_tx]
 }
