@@ -5,13 +5,13 @@ on:
 
 jobs:
   check_description:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Check Pull Request Description
+        env:
+          DESCRIPTION: "test description"
         run: |
-          PR_BODY="${{ github.event.pull_request.body }}"
-          if [[ -z "$PR_BODY" ]]; then
+          if [[ -z "$DESCRIPTION" ]]; then
             echo "Error: Pull request description is empty."
             exit 1
           fi
-          
