@@ -1,0 +1,17 @@
+name: Basic
+
+on:
+  pull_request:
+
+jobs:
+  check_description:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Pull Request Description
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+          if [[ -z "$PR_BODY" ]]; then
+            echo "Error: Pull request description is empty."
+            exit 1
+          fi
+          
