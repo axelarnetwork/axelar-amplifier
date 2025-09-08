@@ -60,6 +60,7 @@ ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
 ] }
 ethers-core = "2.0.14"
+event-verifier-api = { version = "^1.1.0", path = "packages/event-verifier-api" }
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
@@ -96,7 +97,7 @@ schemars = "0.8.10"
 semver = "1.0"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.134"
-service-registry = { version = "^1.2.0", path = "contracts/service-registry" }
+service-registry = { version = "^1.1.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
@@ -130,6 +131,7 @@ typed-builder = "0.18.2"
 valuable = "0.1.1"
 voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
+event-verifier = { version = "^1.1.0", path = "contracts/event-verifier" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 
 [workspace.lints.clippy]
