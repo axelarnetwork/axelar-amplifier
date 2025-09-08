@@ -1,0 +1,17 @@
+{
+  "type": "quorum_reached",
+  "attributes": [
+    {
+      "key": "content",
+      "value": "{\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"evm\\\":{\\\"transaction_hash\\\":\\\"0000000000000000000000000000000000000000000000000000000000000000\\\",\\\"transaction_details\\\":null,\\\"events\\\":[{\\\"contract_address\\\":\\\"0000000000000000000000000000000000000000\\\",\\\"event_index\\\":0,\\\"topics\\\":[],\\\"data\\\":\\\"01020304\\\"}]}}\"}"
+    },
+    {
+      "key": "status",
+      "value": "\"succeeded_on_source_chain\""
+    },
+    {
+      "key": "poll_id",
+      "value": "\"9\""
+    }
+  ]
+}

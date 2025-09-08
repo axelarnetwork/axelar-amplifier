@@ -1,0 +1,152 @@
+{
+  "event_instantiated": {
+    "attributes": [
+      {
+        "key": "service_name",
+        "value": "serviceName"
+      },
+      {
+        "key": "service_registry_contract",
+        "value": "cosmwasm19d2spdjdycg0tfu27n2zrkwvr25yxwykaxvxwkpnf7hqkka93j4sfp809w"
+      },
+      {
+        "key": "source_gateway_address",
+        "value": "sourceGatewayAddress"
+      },
+      {
+        "key": "voting_threshold",
+        "value": "[\"2\",\"3\"]"
+      },
+      {
+        "key": "block_expiry",
+        "value": "10"
+      },
+      {
+        "key": "source_chain",
+        "value": "sourcechain"
+      },
+      {
+        "key": "rewards_contract",
+        "value": "cosmwasm1wyhnds94w36ar6jlz4aaaz75cmypwmr0rqnc92nm5m79ejy04hnsx25urh"
+      },
+      {
+        "key": "msg_id_format",
+        "value": "\"hex_tx_hash_and_event_index\""
+      },
+      {
+        "key": "address_format",
+        "value": "\"eip55\""
+      }
+    ],
+    "type": "instantiated"
+  },
+  "event_messages_poll_started": {
+    "attributes": [
+      {
+        "key": "messages",
+        "value": "[{\"tx_id\":\"txId1\",\"event_index\":1,\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress1\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress1\",\"payload_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\"},{\"tx_id\":\"txId2\",\"event_index\":2,\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress2\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress2\",\"payload_hash\":\"0101010101010101010101010101010101010101010101010101010101010101\"}]"
+      },
+      {
+        "key": "poll_id",
+        "value": "\"1\""
+      },
+      {
+        "key": "source_chain",
+        "value": "sourcechain"
+      },
+      {
+        "key": "source_gateway_address",
+        "value": "sourceGatewayAddress"
+      },
+      {
+        "key": "expires_at",
+        "value": "1"
+      },
+      {
+        "key": "participants",
+        "value": "[\"cosmwasm12msqmrh0gvhyfztrlveax89unzvr2wzwc2ggdrs2pa6h8vj5kxhsvfdqwv\",\"cosmwasm162h5mj8myky9cywlshyq4l43k6agc8x3e6c96p552eakkz5z5s6sw2p4jy\",\"cosmwasm1la882th3963m9xcg5ea99mc8uvrel8796za2jwjdgantwlu5gzcqqp9ss4\"]"
+      }
+    ],
+    "type": "messages_poll_started"
+  },
+  "event_poll_ended": {
+    "attributes": [
+      {
+        "key": "poll_id",
+        "value": "\"1\""
+      },
+      {
+        "key": "source_chain",
+        "value": "\"sourcechain\""
+      },
+      {
+        "key": "results",
+        "value": "[\"succeeded_on_chain\",\"failed_on_chain\",\"not_found\",null]"
+      }
+    ],
+    "type": "poll_ended"
+  },
+  "event_quorum_reached": {
+    "attributes": [
+      {
+        "key": "content",
+        "value": "\"content\""
+      },
+      {
+        "key": "status",
+        "value": "\"not_found_on_source_chain\""
+      },
+      {
+        "key": "poll_id",
+        "value": "\"1\""
+      }
+    ],
+    "type": "quorum_reached"
+  },
+  "event_verifier_set_poll_started": {
+    "attributes": [
+      {
+        "key": "verifier_set",
+        "value": "{\"tx_id\":\"txId\",\"event_index\":1,\"message_id\":\"messageId\",\"verifier_set\":{\"signers\":{\"cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey\":{\"address\":\"cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey\",\"weight\":\"1\",\"pub_key\":{\"ecdsa\":\"02d530fb1b8fcfb978c37d8d74d4a79ca840a01df457e48a81bbe01bc962820921\"}},\"cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3\":{\"address\":\"cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3\",\"weight\":\"1\",\"pub_key\":{\"ecdsa\":\"0354f1838e4dbc30d4c612633b9dc54c06ead9723bb164afee0bcc516cbb156985\"}},\"cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz\":{\"address\":\"cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz\",\"weight\":\"1\",\"pub_key\":{\"ecdsa\":\"03c6dee9a36c078363104b04ace62841d441dc05848f7e1e31674b3c04e621f9dc\"}}},\"threshold\":\"2\",\"created_at\":0}}"
+      },
+      {
+        "key": "poll_id",
+        "value": "\"2\""
+      },
+      {
+        "key": "source_chain",
+        "value": "sourcechain"
+      },
+      {
+        "key": "source_gateway_address",
+        "value": "sourceGatewayAddress"
+      },
+      {
+        "key": "expires_at",
+        "value": "1"
+      },
+      {
+        "key": "participants",
+        "value": "[\"cosmwasm143l0pxru5cs9gu0x820jy4x6a7zzuchf5p00mqml86n4k7uhw9dqzdgylr\",\"cosmwasm1z5t8zwcz9fevvk34gkepmjahxpqwtzn9vnhwc7dak7z0g2er9wgs6984ds\",\"cosmwasm1sqz9mxwpefryxcj6e4xf2nc7wayzrdy87pyw2tfdmwteff3d09pq7gkytg\"]"
+      }
+    ],
+    "type": "verifier_set_poll_started"
+  },
+  "event_voted": {
+    "attributes": [
+      {
+        "key": "poll_id",
+        "value": "\"1\""
+      },
+      {
+        "key": "voter",
+        "value": "cosmwasm12ehr5qctpa78s2r2luz4lqyuzm955nxvj5msmptpatlf3qzj0xds4lvke5"
+      },
+      {
+        "key": "votes",
+        "value": "[\"succeeded_on_chain\",\"failed_on_chain\",\"not_found\"]"
+      }
+    ],
+    "type": "voted"
+  }
+}
