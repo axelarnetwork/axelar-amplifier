@@ -6,6 +6,7 @@ use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::{Any, Coin, Gas};
 use error_stack::ResultExt;
 use k256::sha2::{Digest, Sha256};
+use prost::encoding::{decode_key, decode_varint, WireType};
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
@@ -249,6 +250,80 @@ where
 
         Ok(())
     }
+}
+
+// TODO: Remove this function once all handlers are migrated to the new sdk
+pub fn deserialize_protobuf(
+    bytes: &[u8],
+) -> std::result::Result<String, Box<dyn std::error::Error>> {
+    let mut result = Vec::new();
+    let mut buf = bytes;
+    let mut field_count: usize = 0;
+
+    while !buf.is_empty() && field_count < 20 {
+        if let Ok((field_num, wire_type)) = decode_key(&mut buf) {
+            match wire_type {
+                WireType::Varint => {
+                    if let Ok(value) = decode_varint(&mut buf) {
+                        result.push(format!("Field {}: Varint = {}", field_num, value));
+                    } else {
+                        result.push(format!("Field {}: Varint = <decode error>", field_num));
+                        break;
+                    }
+                }
+                WireType::LengthDelimited => {
+                    if let Ok(len) = decode_varint(&mut buf) {
+                        if let Ok(len_usize) = usize::try_from(len) {
+                            if buf.len() >= len_usize {
+                                let data = &buf[..len_usize];
+                                buf = &buf[len_usize..];
+                                if let Ok(s) = String::from_utf8(data.to_vec()) {
+                                    result.push(format!("Field {}: String = \"{}\"", field_num, s));
+                                } else {
+                                    result.push(format!(
+                                        "Field {}: Bytes = {} bytes",
+                                        field_num,
+                                        data.len()
+                                    ));
+                                }
+                            } else {
+                                result.push(format!(
+                                    "Field {}: LengthDelimited = <insufficient bytes>",
+                                    field_num
+                                ));
+                                break;
+                            }
+                        } else {
+                            result.push(format!(
+                                "Field {}: LengthDelimited = <length error>",
+                                field_num
+                            ));
+                            break;
+                        }
+                    } else {
+                        result.push(format!(
+                            "Field {}: LengthDelimited = <length decode error>",
+                            field_num
+                        ));
+                        break;
+                    }
+                }
+                _ => {
+                    result.push(format!("Field {}: Unknown wire type", field_num));
+                    break;
+                }
+            }
+        } else {
+            result.push(format!(
+                "Field {}: <key decode error>",
+                field_count.saturating_add(1)
+            ));
+            break;
+        }
+        field_count = field_count.saturating_add(1);
+    }
+
+    Ok(result.join("\n"))
 }
 
 #[cfg(test)]

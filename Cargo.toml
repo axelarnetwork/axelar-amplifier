@@ -44,6 +44,7 @@ bcs = "0.1.5"
 bech32 = "0.11.0"
 bs58 = "0.5.1"
 client = { version = "^1.0.0", path = "packages/client" }
+config = "0.15.11"
 const-str = "0.6.2"
 coordinator = { version = "^2.0.0", path = "contracts/coordinator" }
 cosmrs = "0.22.0"
@@ -121,7 +122,7 @@ tokio-util = "0.7.11"
 tracing = { version = "0.1.37", features = ["valuable", "log"] }
 tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-error = { version = "0.2.1", features = ["traced-error"] }
-tracing-subscriber = { version = "0.3.16", features = [
+tracing-subscriber = { version = "0.3.20", features = [
   "json",
   "valuable",
   "env-filter",
