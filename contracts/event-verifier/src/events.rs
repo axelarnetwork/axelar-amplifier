@@ -180,31 +180,41 @@ mod tests {
             events: vec![
                 EventConfirmation {
                     source_chain: "sourceChain".try_into().unwrap(),
-                    event_data: serde_json::to_string(&serde_json::json!({
-                        "Evm": {
-                            "events": [{
-                                "contract_address": "contractAddress1",
-                                "data": "01020304",
-                                "event_index": 1,
-                                "topics": ["010203"]
+                    event_data: serde_json::to_string(&event_verifier_api::EventData::Evm(
+                        event_verifier_api::EvmEvent {
+                            transaction_hash: axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(vec![0u8;32]).unwrap(),
+                            transaction_details: None,
+                            events: vec![event_verifier_api::Event {
+                                contract_address: axelar_wasm_std::fixed_size::HexBinary::<20>::try_from(vec![0u8;20]).unwrap(),
+                                event_index: 1,
+                                topics: vec![{
+                                    let mut bytes = vec![0u8; 32];
+                                    bytes[0] = 1; bytes[1] = 2; bytes[2] = 3;
+                                    axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(bytes).unwrap()
+                                }],
+                                data: cosmwasm_std::HexBinary::from(vec![1,2,3,4]),
                             }],
-                            "transaction_details": null
                         }
-                    })).unwrap(),
+                    )).unwrap(),
                 },
                 EventConfirmation {
                     source_chain: "sourceChain".try_into().unwrap(),
-                    event_data: serde_json::to_string(&serde_json::json!({
-                        "Evm": {
-                            "events": [{
-                                "contract_address": "contractAddress2",
-                                "data": "05060708",
-                                "event_index": 2,
-                                "topics": ["010203"]
+                    event_data: serde_json::to_string(&event_verifier_api::EventData::Evm(
+                        event_verifier_api::EvmEvent {
+                            transaction_hash: axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(vec![0u8;32]).unwrap(),
+                            transaction_details: None,
+                            events: vec![event_verifier_api::Event {
+                                contract_address: axelar_wasm_std::fixed_size::HexBinary::<20>::try_from(vec![0u8;20]).unwrap(),
+                                event_index: 2,
+                                topics: vec![{
+                                    let mut bytes = vec![0u8; 32];
+                                    bytes[0] = 1; bytes[1] = 2; bytes[2] = 3;
+                                    axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(bytes).unwrap()
+                                }],
+                                data: cosmwasm_std::HexBinary::from(vec![5,6,7,8]),
                             }],
-                            "transaction_details": null
                         }
-                    })).unwrap(),
+                    )).unwrap(),
                 },
             ],
             metadata: PollMetadata {

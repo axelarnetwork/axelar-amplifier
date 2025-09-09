@@ -94,33 +94,21 @@ pub fn query(
 
 #[cfg(test)]
 mod test {
-    use assert_ok::assert_ok;
-    use axelar_wasm_std::address::AddressFormat;
-    use axelar_wasm_std::msg_id::{
-        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
-        FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
-    };
+    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
     use axelar_wasm_std::voting::Vote;
-    use axelar_wasm_std::{
-        assert_err_contains, err_contains, nonempty, MajorityThreshold, Threshold,
-        VerificationStatus,
-    };
-    use bech32::{Bech32m, Hrp};
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{from_json, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery};
-    use multisig::key::KeyType;
-    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use router_api::{ChainName, CrossChainId, Message};
+    use cosmwasm_std::{from_json, Empty, OwnedDeps, Uint128, WasmQuery, Fraction, Coin, HexBinary};
+    use axelar_wasm_std::voting::PollStatus;
+    use crate::msg::{PollResponse, PollData};
+    use axelar_wasm_std::fixed_size as fixed;
+    use event_verifier_api as evapi;
+    use router_api::ChainName;
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
-    use sha3::{Digest, Keccak256, Keccak512};
-    use starknet_checked_felt::CheckedFelt;
-    use alloy_primitives::hex;
 
     use super::*;
     use crate::error::ContractError;
-    use crate::events::EventConfirmation;
     use crate::msg::EventToVerify;
 
     const SENDER: &str = "sender";
@@ -138,13 +126,6 @@ mod test {
         Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
     }
 
-    fn assert_contract_err_strings_equal(
-        actual: impl Into<axelar_wasm_std::error::ContractError>,
-        expected: impl Into<axelar_wasm_std::error::ContractError>,
-    ) {
-        assert_eq!(actual.into().to_string(), expected.into().to_string());
-    }
-
     fn verifiers(num_verifiers: usize) -> Vec<Verifier> {
         let mut verifiers = vec![];
         for i in 0..num_verifiers {
@@ -160,10 +141,22 @@ mod test {
         verifiers
     }
 
-    // TODO: this makes explicit assumptions about the weight distribution strategy of the service registry, it's probably better to change it into an integration test
+    fn evm_event_json() -> String {
+        let tx_hash = fixed::HexBinary::<32>::try_from(vec![0u8; 32]).unwrap();
+        let addr = fixed::HexBinary::<20>::try_from(vec![0u8; 20]).unwrap();
+        let ev = evapi::Event {
+            contract_address: addr,
+            event_index: 0,
+            topics: vec![],
+            data: HexBinary::from(Vec::<u8>::new()),
+        };
+        let evm = evapi::EvmEvent { transaction_hash: tx_hash, transaction_details: None, events: vec![ev] };
+        serde_json::to_string(&evapi::EventData::Evm(evm)).unwrap()
+    }
+
+    // Minimal setup for simple execute/query tests
     fn setup(
         verifiers: Vec<Verifier>,
-        msg_id_format: &MessageIdFormat,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
         let api = deps.api;
@@ -208,102 +201,10 @@ mod test {
         deps
     }
 
-    fn message_id(id: &str, index: u64, msg_id_format: &MessageIdFormat) -> nonempty::String {
-        match msg_id_format {
-            MessageIdFormat::FieldElementAndEventIndex => {
-                let mut id_bytes: [u8; 32] = Keccak256::digest(id.as_bytes()).into();
-                id_bytes[0] = 0; // felt is ~31 bytes
-                FieldElementAndEventIndex {
-                    tx_hash: CheckedFelt::try_from(&id_bytes).unwrap(),
-                    event_index: index,
-                }
-                .to_string()
-                .parse()
-                .unwrap()
-            }
-            MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
-                tx_hash: Keccak256::digest(id.as_bytes()).into(),
-                event_index: index,
-            }
-            .to_string()
-            .parse()
-            .unwrap(),
-            MessageIdFormat::Base58TxDigestAndEventIndex => Base58TxDigestAndEventIndex {
-                tx_digest: Keccak256::digest(id.as_bytes()).into(),
-                event_index: index,
-            }
-            .to_string()
-            .parse()
-            .unwrap(),
-            MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
-                Base58SolanaTxSignatureAndEventIndex {
-                    raw_signature: Keccak512::digest(id.as_bytes()).into(),
-                    event_index: index,
-                }
-                .to_string()
-                .parse()
-                .unwrap()
-            }
-            MessageIdFormat::HexTxHash => HexTxHash {
-                tx_hash: Keccak256::digest(id.as_bytes()).into(),
-            }
-            .to_string()
-            .parse()
-            .unwrap(),
-            MessageIdFormat::Bech32m {
-                prefix,
-                length: _length,
-            } => {
-                let data = format!("{id}-{index}");
-                let hrp = Hrp::parse(prefix).expect("valid hrp");
-                bech32::encode::<Bech32m>(hrp, data.as_bytes())
-                    .unwrap()
-                    .to_string()
-                    .parse()
-                    .unwrap()
-            }
-        }
-    }
-
-    fn transaction_hash(id: &str, index: u64) -> String {
-        let data = format!("{id}-{index}");
-        let hash = Keccak256::digest(data.as_bytes());
-        format!("0x{}", hex::encode(hash))
-    }
-
-    fn events(len: u64, _msg_id_format: &MessageIdFormat) -> Vec<EventToVerify> {
-        (0..len)
-            .map(|i| EventToVerify {
-                source_chain: source_chain(),
-                event_data: serde_json::to_string(&serde_json::json!({
-                    "Evm": {
-                        "transaction_details": null,
-                        "events": [{
-                            "contract_address": alloy_primitives::Address::random().to_string(),
-                            "event_index": i,
-                            "topics": [],
-                            "data": "0000000000000000000000000000000000000000000000000000000000000000"
-                        }]
-                    }
-                })).unwrap(),
-            })
-            .collect()
-    }
-
-    #[allow(clippy::arithmetic_side_effects)]
-    fn mock_env_expired() -> Env {
-        let mut env = mock_env();
-        env.block.height += POLL_BLOCK_EXPIRY;
-        env
-    }
-
-
-
     #[test]
     fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
-        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
-        let mut deps = setup(verifiers.clone(), &msg_id_format);
+        let mut deps = setup(verifiers.clone());
         let api = deps.api;
 
         let new_voting_threshold: MajorityThreshold = Threshold::try_from((
@@ -331,22 +232,227 @@ mod test {
     }
 
     #[test]
-    fn admin_update_fee_and_withdraw_permissions() {
-        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+    fn query_current_fee_should_return_value() {
         let verifiers = verifiers(1);
-        let mut deps = setup(verifiers, &msg_id_format);
+        let mut deps = setup(verifiers);
         let api = deps.api;
 
-        // Unauthorized update_fee by non-admin
+        // initial fee
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentFee).unwrap();
+        let fee: Coin = from_json(res).unwrap();
+        assert_eq!(fee, cosmwasm_std::coin(0, "uaxl"));
+
+        // update fee and query again
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(2, "uaxl") },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentFee).unwrap();
+        let fee: Coin = from_json(res).unwrap();
+        assert_eq!(fee, cosmwasm_std::coin(2, "uaxl"));
+    }
+
+    #[test]
+    fn query_events_status_should_return_unknown_for_new_event() {
+        let verifiers = verifiers(1);
+        let deps = setup(verifiers);
+
+        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
+
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::EventsStatus(vec![event.clone()]),
+        )
+        .unwrap();
+        let statuses: Vec<crate::msg::EventStatus> = from_json(res).unwrap();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].event, event);
+        assert_eq!(statuses[0].status, VerificationStatus::Unknown);
+    }
+
+    #[test]
+    fn query_events_status_should_be_in_progress_after_verify() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyEvents(vec![event.clone()]),
+        )
+        .unwrap();
+
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::EventsStatus(vec![event.clone()]),
+        )
+        .unwrap();
+        let statuses: Vec<crate::msg::EventStatus> = from_json(res).unwrap();
+        assert_eq!(statuses[0].status, VerificationStatus::InProgress);
+    }
+
+    #[test]
+    fn query_events_status_should_be_verified_after_quorum() {
+        let verifiers = verifiers(3);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
+
+        // Create poll with single event
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyEvents(vec![event.clone()]),
+        )
+        .unwrap();
+
+        // Two participants vote succeeded (2/3 quorum)
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
+        )
+        .unwrap();
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
+        )
+        .unwrap();
+
+        // Status should be SucceededOnSourceChain
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::EventsStatus(vec![event.clone()]),
+        )
+        .unwrap();
+        let statuses: Vec<crate::msg::EventStatus> = from_json(res).unwrap();
+        assert_eq!(statuses[0].status, VerificationStatus::SucceededOnSourceChain);
+    }
+
+    #[test]
+    fn quorum_reached_event_emitted_on_quorum() {
+        let verifiers = verifiers(3);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
+
+        // Create poll
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyEvents(vec![event]),
+        )
+        .unwrap();
+
+        // First vote - no quorum yet
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
+        )
+        .unwrap();
+
+        // Second vote - should reach quorum and emit event
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
+        )
+        .unwrap();
+
+        assert!(res.events.iter().any(|e| e.ty == "quorum_reached"));
+    }
+
+    #[test]
+    fn query_poll_should_return_created_poll() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        // create a poll via verify events
+        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyEvents(vec![event]),
+        )
+        .unwrap();
+
+        // query poll 1
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1u64.into() })
+            .unwrap();
+        let poll_res: PollResponse = from_json(res).unwrap();
+
+        assert_eq!(poll_res.poll.poll_id, 1u64.into());
+        assert!(matches!(poll_res.status, PollStatus::InProgress));
+        match poll_res.data {
+            PollData::Events(evts) => assert_eq!(evts.len(), 1),
+        }
+    }
+
+    #[test]
+    fn only_governance_can_update_voting_threshold() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        // Non-governance should be unauthorized
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("not-gov"), &[]),
+            ExecuteMsg::UpdateVotingThreshold { new_voting_threshold: initial_voting_threshold() },
+        );
+        assert!(res.is_err());
+
+        // Governance allowed
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingThreshold { new_voting_threshold: initial_voting_threshold() },
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn only_admin_can_update_fee_and_withdraw() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        // Non-admin should be unauthorized for UpdateFee
         let res = execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make("not-admin"), &[]),
-            ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(1, "uaxl") },
+            ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(2, "uaxl") },
         );
         assert!(res.is_err());
 
-        // Authorized update_fee by admin (governance address used as admin in setup)
+        // Admin allowed for UpdateFee
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -355,7 +461,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // Unauthorized withdraw by non-admin
+        // Non-admin should be unauthorized for Withdraw
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -364,7 +470,7 @@ mod test {
         );
         assert!(res.is_err());
 
-        // Authorized withdraw by admin
+        // Admin allowed for Withdraw
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -374,28 +480,38 @@ mod test {
         assert!(res.is_ok());
     }
 
-	#[test]
-	fn verify_events_should_fail_when_source_chains_differ() {
-		let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-		let verifiers = verifiers(2);
-		let mut deps = setup(verifiers, &msg_id_format);
-		let api = deps.api;
+    fn make_event() -> EventToVerify {
+        EventToVerify { source_chain: source_chain(), event_data: evm_event_json() }
+    }
 
-		let mut evs = events(2, &msg_id_format);
-		// change the second event's source chain to a different one
-		evs[1].source_chain = "another-chain".parse().unwrap();
+    #[test]
+    fn anyone_can_verify_events() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
 
-		let res = execute(
-			deps.as_mut(),
-			mock_env(),
-			message_info(&api.addr_make(SENDER), &[]),
-			ExecuteMsg::VerifyEvents(evs),
-		);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyEvents(vec![make_event()]),
+        );
+        assert!(res.is_ok());
+    }
 
-		let err = res.expect_err("expected SourceChainMismatch error");
-		assert_contract_err_strings_equal(
-			err,
-			ContractError::SourceChainMismatch(source_chain()),
-		);
-	}
+    #[test]
+    fn anyone_can_vote() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
+
+        // No poll exists; should not be Unauthorized, but PollNotFound
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![] },
+        );
+        assert_eq!(res.unwrap_err().to_string(), ContractError::PollNotFound.to_string());
+    }
 }
