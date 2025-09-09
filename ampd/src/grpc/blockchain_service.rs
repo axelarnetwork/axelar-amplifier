@@ -20,9 +20,9 @@ use monitoring::metrics::Msg;
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
-#[cfg(feature = "dummy-grpc-broadcast")]
-use tracing::info;
 use tracing::instrument;
+#[cfg(feature = "dummy-grpc-broadcast")]
+use tracing::{info, warn};
 use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
@@ -105,11 +105,26 @@ where
 
         #[cfg(feature = "dummy-grpc-broadcast")]
         {
-            info!(
-                msg_type_url = %msg.type_url,
-                msg_value = ?msg.value,
-                "gRPC EVM handler message details"
-            );
+            match broadcast::deserialize_protobuf(&msg.value) {
+                Ok(deserialized_values) => {
+                    info!(
+                        msg_type_url = %msg.type_url,
+                        msg_value_plain = ?msg.value,
+                        msg_value_deserialized = %deserialized_values,
+                        msg_value_hex = %hex::encode(&msg.value),
+                        "gRPC EVM handler message details"
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        msg_type_url = %msg.type_url,
+                        msg_value_plain = ?msg.value,
+                        msg_value_hex = %hex::encode(&msg.value),
+                        error = %e,
+                        "failed to parse gRPC EVM handler protobuf structure, showing raw data"
+                    );
+                }
+            }
 
             Ok(Response::new(BroadcastResponse {
                 tx_hash: "dummy_tx_hash_for_testing".to_string(),
