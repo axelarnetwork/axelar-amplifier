@@ -11,9 +11,9 @@ pub fn hash_transaction_details(transaction_details: &TransactionDetails) -> Has
 
     hasher.update(transaction_details.calldata.as_slice());
     hasher.update(delimiter_bytes);
-    hasher.update(transaction_details.from.as_str());
+    hasher.update(transaction_details.from.as_slice());
     hasher.update(delimiter_bytes);
-    hasher.update(transaction_details.to.as_str());
+    hasher.update(transaction_details.to.as_slice());
     hasher.update(delimiter_bytes);
     hasher.update(transaction_details.value.to_string().as_bytes());
     hasher.update(delimiter_bytes);
@@ -25,7 +25,7 @@ pub fn hash_event(event: &Event) -> Hash {
     let mut hasher = Keccak256::new();
     let delimiter_bytes = &[FIELD_DELIMITER as u8];
 
-    hasher.update(event.contract_address.as_str());
+    hasher.update(event.contract_address.as_slice());
     hasher.update(delimiter_bytes);
     hasher.update(&event.event_index.to_le_bytes());
     hasher.update(delimiter_bytes);

@@ -115,8 +115,8 @@ impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmat
             .map_err(|_| ContractError::SerializationFailed)?;
         
         let transaction_hash = match event_data {
-            event_verifier_api::EventData::Evm { transaction_hash, .. } => {
-                format!("0x{}", transaction_hash.to_hex())
+            event_verifier_api::EventData::Evm(evm) => {
+                format!("0x{}", evm.transaction_hash)
             }
         };
         
@@ -201,13 +201,13 @@ mod tests {
                     source_chain: "sourceChain".try_into().unwrap(),
                     event_data: serde_json::to_string(&serde_json::json!({
                         "Evm": {
-                            "transaction_details": null,
                             "events": [{
                                 "contract_address": "contractAddress1",
+                                "data": "01020304",
                                 "event_index": 1,
-                                "topics": ["010203"],
-                                "data": "01020304"
-                            }]
+                                "topics": ["010203"]
+                            }],
+                            "transaction_details": null
                         }
                     })).unwrap(),
                 },
@@ -216,13 +216,13 @@ mod tests {
                     source_chain: "sourceChain".try_into().unwrap(),
                     event_data: serde_json::to_string(&serde_json::json!({
                         "Evm": {
-                            "transaction_details": null,
                             "events": [{
                                 "contract_address": "contractAddress2",
+                                "data": "05060708",
                                 "event_index": 2,
-                                "topics": ["010203"],
-                                "data": "05060708"
-                            }]
+                                "topics": ["010203"]
+                            }],
+                            "transaction_details": null
                         }
                     })).unwrap(),
                 },

@@ -121,7 +121,7 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::events::TxEventConfirmation;
-    use crate::msg::{EventId, EventToVerify};
+    use crate::msg::EventToVerify;
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
@@ -274,10 +274,7 @@ mod test {
     fn events(len: u64, _msg_id_format: &MessageIdFormat) -> Vec<EventToVerify> {
         (0..len)
             .map(|i| EventToVerify {
-                event_id: EventId {
-                    source_chain: source_chain(),
-                    transaction_hash: transaction_hash("id", i),
-                },
+                source_chain: source_chain(),
                 event_data: serde_json::to_string(&serde_json::json!({
                     "Evm": {
                         "transaction_details": null,
@@ -386,7 +383,7 @@ mod test {
 
 		let mut evs = events(2, &msg_id_format);
 		// change the second event's source chain to a different one
-		evs[1].event_id.source_chain = "another-chain".parse().unwrap();
+		evs[1].source_chain = "another-chain".parse().unwrap();
 
 		let res = execute(
 			deps.as_mut(),
