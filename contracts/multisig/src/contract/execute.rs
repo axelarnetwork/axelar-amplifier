@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use cosmwasm_std::{ensure, OverflowError, OverflowOperation, Storage, WasmMsg};
+use cosmwasm_std::{ensure, OverflowError, OverflowOperation, WasmMsg};
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 
 use super::*;
-use crate::contract::query::caller_authorized;
 use crate::key::{KeyTyped, PublicKey, Signature};
 use crate::signing::{validate_session_signature, SigningSession};
 use crate::state::{
@@ -180,15 +179,6 @@ pub fn register_pub_key(
     }))
 }
 
-pub fn require_authorized_caller(
-    storage: &dyn Storage,
-    sender_addr: &Addr,
-    chain_name: &ChainName,
-) -> error_stack::Result<bool, ContractError> {
-    caller_authorized(storage, sender_addr.clone(), chain_name.clone())
-        .change_context(ContractError::InvalidProver)
-}
-
 pub fn authorize_callers(
     deps: DepsMut,
     contracts: HashMap<Addr, ChainName>,
@@ -217,9 +207,9 @@ pub fn unauthorize_callers(
     let callers_and_chains = callers
         .into_iter()
         .filter_map(|contract| {
-            remove_prover(deps.storage, &contract)
+            remove_prover(deps.storage, contract.clone())
                 .map(|cc| cc.map(|chain| (contract, chain)))
-                .change_context(ContractError::InvalidProver)
+                .change_context(ContractError::Storage)
                 .transpose()
         })
         .collect::<error_stack::Result<Vec<(Addr, ChainName)>, ContractError>>()?;

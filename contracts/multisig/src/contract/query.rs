@@ -35,13 +35,13 @@ pub fn caller_authorized(
     address: Addr,
     chain_name: ChainName,
 ) -> StdResult<bool> {
-    Ok(chain_by_prover(storage, &address)?
+    Ok(chain_by_prover(storage, address)?
         .filter(|c| c == &chain_name)
         .is_some())
 }
 
 pub fn prover_for_chain(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
     prover_by_chain(deps.storage, chain_name.clone())
-        .change_context(ContractError::InvalidChainName)?
+        .change_context(ContractError::Storage)?
         .ok_or(report!(ContractError::ProverNotFound(chain_name)))
 }

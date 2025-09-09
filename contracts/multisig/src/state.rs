@@ -28,13 +28,13 @@ pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_session
 type ProverChainPair = (Addr, ChainName);
 
 #[index_list(ProverChainPair)]
-struct ProverIndexes<'a> {
+struct ProverChainIndexes<'a> {
     by_chain: UniqueIndex<'a, ChainName, ProverChainPair, Addr>,
 }
 
-const PROVER_CHAIN: IndexedMap<Addr, ProverChainPair, ProverIndexes> = IndexedMap::new(
+const PROVER_CHAIN: IndexedMap<Addr, ProverChainPair, ProverChainIndexes> = IndexedMap::new(
     "prover_chain",
-    ProverIndexes {
+    ProverChainIndexes {
         by_chain: UniqueIndex::new(|(_, chain)| chain.clone(), "prover_chain_by_chain"),
     },
 );
@@ -142,26 +142,26 @@ pub fn save_prover(
 
 pub fn remove_prover(
     storage: &mut dyn Storage,
-    contract_address: &Addr,
+    contract_address: Addr,
 ) -> StdResult<Option<ChainName>> {
     let prover_chain_pair = PROVER_CHAIN.may_load(storage, contract_address.clone())?;
 
-    Ok(match prover_chain_pair {
+    match prover_chain_pair {
         Some((_, chain)) => {
-            PROVER_CHAIN.remove(storage, contract_address.clone())?;
-            Some(chain)
+            PROVER_CHAIN.remove(storage, contract_address)?;
+            Ok(Some(chain))
         }
-        None => None,
-    })
+        None => Ok(None),
+    }
 }
 
 pub fn chain_by_prover(
     storage: &dyn Storage,
-    contract_address: &Addr,
+    contract_address: Addr,
 ) -> StdResult<Option<ChainName>> {
     PROVER_CHAIN
-        .may_load(storage, contract_address.clone())
-        .map(|pair_opt| pair_opt.map(|pair| pair.1))
+        .may_load(storage, contract_address)
+        .map(|pair_opt| pair_opt.map(|(_, chain)| chain))
 }
 
 pub fn prover_by_chain(storage: &dyn Storage, chain_name: ChainName) -> StdResult<Option<Addr>> {
@@ -169,14 +169,14 @@ pub fn prover_by_chain(storage: &dyn Storage, chain_name: ChainName) -> StdResul
         .idx
         .by_chain
         .item(storage, chain_name)?
-        .map(|pair| pair.1 .0))
+        .map(|(_, (address, _))| address))
 }
 
 #[cfg(test)]
 mod tests {
 
     use cosmwasm_std::testing::mock_dependencies;
-    use router_api::cosmos_addr;
+    use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::test::common::ecdsa_test_data;
@@ -267,5 +267,124 @@ mod tests {
                 signer: signer.address.into(),
             }
         );
+    }
+
+    #[test]
+    fn test_save_prover_chain_pair_succeeds() {
+        let mut deps = mock_dependencies();
+
+        let prover_addr = cosmos_addr!("prover");
+        let chain_name = chain_name!("chain1");
+
+        assert!(!PROVER_CHAIN.has(&deps.storage, prover_addr.clone()));
+
+        assert!(save_prover(&mut deps.storage, prover_addr.clone(), chain_name.clone()).is_ok());
+
+        assert_eq!(
+            PROVER_CHAIN
+                .load(&deps.storage, prover_addr.clone())
+                .unwrap()
+                .0,
+            prover_addr
+        );
+        assert_eq!(
+            PROVER_CHAIN
+                .load(&deps.storage, prover_addr.clone())
+                .unwrap()
+                .1,
+            chain_name
+        );
+    }
+
+    #[test]
+    fn test_save_multiple_prover_chain_pairs_takes_last_succeeds() {
+        let mut deps = mock_dependencies();
+
+        let prover_addr = cosmos_addr!("prover");
+        let chain_name1 = chain_name!("chain1");
+        let chain_name2 = chain_name!("chain2");
+
+        assert!(save_prover(&mut deps.storage, prover_addr.clone(), chain_name1.clone()).is_ok());
+        assert_eq!(
+            PROVER_CHAIN
+                .load(&deps.storage, prover_addr.clone())
+                .unwrap()
+                .1,
+            chain_name1
+        );
+
+        assert!(save_prover(&mut deps.storage, prover_addr.clone(), chain_name2.clone()).is_ok());
+        assert_eq!(
+            PROVER_CHAIN.load(&deps.storage, prover_addr).unwrap().1,
+            chain_name2
+        );
+    }
+
+    #[test]
+    fn test_remove_prover_chain_pair_succeeds() {
+        let mut deps = mock_dependencies();
+
+        let prover_addr = cosmos_addr!("prover");
+        let chain_name = chain_name!("chain1");
+
+        assert!(!PROVER_CHAIN.has(&deps.storage, prover_addr.clone()));
+
+        assert!(save_prover(&mut deps.storage, prover_addr.clone(), chain_name.clone()).is_ok());
+        assert!(PROVER_CHAIN.has(&deps.storage, prover_addr.clone()));
+
+        assert!(remove_prover(&mut deps.storage, prover_addr.clone()).is_ok());
+        assert!(!PROVER_CHAIN.has(&deps.storage, prover_addr.clone()));
+    }
+
+    #[test]
+    fn test_query_chain_by_prover_succeeds() {
+        let mut deps = mock_dependencies();
+
+        let prover_addr = cosmos_addr!("prover");
+        let chain_name = chain_name!("chain1");
+
+        assert!(save_prover(&mut deps.storage, prover_addr.clone(), chain_name.clone()).is_ok());
+        assert_eq!(
+            chain_by_prover(&deps.storage, prover_addr)
+                .unwrap()
+                .unwrap(),
+            chain_name
+        );
+    }
+
+    #[test]
+    fn test_query_chain_by_prover_returns_none_when_empty() {
+        let deps = mock_dependencies();
+
+        let prover_addr = cosmos_addr!("prover");
+
+        assert!(chain_by_prover(&deps.storage, prover_addr)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_query_prover_by_chain_succeeds() {
+        let mut deps = mock_dependencies();
+
+        let prover_addr = cosmos_addr!("prover");
+        let chain_name = chain_name!("chain1");
+
+        assert!(save_prover(&mut deps.storage, prover_addr.clone(), chain_name.clone()).is_ok());
+        assert_eq!(
+            prover_by_chain(&deps.storage, chain_name).unwrap().unwrap(),
+            prover_addr
+        );
+    }
+
+    #[test]
+    fn test_query_prover_by_chain_returns_none_when_empty() {
+        let deps = mock_dependencies();
+
+        let chain_name = chain_name!("chain1");
+
+        assert!(prover_by_chain(&deps.storage, chain_name)
+            .unwrap()
+            .is_none());
     }
 }

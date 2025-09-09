@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint64};
@@ -60,7 +60,7 @@ impl Error {
                 contract_address,
                 chain_name,
             },
-            QueryMsg::AuthorizedCallers { chain_name } => {
+            QueryMsg::AuthorizedCaller { chain_name } => {
                 Error::AuthorizedCallersForChain { chain_name }
             }
         }
@@ -179,8 +179,8 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    pub fn authorized_callers(&self, chain_name: ChainName) -> Result<HashSet<Addr>, Error> {
-        let msg = QueryMsg::AuthorizedCallers { chain_name };
+    pub fn authorized_callers(&self, chain_name: ChainName) -> Result<Addr, Error> {
+        let msg = QueryMsg::AuthorizedCaller { chain_name };
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
@@ -387,8 +387,8 @@ mod test {
                         contract_address: _,
                         chain_name: _,
                     } => Ok(to_json_binary(&true).into()).into(),
-                    QueryMsg::AuthorizedCallers { chain_name: _ } => {
-                        Ok(to_json_binary(&vec![cosmos_addr!("prover")]).into()).into()
+                    QueryMsg::AuthorizedCaller { chain_name: _ } => {
+                        Ok(to_json_binary(&cosmos_addr!("prover")).into()).into()
                     }
                 }
             }

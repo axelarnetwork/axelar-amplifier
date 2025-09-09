@@ -95,7 +95,7 @@ pub enum QueryMsg {
     },
 
     #[returns(Addr)]
-    AuthorizedCallers { chain_name: ChainName },
+    AuthorizedCaller { chain_name: ChainName },
 }
 
 #[cw_serde]

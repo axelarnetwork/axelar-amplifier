@@ -134,10 +134,12 @@ fn can_start_signing_session(
     msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, permission_control::Error> {
     match msg {
-        ExecuteMsg::StartSigningSession { chain_name, .. } => Ok(
-            execute::require_authorized_caller(storage, sender_addr, chain_name)
-                .change_context(permission_control::Error::Unauthorized)?,
-        ),
+        ExecuteMsg::StartSigningSession { chain_name, .. } => {
+            Ok(
+                query::caller_authorized(storage, sender_addr.clone(), chain_name.clone())
+                    .change_context(permission_control::Error::Unauthorized)?,
+            )
+        }
         _ => Err(report!(permission_control::Error::WrongVariant)),
     }
 }
@@ -176,7 +178,7 @@ pub fn query(
             address::validate_cosmwasm_address(deps.api, &contract_address)?,
             chain_name,
         )?)?,
-        QueryMsg::AuthorizedCallers { chain_name } => {
+        QueryMsg::AuthorizedCaller { chain_name } => {
             to_json_binary(&query::prover_for_chain(deps, chain_name)?)?
         }
     }
