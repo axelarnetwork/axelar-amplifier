@@ -16,7 +16,7 @@ use service_registry::WeightedVerifier;
 use crate::contract::query::event_status;
 use crate::error::ContractError;
 use crate::events::{EventConfirmation, PollMetadata, PollStarted, QuorumReached, Voted};
-use crate::state::{self, Poll, CONFIG, POLLS, POLL_ID, VOTES};
+use crate::state::{self, CONFIG, POLLS, POLL_ID, VOTES};
 use axelar_wasm_std::nonempty;
 
 pub fn update_voting_threshold(
@@ -147,7 +147,7 @@ pub fn verify_events(
             .save(
                 deps.storage,
                 &hash_event_to_verify(event),
-                &state::PollContent::<crate::msg::EventToVerify>::new(event.clone(), id, idx),
+                &state::EventInPoll::new(event.clone(), id, idx),
             )
             .change_context(ContractError::StorageError)?;
     }
@@ -168,17 +168,13 @@ pub fn verify_events(
     }))
 }
 
-fn poll_results(poll: &Poll) -> PollResults {
-    match poll {
-        Poll::Events(weighted_poll) => weighted_poll.results(),
-    }
-}
+fn poll_results(poll: &WeightedPoll) -> PollResults { poll.results() }
 
 fn make_quorum_event(
     vote: Option<Vote>,
     index_in_poll: u32,
     poll_id: &PollId,
-    poll: &Poll,
+    poll: &WeightedPoll,
     deps: &DepsMut,
 ) -> Result<Option<Event>, ContractError> {
     let status = vote.map(|vote| match vote {
@@ -187,24 +183,15 @@ fn make_quorum_event(
         Vote::NotFound => VerificationStatus::NotFoundOnSourceChain,
     });
 
-    match poll {
-        Poll::Events(_) => {
-            let event = state::poll_events()
-                .idx
-                .load_event(deps.storage, *poll_id, index_in_poll)
-                .change_context(ContractError::StorageError)
-                .expect("event not found in poll");
+    let event = state::poll_events()
+        .idx
+        .load_event(deps.storage, *poll_id, index_in_poll)
+        .change_context(ContractError::StorageError)
+        .expect("event not found in poll");
 
-            Ok(status.map(|status| {
-                QuorumReached {
-                    content: event,
-                    status,
-                    poll_id: *poll_id,
-                }
-                .into()
-            }))
-        }
-    }
+    Ok(status.map(|status| {
+        QuorumReached { content: event, status, poll_id: *poll_id }.into()
+    }))
 }
 
 pub fn vote(
@@ -221,10 +208,9 @@ pub fn vote(
 
     let results_before_voting = poll_results(&poll);
 
-    let poll = poll.try_map(|poll| {
-        poll.cast_vote(env.block.height, &info.sender, votes.clone())
-            .map_err(ContractError::from)
-    })?;
+    let poll = poll
+        .cast_vote(env.block.height, &info.sender, votes.clone())
+        .map_err(ContractError::from)?;
     POLLS
         .save(deps.storage, poll_id, &poll)
         .change_context(ContractError::StorageError)?;
@@ -292,7 +278,7 @@ fn create_events_poll(
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
     POLLS
-        .save(store, id, &Poll::Events(poll))
+        .save(store, id, &poll)
         .change_context(ContractError::StorageError)?;
 
     Ok(id)

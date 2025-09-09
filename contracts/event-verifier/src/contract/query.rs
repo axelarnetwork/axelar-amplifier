@@ -6,7 +6,8 @@ use crate::hash::hash_event_to_verify;
 
 use crate::error::ContractError;
 use crate::msg::{EventStatus, EventToVerify, PollData, PollResponse};
-use crate::state::{poll_events, Poll, PollContent, CONFIG, POLLS};
+use crate::state::{poll_events, EventInPoll, CONFIG, POLLS};
+use axelar_wasm_std::voting::WeightedPoll;
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG
@@ -64,52 +65,44 @@ pub fn poll_response(
     let poll = POLLS
         .load(deps.storage, poll_id)
         .change_context(ContractError::PollNotFound)?;
-    let (data, status) = match &poll {
-        Poll::Events(poll) => {
-            let events = poll_events()
-                .idx
-                .load_events(deps.storage, poll_id)
-                .change_context(ContractError::StorageError)?;
-            assert_eq!(
-                poll.tallies.len(),
-                events.len(),
-                "data inconsistency for number of events in poll {}",
-                poll.poll_id
-            );
+    let events = poll_events()
+        .idx
+        .load_events(deps.storage, poll_id)
+        .change_context(ContractError::StorageError)?;
+    assert_eq!(
+        poll.tallies.len(),
+        events.len(),
+        "data inconsistency for number of events in poll {}",
+        poll.poll_id
+    );
 
-            (PollData::Events(events), poll.status(current_block_height))
-        }
-    };
+    let data = PollData::Events(events);
+    let status = poll.status(current_block_height);
 
     Ok(PollResponse {
-        poll: poll.weighted_poll(),
+        poll,
         data,
         status,
     })
 }
 
-fn verification_status<T: PartialEq + std::fmt::Debug>(
+fn verification_status(
     deps: Deps,
-    stored_poll_content: Option<PollContent<T>>,
-    content: &T,
+    stored_poll_content: Option<EventInPoll>,
+    content: &EventToVerify,
     cur_block_height: u64,
 ) -> VerificationStatus {
     match stored_poll_content {
         Some(stored) => {
-            assert_eq!(
-                stored.content, *content,
-                "invalid invariant: content mismatch with the stored one"
-            );
+            assert_eq!(stored.event, *content, "invalid invariant: content mismatch with the stored one");
 
             let poll = POLLS
                 .load(deps.storage, stored.poll_id)
                 .expect("invalid invariant: content's poll not found");
 
-            let consensus = match &poll {
-                Poll::Events(poll) => poll
-                    .consensus(stored.index_in_poll)
-                    .expect("invalid invariant: event not found in poll"),
-            };
+            let consensus = poll
+                .consensus(stored.index_in_poll)
+                .expect("invalid invariant: event not found in poll");
 
             match consensus {
                 Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnSourceChain,
@@ -125,15 +118,11 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
     }
 }
 
-fn voting_completed(poll: &Poll, cur_block_height: u64) -> bool {
-    match poll {
-        Poll::Events(poll) => {
-            matches!(
-                poll.status(cur_block_height),
-                PollStatus::Expired | PollStatus::Finished
-            )
-        }
-    }
+fn voting_completed(poll: &WeightedPoll, cur_block_height: u64) -> bool {
+    matches!(
+        poll.status(cur_block_height),
+        PollStatus::Expired | PollStatus::Finished
+    )
 }
 
 #[cfg(test)]
