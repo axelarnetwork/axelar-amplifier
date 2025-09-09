@@ -15,7 +15,7 @@ use service_registry::WeightedVerifier;
 
 use crate::contract::query::event_status;
 use crate::error::ContractError;
-use crate::events::{PollMetadata, PollStarted, QuorumReached, TxEventConfirmation, Voted};
+use crate::events::{EventConfirmation, PollMetadata, PollStarted, QuorumReached, Voted};
 use crate::state::{self, Poll, CONFIG, POLLS, POLL_ID, VOTES};
 use axelar_wasm_std::nonempty;
 
@@ -154,12 +154,8 @@ pub fn verify_events(
 
     let event_confirmations = events_to_verify
         .iter()
-        .map(|event| {
-            // MessageIdFormat is no longer used in the implementation, so we can pass a dummy value
-            TxEventConfirmation::try_from((event.clone(), &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex))
-                .map_err(|err| report!(err))
-        })
-        .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
+        .map(|event| EventConfirmation::from(event.clone()))
+        .collect::<Vec<EventConfirmation>>();
 
     Ok(Response::new().add_event(PollStarted::Events {
         events: event_confirmations,

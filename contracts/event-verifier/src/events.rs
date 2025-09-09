@@ -1,6 +1,5 @@
 use std::vec::Vec;
 
-use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
@@ -49,7 +48,7 @@ pub struct PollMetadata {
 
 pub enum PollStarted {
     Events {
-        events: Vec<TxEventConfirmation>,
+        events: Vec<EventConfirmation>,
         metadata: PollMetadata,
     },
 }
@@ -97,34 +96,17 @@ impl From<PollStarted> for Event {
 
 
 #[cw_serde]
-pub struct TxEventConfirmation {
-    pub transaction_hash: String,
+pub struct EventConfirmation {
     pub source_chain: ChainName,
     pub event_data: String, // JSON string representing the serialized EventData
 }
 
-// Message TryFrom implementation removed - message functionality has been removed
-
-impl TryFrom<(crate::msg::EventToVerify, &MessageIdFormat)> for TxEventConfirmation {
-    type Error = ContractError;
-    fn try_from(
-        (event, _msg_id_format): (crate::msg::EventToVerify, &MessageIdFormat),
-    ) -> Result<Self, Self::Error> {
-        // Parse the event_data to extract transaction_hash
-        let event_data: event_verifier_api::EventData = serde_json::from_str(&event.event_data)
-            .map_err(|_| ContractError::SerializationFailed)?;
-        
-        let transaction_hash = match event_data {
-            event_verifier_api::EventData::Evm(evm) => {
-                format!("0x{}", evm.transaction_hash)
-            }
-        };
-        
-        Ok(TxEventConfirmation {
-            transaction_hash,
+impl From<crate::msg::EventToVerify> for EventConfirmation {
+    fn from(event: crate::msg::EventToVerify) -> Self {
+        EventConfirmation {
             source_chain: event.source_chain,
             event_data: event.event_data,
-        })
+        }
     }
 }
 
@@ -196,8 +178,7 @@ mod tests {
 
         let event_events_poll_started: cosmwasm_std::Event = PollStarted::Events {
             events: vec![
-                TxEventConfirmation {
-                    transaction_hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
+                EventConfirmation {
                     source_chain: "sourceChain".try_into().unwrap(),
                     event_data: serde_json::to_string(&serde_json::json!({
                         "Evm": {
@@ -211,8 +192,7 @@ mod tests {
                         }
                     })).unwrap(),
                 },
-                TxEventConfirmation {
-                    transaction_hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890".to_string(),
+                EventConfirmation {
                     source_chain: "sourceChain".try_into().unwrap(),
                     event_data: serde_json::to_string(&serde_json::json!({
                         "Evm": {

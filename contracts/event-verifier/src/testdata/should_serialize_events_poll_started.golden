@@ -3,7 +3,7 @@
   "attributes": [
     {
       "key": "events",
-      "value": "[{\"transaction_hash\":\"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\",\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"Evm\\\":{\\\"events\\\":[{\\\"contract_address\\\":\\\"contractAddress1\\\",\\\"data\\\":\\\"01020304\\\",\\\"event_index\\\":1,\\\"topics\\\":[\\\"010203\\\"]}],\\\"transaction_details\\\":null}}\"},{\"transaction_hash\":\"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890\",\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"Evm\\\":{\\\"events\\\":[{\\\"contract_address\\\":\\\"contractAddress2\\\",\\\"data\\\":\\\"05060708\\\",\\\"event_index\\\":2,\\\"topics\\\":[\\\"010203\\\"]}],\\\"transaction_details\\\":null}}\"}]"
+      "value": "[{\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"Evm\\\":{\\\"events\\\":[{\\\"contract_address\\\":\\\"contractAddress1\\\",\\\"data\\\":\\\"01020304\\\",\\\"event_index\\\":1,\\\"topics\\\":[\\\"010203\\\"]}],\\\"transaction_details\\\":null}}\"},{\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"Evm\\\":{\\\"events\\\":[{\\\"contract_address\\\":\\\"contractAddress2\\\",\\\"data\\\":\\\"05060708\\\",\\\"event_index\\\":2,\\\"topics\\\":[\\\"010203\\\"]}],\\\"transaction_details\\\":null}}\"}]"
     },
     {
       "key": "poll_id",

@@ -120,7 +120,7 @@ mod test {
 
     use super::*;
     use crate::error::ContractError;
-    use crate::events::TxEventConfirmation;
+    use crate::events::EventConfirmation;
     use crate::msg::EventToVerify;
 
     const SENDER: &str = "sender";
