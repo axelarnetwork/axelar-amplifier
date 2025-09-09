@@ -21,7 +21,6 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    // Invokes minor version update
     let config = legacy_state::load_config(deps.storage)?;
 
     let coordinator = address::validate_cosmwasm_address(deps.api, msg.coordinator.as_str())?;
