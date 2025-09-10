@@ -1,4 +1,17 @@
-description_patterns=("## Description" ".+" "## Steps to Test" ".+" "## Expected Behaviour" ".+" "## Notes")
+# This script checks that the pull request body matches the patterns
+# defined in `description_patterns`. This script will go through
+# the body line-by-line, and check that line matches the
+# current regex pattern in `description_patterns`. Each regex pattern
+# must be matched in order.
+#
+# Example Description:
+# ```
+# ## Description
+#
+# This is a valid PR description.
+# ```
+# Usage: ./check_description.sh description.txt
+description_patterns=("## Description" ".+")
 target_index=${#description_patterns[@]}
 pattern_index=0
 lines=$(wc -l < $1)

@@ -14,4 +14,3 @@ jobs:
         run: |
           echo "$DESCRIPTION" > description.txt
           .github/workflows/utils/check_description.sh description.txt
-          rm description.txt
