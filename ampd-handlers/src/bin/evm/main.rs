@@ -41,8 +41,13 @@ async fn main() -> Result<(), Error> {
         .change_context(Error::Grpc)?;
     let verifier = client.address().await.change_context(Error::Grpc)?;
 
-    let (_, monitoring_client) = monitoring::Server::new(monitoring::Config::Disabled)
-        .expect("failed to create monitoring server"); // TODO: make this configurable
+    let (monitoring_server, monitoring_client) =
+        monitoring::Server::new(monitoring::Config::Disabled)
+            .expect("failed to create monitoring server"); // TODO: make this configurable
+    let monitoring_token = token.clone();
+    tokio::spawn(async move {
+        let _ = monitoring_server.run(monitoring_token).await;
+    });
 
     let rpc_client = json_rpc::Client::new_http(
         Url::new_sensitive(DEFAULT_RPC_URL).expect("failed to create default RPC URL"),
