@@ -12,11 +12,11 @@ mod config;
 mod cosmos;
 mod event_processor;
 pub mod event_sub;
-mod evm;
+pub mod evm;
 mod grpc;
 mod handlers;
-mod json_rpc;
-mod monitoring;
+pub mod json_rpc;
+pub mod monitoring;
 mod mvx;
 mod solana;
 mod stacks;
@@ -25,7 +25,7 @@ mod stellar;
 mod sui;
 mod tm_client;
 mod tofnd;
-mod types;
+pub mod types;
 #[cfg(feature = "url")]
 pub mod url;
 #[cfg(not(feature = "url"))]

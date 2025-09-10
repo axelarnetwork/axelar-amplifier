@@ -8,11 +8,23 @@ edition = { workspace = true }
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
+async-trait = { workspace = true }
+axelar-wasm-std = { workspace = true }
+cosmrs = { workspace = true }
 error-stack = { workspace = true }
+ethers-core = { workspace = true }
 events = { workspace = true }
+futures = { workspace = true }
+reqwest = { version = "0.11.24", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
+tracing = { workspace = true }
+typed-builder = { workspace = true }
+voting-verifier = { workspace = true }
 
 [lints]
 workspace = true

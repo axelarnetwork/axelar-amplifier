@@ -352,11 +352,23 @@ version = "0.1.0"
 dependencies = [
  "ampd",
  "ampd-sdk",
+ "async-trait",
+ "axelar-wasm-std",
+ "cosmrs",
  "error-stack",
+ "ethers-core",
  "events",
+ "futures",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tracing",
+ "typed-builder",
+ "voting-verifier",
 ]
 
 [[package]]

@@ -1,9 +1,9 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use cosmrs::Any;
-use error_stack::{Context, ResultExt};
+use error_stack::{Context, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::{pin_mut, Stream};
 use mockall::automock;
@@ -33,7 +33,7 @@ pub trait EventHandler: Send + Sync {
         &self,
         event: &Self::Event,
         token: CancellationToken,
-    ) -> error_stack::Result<Vec<Any>, Self::Err>;
+    ) -> Result<Vec<Any>, Self::Err>;
 
     fn subscription_params(&self) -> SubscriptionParams;
 }
@@ -41,6 +41,15 @@ pub trait EventHandler: Send + Sync {
 pub struct SubscriptionParams {
     event_filters: Vec<AbciEventTypeFilter>,
     include_block_begin_end: bool,
+}
+
+impl SubscriptionParams {
+    pub fn new(event_filters: Vec<AbciEventTypeFilter>, include_block_begin_end: bool) -> Self {
+        Self {
+            event_filters,
+            include_block_begin_end,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -76,11 +85,12 @@ pub enum Error {
 }
 
 #[derive(Debug, TypedBuilder)]
-pub struct HandlerTask<H>
+pub struct HandlerTask<H, C>
 where
     H: EventHandler,
-    <H::Event as TryFrom<Event>>::Error: Context,
-    H::Event: Display,
+    H::Event: TryFrom<Event, Error = Report<C>>,
+    C: Context,
+    H::Event: Debug,
 {
     handler: H,
     config: Config,
@@ -88,17 +98,18 @@ where
     handler_retry_policy: RetryPolicy,
 }
 
-impl<H> HandlerTask<H>
+impl<H, C> HandlerTask<H, C>
 where
     H: EventHandler + Debug,
-    <H::Event as TryFrom<Event>>::Error: Context,
-    H::Event: Display + Debug,
+    H::Event: TryFrom<Event, Error = Report<C>>,
+    C: Context,
+    H::Event: Debug,
 {
     pub async fn run(
         self,
         client: &mut impl client::Client,
         token: CancellationToken,
-    ) -> error_stack::Result<(), Error> {
+    ) -> Result<(), Error> {
         let stream = self.subscribe_to_stream(client, token.clone()).await?;
 
         pin_mut!(stream);
@@ -113,7 +124,7 @@ where
         &self,
         client: &mut impl client::Client,
         token: CancellationToken,
-    ) -> error_stack::Result<impl Stream<Item = error_stack::Result<Event, Error>>, Error> {
+    ) -> Result<impl Stream<Item = Result<Event, Error>>, Error> {
         let subscription_params = self.handler.subscription_params();
 
         let stream = client
@@ -136,7 +147,7 @@ where
 
     async fn process_stream(
         &self,
-        element: error_stack::Result<Event, Error>,
+        element: Result<Event, Error>,
         client: &mut impl client::Client,
         token: CancellationToken,
     ) {
@@ -147,7 +158,7 @@ where
 
     async fn process_event(
         &self,
-        element: error_stack::Result<Event, Error>,
+        element: Result<Event, Error>,
         token: CancellationToken,
     ) -> Option<Vec<Any>> {
         let event = element
@@ -166,7 +177,12 @@ where
     #[instrument]
     fn parse_event(event: Event) -> Option<H::Event> {
         H::Event::try_from(event.clone())
-            .change_context(Error::EventConversion)
+            .inspect_err(|err| {
+                error!(
+                    err = report::LoggableError::from(err).as_value(),
+                    "failed to parse event"
+                )
+            })
             .ok()
     }
 
@@ -243,7 +259,7 @@ mod tests {
             .expect_subscribe()
             .times(1)
             .returning(move |_, _| {
-                let result_events: Vec<error_stack::Result<Event, ClientError>> =
+                let result_events: Vec<Result<Event, ClientError>> =
                     events.clone().into_iter().map(Ok).collect();
                 Ok(tokio_stream::iter(result_events))
             });
@@ -405,7 +421,7 @@ mod tests {
 
         let mut client = MockClient::new();
         client.expect_subscribe().times(1).returning(move |_, _| {
-            let result_events: Vec<error_stack::Result<Event, ClientError>> = vec![];
+            let result_events: Vec<Result<Event, ClientError>> = vec![];
             Ok(tokio_stream::iter(result_events))
         });
 
