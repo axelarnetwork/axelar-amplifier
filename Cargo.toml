@@ -111,7 +111,7 @@ service-registry-api = { version = "^1.0.0", path = "packages/service-registry-a
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
 snarkos-account = "4.1.0"
-snarkvm = "4.1.0"
+snarkvm = { version = "4.1.0", default-features = false }
 snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM.git", branch = "cosmwasm-5", package = "snarkvm-cosmwasm" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-core = "0.12.0"
