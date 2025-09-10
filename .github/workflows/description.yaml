@@ -7,11 +7,11 @@ jobs:
   check_description:
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
       - name: Check Pull Request Description
         env:
           DESCRIPTION: ${{ github.event.pull_request.body }}
         run: |
-          if [[ -z "$DESCRIPTION" ]]; then
-            echo "Error: Pull request description is empty."
-            exit 1
-          fi
+          echo "$DESCRIPTION" > description.txt
+          .github/workflows/utils/check_description.sh description.txt
+          rm description.txt
