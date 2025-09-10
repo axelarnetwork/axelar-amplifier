@@ -1,0 +1,17 @@
+{
+  "type": "quorum_reached",
+  "attributes": [
+    {
+      "key": "content",
+      "value": "\"content\""
+    },
+    {
+      "key": "status",
+      "value": "\"not_found_on_source_chain\""
+    },
+    {
+      "key": "poll_id",
+      "value": "\"1\""
+    }
+  ]
+}

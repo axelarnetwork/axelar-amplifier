@@ -197,7 +197,7 @@ mod test {
     use solana_sdk::signature::Signature;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, TxEventConfirmation};
 
     use super::*;
     use crate::handlers::tests::into_structured_event;
@@ -419,7 +419,7 @@ mod test {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> VotingVerifierEvent {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
         let event_idx_1 = 10_u32;
         let message_id_1 = format!("{signature_1}-{event_idx_1}");
@@ -431,18 +431,16 @@ mod test {
         let source_gateway_address =
             Pubkey::from_str("4uX3jFnWLa4vBPyWJKd2XnUEX6JvP8q1BG7mTwQYhQeL").unwrap();
 
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(SOLANA),
-                source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+        VotingVerifierEvent::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(SOLANA),
+            source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)]
             messages: vec![
                 TxEventConfirmation {

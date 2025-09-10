@@ -1,0 +1,33 @@
+{
+  "type": "messages_poll_started",
+  "attributes": [
+    {
+      "key": "messages",
+      "value": "[{\"tx_id\":\"txId1\",\"event_index\":1,\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress1\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress1\",\"payload_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\"},{\"tx_id\":\"txId2\",\"event_index\":2,\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress2\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress2\",\"payload_hash\":\"0101010101010101010101010101010101010101010101010101010101010101\"}]"
+    },
+    {
+      "key": "poll_id",
+      "value": "\"1\""
+    },
+    {
+      "key": "source_chain",
+      "value": "\"sourcechain\""
+    },
+    {
+      "key": "source_gateway_address",
+      "value": "\"sourceGatewayAddress\""
+    },
+    {
+      "key": "confirmation_height",
+      "value": "1"
+    },
+    {
+      "key": "expires_at",
+      "value": "1"
+    },
+    {
+      "key": "participants",
+      "value": "[\"cosmwasm12msqmrh0gvhyfztrlveax89unzvr2wzwc2ggdrs2pa6h8vj5kxhsvfdqwv\",\"cosmwasm162h5mj8myky9cywlshyq4l43k6agc8x3e6c96p552eakkz5z5s6sw2p4jy\",\"cosmwasm1la882th3963m9xcg5ea99mc8uvrel8796za2jwjdgantwlu5gzcqqp9ss4\"]"
+    }
+  ]
+}
