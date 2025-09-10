@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Check Pull Request Description
+      - name: Check Pull Request Description Exists
         env:
           DESCRIPTION: ${{ github.event.pull_request.body }}
         run: |
