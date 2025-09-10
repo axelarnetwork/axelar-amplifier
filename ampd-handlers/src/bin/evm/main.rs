@@ -51,7 +51,7 @@ async fn main() -> Result<(), Error> {
             .timeout(DEFAULT_RPC_TIMEOUT)
             .build()
             .change_context(Error::RpcConnection)?,
-        monitoring_client,
+        monitoring_client.clone(),
         config.chain_name.clone(),
     );
 
@@ -61,6 +61,7 @@ async fn main() -> Result<(), Error> {
         .chain(config.chain_name)
         .finalizer_type(Finalization::RPCFinalizedBlock) // TODO: make this configurable
         .rpc_client(rpc_client)
+        .monitoring_client(monitoring_client)
         .build();
 
     let task = HandlerTask::builder()

@@ -2,14 +2,18 @@ use std::collections::{HashMap, HashSet};
 
 use ampd::evm::finalizer::{self, Finalization};
 use ampd::evm::json_rpc::EthereumClient;
+use ampd::evm::verifier::verify_message;
+use ampd::handlers::evm_verify_msg::Message;
+use ampd::monitoring;
+use ampd::monitoring::metrics;
 use ampd::types::{EVMAddress, Hash};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
@@ -17,23 +21,16 @@ use events::{try_from, AbciEventTypeFilter};
 use futures::future::join_all;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
+use tracing::{info, info_span};
 use typed_builder::TypedBuilder;
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::Error;
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
-pub struct Message {
-    pub message_id: HexTxHashAndEventIndex,
-    pub destination_address: String,
-    pub destination_chain: ChainName,
-    pub source_address: EVMAddress,
-    pub payload_hash: Hash,
-}
-
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 #[try_from("wasm-messages_poll_started")]
 pub struct PollStartedEvent {
     #[serde(rename(deserialize = "_contract_address"))]
@@ -57,6 +54,7 @@ where
     chain: ChainName,
     finalizer_type: Finalization,
     rpc_client: C,
+    monitoring_client: monitoring::Client,
 }
 
 impl<C> Handler<C>
@@ -123,6 +121,7 @@ where
         event: &PollStartedEvent,
         _token: CancellationToken,
     ) -> Result<Vec<Any>> {
+        let event = event.clone();
         let PollStartedEvent {
             contract_address,
             poll_id,
@@ -134,11 +133,11 @@ where
             participants,
         } = event;
 
-        if contract_address != &self.voting_verifier_contract {
+        if contract_address != self.voting_verifier_contract {
             return Ok(vec![]);
         }
 
-        if source_chain != &self.chain {
+        if source_chain != self.chain {
             return Ok(vec![]);
         }
 
@@ -153,7 +152,56 @@ where
             .map(|msg| msg.message_id.tx_hash.into())
             .collect();
 
-        Ok(vec![])
+        let finalized_tx_receipts = self
+            .finalized_tx_receipts(tx_hashes, confirmation_height)
+            .await?;
+
+        let poll_id_str: String = poll_id.into();
+        let source_chain_str: String = source_chain.into();
+
+        let votes = info_span!(
+            "verify messages from an EVM chain",
+            poll_id = poll_id_str,
+            source_chain = source_chain_str,
+            message_ids = messages
+                .iter()
+                .map(|msg| msg.message_id.to_string())
+                .collect::<Vec<String>>()
+                .as_value(),
+        )
+        .in_scope(|| {
+            info!("ready to verify messages in poll",);
+
+            let votes: Vec<_> = messages
+                .iter()
+                .map(|msg| {
+                    finalized_tx_receipts
+                        .get(&msg.message_id.tx_hash.into())
+                        .map_or(Vote::NotFound, |tx_receipt| {
+                            verify_message(&source_gateway_address, tx_receipt, msg)
+                        })
+                })
+                .inspect(|vote| {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: self.chain.clone(),
+                        },
+                    );
+                })
+                .collect();
+            info!(
+                votes = votes.as_value(),
+                "ready to vote for messages in poll"
+            );
+
+            votes
+        });
+
+        Ok(vec![self
+            .vote_msg(poll_id, votes)
+            .into_any()
+            .expect("vote msg should serialize")])
     }
 
     fn subscription_params(&self) -> SubscriptionParams {

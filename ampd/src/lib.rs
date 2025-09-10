@@ -14,7 +14,7 @@ mod event_processor;
 pub mod event_sub;
 pub mod evm;
 mod grpc;
-mod handlers;
+pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
 mod mvx;

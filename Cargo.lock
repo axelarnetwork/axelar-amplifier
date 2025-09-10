@@ -368,6 +368,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "typed-builder",
+ "valuable",
  "voting-verifier",
 ]
 
