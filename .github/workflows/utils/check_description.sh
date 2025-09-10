@@ -28,4 +28,10 @@ for ((i=1; i<=lines; i++)); do
     fi
 done
 
+echo 'Please add a description to the PR body with the following format:
+## Description
+
+<description>
+'
+
 exit 1
