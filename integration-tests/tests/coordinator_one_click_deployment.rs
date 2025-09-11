@@ -622,7 +622,7 @@ fn coordinator_instantiate2_query_succeeds() {
     );
     assert!(res.is_ok());
 
-    let contracts = gather_contracts(&protocol, res.unwrap());
+    let contracts = gather_contracts(&protocol, deployment_name, &chain1);
 
     assert_eq!(query_addr_res.unwrap(), contracts.gateway.contract_addr)
 }
