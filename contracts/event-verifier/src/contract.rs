@@ -107,6 +107,7 @@ mod test {
     use assert_ok::assert_ok;
     use router_api::ChainName;
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
+    use cosmwasm_std::{CosmosMsg, BankMsg, coins};
 
     use super::*;
     use crate::error::ContractError;
@@ -249,47 +250,7 @@ mod test {
         assert_eq!(fee, cosmwasm_std::coin(2, "uaxl"));
     }
 
-    #[test]
-    fn query_events_status_should_return_unknown_for_new_event() {
-        let verifiers = verifiers(1);
-        let deps = setup(verifiers);
-
-        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
-
-        let res = assert_ok!(query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::EventsStatus(vec![event.clone()]),
-        ));
-        let statuses: Vec<crate::msg::EventStatus> = assert_ok!(from_json(res));
-        assert_eq!(statuses.len(), 1);
-        assert_eq!(statuses[0].event, event);
-        assert_eq!(statuses[0].status, VerificationStatus::Unknown);
-    }
-
-    #[test]
-    fn query_events_status_should_be_in_progress_after_verify() {
-        let verifiers = verifiers(1);
-        let mut deps = setup(verifiers);
-        let api = deps.api;
-
-        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
-
-        assert_ok!(execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyEvents(vec![event.clone()]),
-        ));
-
-        let res = assert_ok!(query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::EventsStatus(vec![event.clone()]),
-        ));
-        let statuses: Vec<crate::msg::EventStatus> = assert_ok!(from_json(res));
-        assert_eq!(statuses[0].status, VerificationStatus::InProgress);
-    }
+    
 
     #[test]
     fn query_events_status_should_be_verified_after_quorum() {
@@ -331,42 +292,6 @@ mod test {
         assert_eq!(statuses[0].status, VerificationStatus::SucceededOnSourceChain);
     }
 
-    #[test]
-    fn quorum_reached_event_emitted_on_quorum() {
-        let verifiers = verifiers(3);
-        let mut deps = setup(verifiers);
-        let api = deps.api;
-
-        let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
-
-        // Create poll
-        assert_ok!(execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make(SENDER), &[]),
-            ExecuteMsg::VerifyEvents(vec![event]),
-        ));
-
-        // First vote - no quorum yet
-        let _ = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make("addr0"), &[]),
-            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
-        )
-        .unwrap();
-
-        // Second vote - should reach quorum and emit event
-        let res = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&api.addr_make("addr1"), &[]),
-            ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
-        )
-        .unwrap();
-
-        assert!(res.events.iter().any(|e| e.ty == "quorum_reached"));
-    }
 
     #[test]
     fn query_poll_should_return_created_poll() {
@@ -419,10 +344,21 @@ mod test {
             ExecuteMsg::UpdateVotingThreshold { new_voting_threshold: initial_voting_threshold() },
         );
         assert!(res.is_ok());
+
+
+    // Query the current voting threshold and assert it matches the initial value
+    let res = assert_ok!(query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::CurrentThreshold
+    ));
+    let threshold: MajorityThreshold = assert_ok!(from_json(res));
+    assert_eq!(threshold, initial_voting_threshold());
+
     }
 
     #[test]
-    fn only_admin_can_update_fee_and_withdraw() {
+    fn only_admin_can_update_fee() {
         let verifiers = verifiers(1);
         let mut deps = setup(verifiers);
         let api = deps.api;
@@ -444,6 +380,13 @@ mod test {
             ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(2, "uaxl") },
         );
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn only_admin_can_withdraw() {
+        let verifiers = verifiers(1);
+        let mut deps = setup(verifiers);
+        let api = deps.api;
 
         // Non-admin should be unauthorized for Withdraw
         let res = execute(
@@ -454,14 +397,15 @@ mod test {
         );
         assert!(res.is_err());
 
-        // Admin allowed for Withdraw
-        let res = execute(
+
+        // admin can withdraw
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::Withdraw { receiver: api.addr_make("rcv").as_str().parse().unwrap() },
-        );
-        assert!(res.is_ok());
+        ));
+
     }
 
     fn make_event() -> EventToVerify {

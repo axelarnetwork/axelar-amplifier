@@ -308,6 +308,7 @@ mod tests {
     use event_verifier_api::{EventData, EvmEvent, Event};
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::to_json_binary;
+    use cosmwasm_std::{CosmosMsg, BankMsg, coins};
 
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
     const SERVICE_NAME: &str = "service_name";
@@ -725,6 +726,203 @@ mod tests {
         assert_eq!(stored_events.len(), 2);
         assert_eq!(stored_events[0], ev1);
         assert_eq!(stored_events[1], ev2);
+    }
+
+    #[test]
+    fn threshold_update_is_respected() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+
+        // Update threshold from initial 2/3 to 3/3
+        let three_of_three: MajorityThreshold = axelar_wasm_std::Threshold::try_from((3u64, 3u64))
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_ok!(update_voting_threshold(deps.as_mut(), three_of_three));
+
+        // Create a poll with one event
+        let ev = event("chain-a");
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&MockApi::default().addr_make("starter"), &[]),
+            vec![ev.clone()],
+        ));
+
+        // Two votes should NOT reach quorum under 3/3
+        assert_ok!(execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        ));
+        assert_ok!(execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        ));
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::InProgress);
+
+        // Third vote should reach quorum under 3/3 and succeed
+        assert_ok!(execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr2"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        ));
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
+    }
+
+    #[test]
+    fn threshold_update_only_applies_to_new_polls() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+
+        // Create poll under initial 2/3 threshold
+        let ev = event("chain-a");
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&MockApi::default().addr_make("starter"), &[]),
+            vec![ev.clone()],
+        ));
+
+        // Update threshold to 3/3 for NEW polls
+        let three_of_three: MajorityThreshold = axelar_wasm_std::Threshold::try_from((3u64, 3u64))
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_ok!(update_voting_threshold(deps.as_mut(), three_of_three));
+
+        // For existing poll (id=1), 2 votes should still reach quorum (old 2/3 threshold)
+        assert_ok!(execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        ));
+        assert_ok!(execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        ));
+
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
+    }
+
+    #[test]
+    fn fee_mechanics_are_enforced() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+
+        // Update fee to 2 uaxl
+        assert_ok!(update_fee(
+            deps.as_mut(),
+            message_info(&api.addr_make("any"), &[]),
+            coin(2, "uaxl"),
+        ));
+
+        // Insufficient funds (1 < 2) should be rejected
+        let err = verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("caller"), &coins(1, "uaxl")),
+            vec![event("chain-a")],
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::InsufficientFee.to_string());
+    }
+
+    #[test]
+    fn withdraw_sends_full_balance_to_receiver() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+
+        // Attach funds in a verify call; in mocks we also credit the contract balance
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("payer"), &coins(7, "uaxl")),
+            vec![event("chain-a")],
+        ));
+        let env = mock_env();
+        let contract_addr = env.contract.address.clone();
+        deps.querier.bank.update_balance(contract_addr.clone(), coins(7, "uaxl"));
+
+        let receiver = api.addr_make("rcv").as_str().parse().unwrap();
+        let resp = withdraw(
+            deps.as_mut(),
+            env.clone(),
+            message_info(&api.addr_make("admin"), &[]),
+            receiver,
+        )
+        .unwrap();
+
+        assert_eq!(resp.messages.len(), 1);
+        match &resp.messages[0].msg {
+            CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
+                assert_eq!(to_address, &api.addr_make("rcv").to_string());
+                assert_eq!(amount, &coins(7, "uaxl"));
+            }
+            _ => panic!("expected bank send"),
+        }
+    }
+
+    #[test]
+    fn quorum_reached_event_emitted_exactly_on_quorum() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+
+        // Create poll with one event
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("starter"), &[]),
+            vec![event("chain-a")],
+        ));
+
+        // First vote: no quorum yet, no quorum_reached event
+        let res1 = vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+        assert!(!res1.events.iter().any(|e| e.ty == "quorum_reached"));
+
+        // Second vote: reaches quorum, exactly one quorum_reached event emitted
+        let res2 = vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+        assert!(res2.events.iter().any(|e| e.ty == "quorum_reached"));
+
+        // Third vote: already at quorum; no new quorum_reached events
+        let res3 = vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr2"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+        assert!(!res3.events.iter().any(|e| e.ty == "quorum_reached"));
     }
 }
 
