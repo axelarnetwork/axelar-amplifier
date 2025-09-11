@@ -205,7 +205,7 @@ pub async fn estimate_gas<T>(
     client: &mut T,
     msgs: Vec<Any>,
     pub_key: CosmosPublicKey,
-    acc_sequence: u64,
+    _acc_sequence: u64,
 ) -> Result<Gas>
 where
     T: CosmosClient,
@@ -213,7 +213,7 @@ where
     let tx_bytes = Tx::builder()
         .msgs(msgs)
         .pub_key(pub_key)
-        .acc_sequence(acc_sequence)
+        .acc_sequence(0)
         .build()
         .with_dummy_sig()
         .await
