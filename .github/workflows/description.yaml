@@ -2,7 +2,7 @@ name: Basic
 
 on:
   pull_request:
-    types: [opened, edited]
+    types: [opened, edited, reopened, synchronize]
 
 jobs:
   check_description:
