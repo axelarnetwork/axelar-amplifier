@@ -11,7 +11,7 @@
 # This is a valid PR description.
 # ```
 # Usage: ./check_description.sh description.txt
-description_patterns=("## Description" ".+" "## Convention Checklist")
+description_patterns=("## Description" "[a-zA-Z0-9]+" "## Convention Checklist")
 target_index=${#description_patterns[@]}
 pattern_index=0
 lines=$(wc -l < $1)

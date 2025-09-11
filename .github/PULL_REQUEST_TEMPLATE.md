@@ -1,5 +1,4 @@
 ## Description
-
 ## Convention Checklist
 - [ ] Each contract should have a [client mod](https://github.com/axelarnetwork/axelar-amplifier/blob/27318df3e22e526867c91905d03a6a8b1a41110b/contracts/voting-verifier/src/client.rs) for others to interact with it.
 - [ ] Derive macros
