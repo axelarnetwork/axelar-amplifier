@@ -1,0 +1,17 @@
+name: Basic
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  check_description:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Pull Request Description Exists
+        env:
+          DESCRIPTION: ${{ github.event.pull_request.body }}
+        run: |
+          echo "$DESCRIPTION" > description.txt
+          .github/workflows/utils/check_description.sh description.txt

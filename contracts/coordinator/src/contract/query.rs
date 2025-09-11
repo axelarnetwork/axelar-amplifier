@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Deps, Order, StdError};
+use cosmwasm_std::{Addr, Deps, Env, Order, StdError, WasmQuery};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use service_registry_api::msg::VerifierDetails;
@@ -94,6 +94,27 @@ pub fn chain_contracts_info(
     }
     .change_context(Error::ChainContractsInfo)
     .map(ChainContractsResponse::from)
+}
+
+pub fn instantiate2_addr(deps: &Deps, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
+    let code_info: cosmwasm_std::CodeInfoResponse = deps
+        .querier
+        .query(&WasmQuery::CodeInfo { code_id }.into())
+        .change_context(Error::QueryCodeInfo(code_id))?;
+
+    deps.api
+        .addr_humanize(
+            &cosmwasm_std::instantiate2_address(
+                code_info.checksum.as_slice(),
+                &deps
+                    .api
+                    .addr_canonicalize(&env.contract.address.to_string().clone())
+                    .change_context(Error::CanonicalizeAddress)?,
+                salt,
+            )
+            .change_context(Error::Instantiate2Address)?,
+        )
+        .change_context(Error::HumanizeAddress)
 }
 
 pub fn deployments(
