@@ -3,11 +3,14 @@ use std::ops::Deref;
 
 use cosmwasm_schema::cw_serde;
 use into_inner_derive::IntoInner;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::nonempty::Error;
 
-#[derive(Debug, Copy, Clone, IntoInner, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(
+    Debug, Copy, Clone, IntoInner, Serialize, Deserialize, PartialEq, PartialOrd, JsonSchema,
+)]
 #[serde(try_from = "usize")]
 #[serde(into = "usize")]
 pub struct Usize(usize);
@@ -40,10 +43,10 @@ impl TryFrom<i32> for Usize {
     type Error = Error;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
-        if value == 0 {
+        if value <= 0 {
             Err(Error::InvalidValue(value.to_string()))
         } else {
-            Ok(Usize(value.unsigned_abs() as usize))
+            Ok(Usize(value as usize))
         }
     }
 }

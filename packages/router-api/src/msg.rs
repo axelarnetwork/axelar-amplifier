@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::msg_id::MessageIdFormat;
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::Permissions;
 
@@ -9,8 +10,9 @@ use crate::primitives::*;
 // Pagination limits
 const DEFAULT_PAGINATION_LIMIT: u32 = u32::MAX;
 
-const fn default_pagination_limit() -> u32 {
-    DEFAULT_PAGINATION_LIMIT
+fn default_pagination_limit() -> nonempty::Usize {
+    nonempty::Usize::try_from(DEFAULT_PAGINATION_LIMIT)
+        .expect("default pagination limit must be a u32")
 }
 
 #[cw_serde]
@@ -68,7 +70,7 @@ pub enum QueryMsg {
     Chains {
         start_after: Option<ChainName>,
         #[serde(default = "default_pagination_limit")]
-        limit: u32,
+        limit: nonempty::Usize,
     },
     #[returns(bool)]
     IsEnabled,

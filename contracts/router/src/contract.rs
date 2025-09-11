@@ -1,4 +1,4 @@
-use axelar_wasm_std::{address, killswitch, nonempty, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -135,11 +135,9 @@ pub fn query(
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
     match msg {
         QueryMsg::ChainInfo(chain) => to_json_binary(&query::chain_info(deps.storage, chain)?),
-        QueryMsg::Chains { start_after, limit } => to_json_binary(&query::chains(
-            deps.storage,
-            start_after,
-            nonempty::Usize::try_from(limit).map_err(|_| Error::InvalidLimit)?,
-        )?),
+        QueryMsg::Chains { start_after, limit } => {
+            to_json_binary(&query::chains(deps.storage, start_after, limit)?)
+        }
         QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
     .map_err(axelar_wasm_std::error::ContractError::from)
@@ -151,9 +149,9 @@ mod test {
     use std::str::FromStr;
 
     use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
-    use axelar_wasm_std::err_contains;
     use axelar_wasm_std::error::ContractError;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::{err_contains, nonempty};
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
@@ -1090,7 +1088,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: u32::MAX,
+                limit: nonempty::Usize::try_from(u32::MAX).unwrap(),
             },
         )
         .unwrap()
@@ -1129,7 +1127,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: u32::MAX,
+                limit: nonempty::Usize::try_from(u32::MAX).unwrap(),
             },
         )
         .unwrap()
