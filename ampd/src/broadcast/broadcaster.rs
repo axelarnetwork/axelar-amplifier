@@ -202,9 +202,7 @@ where
     ///
     /// * `Error::EstimateGas` - If the gas estimation fails
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
-        let acc_sequence = self.acc_sequence.read().await;
-
-        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
+        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key)
             .await
             .change_context(Error::EstimateGas)
     }

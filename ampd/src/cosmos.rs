@@ -29,6 +29,7 @@ use report::{ErrorExt, ResultCompatExt};
 use thiserror::Error;
 use tonic::transport::Channel;
 use tonic::{Code, Response, Status};
+use tracing::info;
 
 use crate::broadcast::Tx;
 use crate::types::debug::REDACTED_VALUE;
@@ -205,7 +206,6 @@ pub async fn estimate_gas<T>(
     client: &mut T,
     msgs: Vec<Any>,
     pub_key: CosmosPublicKey,
-    _acc_sequence: u64,
 ) -> Result<Gas>
 where
     T: CosmosClient,
@@ -220,6 +220,8 @@ where
         .expect("dummy signature must be valid")
         .to_bytes()
         .change_context(Error::TxBuilding)?;
+
+    info!("gas estimation using account sequence 0");
 
     #[allow(deprecated)]
     client
@@ -339,7 +341,6 @@ mod tests {
     #[tokio::test]
     async fn estimate_gas_success() {
         let pub_key = random_cosmos_public_key();
-        let acc_sequence = 5u64;
         let msgs = vec![Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
             value: vec![1, 2, 3],
@@ -357,7 +358,7 @@ mod tests {
             })
         });
 
-        let actual = estimate_gas(&mut mock_client, msgs, pub_key, acc_sequence).await;
+        let actual = estimate_gas(&mut mock_client, msgs, pub_key).await;
 
         assert_eq!(actual.unwrap(), gas_used);
     }
@@ -365,7 +366,6 @@ mod tests {
     #[tokio::test]
     async fn estimate_gas_missing_gas_info() {
         let pub_key = random_cosmos_public_key();
-        let acc_sequence = 5u64;
         let msgs = vec![Any {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
             value: vec![1, 2, 3],
@@ -379,7 +379,7 @@ mod tests {
             })
         });
 
-        let actual = estimate_gas(&mut mock_client, msgs, pub_key, acc_sequence).await;
+        let actual = estimate_gas(&mut mock_client, msgs, pub_key).await;
 
         assert_err_contains!(actual, Error, Error::GasInfoMissing);
     }
