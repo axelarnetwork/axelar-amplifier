@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -6497,7 +6497,7 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "multisig"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "assert_ok",
  "axelar-wasm-std",
