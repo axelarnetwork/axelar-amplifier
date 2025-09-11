@@ -10,6 +10,10 @@ use snarkvm_cosmwasm::prelude::{Address, FromBytes as _, Network};
 use crate::aleo_struct::AxelarToLeo;
 use crate::error::Error;
 
+const SINGATURES_PER_CHUNK: usize = 14;
+const SIGNATURE_CHUNKS: usize = 2;
+const MAX_SIGNATURES: usize = SINGATURES_PER_CHUNK * SIGNATURE_CHUNKS;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(bound = "Address<N>: for<'a> Deserialize<'a>")]
 pub struct WeightedSigners<N>
@@ -46,19 +50,22 @@ impl<N: Network> AxelarToLeo<N> for WeightedSigners<N> {
             .signers
             .iter()
             .map(AxelarToLeo::to_leo)
-            .collect::<Result<_, _>>().unwrap();
+            .collect::<Result<_, _>>()?;
 
-        let mut iter = signers.into_iter().chain(std::iter::repeat(aleo_gateway_types::WeightedSigner {
-            addr: Address::zero(),
-            weight: 0u64.into(),
-        }));
+        let mut iter = signers
+            .into_iter()
+            .chain(std::iter::repeat(aleo_gateway_types::WeightedSigner {
+                addr: Address::zero(),
+                weight: 0u64.into(),
+            }))
+            .take(MAX_SIGNATURES);
 
-        // Safe to unwrap because we ensure that there are enough signers
-        let row1: [aleo_gateway_types::WeightedSigner<N>; 14] = std::array::from_fn(|_| iter.next().unwrap());
-        let row2: [aleo_gateway_types::WeightedSigner<N>; 14] = std::array::from_fn(|_| iter.next().unwrap());
+        let signers: [[aleo_gateway_types::WeightedSigner<N>; SINGATURES_PER_CHUNK];
+            SIGNATURE_CHUNKS] =
+            std::array::from_fn(|_| std::array::from_fn(|_| iter.next().unwrap()));
 
         Ok(aleo_gateway_types::WeightedSigners {
-            signers: [row1, row2],
+            signers,
             quorum: self.quorum,
             nonce: self.nonce,
         })
@@ -162,7 +169,10 @@ where
     N: Network,
 {
     pub proof: Proof<N>,
-    pub messages: Vec<router_api::Message>,
+    /// Note: Here messages are provided as a flat vector.
+    /// The relayer is responsible to fill this with empty messages, to fill a [[Messages; 24]; 2] array,
+    /// before providing to Aleo gateway.
+    pub messages: Vec<aleo_gateway_types::Message<N>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -172,5 +182,5 @@ where
     N: Network,
 {
     pub proof: Proof<N>,
-    pub new_verifier_set: multisig::verifier_set::VerifierSet,
+    pub new_verifier_set: aleo_gateway_types::WeightedSigners<N>,
 }

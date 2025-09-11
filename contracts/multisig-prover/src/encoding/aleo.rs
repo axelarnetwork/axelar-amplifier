@@ -84,8 +84,7 @@ pub fn payload_digest(
         payload_digest_inner,
         domain_separator,
         verifier_set,
-        payload,
-        default_message_hash()
+        payload
     )
 }
 
@@ -170,13 +169,12 @@ fn default_message_hash<N: Network>() -> Group<N> {
 /// 2. Pads with default hashes to reach the required capacity
 /// 3. Organizes into the chunk structure expected by Aleo programs
 /// 4. Computes final hash of the structured data
-fn hash_messages<N: Network>(
-    messages: &[router_api::Message],
-    default_message_hash: Group<N>,
-) -> Result<Group<N>, ContractError> {
+fn hash_messages<N: Network>(messages: &[router_api::Message]) -> Result<Group<N>, ContractError> {
+    let default_message_hash = default_message_hash::<N>();
+
     let aleo_messages = messages.iter().filter_map(|m| {
-        let leo_verifier_set = m.to_leo().ok()?;
-        aleo_gmp_types::utils::bhp(&leo_verifier_set).ok()
+        let aleo_gmp_message = m.to_leo().ok()?;
+        aleo_gmp_types::utils::bhp(&aleo_gmp_message).ok()
     });
 
     let mut groups = aleo_messages
@@ -198,13 +196,13 @@ fn hash_messages<N: Network>(
 ///
 /// The domain separator is split into two 128-bit values in little-endian format
 /// as required by the Aleo PayloadDigest structure.
-fn parse_domain_separator(domain_separator: &[u8; 32]) -> Result<[u128; 2], ContractError> {
+fn parse_domain_separator(domain_separator: &[u8; 32]) -> Result<[u128; 2], AleoEncodingError> {
     let first_half = domain_separator[0..16]
         .try_into()
-        .map_err(|_| ContractError::InvalidDomainSeparator)?;
+        .map_err(|_| AleoEncodingError::InvalidDomainSeparator)?;
     let second_half = domain_separator[16..32]
         .try_into()
-        .map_err(|_| ContractError::InvalidDomainSeparator)?;
+        .map_err(|_| AleoEncodingError::InvalidDomainSeparator)?;
 
     Ok([
         u128::from_le_bytes(first_half),
@@ -220,19 +218,20 @@ fn payload_digest_inner<N: Network>(
     domain_separator: &Hash,
     verifier_set: &VerifierSet,
     payload: &Payload,
-    default_message_hash: Group<N>,
 ) -> Result<Hash, ContractError> {
     use aleo_gmp_types::aleo_struct::AxelarToLeo;
 
     let data_hash = match payload {
-        Payload::Messages(messages) => hash_messages::<N>(messages, default_message_hash)?,
+        Payload::Messages(messages) => hash_messages::<N>(messages)?,
         Payload::VerifierSet(verifier_set) => verifier_set
             .to_leo()
             .and_then(|leo_verifier_set| aleo_gmp_types::utils::bhp(&leo_verifier_set))
             .change_context_lazy(|| ContractError::InvalidVerifierSet)?,
     };
 
-    let domain_separator = parse_domain_separator(domain_separator)?;
+    let domain_separator = parse_domain_separator(domain_separator).change_context_lazy(|| {
+        ContractError::CreatePayloadDigestFailed
+    })?;
     let signer = verifier_set
         .to_leo()
         .change_context_lazy(|| ContractError::InvalidVerifierSet)?;
@@ -267,9 +266,18 @@ fn encode_execute_data_inner<N: Network>(
         Payload::Messages(messages) => {
             let proof = Proof::<N>::new(verifier_set, signatures)
                 .change_context_lazy(|| ContractError::Proof)?;
+            let expected_message_count = messages.len();
+            let messages: Vec<Message<N>> =
+                messages.iter().filter_map(|m| m.to_leo().ok()).collect();
+
+            error_stack::ensure!(
+                expected_message_count == messages.len(),
+                ContractError::InvalidMessage
+            );
+
             let execute_data = aleo_gmp_types::multisig_prover::ExecuteData {
                 proof: proof.into(),
-                messages: messages.clone(),
+                messages,
             };
 
             to_json_binary(&execute_data)
@@ -279,7 +287,9 @@ fn encode_execute_data_inner<N: Network>(
             let execute_signers_rotation = ExecuteSignersRotation::<N> {
                 proof: Proof::<N>::new(verifier_set, signatures)
                     .change_context_lazy(|| ContractError::Proof)?,
-                new_verifier_set: new_verifier_set.clone(),
+                new_verifier_set: new_verifier_set
+                    .to_leo()
+                    .change_context_lazy(|| ContractError::InvalidVerifierSet)?,
             };
 
             to_json_binary(&execute_signers_rotation)

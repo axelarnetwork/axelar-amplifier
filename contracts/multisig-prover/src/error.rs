@@ -15,9 +15,6 @@ pub enum ContractError {
     #[error("message is invalid")]
     InvalidMessage,
 
-    #[error("domain separator is invalid")]
-    InvalidDomainSeparator,
-
     #[error("failed to create payload digest")]
     CreatePayloadDigestFailed,
 
