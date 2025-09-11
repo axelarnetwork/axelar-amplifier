@@ -11,7 +11,7 @@
 # This is a valid PR description.
 # ```
 # Usage: ./check_description.sh description.txt
-description_patterns=("## Description" ".+")
+description_patterns=("## Description" ".+" "## Convention Checklist")
 target_index=${#description_patterns[@]}
 pattern_index=0
 lines=$(wc -l < $1)
@@ -32,6 +32,9 @@ echo 'Please add a description to the PR body with the following format:
 ## Description
 
 <description>
+
+## Convention Checklist
+...
 '
 
 exit 1
