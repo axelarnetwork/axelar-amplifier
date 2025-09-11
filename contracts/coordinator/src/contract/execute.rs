@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, Response, Storage, WasmMsg, WasmQuery};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::contract::errors::Error;
+use crate::contract::query::instantiate2_addr;
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
 use crate::state;
@@ -55,29 +56,8 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
-    let code_info: cosmwasm_std::CodeInfoResponse = deps
-        .querier
-        .query(&WasmQuery::CodeInfo { code_id }.into())
-        .change_context(Error::QueryCodeInfo(code_id))?;
-
-    deps.api
-        .addr_humanize(
-            &cosmwasm_std::instantiate2_address(
-                code_info.checksum.as_slice(),
-                &deps
-                    .api
-                    .addr_canonicalize(&env.contract.address.to_string().clone())
-                    .change_context(Error::Instantiate2Address)?,
-                salt,
-            )
-            .change_context(Error::Instantiate2Address)?,
-        )
-        .change_context(Error::Instantiate2Address)
-}
-
 fn launch_contract(
-    deps: &DepsMut,
+    deps: &Deps,
     env: &Env,
     salt: Binary,
     code_id: u64,
@@ -94,7 +74,8 @@ fn launch_contract(
             label,
             salt: salt.clone(),
         },
-        instantiate2_addr(deps, env, code_id, salt.as_slice())?,
+        instantiate2_addr(deps, env, code_id, salt.as_slice())
+            .change_context(Error::Instantiate2Address)?,
     ))
 }
 
@@ -105,7 +86,7 @@ fn instantiate_gateway(
     verifier_address: Addr,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.gateway_code_id,
@@ -126,7 +107,7 @@ fn instantiate_verifier(
     verifier_msg: &VerifierMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.verifier_code_id,
@@ -162,7 +143,7 @@ fn instantiate_prover(
     prover_msg: &ProverMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.prover_code_id,
@@ -217,8 +198,8 @@ pub fn instantiate_chain_contracts(
     match params {
         DeploymentParams::Manual(params) => {
             let verifier_address =
-                instantiate2_addr(&deps, &env, params.verifier.code_id, salt.as_ref())
-                    .change_context(Error::InstantiateContracts)?;
+                instantiate2_addr(&deps.as_ref(), &env, params.verifier.code_id, salt.as_ref())
+                    .change_context(Error::Instantiate2Address)?;
 
             let gateway_contract_admin = deps
                 .api
