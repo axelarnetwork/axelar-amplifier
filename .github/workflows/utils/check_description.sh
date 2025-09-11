@@ -11,13 +11,19 @@
 # This is a valid PR description.
 # ```
 # Usage: ./check_description.sh description.txt
+
+# Each element of 'description_patterns' will match against a single line
 description_patterns=("## Description" "[a-zA-Z0-9]+" "## Convention Checklist")
+
 target_index=${#description_patterns[@]}
 pattern_index=0
 lines=$(wc -l < $1)
 
 for ((i=1; i<=lines; i++)); do
+    # single line of text from the PR body
     text=$(sed -n -e "${i}p" $1)
+
+    # 'match' is non-empty only if 'text' matches the current pattern in 'description_patterns'
     match=$(echo $text | egrep "${description_patterns[$pattern_index]}")
 
     if [[ -n $match ]]; then
