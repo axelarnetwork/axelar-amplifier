@@ -102,8 +102,9 @@ mod test {
     use cosmwasm_std::{from_json, Empty, OwnedDeps, Uint128, WasmQuery, Fraction, Coin, HexBinary};
     use axelar_wasm_std::voting::PollStatus;
     use crate::msg::{PollResponse, PollData};
-    use axelar_wasm_std::fixed_size as fixed;
-    use event_verifier_api as evapi;
+    use axelar_wasm_std::fixed_size;
+    use event_verifier_api::{EventData, EvmEvent, Event};
+    use assert_ok::assert_ok;
     use router_api::ChainName;
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
@@ -142,16 +143,11 @@ mod test {
     }
 
     fn evm_event_json() -> String {
-        let tx_hash = fixed::HexBinary::<32>::try_from(vec![0u8; 32]).unwrap();
-        let addr = fixed::HexBinary::<20>::try_from(vec![0u8; 20]).unwrap();
-        let ev = evapi::Event {
-            contract_address: addr,
-            event_index: 0,
-            topics: vec![],
-            data: HexBinary::from(Vec::<u8>::new()),
-        };
-        let evm = evapi::EvmEvent { transaction_hash: tx_hash, transaction_details: None, events: vec![ev] };
-        serde_json::to_string(&evapi::EventData::Evm(evm)).unwrap()
+        let tx_hash = fixed_size::HexBinary::<32>::try_from(vec![0u8; 32]).unwrap();
+        let addr = fixed_size::HexBinary::<20>::try_from(vec![0u8; 20]).unwrap();
+        let ev = Event { contract_address: addr, event_index: 0, topics: vec![], data: HexBinary::from(Vec::<u8>::new()) };
+        let evm = EvmEvent { transaction_hash: tx_hash, transaction_details: None, events: vec![ev] };
+        serde_json::to_string(&EventData::Evm(evm)).unwrap()
     }
 
     // Minimal setup for simple execute/query tests
@@ -162,7 +158,7 @@ mod test {
         let api = deps.api;
         let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
 
-        instantiate(
+        assert_ok!(instantiate(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make("admin"), &[]),
@@ -175,8 +171,7 @@ mod test {
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
                 fee: cosmwasm_std::coin(0, "uaxl"),
             },
-        )
-        .unwrap();
+        ));
 
         deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. }
@@ -215,19 +210,18 @@ mod test {
         .try_into()
         .unwrap();
 
-        execute(
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
                 new_voting_threshold,
             },
-        )
-        .unwrap();
+        ));
 
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold).unwrap();
+        let res = assert_ok!(query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold));
 
-        let threshold: MajorityThreshold = from_json(res).unwrap();
+        let threshold: MajorityThreshold = assert_ok!(from_json(res));
         assert_eq!(threshold, new_voting_threshold);
     }
 
@@ -238,21 +232,20 @@ mod test {
         let api = deps.api;
 
         // initial fee
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentFee).unwrap();
-        let fee: Coin = from_json(res).unwrap();
+        let res = assert_ok!(query(deps.as_ref(), mock_env(), QueryMsg::CurrentFee));
+        let fee: Coin = assert_ok!(from_json(res));
         assert_eq!(fee, cosmwasm_std::coin(0, "uaxl"));
 
         // update fee and query again
-        execute(
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::UpdateFee { new_fee: cosmwasm_std::coin(2, "uaxl") },
-        )
-        .unwrap();
+        ));
 
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentFee).unwrap();
-        let fee: Coin = from_json(res).unwrap();
+        let res = assert_ok!(query(deps.as_ref(), mock_env(), QueryMsg::CurrentFee));
+        let fee: Coin = assert_ok!(from_json(res));
         assert_eq!(fee, cosmwasm_std::coin(2, "uaxl"));
     }
 
@@ -263,13 +256,12 @@ mod test {
 
         let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
 
-        let res = query(
+        let res = assert_ok!(query(
             deps.as_ref(),
             mock_env(),
             QueryMsg::EventsStatus(vec![event.clone()]),
-        )
-        .unwrap();
-        let statuses: Vec<crate::msg::EventStatus> = from_json(res).unwrap();
+        ));
+        let statuses: Vec<crate::msg::EventStatus> = assert_ok!(from_json(res));
         assert_eq!(statuses.len(), 1);
         assert_eq!(statuses[0].event, event);
         assert_eq!(statuses[0].status, VerificationStatus::Unknown);
@@ -283,21 +275,19 @@ mod test {
 
         let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
 
-        execute(
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyEvents(vec![event.clone()]),
-        )
-        .unwrap();
+        ));
 
-        let res = query(
+        let res = assert_ok!(query(
             deps.as_ref(),
             mock_env(),
             QueryMsg::EventsStatus(vec![event.clone()]),
-        )
-        .unwrap();
-        let statuses: Vec<crate::msg::EventStatus> = from_json(res).unwrap();
+        ));
+        let statuses: Vec<crate::msg::EventStatus> = assert_ok!(from_json(res));
         assert_eq!(statuses[0].status, VerificationStatus::InProgress);
     }
 
@@ -310,38 +300,34 @@ mod test {
         let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
 
         // Create poll with single event
-        execute(
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyEvents(vec![event.clone()]),
-        )
-        .unwrap();
+        ));
 
         // Two participants vote succeeded (2/3 quorum)
-        execute(
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make("addr0"), &[]),
             ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
-        )
-        .unwrap();
-        execute(
+        ));
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make("addr1"), &[]),
             ExecuteMsg::Vote { poll_id: 1u64.into(), votes: vec![Vote::SucceededOnChain] },
-        )
-        .unwrap();
+        ));
 
         // Status should be SucceededOnSourceChain
-        let res = query(
+        let res = assert_ok!(query(
             deps.as_ref(),
             mock_env(),
             QueryMsg::EventsStatus(vec![event.clone()]),
-        )
-        .unwrap();
-        let statuses: Vec<crate::msg::EventStatus> = from_json(res).unwrap();
+        ));
+        let statuses: Vec<crate::msg::EventStatus> = assert_ok!(from_json(res));
         assert_eq!(statuses[0].status, VerificationStatus::SucceededOnSourceChain);
     }
 
@@ -354,13 +340,12 @@ mod test {
         let event = EventToVerify { source_chain: source_chain(), event_data: evm_event_json() };
 
         // Create poll
-        execute(
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
             ExecuteMsg::VerifyEvents(vec![event]),
-        )
-        .unwrap();
+        ));
 
         // First vote - no quorum yet
         let _ = execute(
@@ -401,9 +386,8 @@ mod test {
         .unwrap();
 
         // query poll 1
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1u64.into() })
-            .unwrap();
-        let poll_res: PollResponse = from_json(res).unwrap();
+        let res = assert_ok!(query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1u64.into() }));
+        let poll_res: PollResponse = assert_ok!(from_json(res));
 
         assert_eq!(poll_res.poll.poll_id, 1u64.into());
         assert!(matches!(poll_res.status, PollStatus::InProgress));

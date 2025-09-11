@@ -293,3 +293,438 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
 }
 
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contract::{execute, instantiate, query};
+    use assert_ok::assert_ok;
+    use crate::msg::{EventStatus, EventToVerify, ExecuteMsg, InstantiateMsg, QueryMsg};
+    use axelar_wasm_std::{nonempty, MajorityThreshold};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage};
+    use cosmwasm_std::{coin, from_json, Empty, OwnedDeps, Uint128, WasmQuery, HexBinary, Fraction};
+    use router_api::ChainName;
+    use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
+    use axelar_wasm_std::fixed_size;
+    use event_verifier_api::{EventData, EvmEvent, Event};
+    use axelar_wasm_std::Threshold;
+    use cosmwasm_std::to_json_binary;
+
+    const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
+    const SERVICE_NAME: &str = "service_name";
+    const GOVERNANCE: &str = "governance";
+
+
+    fn initial_voting_threshold() -> MajorityThreshold {
+        Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
+    }
+
+    fn verifiers(num: usize) -> Vec<Verifier> {
+        (0..num)
+            .map(|i| Verifier {
+                address: MockApi::default().addr_make(format!("addr{}", i).as_str()),
+                bonding_state: BondingState::Bonded { amount: Uint128::from(100u128).try_into().unwrap() },
+                authorization_state: AuthorizationState::Authorized,
+                service_name: SERVICE_NAME.parse().unwrap(),
+            })
+            .collect()
+    }
+
+    fn setup(verifiers: Vec<Verifier>) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("admin"), &[]),
+            InstantiateMsg {
+                governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+                service_registry_address: service_registry.as_str().parse().unwrap(),
+                service_name: SERVICE_NAME.parse().unwrap(),
+                admin_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+                voting_threshold: initial_voting_threshold(),
+                block_expiry: 100u64.try_into().unwrap(),
+                fee: coin(0, "uaxl"),
+            },
+        )
+        .unwrap();
+
+        deps.querier.update_wasm(move |wq| match wq {
+            WasmQuery::Smart { contract_addr, .. } if contract_addr == service_registry.as_str() => {
+                Ok(to_json_binary(
+                    &verifiers
+                        .clone()
+                        .into_iter()
+                        .map(|v| WeightedVerifier { verifier_info: v, weight: nonempty::Uint128::one() })
+                        .collect::<Vec<WeightedVerifier>>(),
+                )
+                .into())
+                .into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
+        deps
+    }
+
+    fn evm_event_json() -> String {
+        let tx_hash = fixed_size::HexBinary::<32>::try_from(vec![0u8; 32]).unwrap();
+        let addr = fixed_size::HexBinary::<20>::try_from(vec![0u8; 20]).unwrap();
+        let ev = Event { contract_address: addr, event_index: 0, topics: vec![], data: HexBinary::from(Vec::<u8>::new()) };
+        let evm = EvmEvent { transaction_hash: tx_hash, transaction_details: None, events: vec![ev] };
+        serde_json::to_string(&EventData::Evm(evm)).unwrap()
+    }
+
+    fn evm_event_json_with_index(index: u64) -> String {
+        let tx_hash = fixed_size::HexBinary::<32>::try_from(vec![0u8; 32]).unwrap();
+        let addr = fixed_size::HexBinary::<20>::try_from(vec![0u8; 20]).unwrap();
+        let ev = Event { contract_address: addr, event_index: index, topics: vec![], data: HexBinary::from(Vec::<u8>::new()) };
+        let evm = EvmEvent { transaction_hash: tx_hash, transaction_details: None, events: vec![ev] };
+        serde_json::to_string(&EventData::Evm(evm)).unwrap()
+    }
+
+    fn event(chain: &str) -> EventToVerify {
+        EventToVerify { source_chain: chain.parse().unwrap(), event_data: evm_event_json() }
+    }
+
+    fn event_with_index(chain: &str, index: u64) -> EventToVerify {
+        EventToVerify { source_chain: chain.parse().unwrap(), event_data: evm_event_json_with_index(index) }
+    }
+
+    #[test]
+    fn verify_events_should_error_on_invalid_input() {
+        let mut deps = setup(verifiers(2));
+        let api = deps.api;
+
+        // empty events
+        let err = verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![])
+            .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::EmptyEvents.to_string());
+
+        // mixed source chains
+        let err = verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("s"), &[]),
+            vec![event("chain-a"), event("chain-b")],
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::SourceChainMismatch("chain-a".parse().unwrap()).to_string());
+
+        // insufficient fee
+        update_fee(deps.as_mut(), message_info(&api.addr_make("any"), &[]), coin(2, "uaxl")).unwrap();
+        let err = verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("s"), &[]),
+            vec![event("chain-a")],
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::InsufficientFee.to_string());
+    }
+
+    #[test]
+    fn reverify_only_allowed_statuses() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+        let ev = event("chain-a");
+
+        // Unknown -> should be verified (creates poll)
+        let res = verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![ev.clone()]).unwrap();
+        assert!(res.events.iter().any(|e| e.ty == "events_poll_started"));
+
+        // InProgress -> should NOT be re-verified
+        let res = verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![ev.clone()])
+            .unwrap();
+        assert!(res.events.is_empty());
+
+        // Advance to expiry -> FailedToVerify -> should be re-verified
+        let mut env = mock_env();
+        env.block.height += 100; // equals block_expiry
+        let res = verify_events(deps.as_mut(), env, message_info(&api.addr_make("s"), &[]), vec![ev.clone()])
+            .unwrap();
+        // A new poll should be started
+        assert!(res.events.iter().any(|e| e.ty == "events_poll_started"));
+
+        // Cast votes to SucceededOnChain -> should NOT be re-verified
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+
+        let res = verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![ev.clone()])
+            .unwrap();
+        assert!(res.events.is_empty());
+
+        // Create NotFound consensus for a fresh poll -> allowed to re-verify
+        // Start fresh event/poll
+        let ev2 = event("chain-a");
+        verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![ev2.clone()]).unwrap();
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            2u64.into(),
+            vec![Vote::NotFound],
+        )
+        .unwrap();
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            2u64.into(),
+            vec![Vote::NotFound],
+        )
+        .unwrap();
+
+        let res = verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![ev2.clone()])
+            .unwrap();
+        assert!(res.events.iter().any(|e| e.ty == "events_poll_started"));
+    }
+
+    #[test]
+    fn votes_progress_status_and_quorum_reflects_votes() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+        let ev = event("chain-a");
+
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::Unknown);
+
+        // Start poll
+        verify_events(deps.as_mut(), mock_env(), message_info(&api.addr_make("s"), &[]), vec![ev.clone()]).unwrap();
+
+        // Status should be InProgress
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::InProgress);
+
+        // One vote not enough for quorum
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::FailedOnChain],
+        )
+        .unwrap();
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::InProgress);
+
+        // Two votes, enough for quorum, but they differ, so no quorum yet
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::InProgress);
+
+        // Reach quorum with two votes SucceededOnChain (third participant)
+        execute::vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr2"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap();
+        let res = query::events_status(deps.as_ref(), &vec![ev.clone()], mock_env().block.height).unwrap();
+        assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
+    }
+
+    #[test]
+    fn vote_should_error_when_poll_not_found() {
+        let mut deps = setup(verifiers(1));
+        let api = deps.api;
+
+        let err = vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("anyone"), &[]),
+            99u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::PollNotFound.to_string());
+    }
+
+    #[test]
+    fn vote_should_error_when_not_participant() {
+        let mut deps = setup(verifiers(1));
+        let api = deps.api;
+        // create a poll with single event
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&MockApi::default().addr_make("starter"), &[]),
+            vec![event("chain-a")],
+        ));
+
+        // cast vote from non-participant
+        let err = vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("not-in-set"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::VoteError(axelar_wasm_std::voting::Error::NotParticipant).to_string());
+    }
+
+    #[test]
+    fn vote_should_error_when_already_voted() {
+        let mut deps = setup(verifiers(2));
+        let api = deps.api;
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&MockApi::default().addr_make("starter"), &[]),
+            vec![event("chain-a")],
+        ));
+
+        // first vote ok
+        assert_ok!(vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::FailedOnChain],
+        ));
+
+        // second vote by same participant should fail
+        let err = vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::FailedOnChain],
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), ContractError::VoteError(axelar_wasm_std::voting::Error::AlreadyVoted).to_string());
+    }
+
+    #[test]
+    fn vote_should_record_votes_in_state() {
+        let mut deps = setup(verifiers(3));
+        let api = deps.api;
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&MockApi::default().addr_make("starter"), &[]),
+            vec![event("chain-a")],
+        ));
+
+        assert_ok!(vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr0"), &[]),
+            1u64.into(),
+            vec![Vote::NotFound],
+        ));
+        assert_ok!(vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr1"), &[]),
+            1u64.into(),
+            vec![Vote::SucceededOnChain],
+        ));
+
+        // Verify that VOTES map recorded the per-voter votes correctly
+        use crate::state::VOTES;
+        let addr0 = api.addr_make("addr0").to_string();
+        let addr1 = api.addr_make("addr1").to_string();
+        let v0 = assert_ok!(VOTES.load(deps.as_ref().storage, (1u64.into(), addr0)));
+        let v1 = assert_ok!(VOTES.load(deps.as_ref().storage, (1u64.into(), addr1)));
+        assert_eq!(v0, vec![Vote::NotFound]);
+        assert_eq!(v1, vec![Vote::SucceededOnChain]);
+
+        // Also check tallies/consensus reflects votes progression
+        // After one NotFound and one SucceededOnChain, no consensus yet
+        let poll = POLLS.load(deps.as_ref().storage, 1u64.into()).unwrap();
+        let results = poll.results();
+        assert!(results.0[0].is_none());
+
+        // Third vote NotFound should make consensus NotFound (2/3)
+        assert_ok!(vote(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make("addr2"), &[]),
+            1u64.into(),
+            vec![Vote::NotFound],
+        ));
+        let poll = POLLS.load(deps.as_ref().storage, 1u64.into()).unwrap();
+        let results = poll.results();
+        assert_eq!(results.0[0], Some(Vote::NotFound));
+    }
+
+    #[test]
+    fn poll_created_correctly_in_state() {
+        // Build verifier set once and reuse for instantiation and assertions
+        let addrs = ["addr0", "addr1", "addr2"]; 
+        let verifiers = addrs
+            .iter()
+            .map(|name| Verifier {
+                address: MockApi::default().addr_make(name),
+                bonding_state: BondingState::Bonded { amount: Uint128::from(100u128).try_into().unwrap() },
+                authorization_state: AuthorizationState::Authorized,
+                service_name: SERVICE_NAME.parse().unwrap(),
+            })
+            .collect::<Vec<_>>();
+
+        let mut deps = setup(verifiers.clone());
+
+        // two distinct events on same chain
+        let ev1 = event_with_index("chain-a", 0);
+        let ev2 = event_with_index("chain-a", 1);
+
+        // create poll
+        let starter = MockApi::default().addr_make("starter");
+        assert_ok!(verify_events(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&starter, &[]),
+            vec![ev1.clone(), ev2.clone()],
+        ));
+
+        // poll stored with id=1
+        let poll = POLLS.load(deps.as_ref().storage, 1u64.into()).unwrap();
+        assert_eq!(poll.poll_id, 1u64.into());
+        assert_eq!(poll.poll_size, 2);
+        // not finished yet, height 0 => InProgress
+        assert!(matches!(poll.status(0), axelar_wasm_std::voting::PollStatus::InProgress));
+
+        // participants match service registry verifiers
+        let part_keys: Vec<String> = poll.participation.keys().cloned().collect();
+        let expected_addrs_from_verifiers: Vec<String> = verifiers.iter().map(|v| v.address.to_string()).collect();
+        assert_eq!(part_keys.len(), expected_addrs_from_verifiers.len());
+        for addr in expected_addrs_from_verifiers {
+            let p = poll.participation.get(&addr).expect("participant missing");
+            assert_eq!(p.weight, nonempty::Uint128::one());
+            assert!(!p.voted);
+        }
+
+        // events indexed under poll id
+        let stored_events = state::poll_events().idx.load_events(deps.as_ref().storage, 1u64.into()).unwrap();
+        assert_eq!(stored_events.len(), 2);
+        assert_eq!(stored_events[0], ev1);
+        assert_eq!(stored_events[1], ev2);
+    }
+}
+
