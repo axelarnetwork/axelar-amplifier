@@ -6,8 +6,8 @@ use std::sync::Arc;
 use ampd_proto::blockchain_service_server::BlockchainService;
 use ampd_proto::{
     AddressRequest, AddressResponse, BroadcastRequest, BroadcastResponse, ContractStateRequest,
-    ContractStateResponse, ContractsRequest, ContractsResponse, SubscribeRequest,
-    SubscribeResponse,
+    ContractStateResponse, ContractsRequest, ContractsResponse, LatestBlockHeightRequest,
+    LatestBlockHeightResponse, SubscribeRequest, SubscribeResponse,
 };
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
@@ -18,6 +18,7 @@ use futures::TryFutureExt;
 use futures::{Stream, TryStreamExt};
 use monitoring::metrics::Msg;
 use serde::{Deserialize, Serialize};
+use tokio::sync::watch::Receiver;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use tracing::instrument;
@@ -56,6 +57,7 @@ where
     cosmos_client: C,
     service_registry: TMAddress,
     rewards: TMAddress,
+    latest_block_height: Receiver<u64>,
     config: Config,
     monitoring_client: monitoring::Client,
 }
@@ -210,6 +212,15 @@ where
             multisig: chain_config.multisig.to_string(),
         }))
     }
+
+    async fn latest_block_height(
+        &self,
+        _req: Request<LatestBlockHeightRequest>,
+    ) -> Result<Response<LatestBlockHeightResponse>, Status> {
+        Ok(Response::new(LatestBlockHeightResponse {
+            height: *self.latest_block_height.borrow(),
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -233,6 +244,7 @@ mod tests {
     use futures::{stream, StreamExt};
     use mockall::{predicate, Sequence};
     use report::ErrorExt;
+    use tokio::sync::watch;
     use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
     use tonic::{Code, Request};
 
@@ -246,90 +258,156 @@ mod tests {
 
     const GAS_CAP: Gas = 10000;
 
-    async fn setup(
-        mock_event_sub: MockEventSub,
-        mut broadcaster_mock_cosmos_client: MockCosmosClient,
-        mock_cosmos_client: MockCosmosClient,
-        monitoring_client: monitoring::Client,
-    ) -> (
-        Service<MockEventSub, MockCosmosClient>,
-        impl Stream<Item = nonempty::Vec<broadcast::QueueMsg>>,
-    ) {
-        let pub_key = random_cosmos_public_key();
-        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-        let gas_adjustment = 1.5;
-        let gas_price_amount = 0.025;
-        let gas_price_denom = "uaxl";
+    pub struct TestBuilder {
+        event_sub: Option<MockEventSub>,
+        broadcaster_cosmos_client: Option<MockCosmosClient>,
+        cosmos_client: Option<MockCosmosClient>,
+        monitoring_client: Option<monitoring::Client>,
+        custom_block_height_rx: Option<Receiver<u64>>,
+    }
 
-        let base_account = BaseAccount {
-            address: address.to_string(),
-            pub_key: None,
-            account_number: 42,
-            sequence: 10,
-        };
+    impl Default for TestBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
-        let mut seq = Sequence::new();
-        broadcaster_mock_cosmos_client
-            .expect_account()
-            .once()
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
+    impl TestBuilder {
+        pub fn new() -> Self {
+            Self {
+                event_sub: None,
+                broadcaster_cosmos_client: None,
+                cosmos_client: None,
+                monitoring_client: None,
+                custom_block_height_rx: None,
+            }
+        }
+
+        pub fn with_event_sub(mut self, event_sub: MockEventSub) -> Self {
+            self.event_sub = Some(event_sub);
+            self
+        }
+
+        pub fn with_broadcaster_cosmos_client(mut self, client: MockCosmosClient) -> Self {
+            self.broadcaster_cosmos_client = Some(client);
+            self
+        }
+
+        pub fn with_cosmos_client(mut self, client: MockCosmosClient) -> Self {
+            self.cosmos_client = Some(client);
+            self
+        }
+
+        pub fn with_monitoring_client(mut self, client: monitoring::Client) -> Self {
+            self.monitoring_client = Some(client);
+            self
+        }
+
+        pub fn with_custom_block_height_rx(mut self, rx: Receiver<u64>) -> Self {
+            self.custom_block_height_rx = Some(rx);
+            self
+        }
+
+        pub async fn build(
+            self,
+        ) -> (
+            Service<MockEventSub, MockCosmosClient>,
+            impl Stream<Item = nonempty::Vec<broadcast::QueueMsg>>,
+        ) {
+            let event_sub = self.event_sub.unwrap_or_default();
+            let mut broadcaster_cosmos_client = self.broadcaster_cosmos_client.unwrap_or_default();
+            let cosmos_client = self.cosmos_client.unwrap_or_default();
+            let monitoring_client = self.monitoring_client.unwrap_or_else(|| {
+                let (client, _) = test_utils::monitoring_client();
+                client
             });
 
-        broadcaster_mock_cosmos_client
-            .expect_balance()
-            .once()
-            .with(predicate::eq(QueryBalanceRequest {
+            let (_tx, rx) = if let Some(custom_rx) = self.custom_block_height_rx {
+                (None, custom_rx)
+            } else {
+                let (tx, rx) = watch::channel(0);
+                (Some(tx), rx)
+            };
+
+            let pub_key = random_cosmos_public_key();
+            let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+            let gas_adjustment = 1.5;
+            let gas_price_amount = 0.025;
+            let gas_price_denom = "uaxl";
+
+            let base_account = BaseAccount {
                 address: address.to_string(),
-                denom: gas_price_denom.to_string(),
-            }))
-            .in_sequence(&mut seq)
-            .return_once(move |_| {
-                Ok(QueryBalanceResponse {
-                    balance: Some(Coin {
-                        denom: gas_price_denom.to_string(),
-                        amount: "1000000".to_string(),
-                    }),
+                pub_key: None,
+                account_number: 42,
+                sequence: 10,
+            };
+
+            let mut seq = Sequence::new();
+            broadcaster_cosmos_client
+                .expect_account()
+                .once()
+                .in_sequence(&mut seq)
+                .return_once(move |_| {
+                    Ok(QueryAccountResponse {
+                        account: Some(Any::from_msg(&base_account).unwrap()),
+                    })
+                });
+
+            broadcaster_cosmos_client
+                .expect_balance()
+                .once()
+                .with(predicate::eq(QueryBalanceRequest {
+                    address: address.to_string(),
+                    denom: gas_price_denom.to_string(),
+                }))
+                .in_sequence(&mut seq)
+                .return_once(move |_| {
+                    Ok(QueryBalanceResponse {
+                        balance: Some(Coin {
+                            denom: gas_price_denom.to_string(),
+                            amount: "1000000".to_string(),
+                        }),
+                    })
+                });
+
+            let broadcaster = broadcast::Broadcaster::builder()
+                .client(broadcaster_cosmos_client)
+                .chain_id("chain_id".try_into().unwrap())
+                .pub_key(pub_key)
+                .gas_adjustment(gas_adjustment)
+                .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+                .build()
+                .await
+                .unwrap();
+
+            let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
+                broadcaster,
+                100,
+                GAS_CAP,
+                Duration::from_secs(1),
+                monitoring_client.clone(),
+            );
+
+            let service = Service::builder()
+                .event_sub(event_sub)
+                .msg_queue_client(msg_queue_client)
+                .cosmos_client(cosmos_client)
+                .service_registry(TMAddress::random(PREFIX))
+                .rewards(TMAddress::random(PREFIX))
+                .latest_block_height(rx)
+                .config(Config {
+                    chains: vec![ChainConfig {
+                        chain_name: chain_name!("test-chain"),
+                        voting_verifier: TMAddress::random(PREFIX),
+                        multisig_prover: TMAddress::random(PREFIX),
+                        multisig: TMAddress::random(PREFIX),
+                    }],
                 })
-            });
+                .monitoring_client(monitoring_client)
+                .build();
 
-        let broadcaster = broadcast::Broadcaster::builder()
-            .client(broadcaster_mock_cosmos_client)
-            .chain_id("chain_id".try_into().unwrap())
-            .pub_key(pub_key)
-            .gas_adjustment(gas_adjustment)
-            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
-            .build()
-            .await
-            .unwrap();
-        let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            100,
-            GAS_CAP,
-            Duration::from_secs(1),
-            monitoring_client.clone(),
-        );
-        let service = Service::builder()
-            .event_sub(mock_event_sub)
-            .msg_queue_client(msg_queue_client)
-            .cosmos_client(mock_cosmos_client)
-            .service_registry(TMAddress::random(PREFIX))
-            .rewards(TMAddress::random(PREFIX))
-            .config(Config {
-                chains: vec![ChainConfig {
-                    chain_name: chain_name!("test-chain"),
-                    voting_verifier: TMAddress::random(PREFIX),
-                    multisig_prover: TMAddress::random(PREFIX),
-                    multisig: TMAddress::random(PREFIX),
-                }],
-            })
-            .monitoring_client(monitoring_client)
-            .build();
-
-        (service, msg_queue)
+            (service, msg_queue)
+        }
     }
 
     #[tokio::test]
@@ -345,14 +423,10 @@ mod tests {
         mock_event_sub
             .expect_subscribe()
             .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(vec![], true))
             .await
@@ -368,14 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_return_error_if_any_filter_is_invalid() {
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter::default()],
@@ -402,15 +469,11 @@ mod tests {
         mock_event_sub.expect_subscribe().return_once(|| {
             tokio_stream::once(Err(report!(event_sub::Error::LatestBlockQuery))).boxed()
         });
-        let (monitoring_client, _) = test_utils::monitoring_client();
 
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -437,15 +500,10 @@ mod tests {
             })))
             .boxed()
         });
-        let (monitoring_client, _) = test_utils::monitoring_client();
-
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -472,15 +530,10 @@ mod tests {
             })))
             .boxed()
         });
-        let (monitoring_client, _) = test_utils::monitoring_client();
-
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -504,14 +557,10 @@ mod tests {
         mock_event_sub.expect_subscribe().return_once(move || {
             tokio_stream::once(Err(BroadcastStreamRecvError::Lagged(10).into_report())).boxed()
         });
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter {
@@ -542,19 +591,15 @@ mod tests {
         mock_event_sub
             .expect_subscribe()
             .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
 
         let filter = ampd_proto::EventFilter {
             r#type: "event_type_2".to_string(),
             ..Default::default()
         };
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
         let res = service
             .subscribe(subscribe_req(vec![filter], false))
             .await
@@ -592,14 +637,10 @@ mod tests {
             r#type: "test_event".to_string(),
             contract: expected.contract_address().unwrap().to_string(),
         };
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(vec![filter], false))
             .await
@@ -625,14 +666,10 @@ mod tests {
             .expect_subscribe()
             .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(vec![], false))
             .await
@@ -682,14 +719,10 @@ mod tests {
             contract: expected[1].contract_address().unwrap().to_string(),
             ..Default::default()
         };
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            mock_event_sub,
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_event_sub(mock_event_sub)
+            .build()
+            .await;
         let res = service
             .subscribe(subscribe_req(vec![filter_1, filter_2], false))
             .await
@@ -705,14 +738,7 @@ mod tests {
 
     #[tokio::test]
     async fn broadcast_should_return_error_if_req_is_invalid() {
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
         let res = service.broadcast(broadcast_req(None)).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -743,14 +769,10 @@ mod tests {
             mock_cosmos_client
         });
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            mock_cosmos_client,
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_broadcaster_cosmos_client(mock_cosmos_client)
+            .build()
+            .await;
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -787,14 +809,10 @@ mod tests {
             mock_cosmos_client
         });
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, mut msg_queue) = setup(
-            MockEventSub::new(),
-            mock_cosmos_client,
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, mut msg_queue) = TestBuilder::new()
+            .with_broadcaster_cosmos_client(mock_cosmos_client)
+            .build()
+            .await;
         tokio::spawn(async move { while msg_queue.next().await.is_some() {} });
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
@@ -839,14 +857,10 @@ mod tests {
                 mock_cosmos_client
             });
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, mut msg_queue) = setup(
-            MockEventSub::new(),
-            mock_cosmos_client,
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, mut msg_queue) = TestBuilder::new()
+            .with_broadcaster_cosmos_client(mock_cosmos_client)
+            .build()
+            .await;
         let service = Arc::new(service);
         let handles = join_all(
             (0..msg_count)
@@ -891,14 +905,7 @@ mod tests {
 
     #[tokio::test]
     async fn contract_state_should_return_error_if_req_is_invalid() {
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
         let req = Request::new(ContractStateRequest {
             contract: "invalid_address".to_string(),
             query: serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap(),
@@ -911,14 +918,7 @@ mod tests {
     #[tokio::test]
     async fn contract_state_should_return_error_if_empty_query() {
         let address = TMAddress::random(PREFIX);
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
         let req = Request::new(ContractStateRequest {
             contract: address.to_string(),
             query: vec![],
@@ -931,14 +931,7 @@ mod tests {
     #[tokio::test]
     async fn contract_state_should_return_error_if_invalid_json() {
         let address = TMAddress::random(PREFIX);
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
         let req = Request::new(ContractStateRequest {
             contract: address.to_string(),
             query: vec![1, 2, 3], // invalid json
@@ -974,14 +967,10 @@ mod tests {
             mock
         });
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            mock_cosmos_client,
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_cosmos_client(mock_cosmos_client)
+            .build()
+            .await;
         let req = Request::new(ContractStateRequest {
             contract: address_str,
             query: query_bytes,
@@ -1021,14 +1010,10 @@ mod tests {
             mock
         });
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            mock_cosmos_client,
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_cosmos_client(mock_cosmos_client)
+            .build()
+            .await;
         let req = Request::new(ContractStateRequest {
             contract: address_str,
             query: query_bytes,
@@ -1092,6 +1077,7 @@ mod tests {
             .cosmos_client(MockCosmosClient::new())
             .service_registry(TMAddress::random(PREFIX))
             .rewards(TMAddress::random(PREFIX))
+            .latest_block_height(watch::channel(0).1)
             .config(Config::default())
             .monitoring_client(monitoring_client)
             .build();
@@ -1104,14 +1090,7 @@ mod tests {
 
     #[tokio::test]
     async fn contracts_should_return_contracts_addresses_successfully() {
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
         let chain_config = service.config.chains.first().unwrap();
 
         let req = Request::new(ContractsRequest {
@@ -1134,14 +1113,7 @@ mod tests {
 
     #[tokio::test]
     async fn contracts_should_return_error_if_request_is_invalid() {
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
 
         let req = Request::new(ContractsRequest {
             chain: "invalid_chain_name".to_string(),
@@ -1153,14 +1125,7 @@ mod tests {
 
     #[tokio::test]
     async fn contracts_should_return_error_if_chain_not_found() {
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new().build().await;
 
         let req = Request::new(ContractsRequest {
             chain: "unexisting-chain".to_string(),
@@ -1168,6 +1133,29 @@ mod tests {
         let res = service.contracts(req).await;
 
         assert!(res.is_err_and(|status| status.code() == Code::NotFound));
+    }
+
+    #[tokio::test]
+    async fn latest_block_height_should_return_correct_height() {
+        let (tx, rx) = watch::channel(100);
+        let (service, _) = TestBuilder::new()
+            .with_custom_block_height_rx(rx)
+            .build()
+            .await;
+
+        let response = service
+            .latest_block_height(Request::new(LatestBlockHeightRequest {}))
+            .await
+            .unwrap();
+        assert_eq!(response.into_inner().height, 100);
+
+        tx.send(200).unwrap();
+
+        let second_response = service
+            .latest_block_height(Request::new(LatestBlockHeightRequest {}))
+            .await
+            .unwrap();
+        assert_eq!(second_response.into_inner().height, 200);
     }
 
     #[tokio::test]
@@ -1197,13 +1185,11 @@ mod tests {
         });
 
         let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            mock_cosmos_client,
-            MockCosmosClient::new(),
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_broadcaster_cosmos_client(mock_cosmos_client)
+            .with_monitoring_client(monitoring_client)
+            .build()
+            .await;
 
         let _ = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
 
@@ -1240,13 +1226,11 @@ mod tests {
         });
 
         let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
-        let (service, _) = setup(
-            MockEventSub::new(),
-            MockCosmosClient::new(),
-            mock_cosmos_client,
-            monitoring_client,
-        )
-        .await;
+        let (service, _) = TestBuilder::new()
+            .with_cosmos_client(mock_cosmos_client)
+            .with_monitoring_client(monitoring_client)
+            .build()
+            .await;
 
         let req = Request::new(ContractStateRequest {
             contract: address_str,
