@@ -17,4 +17,10 @@ pub enum Error {
     ConversionFailed,
     #[error("Invalid public key")]
     InvalidPublicKey,
+    #[error("Unsupported ITS message type")]
+    UnsupportedItsMessageType,
+    #[error("Utf8Error: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
+    #[error("ConversionOverflowError: {0}")]
+    ConversionOverflow(#[from] cosmwasm_std::ConversionOverflowError),
 }

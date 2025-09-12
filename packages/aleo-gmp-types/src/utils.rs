@@ -54,8 +54,9 @@ pub fn bhp<N: Network>(input: impl TryInto<Value<N>>) -> Result<Group<N>, Error>
 
 #[cfg(test)]
 mod tests {
-    use snarkvm_cosmwasm::prelude::{FromBits as _, Plaintext};
     use std::str::FromStr as _;
+
+    use snarkvm_cosmwasm::prelude::{FromBits as _, Plaintext};
 
     use super::*;
 

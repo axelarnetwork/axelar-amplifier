@@ -139,8 +139,11 @@ dependencies = [
  "aleo-string-encoder",
  "anyhow",
  "axelar-wasm-std",
+ "bytemuck",
+ "cosmwasm-std",
  "error-stack",
  "indexmap 2.10.0",
+ "interchain-token-service-std",
  "multisig",
  "once_cell",
  "plaintext-trait",
@@ -5652,6 +5655,7 @@ dependencies = [
 name = "its-aleo-translator"
 version = "0.1.0"
 dependencies = [
+ "aleo-gateway-types",
  "aleo-gmp-types",
  "aleo-network-config",
  "aleo-string-encoder",

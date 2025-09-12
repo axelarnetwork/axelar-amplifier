@@ -2,6 +2,7 @@ pub mod aleo_struct;
 pub mod multisig_prover;
 mod safe_gmp_chain_name;
 pub use safe_gmp_chain_name::*;
+pub mod token_id_conversion;
 pub mod utils;
 
 pub mod error;

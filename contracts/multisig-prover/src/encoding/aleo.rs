@@ -1,13 +1,10 @@
-use aleo_gateway_types::Message;
-use aleo_gateway_types::PayloadDigest;
+use aleo_gateway_types::{Message, PayloadDigest};
 use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
-use aleo_gmp_types::multisig_prover::ExecuteSignersRotation;
-use aleo_gmp_types::multisig_prover::Proof;
+use aleo_gmp_types::multisig_prover::{ExecuteSignersRotation, Proof};
 use aleo_gmp_types::utils::ToBytesExt;
 use aleo_network_config::network::NetworkConfig;
 use axelar_wasm_std::hash::Hash;
-use cosmwasm_std::to_json_binary;
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{to_json_binary, HexBinary};
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
@@ -229,9 +226,8 @@ fn payload_digest_inner<N: Network>(
             .change_context_lazy(|| ContractError::InvalidVerifierSet)?,
     };
 
-    let domain_separator = parse_domain_separator(domain_separator).change_context_lazy(|| {
-        ContractError::CreatePayloadDigestFailed
-    })?;
+    let domain_separator = parse_domain_separator(domain_separator)
+        .change_context_lazy(|| ContractError::CreatePayloadDigestFailed)?;
     let signer = verifier_set
         .to_leo()
         .change_context_lazy(|| ContractError::InvalidVerifierSet)?;
@@ -466,10 +462,11 @@ mod tests {
             >(execute_data.as_slice())
             .expect("Failed to transform proof");
 
-        let validated = aleo_utils::axelar_proof_transformation::validate_proof_for_signers_rotation::<CurrentNetwork>(
-            &transformed_signers_rotation_proof,
-        )
-        .expect("Failed to validate proof");
+        let validated =
+            aleo_utils::axelar_proof_transformation::validate_proof_for_signers_rotation::<
+                CurrentNetwork,
+            >(&transformed_signers_rotation_proof)
+            .expect("Failed to validate proof");
 
         assert!(validated);
     }
@@ -523,10 +520,11 @@ mod tests {
         )
         .expect("Failed to encode execute data");
 
-        let transformed_proof = aleo_utils::axelar_proof_transformation::transform_message_payload_execute_data::<
-            CurrentNetwork,
-        >(execute_data.as_slice())
-        .expect("Failed to transform proof");
+        let transformed_proof =
+            aleo_utils::axelar_proof_transformation::transform_message_payload_execute_data::<
+                CurrentNetwork,
+            >(execute_data.as_slice())
+            .expect("Failed to transform proof");
 
         let validated = aleo_utils::axelar_proof_transformation::validate_proof::<CurrentNetwork>(
             &transformed_proof,

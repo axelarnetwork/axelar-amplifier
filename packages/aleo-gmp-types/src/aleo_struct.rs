@@ -2,15 +2,19 @@ use std::collections::HashMap;
 use std::mem::MaybeUninit;
 use std::str::FromStr;
 
+use aleo_gateway_types::{
+    FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof, WeightedSigner,
+    WeightedSigners,
+};
 use aleo_string_encoder::StringEncoder;
+use cosmwasm_std::Uint128;
 use snarkvm_cosmwasm::prelude::{
     Address, ComputeKey, FromBytes, Group, Network, Plaintext, ProgramID, Scalar, Signature,
     Zero as _,
 };
 
-use aleo_gateway_types::{Message, Proof, WeightedSigner, WeightedSigners};
-
 use crate::error::Error;
+use crate::token_id_conversion::ItsTokenIdNewType;
 use crate::SafeGmpChainName;
 
 /// This trait provides a way to convert Rust structs to structs that
@@ -199,5 +203,56 @@ impl<N: Network> AxelarProof<N> {
             weighted_signers,
             signature,
         }
+    }
+}
+
+// ITS types
+impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::InterchainTransfer {
+    type LeoType = IncomingInterchainTransfer<N>;
+    type Error = Error;
+
+    fn to_leo(&self) -> Result<Self::LeoType, Self::Error> {
+        let its_token_id = ItsTokenIdNewType::from(self.token_id);
+
+        let source_address =
+            StringEncoder::encode_bytes(self.source_address.as_slice())?.to_array()?;
+
+        let destination_address =
+            Address::from_str(std::str::from_utf8(&self.destination_address)?)?;
+
+        let amount = Uint128::try_from(*self.amount)?.u128();
+
+        Ok(IncomingInterchainTransfer {
+            its_token_id: *its_token_id,
+            source_address,
+            destination_address,
+            amount,
+        })
+    }
+}
+
+impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::DeployInterchainToken {
+    type LeoType = FromRemoteDeployInterchainToken<N>;
+    type Error = Error;
+
+    fn to_leo(&self) -> Result<Self::LeoType, Self::Error> {
+        let its_token_id = ItsTokenIdNewType::from(self.token_id);
+
+        let name: [u128; 2] = StringEncoder::encode_string(&self.name)?.to_array()?;
+
+        let symbol: [u128; 2] = StringEncoder::encode_string(&self.symbol)?.to_array()?;
+
+        let minter = match &self.minter {
+            Some(hex) => Address::from_str(std::str::from_utf8(&hex)?)?,
+            None => Address::zero(),
+        };
+
+        Ok(FromRemoteDeployInterchainToken {
+            its_token_id: *its_token_id,
+            name: name[0],
+            symbol: symbol[0],
+            decimals: self.decimals,
+            minter,
+        })
     }
 }

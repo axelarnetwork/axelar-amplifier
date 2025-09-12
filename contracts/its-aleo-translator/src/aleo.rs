@@ -1,3 +1,6 @@
+use aleo_gateway_types::{ItsIncomingInterchainTransfer, ItsMessageDeployInterchainToken};
+use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
+use aleo_gmp_types::SafeGmpChainName;
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{ConversionOverflowError, HexBinary};
 use error_stack::{bail, report, Report};
@@ -5,13 +8,10 @@ use interchain_token_service_std::{HubMessage, Message};
 use snarkvm_cosmwasm::prelude::{FromBits as _, Network, Plaintext, Value};
 use thiserror::Error;
 
-mod to_aleo_value;
+use crate::aleo::to_its_hub_message::ToItsHubMessage;
+
 mod to_its_hub_message;
 mod token_id_conversion;
-mod try_from_impl;
-
-use to_aleo_value::ToAleoValue;
-use to_its_hub_message::ToItsHubMessage;
 
 #[derive(Error, Debug, IntoContractError)]
 pub enum Error {
@@ -43,11 +43,27 @@ pub fn aleo_inbound_hub_message<N: Network>(
         HubMessage::ReceiveFromHub {
             source_chain,
             message: Message::InterchainTransfer(interchain_transfer),
-        } => Ok(interchain_transfer.to_aleo_value(source_chain)?),
+        } => {
+            let source_chain = SafeGmpChainName::try_from(source_chain).unwrap();
+            let interchain_transfer = interchain_transfer.to_leo().unwrap();
+            let interchain_transfer = ItsIncomingInterchainTransfer {
+                inner_message: interchain_transfer,
+                source_chain: source_chain.aleo_chain_name(),
+            };
+            Ok(Value::<N>::try_from(&interchain_transfer).unwrap())
+        }
         HubMessage::ReceiveFromHub {
             source_chain,
             message: Message::DeployInterchainToken(deploy_interchain_token),
-        } => Ok(deploy_interchain_token.to_aleo_value(source_chain)?),
+        } => {
+            let source_chain = SafeGmpChainName::try_from(source_chain).unwrap();
+            let deploy_interchain_token = deploy_interchain_token.to_leo().unwrap();
+            let deploy_interchain_token = ItsMessageDeployInterchainToken {
+                inner_message: deploy_interchain_token,
+                source_chain: source_chain.aleo_chain_name(),
+            };
+            Ok(Value::<N>::try_from(&deploy_interchain_token).unwrap())
+        }
         _ => bail!(Error::TranslationFailed(format!(
             "Unsupported HubMessage type for inbound translation: {hub_message:?}"
         ))),
@@ -62,11 +78,11 @@ pub fn aleo_outbound_hub_message<N: Network>(
     let plaintext = Plaintext::from_bits_le(&value).map_err(|e| report!(Error::SnarkVm(e)))?;
 
     if let Ok(its_outbound_transfer) =
-        try_from_impl::ItsOutgoingInterchainTransfer::<N>::try_from(&plaintext)
+        aleo_gateway_types::ItsOutgoingInterchainTransfer::<N>::try_from(&plaintext)
     {
         Ok(its_outbound_transfer.to_hub_message()?)
     } else if let Ok(remote_deploy_interchain_token) =
-        try_from_impl::RemoteDeployInterchainToken::try_from(&plaintext)
+        aleo_gateway_types::RemoteDeployInterchainToken::try_from(&plaintext)
     {
         Ok(remote_deploy_interchain_token.to_hub_message()?)
     } else {
