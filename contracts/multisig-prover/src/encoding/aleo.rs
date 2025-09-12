@@ -461,12 +461,12 @@ mod tests {
         println!("Execute data: {}", execute_data);
 
         let transformed_signers_rotation_proof =
-            aleo_utils::axelar_proof_transformation::transformed_signers_rotation_proof::<
+            aleo_utils::axelar_proof_transformation::transform_signers_rotation_proof_execute_data::<
                 CurrentNetwork,
             >(execute_data.as_slice())
             .expect("Failed to transform proof");
 
-        let validated = aleo_utils::axelar_proof_transformation::validate_proof2::<CurrentNetwork>(
+        let validated = aleo_utils::axelar_proof_transformation::validate_proof_for_signers_rotation::<CurrentNetwork>(
             &transformed_signers_rotation_proof,
         )
         .expect("Failed to validate proof");
@@ -523,7 +523,7 @@ mod tests {
         )
         .expect("Failed to encode execute data");
 
-        let transformed_proof = aleo_utils::axelar_proof_transformation::transform_proof::<
+        let transformed_proof = aleo_utils::axelar_proof_transformation::transform_message_payload_execute_data::<
             CurrentNetwork,
         >(execute_data.as_slice())
         .expect("Failed to transform proof");

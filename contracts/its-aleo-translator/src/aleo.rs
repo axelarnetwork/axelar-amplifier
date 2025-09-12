@@ -2,7 +2,7 @@ use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{ConversionOverflowError, HexBinary};
 use error_stack::{bail, report, Report};
 use interchain_token_service_std::{HubMessage, Message};
-use snarkvm_cosmwasm::prelude::{FromBytes as _, Network, Value};
+use snarkvm_cosmwasm::prelude::{FromBits as _, Network, Plaintext, Value};
 use thiserror::Error;
 
 mod to_aleo_value;
@@ -58,13 +58,8 @@ pub fn aleo_inbound_hub_message<N: Network>(
 pub fn aleo_outbound_hub_message<N: Network>(
     payload: HexBinary,
 ) -> Result<HubMessage, Report<Error>> {
-    let value = Value::<N>::from_bytes_le(&payload).map_err(Error::from)?;
-
-    let Value::Plaintext(plaintext) = value else {
-        bail!(Error::TranslationFailed(
-            "Expected a Plaintext value".to_string()
-        ));
-    };
+    let value = aleo_gmp_types::utils::from_bytes(&payload);
+    let plaintext = Plaintext::from_bits_le(&value).map_err(|e| report!(Error::SnarkVm(e)))?;
 
     if let Ok(its_outbound_transfer) =
         try_from_impl::ItsOutgoingInterchainTransfer::<N>::try_from(&plaintext)
@@ -89,7 +84,7 @@ mod tests {
     use aleo_string_encoder::StringEncoder;
     use interchain_token_service_std::{InterchainTransfer, Message, TokenId};
     use router_api::ChainNameRaw;
-    use snarkvm_cosmwasm::prelude::{Address, ToBytes as _};
+    use snarkvm_cosmwasm::prelude::Address;
 
     use super::*;
     use crate::aleo::token_id_conversion::ItsTokenIdNewType;
@@ -442,6 +437,8 @@ mod tests {
     }
 
     mod outbound {
+        use aleo_gmp_types::utils::AleoBitsToBytesExt as _;
+
         use super::*;
 
         #[test]
@@ -455,10 +452,9 @@ mod tests {
 
             let aleo_value = Value::<CurrentNetwork>::from_str(&aleo_value_str)
                 .expect("Valid Aleo value")
-                .to_bytes_le()
-                .expect("Serializable to bytes");
+                .to_bytes();
 
-            let result = aleo_outbound_hub_message::<CurrentNetwork>(HexBinary::from(aleo_value))
+            let result = aleo_outbound_hub_message::<CurrentNetwork>(aleo_value.into())
                 .expect("Successful conversion");
 
             let expected_message = test_data.outbound_hub_message();
@@ -482,12 +478,11 @@ mod tests {
                 let aleo_value =
                     Value::<CurrentNetwork>::from_str(&outbound_deploy_interchain_token)
                         .expect("Failed to parse Aleo value")
-                        .to_bytes_le()
-                        .expect("Failed to convert Aleo value to bytes");
-                let aleo_value = HexBinary::from(aleo_value);
+                        .to_bytes();
 
-                let its_hub_message = aleo_outbound_hub_message::<CurrentNetwork>(aleo_value)
-                    .expect("Failed to convert Aleo value to HubMessage");
+                let its_hub_message =
+                    aleo_outbound_hub_message::<CurrentNetwork>(aleo_value.into())
+                        .expect("Failed to convert Aleo value to HubMessage");
 
                 let expected_message = test_builder.outbound_hub_message();
                 assert_eq!(
