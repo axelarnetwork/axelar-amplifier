@@ -261,7 +261,7 @@ mod tests {
         pub_key: CosmosPublicKey,
         base_account: BaseAccount,
         broadcaster_cosmos_client: MockCosmosClient,
-        custom_block_height_rx: Option<Receiver<u64>>,
+        custom_block_height_rx: Receiver<u64>,
         expected_events: Vec<Event>,
         expected_simulate_response: Option<SimulateResponse>,
         expected_contract_state_response: Option<QuerySmartContractStateResponse>,
@@ -317,7 +317,7 @@ mod tests {
                 pub_key,
                 base_account: base_account.clone(),
                 broadcaster_cosmos_client,
-                custom_block_height_rx: None,
+                custom_block_height_rx: watch::channel(0).1,
                 expected_events: vec![],
                 expected_simulate_response: None,
                 expected_contract_state_response: None,
@@ -353,7 +353,7 @@ mod tests {
         }
 
         pub fn with_custom_block_height_rx(mut self, rx: Receiver<u64>) -> Self {
-            self.custom_block_height_rx = Some(rx);
+            self.custom_block_height_rx = rx;
             self
         }
 
@@ -381,13 +381,6 @@ mod tests {
             let mut broadcaster_cosmos_client = self.broadcaster_cosmos_client;
             let mut cosmos_client = MockCosmosClient::new();
             let mut event_sub = MockEventSub::new();
-
-            let (_tx, rx) = if let Some(custom_rx) = self.custom_block_height_rx {
-                (None, custom_rx)
-            } else {
-                let (tx, rx) = watch::channel(0);
-                (Some(tx), rx)
-            };
 
             let stream = match self.event_subscription_error {
                 Some(error) => tokio_stream::once(Err(report!(error))).boxed(),
@@ -478,7 +471,7 @@ mod tests {
                 .cosmos_client(cosmos_client)
                 .service_registry(TMAddress::random(PREFIX))
                 .rewards(TMAddress::random(PREFIX))
-                .latest_block_height(rx)
+                .latest_block_height(self.custom_block_height_rx)
                 .config(Config {
                     chains: vec![ChainConfig {
                         chain_name: chain_name!("test-chain"),
