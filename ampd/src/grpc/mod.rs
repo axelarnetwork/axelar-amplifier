@@ -15,6 +15,7 @@ use report::{ErrorExt, LoggableError};
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::watch::Receiver;
 use tokio_util::sync::CancellationToken;
 use tonic::transport;
 use tower::limit::ConcurrencyLimitLayer;
@@ -116,6 +117,7 @@ pub struct Server {
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
     multisig_client: tofnd::MultisigClient,
     service_registry: TMAddress,
+    latest_block_height: Receiver<u64>,
     rewards: TMAddress,
     monitoring_client: monitoring::Client,
 }
@@ -157,6 +159,7 @@ impl Server {
                     .cosmos_client(self.cosmos_grpc_client)
                     .service_registry(self.service_registry)
                     .rewards(self.rewards)
+                    .latest_block_height(self.latest_block_height)
                     .config(self.config.blockchain_service)
                     .monitoring_client(self.monitoring_client.clone())
                     .build(),

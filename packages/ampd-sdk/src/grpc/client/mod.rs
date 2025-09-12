@@ -274,7 +274,8 @@ mod tests {
     use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
     use ampd_proto::{
         AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
-        KeyResponse, SignResponse, SubscribeResponse,
+        KeyResponse, LatestBlockHeightRequest, LatestBlockHeightResponse, SignResponse,
+        SubscribeResponse,
     };
     use axelar_wasm_std::chain_name;
     use cosmrs::{AccountId, Any};
@@ -305,6 +306,7 @@ mod tests {
             async fn contract_state(&self, request: Request<ContractStateRequest>) -> std::result::Result<Response<ContractStateResponse>, Status>;
             async fn address(&self, request: Request<AddressRequest>) -> std::result::Result<Response<AddressResponse>, Status>;
             async fn contracts(&self, request: Request<ContractsRequest>) -> std::result::Result<Response<ContractsResponse>, Status>;
+            async fn latest_block_height(&self, request: Request<LatestBlockHeightRequest>) -> std::result::Result<Response<LatestBlockHeightResponse>, Status>;
         }
     }
 
