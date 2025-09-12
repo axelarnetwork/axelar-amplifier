@@ -1,3 +1,4 @@
+use std::cmp;
 use std::future::Future;
 use std::ops::Mul;
 use std::sync::Arc;
@@ -173,18 +174,6 @@ where
         BroadcasterBuilderParams::builder()
     }
 
-    // TODO: this is a temporary method to reset the sequence number because executing commands will cause
-    // the daemon's broadcaster sequence number to become out of sync. Remove this once the commands broadcast
-    // through the daemon's broadcaster.
-    pub async fn reset_sequence(&mut self) -> Result<()> {
-        reset_sequence(
-            &mut self.client,
-            &self.address,
-            self.acc_sequence.write().await,
-        )
-        .await
-    }
-
     /// Estimates the gas required for a transaction containing the given messages.
     ///
     /// This performs a simulated execution of the transaction without actually
@@ -202,7 +191,13 @@ where
     ///
     /// * `Error::EstimateGas` - If the gas estimation fails
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
-        let acc_sequence = self.acc_sequence.read().await;
+        // TODO: remove this once the commands broadcast through the daemon's broadcaster, so that the sequence does not get out of sync
+        let account = cosmos::account(&mut self.client, &self.address)
+            .await
+            .change_context(Error::AccountQuery)?;
+
+        let mut acc_sequence = self.acc_sequence.write().await;
+        *acc_sequence = cmp::max(*acc_sequence, account.sequence);
 
         cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
             .await
