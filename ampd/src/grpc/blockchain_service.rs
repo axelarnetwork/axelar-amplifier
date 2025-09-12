@@ -234,9 +234,7 @@ mod tests {
     use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
-    use cosmrs::proto::cosmwasm::wasm::v1::{
-        QuerySmartContractStateRequest, QuerySmartContractStateResponse,
-    };
+    use cosmrs::proto::cosmwasm::wasm::v1::QuerySmartContractStateResponse;
     use cosmrs::{Any, Gas};
     use error_stack::report;
     use events::{self, Event};
@@ -253,58 +251,124 @@ mod tests {
     use crate::cosmos::MockCosmosClient;
     use crate::event_sub::{self, MockEventSub};
     use crate::monitoring::test_utils;
-    use crate::types::{random_cosmos_public_key, TMAddress};
+    use crate::types::{random_cosmos_public_key, CosmosPublicKey, TMAddress};
     use crate::PREFIX;
 
     const GAS_CAP: Gas = 10000;
-
+    const GAS_PRICE_DENOM: &str = "uaxl";
     pub struct TestBuilder {
-        event_sub: Option<MockEventSub>,
-        broadcaster_cosmos_client: Option<MockCosmosClient>,
-        cosmos_client: Option<MockCosmosClient>,
-        monitoring_client: Option<monitoring::Client>,
+        monitoring_client: monitoring::Client,
+        pub_key: CosmosPublicKey,
+        base_account: BaseAccount,
+        broadcaster_cosmos_client: MockCosmosClient,
         custom_block_height_rx: Option<Receiver<u64>>,
+        expected_events: Vec<Event>,
+        expected_simulate_response: Option<SimulateResponse>,
+        expected_contract_state_response: Option<QuerySmartContractStateResponse>,
+        event_subscription_error: Option<event_sub::Error>,
+        simulate_error: Option<Status>,
+        contract_state_error: Option<cosmos::Error>,
     }
 
     impl Default for TestBuilder {
         fn default() -> Self {
-            Self::new()
+            let (monitoring_client, _) = test_utils::monitoring_client();
+            let pub_key = random_cosmos_public_key();
+            let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+            let base_account = BaseAccount {
+                address: address.to_string(),
+                pub_key: None,
+                account_number: 42,
+                sequence: 10,
+            };
+
+            let mut broadcaster_cosmos_client = MockCosmosClient::new();
+            let mut seq = Sequence::new();
+            let base_account_clone = base_account.clone();
+            broadcaster_cosmos_client
+                .expect_account()
+                .once()
+                .in_sequence(&mut seq)
+                .return_once(move |_| {
+                    Ok(QueryAccountResponse {
+                        account: Some(Any::from_msg(&base_account_clone).unwrap()),
+                    })
+                });
+
+            broadcaster_cosmos_client
+                .expect_balance()
+                .once()
+                .with(predicate::eq(QueryBalanceRequest {
+                    address: address.to_string(),
+                    denom: GAS_PRICE_DENOM.to_string(),
+                }))
+                .in_sequence(&mut seq)
+                .return_once(move |_| {
+                    Ok(QueryBalanceResponse {
+                        balance: Some(Coin {
+                            denom: GAS_PRICE_DENOM.to_string(),
+                            amount: "1000000".to_string(),
+                        }),
+                    })
+                });
+
+            Self {
+                monitoring_client,
+                pub_key,
+                base_account: base_account.clone(),
+                broadcaster_cosmos_client,
+                custom_block_height_rx: None,
+                expected_events: vec![],
+                expected_simulate_response: None,
+                expected_contract_state_response: None,
+                event_subscription_error: None,
+                simulate_error: None,
+                contract_state_error: None,
+            }
         }
     }
 
     impl TestBuilder {
-        pub fn new() -> Self {
-            Self {
-                event_sub: None,
-                broadcaster_cosmos_client: None,
-                cosmos_client: None,
-                monitoring_client: None,
-                custom_block_height_rx: None,
-            }
-        }
-
-        pub fn with_event_sub(mut self, event_sub: MockEventSub) -> Self {
-            self.event_sub = Some(event_sub);
+        pub fn with_expected_events(mut self, events: Vec<Event>) -> Self {
+            self.expected_events = events;
             self
         }
 
-        pub fn with_broadcaster_cosmos_client(mut self, client: MockCosmosClient) -> Self {
-            self.broadcaster_cosmos_client = Some(client);
+        pub fn with_expected_simulate_response(mut self, response: SimulateResponse) -> Self {
+            self.expected_simulate_response = Some(response);
             self
         }
 
-        pub fn with_cosmos_client(mut self, client: MockCosmosClient) -> Self {
-            self.cosmos_client = Some(client);
+        pub fn with_expected_contract_state_response(
+            mut self,
+            response: QuerySmartContractStateResponse,
+        ) -> Self {
+            self.expected_contract_state_response = Some(response);
             self
         }
 
         pub fn with_monitoring_client(mut self, client: monitoring::Client) -> Self {
-            self.monitoring_client = Some(client);
+            self.monitoring_client = client;
             self
         }
 
         pub fn with_custom_block_height_rx(mut self, rx: Receiver<u64>) -> Self {
             self.custom_block_height_rx = Some(rx);
+            self
+        }
+
+        pub fn with_event_subscription_error(mut self, error: event_sub::Error) -> Self {
+            self.event_subscription_error = Some(error);
+            self
+        }
+
+        pub fn with_simulate_error(mut self, error: Status) -> Self {
+            self.simulate_error = Some(error);
+            self
+        }
+
+        pub fn with_contract_state_error(mut self, error: cosmos::Error) -> Self {
+            self.contract_state_error = Some(error);
             self
         }
 
@@ -314,13 +378,9 @@ mod tests {
             Service<MockEventSub, MockCosmosClient>,
             impl Stream<Item = nonempty::Vec<broadcast::QueueMsg>>,
         ) {
-            let event_sub = self.event_sub.unwrap_or_default();
-            let mut broadcaster_cosmos_client = self.broadcaster_cosmos_client.unwrap_or_default();
-            let cosmos_client = self.cosmos_client.unwrap_or_default();
-            let monitoring_client = self.monitoring_client.unwrap_or_else(|| {
-                let (client, _) = test_utils::monitoring_client();
-                client
-            });
+            let mut broadcaster_cosmos_client = self.broadcaster_cosmos_client;
+            let mut cosmos_client = MockCosmosClient::new();
+            let mut event_sub = MockEventSub::new();
 
             let (_tx, rx) = if let Some(custom_rx) = self.custom_block_height_rx {
                 (None, custom_rx)
@@ -329,53 +389,77 @@ mod tests {
                 (Some(tx), rx)
             };
 
-            let pub_key = random_cosmos_public_key();
-            let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-            let gas_adjustment = 1.5;
-            let gas_price_amount = 0.025;
-            let gas_price_denom = "uaxl";
-
-            let base_account = BaseAccount {
-                address: address.to_string(),
-                pub_key: None,
-                account_number: 42,
-                sequence: 10,
+            let stream = match self.event_subscription_error {
+                Some(error) => tokio_stream::once(Err(report!(error))).boxed(),
+                None => {
+                    stream::iter(self.expected_events.clone().into_iter().map(Result::Ok)).boxed()
+                }
             };
+            event_sub.expect_subscribe().return_once(move || stream);
 
-            let mut seq = Sequence::new();
-            broadcaster_cosmos_client
-                .expect_account()
-                .once()
-                .in_sequence(&mut seq)
-                .return_once(move |_| {
-                    Ok(QueryAccountResponse {
-                        account: Some(Any::from_msg(&base_account).unwrap()),
-                    })
-                });
+            if let Some(simulate_response) = self.expected_simulate_response {
+                broadcaster_cosmos_client.expect_clone().returning(move || {
+                    let mut mock_cosmos_client = MockCosmosClient::new();
+                    let base_account_clone = self.base_account.clone();
+                    mock_cosmos_client.expect_account().return_once(move |_| {
+                        Ok(QueryAccountResponse {
+                            account: Some(Any::from_msg(&base_account_clone).unwrap()),
+                        })
+                    });
+                    let simulate_response_clone = simulate_response.clone();
+                    mock_cosmos_client
+                        .expect_simulate()
+                        .return_once(move |_| Ok(simulate_response_clone));
 
-            broadcaster_cosmos_client
-                .expect_balance()
-                .once()
-                .with(predicate::eq(QueryBalanceRequest {
-                    address: address.to_string(),
-                    denom: gas_price_denom.to_string(),
-                }))
-                .in_sequence(&mut seq)
-                .return_once(move |_| {
-                    Ok(QueryBalanceResponse {
-                        balance: Some(Coin {
-                            denom: gas_price_denom.to_string(),
-                            amount: "1000000".to_string(),
-                        }),
-                    })
+                    mock_cosmos_client
                 });
+            } else if let Some(simulate_error) = self.simulate_error {
+                broadcaster_cosmos_client.expect_clone().returning(move || {
+                    let mut mock_cosmos_client = MockCosmosClient::new();
+                    let base_account_clone = self.base_account.clone();
+                    mock_cosmos_client.expect_account().return_once(move |_| {
+                        Ok(QueryAccountResponse {
+                            account: Some(Any::from_msg(&base_account_clone).unwrap()),
+                        })
+                    });
+                    let simulate_error_clone = simulate_error.clone();
+                    mock_cosmos_client
+                        .expect_simulate()
+                        .return_once(move |_| Err(simulate_error_clone.into_report()));
+
+                    mock_cosmos_client
+                });
+            }
+
+            match (
+                self.expected_contract_state_response,
+                self.contract_state_error,
+            ) {
+                (Some(contract_state_response), None) => {
+                    cosmos_client.expect_clone().return_once(move || {
+                        let mut mock = MockCosmosClient::new();
+                        mock.expect_smart_contract_state()
+                            .return_once(move |_| Ok(contract_state_response));
+                        mock
+                    });
+                }
+                (None, Some(contract_state_error)) => {
+                    cosmos_client.expect_clone().return_once(move || {
+                        let mut mock = MockCosmosClient::new();
+                        mock.expect_smart_contract_state()
+                            .return_once(move |_| Err(report!(contract_state_error)));
+                        mock
+                    });
+                }
+                _ => {}
+            }
 
             let broadcaster = broadcast::Broadcaster::builder()
                 .client(broadcaster_cosmos_client)
                 .chain_id("chain_id".try_into().unwrap())
-                .pub_key(pub_key)
-                .gas_adjustment(gas_adjustment)
-                .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+                .pub_key(self.pub_key)
+                .gas_adjustment(1.5)
+                .gas_price(DecCoin::new(0.025, GAS_PRICE_DENOM).unwrap())
                 .build()
                 .await
                 .unwrap();
@@ -385,7 +469,7 @@ mod tests {
                 100,
                 GAS_CAP,
                 Duration::from_secs(1),
-                monitoring_client.clone(),
+                self.monitoring_client.clone(),
             );
 
             let service = Service::builder()
@@ -403,7 +487,7 @@ mod tests {
                         multisig: TMAddress::random(PREFIX),
                     }],
                 })
-                .monitoring_client(monitoring_client)
+                .monitoring_client(self.monitoring_client)
                 .build();
 
             (service, msg_queue)
@@ -418,13 +502,8 @@ mod tests {
             block_end_event(100),
         ];
 
-        let mut mock_event_sub = MockEventSub::new();
-        let events = expected.clone();
-        mock_event_sub
-            .expect_subscribe()
-            .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_expected_events(expected.clone())
             .build()
             .await;
         let res = service
@@ -442,7 +521,7 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_return_error_if_any_filter_is_invalid() {
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
         let res = service
             .subscribe(subscribe_req(
                 vec![ampd_proto::EventFilter::default()],
@@ -465,13 +544,8 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_handle_latest_block_query_error() {
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub.expect_subscribe().return_once(|| {
-            tokio_stream::once(Err(report!(event_sub::Error::LatestBlockQuery))).boxed()
-        });
-
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_event_subscription_error(event_sub::Error::LatestBlockQuery)
             .build()
             .await;
         let res = service
@@ -493,15 +567,10 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_handle_block_results_query_error() {
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub.expect_subscribe().return_once(move || {
-            tokio_stream::once(Err(report!(event_sub::Error::BlockResultsQuery {
-                block: 100u32.into()
-            })))
-            .boxed()
-        });
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_event_subscription_error(event_sub::Error::BlockResultsQuery {
+                block: 100u32.into(),
+            })
             .build()
             .await;
         let res = service
@@ -523,15 +592,10 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_handle_event_decoding_error() {
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub.expect_subscribe().return_once(move || {
-            tokio_stream::once(Err(report!(event_sub::Error::EventDecoding {
-                block: 100u32.into()
-            })))
-            .boxed()
-        });
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_event_subscription_error(event_sub::Error::EventDecoding {
+                block: 100u32.into(),
+            })
             .build()
             .await;
         let res = service
@@ -553,12 +617,8 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_should_handle_broadcast_stream_recv_error() {
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub.expect_subscribe().return_once(move || {
-            tokio_stream::once(Err(BroadcastStreamRecvError::Lagged(10).into_report())).boxed()
-        });
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_event_subscription_error(BroadcastStreamRecvError::Lagged(10).into())
             .build()
             .await;
         let res = service
@@ -587,12 +647,8 @@ mod tests {
             abci_event("event_type_3", vec![("key3", "\"value3\"")], None),
         ];
 
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub
-            .expect_subscribe()
-            .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_expected_events(events)
             .build()
             .await;
 
@@ -628,17 +684,12 @@ mod tests {
             ),
         ];
 
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub
-            .expect_subscribe()
-            .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
-
         let filter = ampd_proto::EventFilter {
             r#type: "test_event".to_string(),
             contract: expected.contract_address().unwrap().to_string(),
         };
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_expected_events(events)
             .build()
             .await;
         let res = service
@@ -661,13 +712,8 @@ mod tests {
             block_end_event(100),
         ];
 
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub
-            .expect_subscribe()
-            .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
-
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_expected_events(events)
             .build()
             .await;
         let res = service
@@ -706,11 +752,6 @@ mod tests {
             expected[1].clone(),
         ];
 
-        let mut mock_event_sub = MockEventSub::new();
-        mock_event_sub
-            .expect_subscribe()
-            .return_once(move || stream::iter(events.into_iter().map(Result::Ok)).boxed());
-
         let filter_1 = ampd_proto::EventFilter {
             r#type: "event_1".to_string(),
             ..Default::default()
@@ -719,8 +760,8 @@ mod tests {
             contract: expected[1].contract_address().unwrap().to_string(),
             ..Default::default()
         };
-        let (service, _) = TestBuilder::new()
-            .with_event_sub(mock_event_sub)
+        let (service, _) = TestBuilder::default()
+            .with_expected_events(events)
             .build()
             .await;
         let res = service
@@ -738,7 +779,7 @@ mod tests {
 
     #[tokio::test]
     async fn broadcast_should_return_error_if_req_is_invalid() {
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
         let res = service.broadcast(broadcast_req(None)).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -746,31 +787,8 @@ mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_error_if_enqueue_failed() {
-        let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(|| {
-            let address = TMAddress::random(PREFIX);
-            let base_account = BaseAccount {
-                address: address.to_string(),
-                pub_key: None,
-                account_number: 42,
-                sequence: 10,
-            };
-
-            let mut mock_cosmos_client = MockCosmosClient::new();
-            mock_cosmos_client.expect_account().return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-            mock_cosmos_client
-                .expect_simulate()
-                .return_once(|_| Err(Status::internal("simulate error").into_report()));
-
-            mock_cosmos_client
-        });
-
-        let (service, _) = TestBuilder::new()
-            .with_broadcaster_cosmos_client(mock_cosmos_client)
+        let (service, _) = TestBuilder::default()
+            .with_simulate_error(Status::internal("simulate error"))
             .build()
             .await;
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
@@ -780,37 +798,16 @@ mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_error_if_broadcast_failed() {
-        let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(move || {
-            let address = TMAddress::random(PREFIX);
-            let base_account = BaseAccount {
-                address: address.to_string(),
-                pub_key: None,
-                account_number: 42,
-                sequence: 10,
-            };
+        let simulate_response = SimulateResponse {
+            gas_info: Some(GasInfo {
+                gas_wanted: GAS_CAP + 1,
+                gas_used: GAS_CAP + 1,
+            }),
+            result: None,
+        };
 
-            let mut mock_cosmos_client = MockCosmosClient::new();
-            mock_cosmos_client.expect_account().return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-            mock_cosmos_client.expect_simulate().return_once(|_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_wanted: GAS_CAP + 1,
-                        gas_used: GAS_CAP + 1,
-                    }),
-                    result: None,
-                })
-            });
-
-            mock_cosmos_client
-        });
-
-        let (service, mut msg_queue) = TestBuilder::new()
-            .with_broadcaster_cosmos_client(mock_cosmos_client)
+        let (service, mut msg_queue) = TestBuilder::default()
+            .with_expected_simulate_response(simulate_response)
             .build()
             .await;
         tokio::spawn(async move { while msg_queue.next().await.is_some() {} });
@@ -823,42 +820,17 @@ mod tests {
     async fn broadcast_should_return_tx_hash_and_index() {
         let tx_hash = "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b";
         let msg_count = 10;
-        let mut mock_cosmos_client = MockCosmosClient::new();
 
-        mock_cosmos_client
-            .expect_clone()
-            .times(msg_count)
-            .returning(move || {
-                let pub_key = random_cosmos_public_key();
-                let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-                let base_account = BaseAccount {
-                    address: address.to_string(),
-                    pub_key: None,
-                    account_number: 42,
-                    sequence: 10,
-                };
+        let simulate_response = SimulateResponse {
+            gas_info: Some(GasInfo {
+                gas_wanted: GAS_CAP / msg_count as u64,
+                gas_used: GAS_CAP / msg_count as u64,
+            }),
+            result: None,
+        };
 
-                let mut mock_cosmos_client = MockCosmosClient::new();
-                mock_cosmos_client.expect_account().return_once(move |_| {
-                    Ok(QueryAccountResponse {
-                        account: Some(Any::from_msg(&base_account).unwrap()),
-                    })
-                });
-                mock_cosmos_client.expect_simulate().return_once(move |_| {
-                    Ok(SimulateResponse {
-                        gas_info: Some(GasInfo {
-                            gas_wanted: GAS_CAP / msg_count as u64,
-                            gas_used: GAS_CAP / msg_count as u64,
-                        }),
-                        result: None,
-                    })
-                });
-
-                mock_cosmos_client
-            });
-
-        let (service, mut msg_queue) = TestBuilder::new()
-            .with_broadcaster_cosmos_client(mock_cosmos_client)
+        let (service, mut msg_queue) = TestBuilder::default()
+            .with_expected_simulate_response(simulate_response)
             .build()
             .await;
         let service = Arc::new(service);
@@ -905,7 +877,7 @@ mod tests {
 
     #[tokio::test]
     async fn contract_state_should_return_error_if_req_is_invalid() {
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
         let req = Request::new(ContractStateRequest {
             contract: "invalid_address".to_string(),
             query: serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap(),
@@ -918,7 +890,7 @@ mod tests {
     #[tokio::test]
     async fn contract_state_should_return_error_if_empty_query() {
         let address = TMAddress::random(PREFIX);
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
         let req = Request::new(ContractStateRequest {
             contract: address.to_string(),
             query: vec![],
@@ -931,7 +903,7 @@ mod tests {
     #[tokio::test]
     async fn contract_state_should_return_error_if_invalid_json() {
         let address = TMAddress::random(PREFIX);
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
         let req = Request::new(ContractStateRequest {
             contract: address.to_string(),
             query: vec![1, 2, 3], // invalid json
@@ -947,28 +919,13 @@ mod tests {
         let address_str = address.to_string();
         let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();
 
-        let mock_address = address_str.clone();
-        let mock_query = query_bytes.clone();
+        let _mock_address = address_str.clone();
+        let _mock_query = query_bytes.clone();
 
-        let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(move || {
-            let mut mock = MockCosmosClient::new();
-            mock.expect_smart_contract_state()
-                .with(predicate::eq(QuerySmartContractStateRequest {
-                    address: mock_address,
-                    query_data: mock_query,
-                }))
-                .return_once(|_| {
-                    Err(report!(cosmos::Error::QueryContractState(
-                        "execution error".to_string()
-                    )))
-                });
-
-            mock
-        });
-
-        let (service, _) = TestBuilder::new()
-            .with_cosmos_client(mock_cosmos_client)
+        let (service, _) = TestBuilder::default()
+            .with_contract_state_error(cosmos::Error::QueryContractState(
+                "execution error".to_string(),
+            ))
             .build()
             .await;
         let req = Request::new(ContractStateRequest {
@@ -993,25 +950,16 @@ mod tests {
             }
         }))
         .unwrap();
-        let mock_address = address_str.clone();
-        let mock_query = query_bytes.clone();
-        let mock_result = result.clone();
+        let _mock_address = address_str.clone();
+        let _mock_query = query_bytes.clone();
+        let _mock_result = result.clone();
 
-        let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(move || {
-            let mut mock = MockCosmosClient::new();
-            mock.expect_smart_contract_state()
-                .with(predicate::eq(QuerySmartContractStateRequest {
-                    address: mock_address,
-                    query_data: mock_query,
-                }))
-                .return_once(move |_| Ok(QuerySmartContractStateResponse { data: mock_result }));
+        let contract_state_response = QuerySmartContractStateResponse {
+            data: result.clone(),
+        };
 
-            mock
-        });
-
-        let (service, _) = TestBuilder::new()
-            .with_cosmos_client(mock_cosmos_client)
+        let (service, _) = TestBuilder::default()
+            .with_expected_contract_state_response(contract_state_response)
             .build()
             .await;
         let req = Request::new(ContractStateRequest {
@@ -1090,7 +1038,7 @@ mod tests {
 
     #[tokio::test]
     async fn contracts_should_return_contracts_addresses_successfully() {
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
         let chain_config = service.config.chains.first().unwrap();
 
         let req = Request::new(ContractsRequest {
@@ -1113,7 +1061,7 @@ mod tests {
 
     #[tokio::test]
     async fn contracts_should_return_error_if_request_is_invalid() {
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
 
         let req = Request::new(ContractsRequest {
             chain: "invalid_chain_name".to_string(),
@@ -1125,7 +1073,7 @@ mod tests {
 
     #[tokio::test]
     async fn contracts_should_return_error_if_chain_not_found() {
-        let (service, _) = TestBuilder::new().build().await;
+        let (service, _) = TestBuilder::default().build().await;
 
         let req = Request::new(ContractsRequest {
             chain: "unexisting-chain".to_string(),
@@ -1138,7 +1086,7 @@ mod tests {
     #[tokio::test]
     async fn latest_block_height_should_return_correct_height() {
         let (tx, rx) = watch::channel(100);
-        let (service, _) = TestBuilder::new()
+        let (service, _) = TestBuilder::default()
             .with_custom_block_height_rx(rx)
             .build()
             .await;
@@ -1161,32 +1109,9 @@ mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn should_record_enqueue_err_when_simulate_failed() {
-        let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(|| {
-            let address = TMAddress::random(PREFIX);
-            let base_account = BaseAccount {
-                address: address.to_string(),
-                pub_key: None,
-                account_number: 42,
-                sequence: 10,
-            };
-
-            let mut mock_cosmos_client = MockCosmosClient::new();
-            mock_cosmos_client.expect_account().return_once(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
-            mock_cosmos_client
-                .expect_simulate()
-                .return_once(|_| Err(Status::internal("simulate error").into_report()));
-
-            mock_cosmos_client
-        });
-
         let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
-        let (service, _) = TestBuilder::new()
-            .with_broadcaster_cosmos_client(mock_cosmos_client)
+        let (service, _) = TestBuilder::default()
+            .with_simulate_error(Status::internal("simulate error"))
             .with_monitoring_client(monitoring_client)
             .build()
             .await;
@@ -1205,29 +1130,14 @@ mod tests {
         let address_str = address.to_string();
         let query_bytes = serde_json::to_vec(&serde_json::json!({"get_config": {}})).unwrap();
 
-        let mock_address = address_str.clone();
-        let mock_query = query_bytes.clone();
-
-        let mut mock_cosmos_client = MockCosmosClient::new();
-        mock_cosmos_client.expect_clone().return_once(move || {
-            let mut mock = MockCosmosClient::new();
-            mock.expect_smart_contract_state()
-                .with(predicate::eq(QuerySmartContractStateRequest {
-                    address: mock_address,
-                    query_data: mock_query,
-                }))
-                .return_once(|_| {
-                    Err(report!(cosmos::Error::QueryContractState(
-                        "execution error".to_string()
-                    )))
-                });
-
-            mock
-        });
+        let _mock_address = address_str.clone();
+        let _mock_query = query_bytes.clone();
 
         let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
-        let (service, _) = TestBuilder::new()
-            .with_cosmos_client(mock_cosmos_client)
+        let (service, _) = TestBuilder::default()
+            .with_contract_state_error(cosmos::Error::QueryContractState(
+                "execution error".to_string(),
+            ))
             .with_monitoring_client(monitoring_client)
             .build()
             .await;
