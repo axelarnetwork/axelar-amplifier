@@ -74,7 +74,7 @@ pub fn aleo_inbound_hub_message<N: Network>(
 pub fn aleo_outbound_hub_message<N: Network>(
     payload: HexBinary,
 ) -> Result<HubMessage, Report<Error>> {
-    let value = aleo_gmp_types::utils::from_bytes(&payload);
+    let value = aleo_compatible_keccak::from_bytes(&payload);
     let plaintext = Plaintext::from_bits_le(&value).map_err(|e| report!(Error::SnarkVm(e)))?;
 
     if let Ok(its_outbound_transfer) =

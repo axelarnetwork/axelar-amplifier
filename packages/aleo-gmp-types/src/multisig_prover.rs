@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use aleo_gateway_types::constants::{MAX_SIGNATURES, SIGNATURE_CHUNKS, SINGATURES_PER_CHUNK};
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use serde::{Deserialize, Serialize};
@@ -9,10 +10,6 @@ use snarkvm_cosmwasm::prelude::{Address, FromBytes as _, Network};
 
 use crate::aleo_struct::AxelarToLeo;
 use crate::error::Error;
-
-const SINGATURES_PER_CHUNK: usize = 14;
-const SIGNATURE_CHUNKS: usize = 2;
-const MAX_SIGNATURES: usize = SINGATURES_PER_CHUNK * SIGNATURE_CHUNKS;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(bound = "Address<N>: for<'a> Deserialize<'a>")]
@@ -151,9 +148,6 @@ impl<N: Network> Proof<N> {
                 signatures.push(sig);
             }
         }
-
-        // TODO: check that we collect the signatures correctly
-        // we have exactly one signature per signer in the verifier set
 
         Ok(Self {
             weighted_signers,

@@ -29,14 +29,14 @@ pub struct StateTransactionId<N: Network> {
 /// State after retrieving the transaction
 #[derive(Debug)]
 pub struct StateTransactionFound {
-    transaction: aleo_utils::block_processor::Transaction,
+    transaction: aleo_utils::block_processor::OwnedTransaction,
 }
 
 /// State after finding the transition in the transaction
 #[derive(Debug)]
 pub struct StateTransitionFound {
-    transaction: aleo_utils::block_processor::Transaction,
-    transition: aleo_utils::block_processor::Transition,
+    transaction: aleo_utils::block_processor::OwnedTransaction,
+    transition: aleo_utils::block_processor::OwnedTransition,
 }
 
 /// Builder for verifying Aleo receipts using a type-state pattern
@@ -119,10 +119,11 @@ where
     C: ClientTrait<N> + Send + Sync + 'static,
 {
     pub fn get_transition(self) -> Result<ReceiptBuilder<'a, N, C, StateTransitionFound>, Error> {
-        let transition = self
-            .state
-            .transaction
-            .execution
+        let execution = self.state.transaction.execution.as_ref().ok_or(
+            Error::TransitionNotFoundInTransaction(self.target_contract.to_string()),
+        )?;
+
+        let transition = execution
             .transitions
             .iter()
             .find(|t| t.program == self.target_contract.to_string())
@@ -136,7 +137,7 @@ where
             target_contract: self.target_contract,
             state: StateTransitionFound {
                 transaction: self.state.transaction,
-                transition,
+                transition: transition.into_owned(),
             },
         })
     }
@@ -161,6 +162,8 @@ where
             .state
             .transaction
             .execution
+            .as_ref()
+            .ok_or(Error::CallContractNotFound)?
             .transitions
             .iter()
             .find_map(|t| {
@@ -182,13 +185,11 @@ where
             .change_context(Error::InvalidChainName)?;
 
         Ok(Receipt::Found(CallContractReceipt {
-            transition: N::TransitionID::from_str(self.state.transition.id.as_str()).map_err(
-                |_| {
-                    Report::new(Error::TransitionNotFound(
-                        self.state.transition.id.to_string(),
-                    ))
-                },
-            )?,
+            transition: N::TransitionID::from_str(&self.state.transition.id).map_err(|_| {
+                Report::new(Error::TransitionNotFound(
+                    self.state.transition.id.to_string(),
+                ))
+            })?,
             destination_address: StringEncoder::from_slice(&call_contract.destination_address)
                 .decode()
                 .change_context(Error::InvalidDestinationAddress)?,
@@ -204,12 +205,14 @@ where
         let outputs = self.state.transition.outputs;
         let signer_rotation =
             find_signers_rotated_in_outputs(&outputs).ok_or(Error::SignerRotationNotFound)?;
-        let scm = self.state.transition.scm.as_str();
+        let scm = self.state.transition.scm;
 
         let signers_rotation_calls = self
             .state
             .transaction
             .execution
+            .as_ref()
+            .ok_or(Error::SignerRotationNotFound)?
             .transitions
             .iter()
             .filter(|t| {

@@ -1,5 +1,5 @@
 [package]
-name = "multisig-aleo"
+name = "aleo-signature-verifier"
 version = "0.1.0"
 rust-version.workspace = true
 edition.workspace = true
@@ -11,7 +11,7 @@ exclude = ["contract.wasm", "hash.txt"]
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "multisig-aleo-schema"
+name = "aleo-signature-verifier"
 path = "src/bin/schema.rs"
 
 [features]
@@ -34,7 +34,7 @@ snarkvm-cosmwasm = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-aleo-gmp-types = { workspace = true }
+aleo-compatible-keccak = { workspace = true }
 hex = "0.4.3"
 rand = { workspace = true }
 snarkos-account = { workspace = true }

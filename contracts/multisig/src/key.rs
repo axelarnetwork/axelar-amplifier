@@ -278,8 +278,9 @@ fn validate_and_normalize_public_key(
         .to_bytes()
         .into()),
         KeyType::AleoSchnorr => Ok(snarkvm_cosmwasm::prelude::Address::<
-            snarkvm_cosmwasm::prelude::TestnetV0, // TODO: remove generics. Is there a way to
-                                                  // verify the key type without the network?
+            snarkvm_cosmwasm::prelude::TestnetV0, // NOTE: to avoid the TestnetV0, and switch to
+                                                  // generic Network, we need few changed in multisig, so maybe is better to communicate
+                                                  // this with Axelar first, and then switch to generics
         >::from_bytes_le(&pub_key)
         .and_then(|addr| addr.to_bytes_le())
         .map_err(|_| report!(ContractError::InvalidPublicKey))?

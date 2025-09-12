@@ -2,10 +2,10 @@ use std::str::FromStr as _;
 
 use snarkvm_cosmwasm::prelude::{Address, CanaryV0, MainnetV0, ProgramID, TestnetV0};
 
-use crate::error::AleoError;
+use crate::error::Error;
 use crate::network::NetworkConfig;
 
-pub fn validate_program_name(network: &NetworkConfig, address: &str) -> Result<(), AleoError> {
+pub fn validate_program_name(network: &NetworkConfig, address: &str) -> Result<(), Error> {
     match network {
         NetworkConfig::TestnetV0 => {
             ProgramID::<TestnetV0>::from_str(address)?;
@@ -21,7 +21,7 @@ pub fn validate_program_name(network: &NetworkConfig, address: &str) -> Result<(
     Ok(())
 }
 
-pub fn validate_address(network: &NetworkConfig, address: &str) -> Result<(), AleoError> {
+pub fn validate_address(network: &NetworkConfig, address: &str) -> Result<(), Error> {
     match network {
         NetworkConfig::TestnetV0 => {
             Address::<TestnetV0>::from_str(address)?;

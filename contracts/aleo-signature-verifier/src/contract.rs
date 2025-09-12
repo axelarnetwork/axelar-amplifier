@@ -2,14 +2,14 @@ use aleo_network_config::network::NetworkConfig;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-use query::verify_signature;
+use execute::verify_signature;
 use signature_verifier_api::msg::{ExecuteMsg, QueryMsg};
 use snarkvm_cosmwasm::prelude::{CanaryV0, MainnetV0, TestnetV0};
 
 use crate::msg::{InstantiateMsg, Msg};
 use crate::state::{Config, CONFIG};
 
-pub mod query;
+pub mod execute;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -54,11 +54,11 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(
-    _deps: Deps,
+    deps: Deps,
     _env: Env,
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::error::ContractError> {
-    let config = CONFIG.load(_deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     let res = match config.network {
         NetworkConfig::TestnetV0 => verify::<TestnetV0>(msg.into()),

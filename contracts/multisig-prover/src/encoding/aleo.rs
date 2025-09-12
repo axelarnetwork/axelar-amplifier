@@ -1,7 +1,8 @@
 use aleo_gateway_types::{Message, PayloadDigest};
 use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
 use aleo_gmp_types::multisig_prover::{ExecuteSignersRotation, Proof};
-use aleo_gmp_types::utils::ToBytesExt;
+use aleo_gmp_types::utils::default_message_hash;
+use aleo_compatible_keccak::ToBytesExt;
 use aleo_network_config::network::NetworkConfig;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::{to_json_binary, HexBinary};
@@ -152,13 +153,6 @@ pub fn encode_execute_data(
     )
 }
 
-// Use this function to compute the default message hash
-fn default_message_hash<N: Network>() -> Group<N> {
-    let message = Message::<N>::default();
-    let plaintext: Plaintext<N> = Plaintext::try_from(&message).unwrap();
-    N::hash_to_group_bhp256(&plaintext.to_bits_le()).unwrap()
-}
-
 /// Hashes a collection of messages into a single group element
 ///
 /// This function:
@@ -271,10 +265,7 @@ fn encode_execute_data_inner<N: Network>(
                 ContractError::InvalidMessage
             );
 
-            let execute_data = aleo_gmp_types::multisig_prover::ExecuteData {
-                proof: proof.into(),
-                messages,
-            };
+            let execute_data = aleo_gmp_types::multisig_prover::ExecuteData { proof, messages };
 
             to_json_binary(&execute_data)
                 .change_context_lazy(|| ContractError::SerializeProofFailed)?

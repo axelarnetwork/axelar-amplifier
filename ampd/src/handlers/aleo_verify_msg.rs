@@ -251,7 +251,7 @@ mod tests {
             destination_address: "helloworld.aleo".to_string(),
             destination_chain: ChainName::from_str("aleo-2").unwrap(),
             source_address: Address::<CurrentNetwork>::from_str(
-                "aleo1lklakkgnjv6a9m0kyjhm33f66xql8n2pj4lgsd2emhep0cwe8uqqqcdups",
+                "aleo1s3ws5tra87fjycnjrwsjcrnw2qxr8jfqqdugnf0xzqqw29q9m5pqem2u4t",
             )
             .unwrap(),
             payload_hash: Hash::from_str(

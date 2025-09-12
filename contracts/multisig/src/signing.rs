@@ -365,7 +365,7 @@ mod tests {
             let sig_bytes = match config.key_type {
                 KeyType::Ecdsa =>   "a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511",
                 KeyType::Ed25519 => "1fe264eb7258d48d8feedea4d237ccb20157fbe5eb412bc971d758d072b036a99b06d20853c1f23cdf82085917e08dda2fcfbb5d4d7ee17d74e4988ae81d0308",
-                KeyType::AleoSchnorr => todo!()
+                KeyType::AleoSchnorr => unreachable!("This is not calling the external signature verifier, so AleoSchnorr is not supported"),
             };
 
             let invalid_sig: Signature = (config.key_type, HexBinary::from_hex(sig_bytes).unwrap())

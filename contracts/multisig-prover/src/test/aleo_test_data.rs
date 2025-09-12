@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use aleo_gmp_types::utils::ToBytesExt;
+use aleo_compatible_keccak::ToBytesExt;
 use axelar_wasm_std::{nonempty, MajorityThreshold, Participant, Threshold};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
@@ -57,7 +57,7 @@ pub fn new_verifier_set() -> VerifierSet {
                     "aleo1s3ws5tra87fjycnjrwsjcrnw2qxr8jfqqdugnf0xzqqw29q9m5pqem2u4tauck0v60westgcpqj7v8rrcr3v346e4jtq04q7kkt22czsh808v2",
                 )
                 .unwrap()
-                .to_bytes_le_array::<{ aleo_gmp_types::utils::ALEO_ADDRESS_LENGTH }>()
+                .to_bytes_le_array::<{ aleo_gmp_types::ALEO_ADDRESS_LENGTH }>()
                 .unwrap())
             ),
         },
@@ -150,7 +150,7 @@ pub fn operators() -> Vec<TestOperator> {
                 pub_key: (KeyType::AleoSchnorr, HexBinary::from(PublicKey::AleoSchnorr(
                     HexBinary::from(snarkvm_cosmwasm::prelude::Address::<snarkvm_cosmwasm::prelude::TestnetV0>::from_str(pub_key)
                         .unwrap()
-                        .to_bytes_le_array::<{ aleo_gmp_types::utils::ALEO_ADDRESS_LENGTH }>()
+                        .to_bytes_le_array::<{ aleo_gmp_types::ALEO_ADDRESS_LENGTH }>()
                         .unwrap()),
                 ))).try_into().unwrap(),
                 operator: HexBinary::from_hex(operator).unwrap(),

@@ -1,5 +1,6 @@
 use std::fmt;
 
+use aleo_gmp_types::ALEO_ADDRESS_LENGTH;
 use cosmwasm_std::HexBinary;
 use ed25519_dalek::PUBLIC_KEY_LENGTH;
 use error_stack::{self, Report, ResultExt};
@@ -21,16 +22,15 @@ pub enum Error {
 pub enum PublicKey {
     Secp256k1(k256::ecdsa::VerifyingKey),
     Ed25519(ed25519_dalek::VerifyingKey),
-    AleoSchnorr([u8; 32]),
+    AleoSchnorr([u8; ALEO_ADDRESS_LENGTH]),
 }
 
-// TODO: replace 32 with a constant
-fn convert_to_array(bytes: impl AsRef<[u8]>) -> Result<[u8; 32]> {
+fn convert_aleo_pub_key_to_array(bytes: impl AsRef<[u8]>) -> Result<[u8; ALEO_ADDRESS_LENGTH]> {
     let slice = bytes.as_ref();
 
-    error_stack::ensure!(slice.len() == 32, Error::InvalidRawBytes);
+    error_stack::ensure!(slice.len() == ALEO_ADDRESS_LENGTH, Error::InvalidRawBytes);
 
-    let mut array = [0u8; 32];
+    let mut array = [0u8; ALEO_ADDRESS_LENGTH];
     array.copy_from_slice(slice);
     Ok(array)
 }
@@ -44,7 +44,7 @@ impl PublicKey {
     }
 
     pub fn new_aleo_schnorr(bytes: impl AsRef<[u8]>) -> Result<Self> {
-        Ok(PublicKey::AleoSchnorr(convert_to_array(bytes)?))
+        Ok(PublicKey::AleoSchnorr(convert_aleo_pub_key_to_array(bytes)?))
     }
 
     pub fn new_ed25519(bytes: impl AsRef<[u8]>) -> Result<Self> {

@@ -15,9 +15,10 @@ dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
 
 [dependencies]
 aleo-gmp-types = { workspace = true }
+aleo-compatible-keccak = { workspace = true }
 aleo-string-encoder = { workspace = true }
 aleo-utils = { workspace = true }
-aleo-gateway-types = { path = "/home/angelos/Documents/work/reshape-crate/crates/aleo-gateway-types" }
+aleo-gateway-types = { workspace = true }
 ampd-proto = { workspace = true }
 anyhow = "1.0.99"
 async-trait = { workspace = true }

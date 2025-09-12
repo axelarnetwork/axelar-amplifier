@@ -12,7 +12,7 @@ pub trait ClientTrait<N: Network>: Send {
     async fn get_transaction(
         &self,
         transaction_id: &N::TransactionID,
-    ) -> Result<aleo_utils::block_processor::Transaction, Error>;
+    ) -> Result<aleo_utils::block_processor::OwnedTransaction, Error>;
 
     async fn find_transaction(&self, transition_id: &N::TransitionID) -> Result<String, Error>;
 }
@@ -40,7 +40,7 @@ impl<N: Network> ClientTrait<N> for Client {
     async fn get_transaction(
         &self,
         transaction_id: &N::TransactionID,
-    ) -> Result<aleo_utils::block_processor::Transaction, Error> {
+    ) -> Result<aleo_utils::block_processor::OwnedTransaction, Error> {
         const ENDPOINT: &str = "transaction";
         let url = format!(
             "{}{}/{ENDPOINT}/{}",
@@ -56,11 +56,11 @@ impl<N: Network> ClientTrait<N> for Client {
             .map_err(Error::from)
             .attach_printable_lazy(|| format!("target url: '{url:?}'"))?;
 
+        let response_text = response.text().await.map_err(Error::from)?;
         let transaction: aleo_utils::block_processor::Transaction =
-            serde_json::from_str(&response.text().await.map_err(Error::from)?)
-                .map_err(Error::from)?;
+            serde_json::from_str(&response_text).map_err(Error::from)?;
 
-        Ok(transaction)
+        Ok(transaction.into_owned())
     }
 
     #[tracing::instrument(skip(self), fields(%transition_id))]
@@ -108,12 +108,13 @@ pub mod tests {
             aleo_utils::block_processor::Transaction,
         > = HashMap::new();
 
-        let snark_tansaction: aleo_utils::block_processor::Transaction =
+        let snark_transaction: aleo_utils::block_processor::Transaction =
             serde_json::from_str(transaction).unwrap();
+        let snark_transaction = snark_transaction.into_owned();
         let transaction = N::TransactionID::from_str(transaction_id)
             .map_err(|_| ())
             .expect("Failed to parse transaction ID");
-        expected_transitions.insert(transaction, snark_tansaction);
+        expected_transitions.insert(transaction, snark_transaction);
 
         mock_client
             .expect_get_transaction()

@@ -20,3 +20,8 @@ pub type GmpAddress = [u128; GMP_ADDRESS_LENGTH];
 
 /// ITS token id used in Aleo ITS
 pub type ItsTokenId = [u128; 2];
+
+/// Length of an Aleo address in bytes
+/// after its serialized using to_bytes_le()
+pub const ALEO_ADDRESS_LENGTH: usize = 32;
+

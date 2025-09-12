@@ -21,10 +21,11 @@ path = "src/bin/schema.rs"
 library = []
 
 [dependencies]
+aleo-compatible-keccak = { workspace = true }
 aleo-gmp-types = { workspace = true }
 aleo-gateway-types = { workspace = true }
 aleo-network-config = { workspace = true }
-plaintext-trait = { path = "/home/angelos/Documents/work/reshape-crate/crates/plaintext-trait" }
+plaintext-trait = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 bincode = "2.0.1"
 serde = { workspace = true }

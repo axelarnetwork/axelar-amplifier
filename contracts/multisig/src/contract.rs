@@ -248,12 +248,12 @@ mod tests {
         let info = message_info(&instantiator, &[]);
         let env = mock_env();
 
-        // Deploy multisig-aleo contract
-        let aleo_msg = multisig_aleo::msg::InstantiateMsg {
+        // Deploy aleo-signature-verifier contract
+        let aleo_msg = aleo_signature_verifier::msg::InstantiateMsg {
             network: aleo_network_config::network::NetworkConfig::TestnetV0,
         };
 
-        multisig_aleo::contract::instantiate(deps, env, info, aleo_msg)?;
+        aleo_signature_verifier::contract::instantiate(deps, env, info, aleo_msg)?;
 
         // Return the deployed contract address
         Ok(cosmos_addr!(ALEO_SIGNATURE_VERIFIER))
@@ -1489,7 +1489,7 @@ mod tests {
 
     #[test]
     fn query_authorized_callers_for_chains_succeeds() {
-        let (mut deps, _, _) = setup();
+        let (mut deps, ..) = setup();
 
         let contracts = vec![
             (cosmos_addr!("addr1"), chain_name!("chain1")),

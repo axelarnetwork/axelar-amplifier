@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::mem::MaybeUninit;
 use std::str::FromStr;
 
+use aleo_gateway_types::constants::{SIGNATURE_CHUNKS, SINGATURES_PER_CHUNK};
 use aleo_gateway_types::{
     FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof, WeightedSigner,
     WeightedSigners,
@@ -116,7 +117,9 @@ impl<N: Network> AxelarToLeo<N> for multisig::msg::Signer {
     fn to_leo(&self) -> Result<Self::LeoType, Self::Error> {
         let pub_key = match &self.pub_key {
             multisig::key::PublicKey::AleoSchnorr(key) => key.as_slice(),
-            _ => panic!("Unsupported public key type"), // TODO: remove panic
+            _ => {
+                return Err(Error::InvalidPublicKey);
+            }
         };
 
         Ok(Self::LeoType {
@@ -194,8 +197,9 @@ impl<N: Network> AxelarProof<N> {
 
         let signature = unsafe {
             std::mem::transmute::<
-                [[MaybeUninit<Box<Signature<N>>>; 14]; 2],
-                [[std::boxed::Box<snarkvm_cosmwasm::prelude::Signature<N>>; 14]; 2],
+                [[MaybeUninit<Box<Signature<N>>>; SINGATURES_PER_CHUNK]; SIGNATURE_CHUNKS],
+                [[std::boxed::Box<snarkvm_cosmwasm::prelude::Signature<N>>; SINGATURES_PER_CHUNK];
+                    SIGNATURE_CHUNKS],
             >(signature)
         };
 
@@ -243,7 +247,7 @@ impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::DeployIntercha
         let symbol: [u128; 2] = StringEncoder::encode_string(&self.symbol)?.to_array()?;
 
         let minter = match &self.minter {
-            Some(hex) => Address::from_str(std::str::from_utf8(&hex)?)?,
+            Some(hex) => Address::from_str(std::str::from_utf8(hex)?)?,
             None => Address::zero(),
         };
 

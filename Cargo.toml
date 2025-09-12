@@ -23,11 +23,13 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
+aleo-compatible-keccak = { path = "../reshape-crate/crates/aleo-compatible-keccak" }
+aleo-gateway-types = { path = "../reshape-crate/crates/aleo-gateway-types" }
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
 aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-gateway-types = { path = "../reshape-crate/crates/aleo-gateway-types" }
-# aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "dev" }
+aleo-validate = { path = "packages/aleo-validate" }
+plaintext-trait = { path = "../reshape-crate/crates/plaintext-trait" }
 aleo-utils = { path = "/home/angelos/Documents/work/reshape-crate/crates/aleo-utils" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
@@ -92,6 +94,7 @@ mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^2.3.1", path = "contracts/multisig" }
 multisig-aleo = { path = "contracts/multisig-aleo" }
+aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }

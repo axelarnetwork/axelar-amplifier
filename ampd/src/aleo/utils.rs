@@ -40,7 +40,9 @@ pub fn find_call_contract_in_outputs<N: Network>(
         });
 
         match output_hash {
-            Some(output_hash) if output_hash == payload_hash => output.value.clone(),
+            Some(output_hash) if output_hash == payload_hash => {
+                output.value.clone().map(|cow| cow.into_owned())
+            }
             _ => None,
         }
     })

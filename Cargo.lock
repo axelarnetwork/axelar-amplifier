@@ -122,6 +122,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aleo-compatible-keccak"
+version = "0.1.0"
+dependencies = [
+ "snarkvm-cosmwasm",
+ "thiserror 2.0.16",
+]
+
+[[package]]
 name = "aleo-gateway-types"
 version = "0.1.0"
 dependencies = [
@@ -158,6 +166,27 @@ name = "aleo-network-config"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
+ "snarkvm-cosmwasm",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "aleo-signature-verifier"
+version = "0.1.0"
+dependencies = [
+ "aleo-compatible-keccak",
+ "aleo-network-config",
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "error-stack",
+ "getrandom 0.2.16",
+ "hex",
+ "rand 0.8.5",
+ "signature-verifier-api",
+ "snarkos-account 4.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "snarkvm-cosmwasm",
  "thiserror 1.0.69",
 ]
@@ -377,6 +406,7 @@ dependencies = [
 name = "ampd"
 version = "1.12.1"
 dependencies = [
+ "aleo-compatible-keccak",
  "aleo-gateway-types",
  "aleo-gmp-types",
  "aleo-string-encoder",
@@ -5655,6 +5685,7 @@ dependencies = [
 name = "its-aleo-translator"
 version = "0.1.0"
 dependencies = [
+ "aleo-compatible-keccak",
  "aleo-gateway-types",
  "aleo-gmp-types",
  "aleo-network-config",
@@ -6838,6 +6869,7 @@ version = "2.3.1"
 dependencies = [
  "aleo-gmp-types",
  "aleo-network-config",
+ "aleo-signature-verifier",
  "assert_ok",
  "axelar-wasm-std",
  "client",
@@ -6858,7 +6890,6 @@ dependencies = [
  "itertools 0.11.0",
  "k256",
  "msgs-derive",
- "multisig-aleo",
  "rand_chacha 0.3.1",
  "report",
  "rewards",
@@ -6873,30 +6904,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "multisig-aleo"
-version = "0.1.0"
-dependencies = [
- "aleo-gmp-types",
- "aleo-network-config",
- "axelar-wasm-std",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "getrandom 0.2.16",
- "hex",
- "rand 0.8.5",
- "signature-verifier-api",
- "snarkos-account 4.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "snarkvm-cosmwasm",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "multisig-prover"
 version = "1.1.1"
 dependencies = [
+ "aleo-compatible-keccak",
  "aleo-gateway-types",
  "aleo-gmp-types",
  "aleo-network-config",
@@ -12807,9 +12818,9 @@ dependencies = [
 
 [[package]]
 name = "starknet-core"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab44b2157b7f4697d58375cc8b8dbac8dfb6be79f13fd80c9f59634d2ac972c7"
+checksum = "977ce5d61089de1f4e425ad033162154a0da2cf000f0ed100484ebcbc54b6ff4"
 dependencies = [
  "base64 0.21.7",
  "crypto-bigint",
@@ -12890,10 +12901,12 @@ dependencies = [
 
 [[package]]
 name = "starknet-types-core"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4037bcb26ce7c508448d221e570d075196fd4f6912ae6380981098937af9522a"
+checksum = "87af771d7f577931913089f9ca9a9f85d8a6238d59b2977f4c383d133c8abd3b"
 dependencies = [
+ "blake2",
+ "digest 0.10.7",
  "lambdaworks-crypto",
  "lambdaworks-math",
  "num-bigint 0.4.6",

@@ -13,8 +13,9 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-aleo-gmp-types = { workspace = true }
+aleo-compatible-keccak = { workspace = true }
 aleo-gateway-types = { workspace = true }
+aleo-gmp-types = { workspace = true }
 aleo-network-config = { workspace = true }
 aleo-string-encoder = { workspace = true }
 anyhow = "1"
