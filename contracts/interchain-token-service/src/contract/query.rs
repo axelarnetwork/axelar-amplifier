@@ -105,12 +105,13 @@ pub fn is_contract_enabled(deps: Deps) -> Result<Binary, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::msg::CustomTokenMetadata;
-    use crate::state;
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{from_json, HexBinary};
     use router_api::ChainNameRaw;
+
+    use super::*;
+    use crate::msg::CustomTokenMetadata;
+    use crate::state;
 
     #[test]
     fn query_custom_token_metadata_returns_metadata() {
