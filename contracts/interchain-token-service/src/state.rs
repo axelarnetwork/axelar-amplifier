@@ -337,7 +337,7 @@ pub fn save_custom_token_metadata(
 }
 
 pub fn may_load_custom_token(
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     source_chain: ChainNameRaw,
     token_address: TokenAddress,
 ) -> Result<Option<CustomTokenMetadata>, Error> {
