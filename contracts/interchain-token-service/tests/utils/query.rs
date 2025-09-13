@@ -72,22 +72,6 @@ pub fn query_its_chains(
     Ok(from_json(bin)?)
 }
 
-pub fn query_custom_token_metadata(
-    deps: Deps,
-    chain: ChainNameRaw,
-    token_address: nonempty::HexBinary,
-) -> Result<Option<msg::CustomTokenMetadata>, ContractError> {
-    let bin = query(
-        deps,
-        mock_env(),
-        QueryMsg::CustomTokenMetadata {
-            chain,
-            token_address,
-        },
-    )?;
-    Ok(from_json(bin)?)
-}
-
 pub struct ChainData {
     pub chain: ChainNameRaw,
     pub address: Address,
