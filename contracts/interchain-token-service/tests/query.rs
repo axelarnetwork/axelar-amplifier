@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 
 use assert_ok::assert_ok;
-use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{from_json, Empty, HexBinary, OwnedDeps};
+use cosmwasm_std::{from_json, Empty, OwnedDeps};
 use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
 };
-use interchain_token_service_std::{HubMessage, RegisterTokenMetadata, TokenId};
-use router_api::{address, chain_name_raw, cosmos_addr, CrossChainId};
+use interchain_token_service_std::TokenId;
+use router_api::{address, chain_name_raw, cosmos_addr};
 
 use crate::utils::params;
 
