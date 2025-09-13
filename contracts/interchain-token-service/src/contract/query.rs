@@ -93,9 +93,7 @@ pub fn custom_token_metadata(
     let custom_token = state::may_load_custom_token(deps.storage, chain, token_address)
         .change_context(Error::State)?
         .map(|token| msg::CustomTokenMetadata {
-            chain: token.chain,
             decimals: token.decimals,
-            token_address: token.token_address,
         });
     to_json_binary(&custom_token).change_context(Error::JsonSerialization)
 }

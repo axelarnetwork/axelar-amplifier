@@ -395,9 +395,7 @@ fn query_custom_token_metadata() {
     assert!(result.is_some());
 
     let metadata = result.unwrap();
-    assert_eq!(metadata.chain, chain);
     assert_eq!(metadata.decimals, 18);
-    assert_eq!(metadata.token_address, token_address);
 
     let different_token_address = nonempty::HexBinary::try_from(HexBinary::from([2; 32])).unwrap();
     let result =

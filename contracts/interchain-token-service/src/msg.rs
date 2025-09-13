@@ -41,9 +41,7 @@ pub struct TokenConfig {
 
 #[cw_serde]
 pub struct CustomTokenMetadata {
-    pub chain: ChainNameRaw,
     pub decimals: u8,
-    pub token_address: nonempty::HexBinary,
 }
 
 #[cw_serde]
