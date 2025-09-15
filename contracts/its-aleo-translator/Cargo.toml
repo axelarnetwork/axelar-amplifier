@@ -18,7 +18,6 @@ aleo-gateway-types = { workspace = true }
 aleo-gmp-types = { workspace = true }
 aleo-network-config = { workspace = true }
 aleo-string-encoder = { workspace = true }
-anyhow = "1"
 
 # Axelar dependencies
 axelar-wasm-std = { workspace = true }
@@ -29,10 +28,8 @@ cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
 hex = { workspace = true }
-indexmap = "2.7.1"
 interchain-token-service-std = { workspace = true }
 its-msg-translator-api = { workspace = true }
-once_cell = "1.19.0"                                                                             # required by snarkVM's `Plaintext` type (but not re-exported)
 router-api = { workspace = true }
 snarkvm-cosmwasm = { workspace = true }
 thiserror = { workspace = true }
