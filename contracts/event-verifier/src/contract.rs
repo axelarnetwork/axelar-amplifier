@@ -2,9 +2,9 @@ use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use event_verifier_api::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::state::{Config, CONFIG};
-use event_verifier_api::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 mod execute;
 mod migrations;
@@ -91,22 +91,18 @@ pub fn query(
 #[cfg(test)]
 mod test {
     use assert_ok::assert_ok;
-    use axelar_wasm_std::fixed_size;
-    use axelar_wasm_std::voting::PollStatus;
-    use axelar_wasm_std::voting::Vote;
-    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
+    use axelar_wasm_std::voting::{PollStatus, Vote};
+    use axelar_wasm_std::{fixed_size, nonempty, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Empty, Fraction, HexBinary, OwnedDeps, Uint128, WasmQuery};
-    use event_verifier_api::{Event, EventData, EvmEvent};
-    use event_verifier_api::{PollData, PollResponse};
+    use event_verifier_api::{Event, EventData, EventToVerify, EvmEvent, PollData, PollResponse};
     use router_api::ChainName;
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
     use super::*;
     use crate::error::ContractError;
-    use event_verifier_api::EventToVerify;
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";

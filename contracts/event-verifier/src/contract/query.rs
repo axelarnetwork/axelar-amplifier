@@ -1,13 +1,12 @@
-use crate::hash::hash_event_to_verify;
-use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
+use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
+use event_verifier_api::{EventStatus, EventToVerify, PollData, PollResponse};
 
 use crate::error::ContractError;
+use crate::hash::hash_event_to_verify;
 use crate::state::{poll_events, EventInPoll, CONFIG, POLLS};
-use axelar_wasm_std::voting::WeightedPoll;
-use event_verifier_api::{EventStatus, EventToVerify, PollData, PollResponse};
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
     Ok(CONFIG
@@ -118,14 +117,15 @@ fn voting_completed(poll: &WeightedPoll, cur_block_height: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::state::{Config, CONFIG, POLLS, POLL_ID};
     use axelar_wasm_std::snapshot::{Participant, Snapshot};
     use axelar_wasm_std::voting::{PollStatus, Tallies, Vote};
     use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Fraction, HexBinary, Storage, Uint128};
     use event_verifier_api::{Event, EventData, EvmEvent};
+
+    use super::*;
+    use crate::state::{Config, CONFIG, POLLS, POLL_ID};
 
     fn make_config(api: &MockApi, threshold: MajorityThreshold) -> Config {
         Config {

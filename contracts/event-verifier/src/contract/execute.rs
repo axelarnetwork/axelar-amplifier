@@ -1,4 +1,3 @@
-use crate::hash::hash_event_to_verify;
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
@@ -12,6 +11,7 @@ use service_registry::WeightedVerifier;
 use crate::contract::query::event_status;
 use crate::error::ContractError;
 use crate::events::{self, PollMetadata};
+use crate::hash::hash_event_to_verify;
 use crate::state::{self, CONFIG, POLLS, POLL_ID, VOTES};
 
 pub fn update_voting_threshold(
@@ -237,20 +237,17 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::contract::{execute, instantiate, query};
     use assert_ok::assert_ok;
-    use axelar_wasm_std::fixed_size;
-    use axelar_wasm_std::Threshold;
-    use axelar_wasm_std::{nonempty, MajorityThreshold};
+    use axelar_wasm_std::{fixed_size, nonempty, MajorityThreshold, Threshold};
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::to_json_binary;
-    use cosmwasm_std::{coin, Empty, HexBinary, OwnedDeps, Uint128, WasmQuery};
-    use event_verifier_api::{Event, EventData, EvmEvent};
-    use event_verifier_api::{EventToVerify, InstantiateMsg};
+    use cosmwasm_std::{coin, to_json_binary, Empty, HexBinary, OwnedDeps, Uint128, WasmQuery};
+    use event_verifier_api::{Event, EventData, EventToVerify, EvmEvent, InstantiateMsg};
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
+
+    use super::*;
+    use crate::contract::{execute, instantiate, query};
 
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
     const SERVICE_NAME: &str = "service_name";
@@ -438,14 +435,14 @@ mod tests {
 
         let ev = event("test-event");
         // Initial status should be Unknown
-        let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-            .unwrap();
+        let res =
+            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
         assert_eq!(res[0].status, VerificationStatus::Unknown);
 
         // Status should be InProgress after poll creation
         create_poll(&mut deps, &ev);
-        let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-            .unwrap();
+        let res =
+            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
         assert_eq!(res[0].status, VerificationStatus::InProgress);
 
         // Status should be FailedToVerify after poll expiration with no consensus
@@ -501,9 +498,8 @@ mod tests {
 
             create_poll_and_cast_votes(&mut deps, &ev, &verifiers, votes.to_vec());
 
-            let res =
-                query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-                    .unwrap();
+            let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
+                .unwrap();
             assert_eq!(res[0].status, *expected_status);
         }
     }
@@ -611,8 +607,8 @@ mod tests {
             poll_id,
             vec![Vote::SucceededOnChain],
         ));
-        let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-            .unwrap();
+        let res =
+            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
         assert_eq!(res[0].status, VerificationStatus::InProgress);
 
         // Third vote should reach quorum under 3/3 and succeed
@@ -623,8 +619,8 @@ mod tests {
             poll_id,
             vec![Vote::SucceededOnChain],
         ));
-        let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-            .unwrap();
+        let res =
+            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
         assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
     }
 
@@ -660,8 +656,8 @@ mod tests {
             vec![Vote::SucceededOnChain],
         ));
 
-        let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-            .unwrap();
+        let res =
+            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
         assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
     }
 
