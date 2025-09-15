@@ -4,7 +4,6 @@ use axelar_wasm_std::{counter, nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-
 use event_verifier_api::EventToVerify;
 
 #[cw_serde]
