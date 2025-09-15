@@ -147,8 +147,10 @@ impl Multisig for MultisigClient {
                         ed25519_dalek::Signature::from_slice(signature).map(|sig| sig.to_vec())
                     }
                     Algorithm::AleoSchnorr => {
-                        let res = snarkvm::prelude::Signature::<snarkvm::prelude::TestnetV0>::from_bytes_le(signature)
-                            .map(|sig| sig.to_bytes_le()).unwrap().unwrap();
+                        // TODO: how should we handle different networks here?
+                        let sig = snarkvm::prelude::Signature::<snarkvm::prelude::TestnetV0>::from_bytes_le(signature)
+                            .map_err(|_| report!(Error::InvalidSignResponse))?;
+                        let res = sig.to_bytes_le().map_err(|_| report!(Error::InvalidSignResponse))?;
 
                         Ok(res)
                     }

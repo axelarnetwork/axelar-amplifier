@@ -44,7 +44,9 @@ impl PublicKey {
     }
 
     pub fn new_aleo_schnorr(bytes: impl AsRef<[u8]>) -> Result<Self> {
-        Ok(PublicKey::AleoSchnorr(convert_aleo_pub_key_to_array(bytes)?))
+        Ok(PublicKey::AleoSchnorr(convert_aleo_pub_key_to_array(
+            bytes,
+        )?))
     }
 
     pub fn new_ed25519(bytes: impl AsRef<[u8]>) -> Result<Self> {

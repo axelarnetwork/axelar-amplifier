@@ -1,8 +1,8 @@
+use aleo_compatible_keccak::ToBytesExt;
 use aleo_gateway_types::{Message, PayloadDigest};
 use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
 use aleo_gmp_types::multisig_prover::{ExecuteSignersRotation, Proof};
 use aleo_gmp_types::utils::BHP256_DEFAULT_MESSAGE_HASH;
-use aleo_compatible_keccak::ToBytesExt;
 use aleo_network_config::network::NetworkConfig;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::{to_json_binary, HexBinary};
