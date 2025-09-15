@@ -1,17 +1,17 @@
 [workspace]
 members = [
-  "ampd",
-  "ampd-handlers",
-  "contracts/*",
-  "external-gateways/*",
-  "integration-tests",
-  "packages/*",
-  "tools/*",
+    "ampd",
+    "ampd-handlers",
+    "contracts/*",
+    "external-gateways/*",
+    "integration-tests",
+    "packages/*",
+    "tools/*",
 ]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.86.0"       # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.86.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
 license = "MIT OR Apache-2.0"
 

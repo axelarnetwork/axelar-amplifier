@@ -20,7 +20,6 @@ aleo-string-encoder = { workspace = true }
 aleo-utils = { workspace = true }
 aleo-gateway-types = { workspace = true }
 ampd-proto = { workspace = true }
-anyhow = "1.0.99"
 async-trait = { workspace = true }
 axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }
@@ -50,7 +49,6 @@ futures = { workspace = true }
 gateway-event-stack = { workspace = true }
 hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
-indexmap = "2.10.0"
 itertools = { workspace = true }
 its-aleo-translator = { workspace = true, features = ["library"] }
 k256 = { workspace = true }
@@ -60,7 +58,6 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
-once_cell = "1.21.3"
 openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
