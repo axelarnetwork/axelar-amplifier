@@ -1,7 +1,7 @@
 use aleo_gateway_types::{Message, PayloadDigest};
 use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
 use aleo_gmp_types::multisig_prover::{ExecuteSignersRotation, Proof};
-use aleo_gmp_types::utils::default_message_hash;
+use aleo_gmp_types::utils::BHP256_DEFAULT_MESSAGE_HASH;
 use aleo_compatible_keccak::ToBytesExt;
 use aleo_network_config::network::NetworkConfig;
 use axelar_wasm_std::hash::Hash;
@@ -161,7 +161,10 @@ pub fn encode_execute_data(
 /// 3. Organizes into the chunk structure expected by Aleo programs
 /// 4. Computes final hash of the structured data
 fn hash_messages<N: Network>(messages: &[router_api::Message]) -> Result<Group<N>, ContractError> {
-    let default_message_hash = default_message_hash::<N>();
+    let default_message_hash = BHP256_DEFAULT_MESSAGE_HASH
+        .parse::<Group<N>>()
+        .map_err(|e| AleoEncodingError::MessagePayloadHashingFailed(e.to_string()))
+        .change_context_lazy(|| ContractError::InvalidMessage)?;
 
     let aleo_messages = messages.iter().filter_map(|m| {
         let aleo_gmp_message = m.to_leo().ok()?;

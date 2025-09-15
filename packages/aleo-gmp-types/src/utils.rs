@@ -10,6 +10,8 @@ pub fn bhp<N: Network>(input: impl TryInto<Value<N>>) -> Result<Group<N>, Error>
     }
 }
 
+pub const BHP256_DEFAULT_MESSAGE_HASH: &str = "5624351157314659457528959265595678785504211653467162698798408943103183676908group";
+
 // Use this function to compute the default message hash
 pub fn default_message_hash<N: Network>() -> Group<N> {
     #![allow(clippy::unwrap_used)]
