@@ -67,15 +67,14 @@ impl<const N: usize> From<HexBinary<N>> for Vec<u8> {
     }
 }
 
-impl<const N: usize> TryFrom<HexBinary<N>> for [u8; N] {
-    type Error = std::array::TryFromSliceError;
-
-    fn try_from(value: HexBinary<N>) -> Result<Self, Self::Error> {
-        let vec: Vec<u8> = value.into();
-        vec.as_slice().try_into()
+impl<const N: usize> HexBinary<N> {
+    pub fn to_array(&self) -> [u8; N] {
+        self.0
+            .as_slice()
+            .try_into()
+            .expect("HexBinary<N> always has length N")
     }
 }
-
 impl<const N: usize> Deref for HexBinary<N> {
     type Target = cosmwasm_std::HexBinary;
 
@@ -169,7 +168,7 @@ mod tests {
     fn test_to_array() {
         let data = [1u8; 20];
         let hex = HexBinary::<20>::try_from(data).unwrap();
-        let result: [u8; 20] = hex.try_into().unwrap();
+        let result: [u8; 20] = hex.to_array();
         assert_eq!(result, data);
     }
 
