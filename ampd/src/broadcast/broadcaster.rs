@@ -1,4 +1,3 @@
-use std::cmp;
 use std::future::Future;
 use std::ops::Mul;
 use std::sync::Arc;
@@ -8,6 +7,7 @@ use cosmrs::tx::Fee;
 use cosmrs::{tendermint, Any, Coin, Denom, Gas};
 use error_stack::{ensure, report, Context, ResultExt};
 use num_traits::cast;
+use regex::Regex;
 use report::ResultCompatExt;
 use tokio::sync::{RwLock, RwLockWriteGuard};
 use typed_builder::TypedBuilder;
@@ -191,17 +191,26 @@ where
     ///
     /// * `Error::EstimateGas` - If the gas estimation fails
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
-        // TODO: remove this once the commands broadcast through the daemon's broadcaster, so that the sequence does not get out of sync
-        let account = cosmos::account(&mut self.client, &self.address)
-            .await
-            .change_context(Error::AccountQuery)?;
-
         let mut acc_sequence = self.acc_sequence.write().await;
-        *acc_sequence = cmp::max(*acc_sequence, account.sequence);
 
-        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
-            .await
-            .change_context(Error::EstimateGas)
+        let res =
+            match cosmos::estimate_gas(&mut self.client, msgs.clone(), self.pub_key, *acc_sequence)
+                .await
+            {
+                Ok(gas) => Ok(gas),
+                Err(e) => match parse_sequence_error(&e) {
+                    // Retry with the expected sequence number
+                    Some(expected_seq) => {
+                        *acc_sequence = expected_seq;
+                        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
+                            .await
+                    }
+                    // Return the error if not a sequence mismatch error
+                    None => Err(e),
+                },
+            };
+
+        res.change_context(Error::EstimateGas)
     }
 
     /// Broadcasts a transaction to the Cosmos blockchain.
@@ -299,6 +308,17 @@ where
     *acc_sequence = account.sequence;
 
     Ok(())
+}
+
+fn parse_sequence_error(error: &impl std::fmt::Display) -> Option<u64> {
+    let error_str = error.to_string();
+
+    let re =
+        Regex::new(r"account sequence mismatch, expected (\d+), got (\d+)").expect("Invalid regex");
+
+    re.captures(&error_str)
+        .and_then(|caps| caps.get(1))
+        .and_then(|m| m.as_str().parse::<u64>().ok())
 }
 
 #[cfg(test)]

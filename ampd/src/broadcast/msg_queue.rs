@@ -418,7 +418,7 @@ mod tests {
     use axelar_wasm_std::{assert_err_contains, err_contains};
     use cosmos_sdk_proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
-    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
     use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
@@ -456,25 +456,8 @@ mod tests {
         gas_info: Option<GasInfo>,
         times: usize,
     ) -> cosmos::MockCosmosClient {
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        let base_account = test_utils::create_base_account(address);
+        let mut cosmos_client = setup_client(address);
 
-        cosmos_client.expect_balance().return_once(move |_| {
-            Ok(QueryBalanceResponse {
-                balance: Some(Coin {
-                    denom: "uaxl".to_string(),
-                    amount: "1000000".to_string(),
-                }),
-            })
-        });
-        cosmos_client
-            .expect_account()
-            .times(times.saturating_add(1))
-            .returning(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
         cosmos_client
             .expect_simulate()
             .times(times)
@@ -637,24 +620,7 @@ mod tests {
             .expect_clone()
             .times(client_count)
             .returning(move || {
-                let pub_key = random_cosmos_public_key();
-                let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-                let base_account = BaseAccount {
-                    address: address.to_string(),
-                    pub_key: None,
-                    account_number: 42,
-                    sequence: 10,
-                };
-
                 let mut cosmos_client = cosmos::MockCosmosClient::new();
-                cosmos_client
-                    .expect_account()
-                    .times(msg_count_per_client)
-                    .returning(move |_| {
-                        Ok(QueryAccountResponse {
-                            account: Some(Any::from_msg(&base_account).unwrap()),
-                        })
-                    });
                 cosmos_client
                     .expect_simulate()
                     .times(msg_count_per_client)
