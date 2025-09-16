@@ -19,28 +19,51 @@ associated
 chains.
 Thus, we use a single instance of service registry to organize and coordinate activities across all chains.
 
+Governance can manage parameters at two levels. `UpdateService` is used to change the base parameters for an entire service, which apply to all chains within it by default. For cases where a single chain needs different settings, `OverrideServiceParams` can be used to create a specific exception for just that chain.
+
 ## Interface
 
 ```Rust
 pub enum ExecuteMsg {
-    // Can only be called by governance account
+    // Can only be called by governance account.
     RegisterService {
         service_name: String,
-        coordinator_contract: Addr,
+        coordinator_contract: String,
         min_num_verifiers: u16,
         max_num_verifiers: Option<u16>,
-        min_verifier_bond: Uint128,
+        min_verifier_bond: nonempty::Uint128,
         bond_denom: String,
         unbonding_period_days: u16,
         description: String,
+    },
+    /// Updates modifiable fields of the service. Can only be called by governance account. Note, not all fields are modifiable.
+    UpdateService {
+        service_name: String,
+        updated_service_params: UpdatedServiceParams,
+    },
+    /// Overrides the service params for a service and chain combination. Can only be called by governance account.
+    OverrideServiceParams {
+        service_name: String,
+        chain_name: ChainName,
+        service_params_override: ServiceParamsOverride,
+    },
+    // Removes the service params override. Can only be called by governance account.
+    RemoveServiceParamsOverride {
+        service_name: String,
+        chain_name: ChainName,
     },
     // Authorizes verifiers to join a service. Can only be called by governance account. Verifiers must still bond sufficient stake to participate.
     AuthorizeVerifiers {
         verifiers: Vec<String>,
         service_name: String,
     },
-    // Revoke authorization for specified verifiers. Can only be called by governance account. Verifiers bond remains unchanged
+    // Revoke authorization for specified verifiers. Can only be called by governance account. Verifiers bond remains unchanged.
     UnauthorizeVerifiers {
+        verifiers: Vec<String>,
+        service_name: String,
+    },
+    /// Jail verifiers. Can only be called by governance account. Jailed verifiers are not allowed to unbond or claim stake.
+    JailVerifiers {
         verifiers: Vec<String>,
         service_name: String,
     },
@@ -82,7 +105,7 @@ subgraph Axelar
 end
 OC{"Verifiers"}
 
-Vr -- "GetActiveVerifiers" --> R
+Vr -- "ActiveVerifiers" --> R
 OC -- "De/RegisterChainSupport" --> R
 OC -- "Un/BondVerifier" --> R
 OC -- "ClaimStake" --> R
@@ -107,7 +130,7 @@ Verifier->>+Service Registry: Register Chain Support
 
 ```
 
-1. The Governance registers a new service by providing the necessary parameters for the service.
+1. The Governance registers a new service by providing the necessary parameters for the service. It can later modify these parameters for the entire service or create specific overrides for individual chains.
 2. Governance is also responsible for authorizing verifiers to join the service by sending an `Authorize Verifiers`
    message.
 3. Verifiers bond to the service, providing stake, by sending a `Bond Verifier` message with appropriate funds included.

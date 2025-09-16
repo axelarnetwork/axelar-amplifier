@@ -198,10 +198,17 @@ pub fn query(
 mod tests {
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
-    use router_api::{chain_name, cosmos_addr};
+    use router_api::{chain_name, cosmos_addr, cosmos_address};
 
     use super::*;
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, PoolId, QueryMsg, RewardsPool};
+
+    const USER: &str = "user";
+    const VERIFIER: &str = "verifier";
+    const POOL_CONTRACT: &str = "pool_contract";
+    const GOVERNANCE: &str = "governance";
+    const ROUTER: &str = "router";
+    const MOCK_CHAIN: &str = "mock-chain";
 
     /// Tests that the contract entry points (instantiate, query and execute) work as expected.
     /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.
@@ -210,10 +217,10 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_flow() {
-        let chain_name = chain_name!("mock-chain");
-        let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
-        let pool_contract = cosmos_addr!("pool_contract");
+        let chain_name = chain_name!(MOCK_CHAIN);
+        let user = cosmos_addr!(USER);
+        let verifier = cosmos_addr!(VERIFIER);
+        let pool_contract = cosmos_addr!(POOL_CONTRACT);
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -225,7 +232,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = cosmos_addr!(GOVERNANCE);
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -234,7 +241,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                cosmos_addr!(ROUTER),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -362,10 +369,10 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_rewards_with_proxy() {
-        let chain_name = chain_name!("mock-chain");
-        let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
-        let pool_contract = cosmos_addr!("pool_contract");
+        let chain_name = chain_name!(MOCK_CHAIN);
+        let user = cosmos_addr!(USER);
+        let verifier = cosmos_addr!(VERIFIER);
+        let pool_contract = cosmos_addr!(POOL_CONTRACT);
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -377,7 +384,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = cosmos_addr!(GOVERNANCE);
         let params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -386,7 +393,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                cosmos_addr!(ROUTER),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -419,7 +426,7 @@ mod tests {
             verifier.clone(),
             contract_address.clone(),
             &ExecuteMsg::SetVerifierProxy {
-                proxy_address: proxy.to_string().parse().unwrap(),
+                proxy_address: cosmos_address!("proxy"),
             },
             &[],
         )
@@ -431,7 +438,7 @@ mod tests {
             .query_wasm_smart(
                 contract_address.clone(),
                 &QueryMsg::VerifierProxy {
-                    verifier: verifier.to_string().parse().unwrap(),
+                    verifier: cosmos_address!(VERIFIER),
                 },
             )
             .unwrap();
@@ -500,7 +507,7 @@ mod tests {
             .query_wasm_smart(
                 contract_address.clone(),
                 &QueryMsg::VerifierProxy {
-                    verifier: verifier.to_string().parse().unwrap(),
+                    verifier: cosmos_address!(VERIFIER),
                 },
             )
             .unwrap();
@@ -552,10 +559,10 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_existing_tallies() {
-        let chain_name = chain_name!("mock-chain");
-        let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
-        let pool_contract = cosmos_addr!("pool_contract");
+        let chain_name = chain_name!(MOCK_CHAIN);
+        let user = cosmos_addr!(USER);
+        let verifier = cosmos_addr!(VERIFIER);
+        let pool_contract = cosmos_addr!(POOL_CONTRACT);
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -567,7 +574,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = cosmos_addr!(GOVERNANCE);
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -576,7 +583,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                cosmos_addr!(ROUTER),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -707,10 +714,10 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_with_no_existing_tallies() {
-        let chain_name = chain_name!("mock-chain");
-        let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
-        let pool_contract = cosmos_addr!("pool_contract");
+        let chain_name = chain_name!(MOCK_CHAIN);
+        let user = cosmos_addr!(USER);
+        let verifier = cosmos_addr!(VERIFIER);
+        let pool_contract = cosmos_addr!(POOL_CONTRACT);
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -722,7 +729,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = cosmos_addr!(GOVERNANCE);
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -731,7 +738,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                cosmos_addr!(ROUTER),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
@@ -869,10 +876,10 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn params_updated_in_current_epoch_when_shortening_epoch() {
-        let chain_name = chain_name!("mock-chain");
-        let user = cosmos_addr!("user");
-        let verifier = cosmos_addr!("verifier");
-        let pool_contract = cosmos_addr!("pool_contract");
+        let chain_name = chain_name!(MOCK_CHAIN);
+        let user = cosmos_addr!(USER);
+        let verifier = cosmos_addr!(VERIFIER);
+        let pool_contract = cosmos_addr!(POOL_CONTRACT);
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -884,7 +891,7 @@ mod tests {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
-        let governance_address = cosmos_addr!("governance");
+        let governance_address = cosmos_addr!(GOVERNANCE);
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
             rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
@@ -893,7 +900,7 @@ mod tests {
         let contract_address = app
             .instantiate_contract(
                 code_id,
-                cosmos_addr!("router"),
+                cosmos_addr!(ROUTER),
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),

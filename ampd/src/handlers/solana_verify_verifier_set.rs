@@ -207,6 +207,8 @@ mod tests {
     use crate::types::TMAddress;
     use crate::PREFIX;
 
+    const SOLANA: &str = "solana";
+
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
@@ -267,7 +269,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -289,7 +291,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             EmptyResponseSolanaRpc,
@@ -312,7 +314,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             TMAddress::random(PREFIX),
             voting_verifier,
             EmptyResponseSolanaRpc,
@@ -342,7 +344,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             verifier,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -374,7 +376,7 @@ mod tests {
         let (monitoring_client, _) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -401,7 +403,7 @@ mod tests {
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
         let handler = super::Handler::new(
-            chain_name!("solana"),
+            chain_name!(SOLANA),
             worker,
             voting_verifier,
             ValidResponseSolanaRpc,
@@ -417,7 +419,7 @@ mod tests {
             metrics,
             metrics::Msg::VerificationVote {
                 vote_decision: Vote::NotFound,
-                chain_name: chain_name!("solana"),
+                chain_name: chain_name!(SOLANA),
             }
         );
 
@@ -434,7 +436,7 @@ mod tests {
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("solana"),
+                source_chain: chain_name!(SOLANA),
                 source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,

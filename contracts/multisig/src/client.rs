@@ -13,23 +13,26 @@ use crate::verifier_set::VerifierSet;
 #[derive(thiserror::Error)]
 #[cw_serde]
 pub enum Error {
-    #[error("failed to query multisig contract for multisig session. session_id: {0}")]
+    #[error("failed to query multisig contract for multisig session id {0}")]
     MultisigSession(Uint64),
 
-    #[error("failed to query multisig contract for verifier set: verifier_set_id: {0}")]
+    #[error("failed to query multisig contract for verifier set id {0}")]
     VerifierSet(String),
 
-    #[error("failed to query multisig contract for verifier public key. verifier_address: {verifier_address}, key_type: {key_type}")]
+    #[error("failed to query multisig contract for verifier address {verifier_address} with public key type {key_type}")]
     PublicKey {
         verifier_address: String,
         key_type: KeyType,
     },
 
-    #[error("failed to query multisig contract for caller authorization. contract_address: {contract_address}, chain_name: {chain_name}")]
+    #[error("failed to query multisig contract address {contract_address} for caller authorization with chain {chain_name}")]
     IsCallerAuthorized {
         contract_address: String,
         chain_name: ChainName,
     },
+
+    #[error("failed to query authorized callers for chain {chain_name}")]
+    AuthorizedCallersForChain { chain_name: ChainName },
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -57,6 +60,9 @@ impl Error {
                 contract_address,
                 chain_name,
             },
+            QueryMsg::AuthorizedCaller { chain_name } => {
+                Error::AuthorizedCallersForChain { chain_name }
+            }
         }
     }
 }
@@ -118,7 +124,7 @@ impl Client<'_> {
             .execute_as_proxy(original_sender, ExecuteMsg::AuthorizeCallers { contracts })
     }
 
-    pub fn unauthorize_callers(&self, contracts: HashMap<String, ChainName>) -> CosmosMsg {
+    pub fn unauthorize_callers(&self, contracts: Vec<String>) -> CosmosMsg {
         self.client
             .execute(&ExecuteMsg::UnauthorizeCallers { contracts })
     }
@@ -172,13 +178,20 @@ impl Client<'_> {
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
     }
+
+    pub fn authorized_callers(&self, chain_name: ChainName) -> Result<Addr, Error> {
+        let msg = QueryMsg::AuthorizedCaller { chain_name };
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
+    }
 }
 
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
 
-    use cosmwasm_std::testing::{MockApi, MockQuerier};
+    use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{
         from_json, to_json_binary, Addr, CosmosMsg, QuerierWrapper, SystemError, Uint64, WasmMsg,
         WasmQuery,
@@ -193,6 +206,10 @@ mod test {
         build_verifier_set, ecdsa_test_data, ed25519_test_data, signature_test_data, TestSigner,
     };
     use crate::types::MultisigState;
+
+    const ETHEREUM: &str = "ethereum";
+    const VERIFIER: &str = "verifier";
+    const PROVER: &str = "prover";
 
     #[test]
     fn query_multisig_session_returns_error_when_query_errors() {
@@ -248,7 +265,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = cosmos_addr!("verifier").to_string();
+        let verifier_address = cosmos_addr!(VERIFIER).to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_err());
@@ -261,7 +278,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let verifier_address = cosmos_addr!("verifier").to_string();
+        let verifier_address = cosmos_addr!(VERIFIER).to_string();
         let key_type = crate::key::KeyType::Ecdsa;
         let res = client.public_key(verifier_address.clone(), key_type);
         assert!(res.is_ok());
@@ -274,8 +291,8 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = cosmos_addr!("prover").to_string();
-        let chain_name = chain_name!("ethereum");
+        let contract_address = cosmos_addr!(PROVER).to_string();
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
@@ -287,37 +304,49 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contract_address = cosmos_addr!("prover").to_string();
-        let chain_name = chain_name!("ethereum");
+        let contract_address = cosmos_addr!(PROVER).to_string();
+        let chain_name = chain_name!(ETHEREUM);
         let res = client.is_caller_authorized(contract_address, chain_name);
         assert!(res.is_ok());
         goldie::assert_json!(res.unwrap());
     }
 
+    #[test]
+    fn query_authorized_caller_returns_authorized_prover_address() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let chain_name = chain_name!(ETHEREUM);
+        let res = client.authorized_callers(chain_name);
+        assert!(res.is_ok());
+        goldie::assert_json!(res.unwrap());
+    }
+
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = "multisig";
+        const ADDR: &str = "multisig";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart {
                 contract_addr,
                 msg: _,
-            } if contract_addr == MockApi::default().addr_make(addr).as_str() => {
+            } if contract_addr == cosmos_addr!(ADDR).as_str() => {
                 Err(SystemError::Unknown {}).into() // simulate cryptic error seen in production
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, cosmos_addr!(ADDR))
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = "multisig";
+        const ADDR: &str = "multisig";
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg }
-                if contract_addr == MockApi::default().addr_make(addr).as_str() =>
+                if contract_addr == cosmos_addr!(ADDR).as_str() =>
             {
                 let msg = from_json::<QueryMsg>(msg).unwrap();
                 match msg {
@@ -358,12 +387,15 @@ mod test {
                         contract_address: _,
                         chain_name: _,
                     } => Ok(to_json_binary(&true).into()).into(),
+                    QueryMsg::AuthorizedCaller { chain_name: _ } => {
+                        Ok(to_json_binary(&cosmos_addr!("prover")).into()).into()
+                    }
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        (querier, MockApi::default().addr_make(addr))
+        (querier, cosmos_addr!(ADDR))
     }
 
     fn signing_keys() -> (String, String) {
@@ -453,7 +485,7 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
         let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
+            HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(ETHEREUM))]);
 
         match client.authorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
@@ -467,8 +499,7 @@ mod test {
         let client: Client =
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
 
-        let contracts: HashMap<String, ChainName> =
-            HashMap::from([(cosmos_addr!("prover").to_string(), chain_name!("ethereum"))]);
+        let contracts: Vec<String> = vec![cosmos_addr!(PROVER).to_string()];
 
         match client.unauthorize_callers(contracts) {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),

@@ -18,6 +18,12 @@ type ProverAddress = Addr;
 type GatewayAddress = Addr;
 type VerifierAddress = Addr;
 
+pub const DEFAULT_PAGINATION_LIMIT: u32 = u32::MAX;
+
+const fn default_pagination_limit() -> u32 {
+    DEFAULT_PAGINATION_LIMIT
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -63,6 +69,7 @@ pub enum ExecuteMsg {
 pub struct ContractDeploymentInfo<T> {
     pub code_id: u64,
     pub label: String,
+    pub contract_admin: Addr,
     pub msg: T,
 }
 
@@ -82,10 +89,11 @@ pub enum DeploymentParams {
 
 #[cw_serde]
 pub struct ProverMsg {
-    pub governance_address: String,
-    pub multisig_address: String,
+    pub governance_address: nonempty::String,
+    pub admin_address: nonempty::String,
+    pub multisig_address: nonempty::String,
     pub signing_threshold: MajorityThreshold,
-    pub service_name: String,
+    pub service_name: nonempty::String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub encoder: Encoder,
@@ -123,6 +131,19 @@ pub enum QueryMsg {
 
     #[returns(ChainContractsResponse)]
     ChainContractsInfo(ChainContractsKey),
+
+    #[returns(Addr)]
+    Instantiate2Address { code_id: u64, salt: Binary },
+
+    #[returns(Vec<ChainContractsResponse>)]
+    Deployments {
+        start_after: Option<nonempty::String>,
+        #[serde(default = "default_pagination_limit")]
+        limit: u32,
+    },
+
+    #[returns(ChainContractsResponse)]
+    Deployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]

@@ -1,16 +1,17 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.10.0"
+version = "1.11.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["commands", "config"]
+default = ["commands", "config", "dummy-grpc-broadcast"]
 commands = []
 config = []
 url = []
+dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
 
 [dependencies]
 ampd-proto = { workspace = true }
@@ -23,7 +24,7 @@ base64 = "0.21.2"
 bcs = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
-config = "0.15.11"
+config = { workspace = true }
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 der = { version = "0.7.9", features = ["derive"] }
@@ -78,7 +79,7 @@ starknet-checked-felt = { workspace = true }
 starknet-core = { workspace = true }
 starknet-providers = { workspace = true }
 stellar = { workspace = true }
-stellar-rpc-client = "21.4.0"
+stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }

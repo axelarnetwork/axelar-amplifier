@@ -1,6 +1,5 @@
 mod asyncutil;
 mod block_height_monitor;
-#[allow(dead_code)]
 mod broadcast;
 #[cfg(feature = "commands")]
 pub mod commands;
@@ -45,8 +44,9 @@ use event_processor::EventHandler;
 use event_sub::EventSub;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use lazy_static::lazy_static;
 use multiversx_sdk::gateway::GatewayProxy;
-use router_api::ChainName;
+use router_api::{chain_name, ChainName};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
@@ -61,7 +61,13 @@ use crate::config::Config;
 use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
-const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
+
+lazy_static! {
+    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
+    static ref MULTIVERSX_CHAIN_NAME: ChainName = chain_name!("multiversx");
+    static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
+    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
+}
 
 #[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {
@@ -73,23 +79,31 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
+        default_rpc_timeout,
         tm_grpc_timeout,
         broadcast,
         handlers,
         tofnd_config,
         event_processor,
-        service_registry: _service_registry,
-        rewards: _rewards,
+        service_registry,
+        rewards,
         monitoring_server,
         grpc: grpc_config,
+        event_sub,
+        tm_client,
     } = cfg;
 
     let (monitoring_server, monitoring_client) =
-        monitoring::Server::new(monitoring_server.bind_address).change_context(Error::Monitor)?;
+        monitoring::Server::new(monitoring_server).change_context(Error::Monitor)?;
 
-    let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
-        .change_context(Error::Connection)
-        .attach_printable(tm_jsonrpc.clone())?;
+    let tm_client = tm_client::TendermintClient::new(
+        tendermint_rpc::HttpClient::new(tm_jsonrpc.as_str())
+            .change_context(Error::Connection)
+            .attach_printable(tm_jsonrpc.clone())?,
+        tm_client.max_retries,
+        tm_client.retry_delay,
+    );
+
     let multisig_client = MultisigClient::new(
         tofnd_config.party_uid,
         tofnd_config.url.as_str(),
@@ -111,6 +125,10 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         tm_client.clone(),
         event_processor.stream_buffer_size,
         event_processor.delay,
+        event_sub.poll_interval,
+        event_sub.block_processing_buffer,
+        RetryPolicy::repeat_constant(event_sub.retry_delay, event_sub.retry_max_attempts),
+        monitoring_client.clone(),
     );
     let cosmos_client = cosmos::CosmosGrpcClient::new(tm_grpc.as_str(), tm_grpc_timeout)
         .await
@@ -130,6 +148,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         broadcast.queue_cap,
         broadcast.batch_gas_limit,
         broadcast.broadcast_interval,
+        monitoring_client.clone(),
     );
     let grpc_server = grpc::Server::builder()
         .config(grpc_config)
@@ -137,6 +156,9 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .msg_queue_client(msg_queue_client.clone())
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
+        .service_registry(service_registry.cosmwasm_contract)
+        .rewards(rewards.cosmwasm_contract)
+        .monitoring_client(monitoring_client.clone())
         .build();
     let (tx_confirmer, tx_confirmer_client) = broadcast::TxConfirmer::new_confirmer_and_client(
         cosmos_client,
@@ -144,6 +166,9 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
             broadcast.tx_fetch_interval,
             broadcast.tx_fetch_max_retries.saturating_add(1).into(),
         ),
+        broadcast.tx_confirmation_buffer_size,
+        broadcast.tx_confirmation_queue_cap,
+        monitoring_client.clone(),
     );
     let broadcaster_task = broadcast::BroadcasterTask::builder()
         .broadcaster(broadcaster)
@@ -151,6 +176,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .signer(multisig_client.clone())
         .key_id(tofnd_config.key_uid.clone())
         .tx_confirmer_client(tx_confirmer_client)
+        .monitoring_client(monitoring_client.clone())
         .build();
 
     let verifier: TMAddress = pub_key
@@ -170,7 +196,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         tx_confirmer,
         monitoring_client,
     )
-    .configure_handlers(verifier, handlers, event_processor)
+    .configure_handlers(verifier, handlers, event_processor, default_rpc_timeout)
     .await
 }
 
@@ -191,11 +217,11 @@ where
 }
 
 struct App {
-    event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+    event_publisher: event_sub::EventPublisher<tm_client::TendermintClient>,
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     multisig_client: MultisigClient,
-    block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+    block_height_monitor: BlockHeightMonitor<tm_client::TendermintClient>,
     monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
     broadcaster_task:
@@ -208,10 +234,10 @@ struct App {
 impl App {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+        event_publisher: event_sub::EventPublisher<tm_client::TendermintClient>,
         event_subscriber: event_sub::EventSubscriber,
         multisig_client: MultisigClient,
-        block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+        block_height_monitor: BlockHeightMonitor<tm_client::TendermintClient>,
         monitoring_server: monitoring::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcast::BroadcasterTask<
@@ -245,10 +271,16 @@ impl App {
         verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         event_processor_config: event_processor::Config,
+        default_rpc_timeout: Duration,
     ) -> Result<App, Error> {
         for config in handler_configs {
             match self
-                .try_create_handler_task(&config, &verifier, &event_processor_config)
+                .try_create_handler_task(
+                    &config,
+                    &verifier,
+                    &event_processor_config,
+                    default_rpc_timeout,
+                )
                 .await
             {
                 Ok(task) => {
@@ -270,6 +302,7 @@ impl App {
         config: &handlers::config::Config,
         verifier: &TMAddress,
         event_processor_config: &event_processor::Config,
+        default_rpc_timeout: Duration,
     ) -> Result<CancellableTask<Result<(), event_processor::Error>>, Error> {
         match config {
             handlers::config::Config::EvmMsgVerifier {
@@ -280,10 +313,12 @@ impl App {
                 let rpc_client = json_rpc::Client::new_http(
                     chain.rpc_url.clone(),
                     reqwest::ClientBuilder::new()
-                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                         .build()
                         .change_context(Error::Connection)?,
+                    self.monitoring_client.clone(),
+                    chain.name.clone(),
                 );
 
                 check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
@@ -311,10 +346,12 @@ impl App {
                 let rpc_client = json_rpc::Client::new_http(
                     chain.rpc_url.clone(),
                     reqwest::ClientBuilder::new()
-                        .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                        .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                         .build()
                         .change_context(Error::Connection)?,
+                    self.monitoring_client.clone(),
+                    chain.name.clone(),
                 );
 
                 check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
@@ -361,10 +398,12 @@ impl App {
                     json_rpc::Client::new_http(
                         rpc_url.clone(),
                         reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                             .build()
                             .change_context(Error::Connection)?,
+                        self.monitoring_client.clone(),
+                        SUI_CHAIN_NAME.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -378,16 +417,22 @@ impl App {
                 chain_rpc_url,
                 rpc_timeout,
             } => {
-                let rpc_client = xrpl_http_client::Client::builder()
+                let xrpl_client = xrpl_http_client::Client::builder()
                     .base_url(chain_rpc_url.as_str())
                     .http_client(
                         reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                             .build()
                             .change_context(Error::Connection)?,
                     )
                     .build();
+
+                let rpc_client = xrpl::json_rpc::Client::new(
+                    xrpl_client,
+                    self.monitoring_client.clone(),
+                    chain_name.clone(),
+                );
 
                 Ok(self.create_handler_task(
                     format!("{}-msg-verifier", chain_name),
@@ -429,10 +474,12 @@ impl App {
                     json_rpc::Client::new_http(
                         rpc_url.clone(),
                         reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
                             .build()
                             .change_context(Error::Connection)?,
+                        self.monitoring_client.clone(),
+                        SUI_CHAIN_NAME.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -448,7 +495,11 @@ impl App {
                 handlers::mvx_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                    mvx::proxy::Client::new(
+                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                        self.monitoring_client.clone(),
+                        MULTIVERSX_CHAIN_NAME.clone(),
+                    ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
                 ),
@@ -463,7 +514,11 @@ impl App {
                 handlers::mvx_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                    mvx::proxy::Client::new(
+                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
+                        self.monitoring_client.clone(),
+                        MULTIVERSX_CHAIN_NAME.clone(),
+                    ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
                 ),
@@ -479,7 +534,9 @@ impl App {
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     stellar::rpc_client::Client::new(
-                        rpc_url.to_string().trim_end_matches('/').into(),
+                        rpc_url.clone(),
+                        self.monitoring_client.clone(),
+                        STELLAR_CHAIN_NAME.clone(),
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -497,7 +554,9 @@ impl App {
                     verifier.clone(),
                     cosmwasm_contract.clone(),
                     stellar::rpc_client::Client::new(
-                        rpc_url.to_string().trim_end_matches('/').into(),
+                        rpc_url.clone(),
+                        self.monitoring_client.clone(),
+                        STELLAR_CHAIN_NAME.clone(),
                     )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
@@ -514,9 +573,11 @@ impl App {
                 handlers::starknet_verify_msg::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        rpc_url.clone(),
-                    ))
+                    starknet::json_rpc::Client::new_with_transport(
+                        HttpTransport::new(rpc_url.clone()),
+                        self.monitoring_client.clone(),
+                        STARKNET_CHAIN_NAME.clone(),
+                    )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -532,9 +593,11 @@ impl App {
                 handlers::starknet_verify_verifier_set::Handler::new(
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(HttpTransport::new(
-                        rpc_url.clone(),
-                    ))
+                    starknet::json_rpc::Client::new_with_transport(
+                        HttpTransport::new(rpc_url.clone()),
+                        self.monitoring_client.clone(),
+                        STARKNET_CHAIN_NAME.clone(),
+                    )
                     .change_context(Error::Connection)?,
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -553,10 +616,14 @@ impl App {
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    RpcClient::new_with_timeout_and_commitment(
-                        rpc_url.to_string(),
-                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
-                        CommitmentConfig::finalized(),
+                    solana::Client::new(
+                        RpcClient::new_with_timeout_and_commitment(
+                            rpc_url.to_string(),
+                            rpc_timeout.unwrap_or(default_rpc_timeout),
+                            CommitmentConfig::finalized(),
+                        ),
+                        self.monitoring_client.clone(),
+                        chain_name.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -575,10 +642,14 @@ impl App {
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    RpcClient::new_with_timeout_and_commitment(
-                        rpc_url.to_string(),
-                        rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
-                        CommitmentConfig::finalized(),
+                    solana::Client::new(
+                        RpcClient::new_with_timeout_and_commitment(
+                            rpc_url.to_string(),
+                            rpc_timeout.unwrap_or(default_rpc_timeout),
+                            CommitmentConfig::finalized(),
+                        ),
+                        self.monitoring_client.clone(),
+                        chain_name.clone(),
                     ),
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
@@ -598,7 +669,12 @@ impl App {
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    Client::new_http(
+                        rpc_url.clone(),
+                        rpc_timeout.unwrap_or(default_rpc_timeout),
+                        self.monitoring_client.clone(),
+                        chain_name.clone(),
+                    )?,
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
                 )
@@ -617,7 +693,12 @@ impl App {
                     chain_name.clone(),
                     verifier.clone(),
                     cosmwasm_contract.clone(),
-                    Client::new_http(rpc_url.clone(), rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))?,
+                    Client::new_http(
+                        rpc_url.clone(),
+                        rpc_timeout.unwrap_or(default_rpc_timeout),
+                        self.monitoring_client.clone(),
+                        chain_name.clone(),
+                    )?,
                     self.block_height_monitor.latest_block_height(),
                     self.monitoring_client.clone(),
                 )

@@ -62,9 +62,7 @@ pub enum ExecuteMsg {
     },
     /// Unauthorizes a set of contracts, so they can no longer call StartSigningSession.
     #[permission(Elevated)]
-    UnauthorizeCallers {
-        contracts: HashMap<String, ChainName>,
-    },
+    UnauthorizeCallers { contracts: Vec<String> },
 
     /// Emergency command to stop all amplifier signing
     #[permission(Elevated)]
@@ -95,6 +93,9 @@ pub enum QueryMsg {
         contract_address: String,
         chain_name: ChainName,
     },
+
+    #[returns(Addr)]
+    AuthorizedCaller { chain_name: ChainName },
 }
 
 #[cw_serde]

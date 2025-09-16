@@ -1,13 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{
-    Addr, Binary, DepsMut, Env, MessageInfo, Response, Storage, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::contract::errors::Error;
+use crate::contract::query::instantiate2_addr;
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
 use crate::state;
@@ -57,46 +56,26 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
-    let code_info: cosmwasm_std::CodeInfoResponse = deps
-        .querier
-        .query(&WasmQuery::CodeInfo { code_id }.into())
-        .change_context(Error::QueryCodeInfo(code_id))?;
-
-    deps.api
-        .addr_humanize(
-            &cosmwasm_std::instantiate2_address(
-                code_info.checksum.as_slice(),
-                &deps
-                    .api
-                    .addr_canonicalize(&env.contract.address.to_string().clone())
-                    .change_context(Error::Instantiate2Address)?,
-                salt,
-            )
-            .change_context(Error::Instantiate2Address)?,
-        )
-        .change_context(Error::Instantiate2Address)
-}
-
 fn launch_contract(
-    deps: &DepsMut,
-    info: &MessageInfo,
+    deps: &Deps,
     env: &Env,
     salt: Binary,
     code_id: u64,
     instantiate_msg: Binary,
     label: String,
+    admin: String,
 ) -> Result<(WasmMsg, Addr), Error> {
     Ok((
         WasmMsg::Instantiate2 {
-            admin: Some(info.sender.to_string()),
+            admin: Some(admin),
             code_id,
             msg: instantiate_msg,
-            funds: info.funds.clone(),
+            funds: vec![],
             label,
             salt: salt.clone(),
         },
-        instantiate2_addr(deps, env, code_id, salt.as_slice())?,
+        instantiate2_addr(deps, env, code_id, salt.as_slice())
+            .change_context(Error::Instantiate2Address)?,
     ))
 }
 
@@ -107,8 +86,7 @@ fn instantiate_gateway(
     verifier_address: Addr,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
-        &ctx.info,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.gateway_code_id,
@@ -118,6 +96,7 @@ fn instantiate_gateway(
         })
         .change_context(Error::InstantiateGateway)?,
         label,
+        ctx.gateway_contract_admin.clone(),
     )
 }
 
@@ -128,8 +107,7 @@ fn instantiate_verifier(
     verifier_msg: &VerifierMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
-        &ctx.info,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.verifier_code_id,
@@ -151,6 +129,7 @@ fn instantiate_verifier(
         })
         .change_context(Error::InstantiateVerifier)?,
         label,
+        ctx.verifier_contract_admin.clone(),
     )
 }
 
@@ -164,13 +143,12 @@ fn instantiate_prover(
     prover_msg: &ProverMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
-        &ctx.info,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.prover_code_id,
         cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
-            admin_address: ctx.info.sender.to_string().clone(),
+            admin_address: prover_msg.admin_address.to_string(),
             governance_address: prover_msg.governance_address.to_string().clone(),
             coordinator_address: ctx.env.contract.address.to_string().clone(),
             gateway_address: gateway_address.to_string().clone(),
@@ -187,23 +165,25 @@ fn instantiate_prover(
         })
         .change_context(Error::InstantiateProver)?,
         label,
+        ctx.prover_contract_admin.clone(),
     )
 }
 
 struct InstantiateContext<'a> {
     deps: DepsMut<'a>,
-    info: MessageInfo,
     env: Env,
     salt: Binary,
     gateway_code_id: u64,
+    gateway_contract_admin: String,
     verifier_code_id: u64,
+    verifier_contract_admin: String,
     prover_code_id: u64,
+    prover_contract_admin: String,
 }
 
 pub fn instantiate_chain_contracts(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     deployment_name: nonempty::String,
     salt: Binary,
     params: DeploymentParams,
@@ -218,17 +198,37 @@ pub fn instantiate_chain_contracts(
     match params {
         DeploymentParams::Manual(params) => {
             let verifier_address =
-                instantiate2_addr(&deps, &env, params.verifier.code_id, salt.as_ref())
-                    .change_context(Error::InstantiateContracts)?;
+                instantiate2_addr(&deps.as_ref(), &env, params.verifier.code_id, salt.as_ref())
+                    .change_context(Error::Instantiate2Address)?;
+
+            let gateway_contract_admin = deps
+                .api
+                .addr_validate(params.gateway.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.gateway.contract_admin.to_string()))?
+                .to_string();
+
+            let verifier_contract_admin = deps
+                .api
+                .addr_validate(params.verifier.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.verifier.contract_admin.to_string()))?
+                .to_string();
+
+            let prover_contract_admin = deps
+                .api
+                .addr_validate(params.prover.contract_admin.as_str())
+                .map_err(|_| Error::InvalidAddress(params.prover.contract_admin.to_string()))?
+                .to_string();
 
             let ctx = InstantiateContext {
                 deps,
-                info,
                 env,
                 salt,
                 gateway_code_id: params.gateway.code_id,
+                gateway_contract_admin,
                 verifier_code_id: params.verifier.code_id,
+                verifier_contract_admin,
                 prover_code_id: params.prover.code_id,
+                prover_contract_admin,
             };
 
             let (msg, gateway_address) = instantiate_gateway(
@@ -302,7 +302,7 @@ pub fn register_deployment(
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
-    let deployed_contracts = state::deployed_contracts(deps.storage, deployment_name.clone())
+    let deployed_contracts = state::deployment(deps.storage, deployment_name.clone())
         .change_context(Error::ChainContractsInfo)?;
 
     let protocol_contracts =

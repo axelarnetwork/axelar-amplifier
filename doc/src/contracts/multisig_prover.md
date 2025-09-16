@@ -10,9 +10,8 @@ data and proof so that relayers can take it and send it to the destination chain
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
-    ConstructProof {
-        message_ids: Vec<String>,
-    },
+    ConstructProof(Vec<CrossChainId>),
+    // can only be called by Governance or Admin
     UpdateVerifierSet,
     ConfirmVerifierSet,
     // Updates the signing threshold. The threshold currently in use does not change.
@@ -21,6 +20,7 @@ pub enum ExecuteMsg {
     UpdateSigningThreshold {
         new_signing_threshold: MajorityThreshold,
     },
+    // can only be called by Governance
     UpdateAdmin {
         new_admin_address: String,
     },
@@ -28,11 +28,19 @@ pub enum ExecuteMsg {
 
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(GetProofResponse)]
-    GetProof { multisig_session_id: Uint64 },
+    #[returns(ProofResponse)]
+    Proof { multisig_session_id: Uint64 },
 
-    #[returns(Option<multisig::verifier_set::VerifierSet>)]
-    GetVerifierSet,
+    #[returns(Option<VerifierSetResponse>)]
+    CurrentVerifierSet,
+
+    #[returns(Option<VerifierSetResponse>)]
+    NextVerifierSet,
+}
+
+pub struct VerifierSetResponse {
+    pub id: String,
+    pub verifier_set: multisig::verifier_set::VerifierSet,
 }
 
 pub enum ProofStatus {
@@ -40,10 +48,10 @@ pub enum ProofStatus {
     Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
 }
 
-pub struct GetProofResponse {
+pub struct ProofResponse {
     pub multisig_session_id: Uint64,
-    pub message_ids: Vec<String>,
-    pub data: Data,
+    pub message_ids: Vec<CrossChainId>,
+    pub payload: Payload,
     pub status: ProofStatus,
 }
 ```
@@ -53,8 +61,10 @@ pub struct GetProofResponse {
 ```Rust
 pub enum Event {
     ProofUnderConstruction {
+        destination_chain: ChainName,
         payload_id: PayloadId,
         multisig_session_id: Uint64,
+        msg_ids: Vec<CrossChainId>,
     },
 }
 ```
@@ -75,10 +85,10 @@ end
 s[Signer]
 
 r--ConstructProof-->b
-b--GetMessages-->g
+b--OutgoingMessages-->g
 g-.->b
 b--StartSigningSession-->m
-b--GetSigningSession-->m
+b--Multisig-->m
 s--SubmitSignature-->m
 ```
 
@@ -97,7 +107,7 @@ actor Signers
 
 Relayer->>+Prover: ExecuteMsg::ConstructProof
 alt payload not created previously
-  Prover->>+Gateway: QueryMsg::GetMessages
+  Prover->>+Gateway: QueryMsg::OutgoingMessages
   Gateway-->>-Prover: query result
   alt newer VerifierSet exists
     Prover->>Prover: update next VerifierSet
@@ -114,16 +124,16 @@ loop Collect signatures
 	Signers->>+Multisig: signature collection
 end
 Multisig-->>-Relayer: emit SigningCompleted event
-Relayer->>+Prover: QueryMsg::GetProof
-Prover->>+Multisig: QueryMsg::GetSigningSession
+Relayer->>+Prover: QueryMsg::Proof
+Prover->>+Multisig: QueryMsg::Multisig
 Multisig-->>-Prover: reply with status, current signatures vector and snapshot
-Prover-->>-Relayer: returns GetProofResponse
+Prover-->>-Relayer: returns ProofResponse
 ```
 
-1. Relayer asks Prover contract to construct proof providing a list of messages IDs
+1. Relayer asks Prover contract to construct proof providing a list of message IDs
 2. If no payload for the given messages was previously created, it queries the gateway for the messages to construct it
 3. With the retrieved messages, the Prover contract transforms them into a payload digest that needs to be signed by the multisig.
-4. If previous payload was found for the given messages IDs, the Prover retrieves it from storage instead of querying the gateway and build it again.
+4. If previous payload was found for the given message IDs, the Prover retrieves it from storage instead of querying the gateway and building it again.
 5. The Multisig contract is called asking to sign the payload digest
 6. Multisig emits event `SigningStarted` indicating a new multisig session has started
 7. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the payload for reference
@@ -133,9 +143,9 @@ Prover-->>-Relayer: returns GetProofResponse
 11. Relayer queries Prover for the proof, using the proof ID
 12. Prover queries Multisig for the multisig session, using the session ID
 13. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
-14. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse`
+14. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `ProofResponse`
     struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not
-    completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+    completed, the Prover returns the `ProofResponse` struct with the `status` field set to `Pending`.
 
 ## Update and confirm VerifierSet graph
 
@@ -151,10 +161,10 @@ s[Service Registry]
 end
 
 r--UpdateVerifierSet-->b
-b--GetActiveVerifiers-->s
+b--ActiveVerifiers-->s
 b--RegisterVerifierSet-->m
 r--ConfirmVerifierSet-->b
-b--GetVerifierSetStatus-->v
+b--VerifierSetStatus-->v
 ```
 
 ## Update and confirm VerifierSet sequence diagram
@@ -174,40 +184,40 @@ actor Verifier
 actor Signers
 Relayer->>+Prover: ExecuteMsg::UpdateVerifierSet
 alt existing VerifierSet stored
-  Prover->>+Service Registry: QueryMsg::GetActiveVerifiers
+  Prover->>+Service Registry: QueryMsg::ActiveVerifiers
   Service Registry-->>-Prover: save new VerifierSet as next VerifierSet
   Prover->>+Multisig: ExecuteMsg::StartSigningSession (for rotate signers message)
   loop Collect signatures
 	  Signers->>+Multisig: signature collection
   end
 end
-Relayer->>+Prover: QueryMsg::GetProof
-Prover-->>-Relayer: returns GetProofResponse (new verifier set signed by old verifier set)
+Relayer->>+Prover: QueryMsg::Proof
+Prover-->>-Relayer: returns ProofResponse (new verifier set signed by old verifier set)
 Relayer-->>External Gateway: send new VerifierSet to the gateway, signed by old VerifierSet
 External Gateway-->>+Relayer: emit SignersRotated event
 Relayer->>+Voting Verifier: ExecuteMsg::VerifyVerifierSet
-Verifier->>+External Gateway: lookup SignersRotated event, verify event matches verifier set in poll
+Verifier->>+External Gateway: look up SignersRotated event, verify event matches verifier set in poll
 Verifier->>+Voting Verifier: ExecuteMsg::Vote
 Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
 Relayer->>+Prover: ExecuteMsg::ConfirmVerifierSet
-Prover->>+Voting Verifier: QueryMsg::GetVerifierSetStatus
+Prover->>+Voting Verifier: QueryMsg::VerifierSetStatus
 Voting Verifier-->>-Prover: true
 Prover->>+Multisig: ExecuteMsg::RegisterVerifierSet
 ```
 
 1. The Relayer calls Prover to update the `VerifierSet`.
-2. The Prover calls Service Registry to get a `VerifierSet`
+2. The Prover calls Service Registry to get a `VerifierSet`.
 3. If a newer `VerifierSet` was found, the new `VerifierSet` is stored as the next `VerifierSet`. The prover creates payload for the new verifier set.
-4. The Multisig contract is called asking to sign the binary message
-5. Signers submit their signatures until threshold is reached
-6. Relayer queries Prover for the proof, using the proof ID
-7. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse`
+4. The Multisig contract is called asking to sign the binary message.
+5. Signers submit their signatures until threshold is reached.
+6. Relayer queries Prover for the proof, using the proof ID.
+7. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `ProofResponse`
    struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not
-   completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+   completed, the Prover returns the `ProofResponse` struct with the `status` field set to `Pending`.
 8. Relayer sends proof and data to the External Gateway.
-9. The gateway on the External Gateway processes the commands in the data and emits event `SingersRotated`.
-10. The event `SingersRotated` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll.
-11. The Verifiers see the `PollStarted` event and lookup `SingersRotated`` event on the External Gateway and
+9. The gateway on the External Gateway processes the commands in the data and emits event `SignersRotated`.
+10. The event `SignersRotated` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll.
+11. The Verifiers see the `PollStarted` event and lookup `SignersRotated`` event on the External Gateway and
     verify event matches verifier set in poll.
 12. The Verifiers then vote on whether the event matches the verifiers or not.
 13. The Relayer calls the Voting Verifier to end the poll and emit `PollEnded` event.
