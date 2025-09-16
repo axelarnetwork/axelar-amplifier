@@ -67,8 +67,8 @@ impl<N: Network> ClientTrait<N> for Client {
     async fn find_transaction(&self, transition_id: &N::TransitionID) -> Result<String, Error> {
         const ENDPOINT: &str = "find/transactionID";
         let url = format!(
-            "{}{}/{ENDPOINT}/{}",
-            self.base_url, self.network, &transition_id
+            "{}{}/{ENDPOINT}/{transition_id}",
+            self.base_url, self.network
         );
 
         tracing::debug!(%url);
@@ -109,7 +109,7 @@ pub mod tests {
         > = HashMap::new();
 
         let snark_transaction: aleo_utils::block_processor::Transaction =
-            serde_json::from_str(transaction).unwrap();
+            serde_json::from_str(transaction).expect("Failed to parse transaction");
         let snark_transaction = snark_transaction.into_owned();
         let transaction = N::TransactionID::from_str(transaction_id)
             .map_err(|_| ())
@@ -132,50 +132,10 @@ pub mod tests {
         mock_client
     }
 
-    #[tokio::test]
-    async fn aleo_verify_msg_transfer() {
-        let transaction_id = "at1pmfmnh50055ml9h4p4895uwumnts92a5v8syw26ydkkvm5vdlqrqqmw4m3";
-        let client = mock_client(
-            transaction_id,
-            include_str!(
-                "../tests/at1pmfmnh50055ml9h4p4895uwumnts92a5v8syw26ydkkvm5vdlqrqqmw4m3.json"
-            ),
-        );
-        let transision_id = "au10yyqs2ucva9phs55qycajtssmu43pz3thl5zvyrqjg62jak4zvxq2spwhp";
+    async fn verify_msg_transfer(transaction_id: &str, json_data: &str, transition_id: &str) {
+        let client = mock_client(transaction_id, json_data);
         let transition =
-            <CurrentNetwork as snarkvm::prelude::Network>::TransitionID::from_str(transision_id)
-                .map_err(|_| ())
-                .expect("Failed to parse transition ID");
-        let gateway_contract =
-            ProgramID::from_str("gateway_frontend.aleo").expect("Failed to parse program ID");
-
-        ReceiptBuilder::<CurrentNetwork, _, _>::new(&client, &gateway_contract)
-            .unwrap()
-            .get_transaction_id(&transition)
-            .await
-            .expect("Failed to get transaction ID")
-            .get_transaction()
-            .await
-            .expect("Failed to get transaction")
-            .get_transition()
-            .expect("Failed to get transition")
-            .check_call_contract()
-            .expect("Failed to check call contract");
-    }
-
-    #[tokio::test]
-    async fn aleo_verify_msg_transfer_2() {
-        let transaction_id = "at188kfg7uxqc0rpzlq66y7mp293a5vauqr5jdlg3a7v9tk9wpsavgqe7ww5l";
-        let client = mock_client(
-            transaction_id,
-            include_str!(
-                "../tests/at188kfg7uxqc0rpzlq66y7mp293a5vauqr5jdlg3a7v9tk9wpsavgqe7ww5l.json"
-            ),
-        );
-        let transision_id = "au130u5y9kvf7rf6663tlamkaq9549gzddkkf7cd2997aaedglxdcqsl6pxl4";
-        let transition =
-            <CurrentNetwork as snarkvm::prelude::Network>::TransitionID::from_str(transision_id)
-                .map_err(|_| ())
+            <CurrentNetwork as snarkvm::prelude::Network>::TransitionID::from_str(transition_id)
                 .expect("Failed to parse transition ID");
         let gateway_contract =
             ProgramID::from_str("gateway_frontend.aleo").expect("Failed to parse program ID");
@@ -192,5 +152,29 @@ pub mod tests {
             .expect("Failed to get transition")
             .check_call_contract()
             .expect("Failed to check call contract");
+    }
+
+    #[tokio::test]
+    async fn aleo_verify_msg_transfer_cases() {
+        let cases = [
+            (
+                "at1pmfmnh50055ml9h4p4895uwumnts92a5v8syw26ydkkvm5vdlqrqqmw4m3",
+                include_str!(
+                    "../tests/at1pmfmnh50055ml9h4p4895uwumnts92a5v8syw26ydkkvm5vdlqrqqmw4m3.json"
+                ),
+                "au10yyqs2ucva9phs55qycajtssmu43pz3thl5zvyrqjg62jak4zvxq2spwhp",
+            ),
+            (
+                "at188kfg7uxqc0rpzlq66y7mp293a5vauqr5jdlg3a7v9tk9wpsavgqe7ww5l",
+                include_str!(
+                    "../tests/at188kfg7uxqc0rpzlq66y7mp293a5vauqr5jdlg3a7v9tk9wpsavgqe7ww5l.json"
+                ),
+                "au130u5y9kvf7rf6663tlamkaq9549gzddkkf7cd2997aaedglxdcqsl6pxl4",
+            ),
+        ];
+
+        for (transaction_id, json_data, transition_id) in cases {
+            verify_msg_transfer(transaction_id, json_data, transition_id).await;
+        }
     }
 }

@@ -176,28 +176,32 @@ where
             })
             .ok_or(Error::CallContractNotFound)?;
 
-        let payload_plaintext_bytes = Value::<N>::from_str(&payload)
+        let payload = Value::<N>::from_str(&payload)
             .and_then(|p| p.to_bytes_le())
             .map_err(|_| Report::new(Error::PayloadHash(payload.to_string())))?;
 
-        let chain_name = StringEncoder::from_slice(&call_contract.destination_chain)
+        let destination_chain = StringEncoder::from_slice(&call_contract.destination_chain)
             .decode()
-            .change_context(Error::InvalidChainName)?;
+            .change_context(Error::InvalidChainName)?
+            .try_into()
+            .map_err(|_| Report::new(Error::InvalidChainName))?;
+
+        let destination_address = StringEncoder::from_slice(&call_contract.destination_address)
+            .decode()
+            .change_context(Error::InvalidDestinationAddress)?;
+
+        let transition_id = N::TransitionID::from_str(&self.state.transition.id).map_err(|_| {
+            Report::new(Error::TransitionNotFound(
+                self.state.transition.id.to_string(),
+            ))
+        })?;
 
         Ok(Receipt::Found(CallContractReceipt {
-            transition: N::TransitionID::from_str(&self.state.transition.id).map_err(|_| {
-                Report::new(Error::TransitionNotFound(
-                    self.state.transition.id.to_string(),
-                ))
-            })?,
-            destination_address: StringEncoder::from_slice(&call_contract.destination_address)
-                .decode()
-                .change_context(Error::InvalidDestinationAddress)?,
-            destination_chain: chain_name
-                .try_into()
-                .map_err(|_| Report::new(Error::InvalidChainName))?,
+            transition: transition_id,
+            destination_address,
+            destination_chain,
             source_address: call_contract.caller,
-            payload: payload_plaintext_bytes,
+            payload,
         }))
     }
 
