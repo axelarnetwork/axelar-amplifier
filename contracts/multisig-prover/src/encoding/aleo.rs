@@ -1,4 +1,5 @@
 use aleo_compatible_keccak::ToBytesExt;
+use aleo_gateway_types::constants::*;
 use aleo_gateway_types::{Message, PayloadDigest};
 use aleo_gmp_types::aleo_struct::AxelarToLeo as _;
 use aleo_gmp_types::multisig_prover::{ExecuteSignersRotation, Proof};
@@ -16,11 +17,6 @@ use thiserror::Error;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
-
-// Constants for message chunking - these values are determined by `gateway_backend.aleo` program
-const MESSAGES_PER_CHUNK: usize = 24;
-const MESSAGE_CHUNKS: usize = 2;
-const TOTAL_MESSAGE_CAPACITY: usize = MESSAGES_PER_CHUNK * MESSAGE_CHUNKS;
 
 #[derive(Error, Debug)]
 enum AleoEncodingError {
@@ -173,7 +169,7 @@ fn hash_messages<N: Network>(messages: &[router_api::Message]) -> Result<Group<N
 
     let mut groups = aleo_messages
         .chain(std::iter::repeat(default_message_hash))
-        .take(TOTAL_MESSAGE_CAPACITY);
+        .take(MAX_MESSAGES);
 
     // It's safe to unwrap because iterator is infinite due to repeat()
     let messages: [[Group<N>; MESSAGES_PER_CHUNK]; MESSAGE_CHUNKS] =
@@ -190,7 +186,9 @@ fn hash_messages<N: Network>(messages: &[router_api::Message]) -> Result<Group<N
 ///
 /// The domain separator is split into two 128-bit values in little-endian format
 /// as required by the Aleo PayloadDigest structure.
-fn parse_domain_separator(domain_separator: &[u8; 32]) -> Result<[u128; 2], AleoEncodingError> {
+fn parse_domain_separator(
+    domain_separator: &[u8; 32],
+) -> Result<[u128; DOMAIN_SEPARATOR_LEN], AleoEncodingError> {
     let first_half = domain_separator[0..16]
         .try_into()
         .map_err(|_| AleoEncodingError::InvalidDomainSeparator)?;
@@ -447,8 +445,6 @@ mod tests {
             &Payload::VerifierSet(new_verifier_set),
         )
         .expect("Failed to encode execute data");
-
-        println!("Execute data: {}", execute_data);
 
         let transformed_signers_rotation_proof =
             aleo_utils::axelar_proof_transformation::transform_signers_rotation_proof_execute_data::<

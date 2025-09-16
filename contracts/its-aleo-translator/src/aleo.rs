@@ -452,7 +452,7 @@ mod tests {
     }
 
     mod outbound {
-        use aleo_gmp_types::utils::AleoBitsToBytesExt as _;
+        use aleo_compatible_keccak::AleoBitsToBytesExt as _;
 
         use super::*;
 
