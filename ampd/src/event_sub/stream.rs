@@ -76,7 +76,6 @@ pub fn events<'a, T, S>(
     tm_client: &'a T,
     block_stream: S,
     retry_policy: RetryPolicy,
-    block_processing_buffer: usize,
 ) -> impl Stream<Item = Result<Event>> + 'a
 where
     T: TmClient,
@@ -84,7 +83,7 @@ where
 {
     block_stream
         .map(move |block_height| retrieve_all_block_events(tm_client, block_height, retry_policy))
-        .buffered(block_processing_buffer)
+        .buffered(super::BLOCK_PROCESSING_BUFFER)
         .flat_map(|result| result.map_or_else(|err| stream::iter(vec![Err(err)]), stream::iter))
 }
 
@@ -793,16 +792,10 @@ mod tests {
             });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
-        let block_processing_buffer = 10;
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         assert_eq!(events.len(), 5); // BlockBegin + 3 ABCI events + BlockEnd
         assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
@@ -832,20 +825,14 @@ mod tests {
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(10), 3);
         let start_time = tokio::time::Instant::now();
-        let block_processing_buffer = 10;
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(1u32)),
             Ok(block::Height::from(2u32)),
             Ok(block::Height::from(3u32)),
         ]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         let elapsed = start_time.elapsed();
         assert!(elapsed < Duration::from_secs(10)); // Should complete without retries
@@ -895,17 +882,11 @@ mod tests {
             });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(1), 3);
-        let block_processing_buffer = 10;
         let start_time = tokio::time::Instant::now();
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         let elapsed = start_time.elapsed();
         assert!(elapsed >= Duration::from_secs(2)); // 2 retries with 1 second each
@@ -931,20 +912,14 @@ mod tests {
             });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
-        let block_processing_buffer = 10;
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(100u32)),
             Err(report!(Error::LatestBlockQuery)),
             Ok(block::Height::from(101u32)),
         ]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         assert_eq!(events.len(), 11); // Block 100: 5 events + error + Block 101: 5 events
 
@@ -995,16 +970,10 @@ mod tests {
             });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
-        let block_processing_buffer = 10;
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         assert_eq!(events.len(), 6); // BlockBegin + 4 events (1 failure, 3 success) + BlockEnd
         assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
@@ -1043,7 +1012,6 @@ mod tests {
         });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(10), 3);
-        let block_processing_buffer = 10;
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(1u32)),
             Ok(block::Height::from(2u32)),
@@ -1051,14 +1019,9 @@ mod tests {
             Ok(block::Height::from(4u32)),
             Ok(block::Height::from(5u32)),
         ]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         // Events should still be in order despite different processing times
         let mut expected_block = 1u64;
@@ -1095,20 +1058,14 @@ mod tests {
             });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
-        let block_processing_buffer = 10;
         let block_stream = stream::iter(vec![
             Ok(block::Height::from(1u32)),
             Ok(block::Height::from(2u32)),
             Ok(block::Height::from(3u32)),
         ]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         assert_eq!(events.len(), 7); // 3 BlockBegin + 1 ABCI + 3 BlockEnd
 
@@ -1140,17 +1097,11 @@ mod tests {
             });
 
         let retry_policy = RetryPolicy::repeat_constant(Duration::from_secs(1), 3);
-        let block_processing_buffer = 10;
         let start_time = tokio::time::Instant::now();
         let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
+        let events: Vec<_> = events(&tm_client, block_stream, retry_policy)
+            .collect()
+            .await;
 
         let elapsed = start_time.elapsed();
         assert!(elapsed >= Duration::from_secs(2)); // 2 retries with 1 second each
