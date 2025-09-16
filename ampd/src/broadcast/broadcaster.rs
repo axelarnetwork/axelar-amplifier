@@ -203,7 +203,12 @@ where
             {
                 Ok(gas) => Ok(gas),
                 Err(e) => match parse_sequence_error(e.to_string()) {
-                    // Retry with the expected sequence number
+                    // Retry with the expected sequence number in case of sequence mismatch. Reasons why this might happen:
+                    // 1. The account sequence got unsynchronized when another instance of ampd broadcasted a transaction.
+                    //    i.e. an ampd command was executed while the daemon was running.
+                    // 2. The account sequence was incremented after a broadcast, but the transaction failed to be confirmed in the blockchain.
+                    //    therefore expecting the previous sequence number.
+                    // 3. The account sequence was reset, while there were still some transactions in the mempool.
                     Some(expected_seq) => {
                         *acc_sequence = expected_seq;
 
