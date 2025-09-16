@@ -7,21 +7,35 @@ use snarkvm::prelude::{Field, Literal, LiteralType, Network, Plaintext, ToBits a
 
 use crate::aleo::error::Error;
 
+/// Reads and parses a `ContractCall` from the provided `IdValuePair`.
+///
+/// # Arguments
+///
+/// * `outputs` - An `IdValuePair` containing the contract call value.
+///
+/// # Returns
+///
+/// * `Result<ContractCall<N>, Error>` - The parsed `ContractCall` on success, or an error on failure.
 pub fn read_call_contract<N: Network>(outputs: &IdValuePair) -> Result<ContractCall<N>, Error> {
     let value = outputs.value.as_ref().ok_or(Error::CallContractNotFound)?;
-    let plaintext = Plaintext::<N>::from_str(value)
+    let call_contract: ContractCall<N> = value
+        .parse()
         .map_err(Error::from)
         .attach_printable_lazy(|| format!("Failed to parse CallContract value: {value}"))?;
-
-    let call_contract: ContractCall<N> = ContractCall::try_from(&plaintext)
-        .map_err(Error::from)
-        .attach_printable_lazy(|| {
-            format!("Failed to convert plaintext to CallContract: {value}")
-        })?;
 
     Ok(call_contract)
 }
 
+/// Searches for a contract call output in a slice of `IdValuePair` that matches the given payload hash.
+///
+/// # Arguments
+///
+/// * `outputs` - A slice of `IdValuePair` to search through.
+/// * `payload_hash` - The hash of the payload to match.
+///
+/// # Returns
+///
+/// * `Option<String>` - The matching contract call value as a string, if found.
 pub fn find_call_contract_in_outputs<N: Network>(
     outputs: &[IdValuePair],
     payload_hash: Field<N>,
@@ -48,14 +62,21 @@ pub fn find_call_contract_in_outputs<N: Network>(
     })
 }
 
-/// Generic function to find a specific type in the outputs
+/// Searches for a `SignersRotated` event in a slice of `IdValuePair`.
+///
+/// # Arguments
+///
+/// * `outputs` - A slice of `IdValuePair` to search through.
+///
+/// # Returns
+///
+/// * `Option<SignersRotated<N>>` - The found `SignersRotated` event, if any.
 pub fn find_signers_rotated_in_outputs<N: Network>(
     outputs: &[IdValuePair],
 ) -> Option<SignersRotated<N>> {
     outputs.iter().find_map(|output| {
         let value = output.value.as_ref()?;
-        let plaintext = Plaintext::<N>::from_str(value).ok()?;
-        let rotation: SignersRotated<N> = SignersRotated::try_from(&plaintext).ok()?;
+        let rotation: SignersRotated<N> = value.parse().ok()?;
         Some(rotation)
     })
 }

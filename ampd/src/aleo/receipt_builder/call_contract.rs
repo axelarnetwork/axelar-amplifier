@@ -1,9 +1,8 @@
 use aleo_compatible_keccak::AleoBitsToBytesExt as _;
+use axelar_wasm_std::hash::Hash;
 use router_api::ChainName;
 use sha3::Digest;
 use snarkvm::prelude::{Address, FromBytes, Network, Value};
-
-use crate::types::Hash;
 
 #[derive(Debug)]
 pub struct CallContractReceipt<N: Network> {
@@ -23,8 +22,7 @@ impl<N: Network> PartialEq<crate::handlers::aleo_verify_msg::Message<N>>
         };
 
         let aleo_payload_bytes = aleo_payload.to_bytes();
-        let aleo_payload_hash: [u8; 32] = sha3::Keccak256::digest(&aleo_payload_bytes).into();
-        let aleo_payload_hash = Hash::from_slice(&aleo_payload_hash);
+        let aleo_payload_hash: Hash = sha3::Keccak256::digest(&aleo_payload_bytes).into();
 
         self.transition == message.tx_id
             && self.destination_address == message.destination_address

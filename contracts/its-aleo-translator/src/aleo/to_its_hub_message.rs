@@ -1,4 +1,5 @@
 use aleo_gateway_types::{ItsOutgoingInterchainTransfer, RemoteDeployInterchainToken};
+use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
 use aleo_gmp_types::SafeGmpChainName;
 use aleo_string_encoder::StringEncoder;
 use axelar_wasm_std::nonempty;
@@ -9,8 +10,6 @@ use interchain_token_service_std::{
 use router_api::ChainNameRaw;
 use snarkvm_cosmwasm::prelude::Network;
 
-// use super::try_from_impl::{ItsOutgoingInterchainTransfer, RemoteDeployInterchainToken};
-use crate::aleo::token_id_conversion::ItsTokenIdNewType;
 use crate::aleo::Error;
 
 /// Trait to convert a message to a HubMessage

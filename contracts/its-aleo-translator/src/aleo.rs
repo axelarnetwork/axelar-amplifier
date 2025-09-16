@@ -11,7 +11,6 @@ use thiserror::Error;
 use crate::aleo::to_its_hub_message::ToItsHubMessage;
 
 mod to_its_hub_message;
-mod token_id_conversion;
 
 #[derive(Error, Debug, IntoContractError)]
 pub enum Error {
@@ -103,7 +102,7 @@ mod tests {
     use snarkvm_cosmwasm::prelude::Address;
 
     use super::*;
-    use crate::aleo::token_id_conversion::ItsTokenIdNewType;
+    use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
 
     type CurrentNetwork = snarkvm_cosmwasm::prelude::TestnetV0;
 

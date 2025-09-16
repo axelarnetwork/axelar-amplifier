@@ -13,7 +13,7 @@ use interchain_token_service_std::TokenId;
 /// - **ITS Format**: 32 bytes (256 bits) as `[u8; 32]`
 /// - **Aleo Format**: 2 × u128 values as `[u128; 2]`
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ItsTokenIdNewType(pub [u128; 2]);
+pub struct ItsTokenIdNewType(pub [u128; 2]);
 
 impl From<ItsTokenIdNewType> for TokenId {
     /// Converts from Aleo's u128 pair format back to ITS TokenId.

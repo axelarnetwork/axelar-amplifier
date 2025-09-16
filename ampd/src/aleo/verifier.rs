@@ -14,7 +14,16 @@ pub fn verify_message<N: Network>(
     msg: &Message<N>,
 ) -> Vote {
     let res = match receipt {
-        Receipt::Found(transition_receipt) => transition_receipt == msg,
+        Receipt::Found(transition_receipt) => {
+            if transition_receipt == msg {
+                true
+            } else {
+                warn!(
+                    "Message verification failed: left = {transition_receipt:#?}, right = {msg:#?}",
+                );
+                false
+            }
+        }
         Receipt::NotFound(transition, e) => {
             warn!("AleoMessageId: {:#?} is not verified: {:?}", transition, e);
 

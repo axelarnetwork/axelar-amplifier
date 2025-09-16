@@ -21,7 +21,6 @@ aleo-string-encoder = { workspace = true }
 
 # Axelar dependencies
 axelar-wasm-std = { workspace = true }
-bytemuck = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }

@@ -23,7 +23,8 @@ use crate::aleo::{CallContractReceipt, Receipt, ReceiptBuilder};
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::types::{Hash, TMAddress};
+use crate::types::TMAddress;
+use axelar_wasm_std::hash::Hash;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(bound = "Address<N>: Serialize + for<'a> Deserialize<'a>")]
@@ -225,6 +226,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+    use hex::FromHex;
 
     use cosmrs::AccountId;
 
@@ -254,7 +256,7 @@ mod tests {
                 "aleo1s3ws5tra87fjycnjrwsjcrnw2qxr8jfqqdugnf0xzqqw29q9m5pqem2u4t",
             )
             .unwrap(),
-            payload_hash: Hash::from_str(
+            payload_hash: Hash::from_hex(
                 "54052273bc5d7afe1080d5760588cbe0b9889cb43804d68697f4b698bf116e8e",
             )
             .unwrap(),
@@ -338,8 +340,6 @@ mod tests {
             .iter()
             .map(|msg| MsgExecuteContract::decode(msg.value.as_slice()).unwrap())
             .collect();
-
-        println!("res: {:?}", res);
 
         for r in res {
             let decode: ExecuteMsg = serde_json::from_slice(&r.msg).unwrap();

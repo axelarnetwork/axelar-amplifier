@@ -189,10 +189,7 @@ where
             info!("ready to verify messages in poll");
 
             let vote = verify_verifier_set(&receipt, &verifier_set);
-            info!(
-                vote = ?vote,
-                "ready to vote for messages in poll"
-            );
+            info!(?vote, "ready to vote for messages in poll");
 
             vote
         });

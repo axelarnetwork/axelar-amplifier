@@ -90,7 +90,7 @@ pub fn migrate(
     CONFIG.save(
         deps.storage,
         &Config {
-            network: NetworkConfig::TestnetV0, // Default to TestnetV0 for migration
+            network: NetworkConfig::TestnetV0, // Default value for migration
         },
     )?;
 

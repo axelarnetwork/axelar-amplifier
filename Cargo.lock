@@ -5658,7 +5658,6 @@ dependencies = [
  "aleo-network-config",
  "aleo-string-encoder",
  "axelar-wasm-std",
- "bytemuck",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
