@@ -357,11 +357,11 @@ mod tests {
 
         abci::Event::new(
             generate(10, charset),
-            vec![abci::EventAttribute {
+            vec![abci::EventAttribute::V037(abci::v0_37::EventAttribute {
                 key: STANDARD.encode(generate(10, charset)),
                 value: STANDARD.encode(generate(10, charset)),
                 index: false,
-            }],
+            })],
         )
     }
 
