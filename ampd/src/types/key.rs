@@ -82,6 +82,7 @@ impl fmt::Display for PublicKey {
                 write!(f, "ed25519: {}", HexBinary::from(key.to_bytes()).to_hex())
             }
             PublicKey::AleoSchnorr(key) => {
+                // TODO: handle Aleo network generally
                 write!(
                     f,
                     "aleo_schnorr: {}",
