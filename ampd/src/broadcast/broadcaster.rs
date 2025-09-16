@@ -646,6 +646,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn estimate_gas_should_retry_with_expected_sequence_number() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let expected_sequence = sequence + 1;
+        let gas_used = 100000u64;
+
+        let (mut mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
+            account_number,
+            sequence,
+            "1000000".to_string(),
+        );
+
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Err(error_stack::report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal(format!(
+                        "account sequence mismatch, expected {}, got {}",
+                        expected_sequence, sequence
+                    ))
+                )))
+            });
+
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used,
+                    }),
+                    result: None,
+                })
+            });
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
+
+        let msgs = vec![dummy_msg()];
+        let result = broadcaster.estimate_gas(msgs).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), gas_used);
+        assert_eq!(*broadcaster.acc_sequence.read().await, expected_sequence);
+    }
+
+    #[tokio::test]
     async fn broadcast_should_succeed() {
         let pub_key = random_cosmos_public_key();
         let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
