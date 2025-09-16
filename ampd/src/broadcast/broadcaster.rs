@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::ops::Mul;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
@@ -17,6 +17,10 @@ use crate::broadcast::dec_coin::DecCoin;
 use crate::broadcast::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
+
+static SEQUENCE_ERROR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"account sequence mismatch, expected (\d+), got (\d+)").expect("Invalid regex")
+});
 
 /// `Broadcaster` provides transaction broadcasting functionality for Cosmos networks.
 ///
@@ -197,7 +201,7 @@ where
             .await
         {
             Ok(gas) => Ok(gas),
-            Err(e) => match parse_sequence_error(&e) {
+            Err(e) => match parse_sequence_error(e.to_string()) {
                 // Retry with the expected sequence number
                 Some(expected_seq) => {
                     let mut acc_sequence = self.acc_sequence.write().await;
@@ -310,13 +314,9 @@ where
     Ok(())
 }
 
-fn parse_sequence_error(error: &impl std::fmt::Display) -> Option<u64> {
-    let error_str = error.to_string();
-
-    let re =
-        Regex::new(r"account sequence mismatch, expected (\d+), got (\d+)").expect("Invalid regex");
-
-    re.captures(&error_str)
+fn parse_sequence_error(error_msg: String) -> Option<u64> {
+    SEQUENCE_ERROR_REGEX
+        .captures(&error_msg)
         .and_then(|caps| caps.get(1))
         .and_then(|m| m.as_str().parse::<u64>().ok())
 }
