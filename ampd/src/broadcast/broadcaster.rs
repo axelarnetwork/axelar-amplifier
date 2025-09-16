@@ -195,24 +195,25 @@ where
     ///
     /// * `Error::EstimateGas` - If the gas estimation fails
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
-        let sequence = *self.acc_sequence.read().await;
+        let mut acc_sequence = self.acc_sequence.write().await;
 
-        let res = match cosmos::estimate_gas(&mut self.client, msgs.clone(), self.pub_key, sequence)
-            .await
-        {
-            Ok(gas) => Ok(gas),
-            Err(e) => match parse_sequence_error(e.to_string()) {
-                // Retry with the expected sequence number
-                Some(expected_seq) => {
-                    let mut acc_sequence = self.acc_sequence.write().await;
-                    *acc_sequence = expected_seq;
+        let res =
+            match cosmos::estimate_gas(&mut self.client, msgs.clone(), self.pub_key, *acc_sequence)
+                .await
+            {
+                Ok(gas) => Ok(gas),
+                Err(e) => match parse_sequence_error(e.to_string()) {
+                    // Retry with the expected sequence number
+                    Some(expected_seq) => {
+                        *acc_sequence = expected_seq;
 
-                    cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence).await
-                }
-                // Return the error if not a sequence mismatch error
-                None => Err(e),
-            },
-        };
+                        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
+                            .await
+                    }
+                    // Return the error if not a sequence mismatch error
+                    None => Err(e),
+                },
+            };
 
         res.change_context(Error::EstimateGas)
     }
