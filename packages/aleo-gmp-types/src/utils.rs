@@ -3,6 +3,7 @@ use snarkvm_cosmwasm::prelude::{Group, Network, Plaintext, ToBits as _, Value};
 
 use crate::error::Error;
 
+/// Hashes an Aleo Value using the BHP256 hash function.
 pub fn bhp<N: Network>(input: impl TryInto<Value<N>>) -> Result<Group<N>, Error> {
     match input.try_into() {
         Ok(value) => Ok(N::hash_to_group_bhp256(&value.to_bits_le())?),
@@ -10,10 +11,11 @@ pub fn bhp<N: Network>(input: impl TryInto<Value<N>>) -> Result<Group<N>, Error>
     }
 }
 
+/// The default message hash for BHP256
 pub const BHP256_DEFAULT_MESSAGE_HASH: &str =
     "5624351157314659457528959265595678785504211653467162698798408943103183676908group";
 
-// Use this function to compute the default message hash
+/// Computes the default message hash
 pub fn default_message_hash<N: Network>() -> Group<N> {
     #![allow(clippy::unwrap_used)]
     let message = Message::<N>::default();
