@@ -554,7 +554,7 @@ mod tests {
                 .unwrap();
 
             let verifier_set_id = subkey.id();
-            let verifier_set = verifier_set(deps.as_ref().storage, &verifier_set_id).unwrap();
+            let verifier_set = verifier_set(deps.as_ref().storage, verifier_set_id).unwrap();
             let message = match subkey {
                 VerifierSetId::Ecdsa(_) => ecdsa_test_data::message(),
                 VerifierSetId::Ed25519(_) => ed25519_test_data::message(),
@@ -605,7 +605,7 @@ mod tests {
             let res = do_start_signing_session(
                 deps.as_mut(),
                 cosmos_addr!("someone else"),
-                &verifier_set_id,
+                verifier_set_id,
                 chain_name.clone(),
                 None,
             );

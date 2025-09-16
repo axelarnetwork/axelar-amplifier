@@ -241,9 +241,9 @@ pub enum VerifierSetId {
 impl VerifierSetId {
     pub fn id(&self) -> &str {
         match self {
-            VerifierSetId::Ecdsa(id) => &id,
-            VerifierSetId::Ed25519(id) => &id,
-            VerifierSetId::AleoSchnorr(id) => &id,
+            VerifierSetId::Ecdsa(id) => id,
+            VerifierSetId::Ed25519(id) => id,
+            VerifierSetId::AleoSchnorr(id) => id,
         }
     }
 }
