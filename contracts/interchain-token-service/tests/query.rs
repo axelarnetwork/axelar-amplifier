@@ -384,9 +384,7 @@ fn query_custom_token_metadata() {
         hub_message,
     ));
 
-    let result =
-        utils::query_custom_token_metadata(deps.as_ref(), chain, token_address)
-            .unwrap();
+    let result = utils::query_custom_token_metadata(deps.as_ref(), chain, token_address).unwrap();
     assert!(result.is_some());
 
     let metadata = result.unwrap();
