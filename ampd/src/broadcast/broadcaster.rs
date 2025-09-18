@@ -10,6 +10,7 @@ use num_traits::cast;
 use regex::Regex;
 use report::ResultCompatExt;
 use tokio::sync::{RwLock, RwLockWriteGuard};
+use tracing::info;
 use typed_builder::TypedBuilder;
 
 use super::{Error, Result};
@@ -197,28 +198,37 @@ where
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
         let mut acc_sequence = self.acc_sequence.write().await;
 
-        let res =
-            match cosmos::estimate_gas(&mut self.client, msgs.clone(), self.pub_key, *acc_sequence)
-                .await
-            {
-                Ok(gas) => Ok(gas),
-                Err(e) => match parse_sequence_error(e.to_string()) {
-                    // Retry with the expected sequence number in case of sequence mismatch. Reasons why this might happen:
-                    // 1. The account sequence got unsynchronized when another instance of ampd broadcasted a transaction.
-                    //    i.e. an ampd command was executed while the daemon was running.
-                    // 2. The account sequence was incremented after a broadcast, but the transaction failed to be confirmed in the blockchain.
-                    //    therefore expecting the previous sequence number.
-                    // 3. The account sequence was reset, while there were still some transactions in the mempool.
-                    Some(expected_seq) => {
-                        *acc_sequence = expected_seq;
+        let res = match cosmos::estimate_gas(
+            &mut self.client,
+            msgs.clone(),
+            self.pub_key,
+            *acc_sequence,
+        )
+        .await
+        {
+            Ok(gas) => Ok(gas),
+            Err(e) => match parse_sequence_error(e.to_string()) {
+                // Retry with the expected sequence number in case of sequence mismatch. Reasons why this might happen:
+                // 1. The account sequence got unsynchronized when another instance of ampd broadcasted a transaction.
+                //    i.e. an ampd command was executed while the daemon was running.
+                // 2. The account sequence was incremented after a broadcast, but the transaction failed to be confirmed in the blockchain.
+                //    therefore expecting the previous sequence number.
+                // 3. The account sequence was reset, while there were still some transactions in the mempool.
+                Some(expected_seq) => {
+                    info!(
+                            "account sequence mismatch, expected {}, got {}, retrying with expected sequence number",
+                            expected_seq,
+                            *acc_sequence
+                        );
 
-                        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
-                            .await
-                    }
-                    // Return the error if not a sequence mismatch error
-                    None => Err(e),
-                },
-            };
+                    *acc_sequence = expected_seq;
+
+                    cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence).await
+                }
+                // Return the error if not a sequence mismatch error
+                None => Err(e),
+            },
+        };
 
         res.change_context(Error::EstimateGas)
     }
