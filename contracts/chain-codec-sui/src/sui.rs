@@ -12,7 +12,7 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use sui_gateway::{CommandType, ExecuteData, Message, MessageToSign, Proof, WeightedSigners};
 
-use crate::error::Error;
+use chain_codec_api::error::Error;
 
 #[inline]
 pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {

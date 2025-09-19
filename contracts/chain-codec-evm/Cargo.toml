@@ -1,10 +1,10 @@
 [package]
-name = "chain-codec"
+name = "chain-codec-evm"
 version = "0.1.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
-description = "Chain codec contract for EVM / Sui / Stellar chains, using their respective encodings and address formats"
+description = "Chain codec contract for EVM using ABI encoding and EIP55 addresses"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

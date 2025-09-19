@@ -1,15 +1,13 @@
 use axelar_wasm_std::error::ContractError;
+use chain_codec_api::error::Error;
 use chain_codec_api::msg::{ExecuteMsg, ExecuteMsgFromProxy, QueryMsg};
-use crate::msg::InstantiateMsg;
+use chain_codec_api::state::{load_config, save_config, Config};
+use chain_codec_api::msg::InstantiateMsg;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response, Storage
 };
 use msgs_derive::ensure_permissions;
-
-use crate::encoding;
-use crate::error::Error;
-use crate::state::{load_config, save_config, ChainType, Config};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -26,8 +24,7 @@ pub fn instantiate(
     save_config(
         deps.storage,
         &Config {
-            multisig_prover: deps.api.addr_validate(&msg.base.multisig_prover)?,
-            chain_type: msg.chain_type.into(),
+            multisig_prover: deps.api.addr_validate(&msg.multisig_prover)?,
         },
     )?;
 
@@ -35,7 +32,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     Ok(match msg {
         QueryMsg::EncodeExecData {
             domain_separator,
@@ -43,21 +40,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             signers,
             payload,
         } => {
-            let config = load_config(deps.storage);
-            let execute_data = match config.chain_type {
-                ChainType::Evm => encoding::evm::encode_execute_data(&domain_separator, &verifier_set, signers, &payload)?,
-                ChainType::Sui => encoding::sui::encode_execute_data(&domain_separator, &verifier_set, signers, &payload)?,
-                ChainType::Stellar => encoding::stellar::encode_execute_data(&domain_separator, &verifier_set, signers, &payload)?,
-            };
-            to_json_binary(&execute_data)?
+            to_json_binary(&crate::stellar::encode_execute_data(&domain_separator, &verifier_set, signers, &payload)?)?
         }
         QueryMsg::ValidateAddress { address } => {
-            let config = load_config(deps.storage);
-            match config.chain_type {
-                ChainType::Evm => encoding::evm::validate_address(&address)?,
-                ChainType::Sui => encoding::sui::validate_address(&address)?,
-                ChainType::Stellar => encoding::stellar::validate_address(&address)?,
-            }
+            crate::stellar::validate_address(&address)?;
 
             to_json_binary(&Empty {})?
         }
@@ -67,13 +53,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             payload,
             full_message_payloads: _, // we don't need this here
         } => {
-            let config = load_config(deps.storage);
-            let payload_digest = match config.chain_type {
-                ChainType::Evm => encoding::evm::payload_digest(&domain_separator, &verifier_set, &payload)?,
-                ChainType::Sui => encoding::sui::payload_digest(&domain_separator, &verifier_set, &payload)?,
-                ChainType::Stellar => encoding::stellar::payload_digest(&domain_separator, &verifier_set, &payload)?,
-            };
-            to_json_binary(&HexBinary::from(payload_digest))?
+            to_json_binary(&HexBinary::from(crate::stellar::payload_digest(&domain_separator, &verifier_set, &payload)?))?
         }
     })
 }

@@ -1,4 +1,4 @@
-use chain_codec::contract::{execute, instantiate, query};
+use chain_codec_evm::contract::{execute, instantiate, query};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, Empty};
 use cw_multi_test::{ContractWrapper, Executor};

@@ -15,7 +15,7 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 
-use crate::error::Error;
+use chain_codec_api::error::Error;
 
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 

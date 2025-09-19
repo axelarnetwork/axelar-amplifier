@@ -10,7 +10,7 @@ use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 
-use crate::error::Error;
+use chain_codec_api::error::Error;
 
 #[inline]
 pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {
@@ -83,6 +83,7 @@ pub fn encode_execute_data(
 
     Ok(execute_data.as_slice().into())
 }
+
 #[cfg(test)]
 mod tests {
     use chain_codec_api::Payload;
@@ -94,7 +95,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
 
-    use crate::encoding::stellar::{encode_execute_data, payload_digest};
+    use super::{encode_execute_data, payload_digest};
 
     #[test]
     fn stellar_messages_payload_digest() {

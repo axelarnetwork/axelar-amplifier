@@ -5,8 +5,10 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
 
-use crate::error::Error;
 use crate::msg::{ExecuteMsg, QueryMsg};
+pub use error::ClientError;
+
+mod error;
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
     fn from(client: client::ContractClient<'a, ExecuteMsg, QueryMsg>) -> Self {
@@ -25,7 +27,7 @@ impl Client<'_> {
         verifier_set: VerifierSet,
         payload: Payload,
         full_message_payloads: Vec<HexBinary>,
-    ) -> Result<HexBinary, Error> {
+    ) -> Result<HexBinary, ClientError> {
         let msg = QueryMsg::PayloadDigest {
             domain_separator,
             verifier_set,
@@ -34,7 +36,7 @@ impl Client<'_> {
         };
         self.client
             .query(&msg)
-            .change_context_lazy(|| Error::for_query(msg))
+            .change_context_lazy(|| ClientError::for_query(msg))
     }
 
     pub fn notify_signing_session(
@@ -60,7 +62,7 @@ impl Client<'_> {
         verifier_set: VerifierSet,
         signers: Vec<SignerWithSig>,
         payload: Payload,
-    ) -> Result<HexBinary, Error> {
+    ) -> Result<HexBinary, ClientError> {
         let msg = QueryMsg::EncodeExecData {
             domain_separator,
             verifier_set,
@@ -69,13 +71,13 @@ impl Client<'_> {
         };
         self.client
             .query(&msg)
-            .change_context_lazy(|| Error::for_query(msg))
+            .change_context_lazy(|| ClientError::for_query(msg))
     }
 
-    pub fn validate_address(&self, address: String) -> Result<Empty, Error> {
+    pub fn validate_address(&self, address: String) -> Result<Empty, ClientError> {
         let msg = QueryMsg::ValidateAddress { address };
         self.client
             .query(&msg)
-            .change_context_lazy(|| Error::for_query(msg))
+            .change_context_lazy(|| ClientError::for_query(msg))
     }
 }
