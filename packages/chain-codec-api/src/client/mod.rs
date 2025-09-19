@@ -1,12 +1,12 @@
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::{Empty, HexBinary};
+pub use error::ClientError;
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
 
 use crate::msg::{ExecuteMsg, QueryMsg};
-pub use error::ClientError;
 
 mod error;
 

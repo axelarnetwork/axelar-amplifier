@@ -1,5 +1,6 @@
 use axelar_wasm_std::address::validate_cosmwasm_address;
-use axelar_wasm_std::{hash::Hash, migrate_from_version, MajorityThreshold};
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::{migrate_from_version, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;

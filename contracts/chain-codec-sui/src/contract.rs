@@ -1,10 +1,9 @@
 use axelar_wasm_std::error::ContractError;
 use chain_codec_api::error::Error;
-use chain_codec_api::msg::QueryMsg;
-use chain_codec_api::msg::InstantiateMsg;
-use cosmwasm_std::entry_point;
+use chain_codec_api::msg::{InstantiateMsg, QueryMsg};
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo,
+    Response,
 };
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -30,9 +29,12 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractEr
             verifier_set,
             signers,
             payload,
-        } => {
-            to_json_binary(&crate::sui::encode_execute_data(&domain_separator, &verifier_set, signers, &payload)?)?
-        }
+        } => to_json_binary(&crate::sui::encode_execute_data(
+            &domain_separator,
+            &verifier_set,
+            signers,
+            &payload,
+        )?)?,
         QueryMsg::ValidateAddress { address } => {
             crate::sui::validate_address(&address)?;
 
@@ -43,8 +45,10 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractEr
             verifier_set,
             payload,
             full_message_payloads: _, // we don't need this here
-        } => {
-            to_json_binary(&HexBinary::from(crate::sui::payload_digest(&domain_separator, &verifier_set, &payload)?))?
-        }
+        } => to_json_binary(&HexBinary::from(crate::sui::payload_digest(
+            &domain_separator,
+            &verifier_set,
+            &payload,
+        )?))?,
     })
 }

@@ -1,5 +1,6 @@
 use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
+use chain_codec_api::error::Error;
 use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
@@ -14,8 +15,6 @@ use multisig::key::Signature;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
-
-use chain_codec_api::error::Error;
 
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 

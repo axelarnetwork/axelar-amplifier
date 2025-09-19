@@ -531,11 +531,13 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         .execute(
             &mut protocol.app,
             protocol.governance_address.clone(),
-            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(vec![CrossChainId::new(
-                chain1.chain_name.clone(),
-                "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
-            )
-            .unwrap()]))
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(
+                vec![CrossChainId::new(
+                    chain1.chain_name.clone(),
+                    "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
+                )
+                .unwrap()]
+            ))
         )
         .is_ok());
 }

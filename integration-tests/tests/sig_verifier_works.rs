@@ -103,7 +103,9 @@ fn sig_verifier_called() {
         .execute(
             &mut protocol.app,
             cosmos_addr!("anyone"),
-            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(vec![])),
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(
+                vec![],
+            )),
         )
         .unwrap();
 

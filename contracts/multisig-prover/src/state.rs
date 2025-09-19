@@ -1,4 +1,5 @@
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary};
 use cw_storage_plus::{Item, Map};
@@ -33,7 +34,8 @@ pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_ses
 
 // we only need to save full message payloads if both the `notify-signing-session` and `receive-payload`
 // features are enabled
-pub const FULL_MESSAGE_PAYLOADS: Map<&PayloadId, Vec<HexBinary>> = Map::new("full_message_payloads");
+pub const FULL_MESSAGE_PAYLOADS: Map<&PayloadId, Vec<HexBinary>> =
+    Map::new("full_message_payloads");
 
 pub const REPLY_TRACKER: Item<PayloadId> = Item::new("reply_tracker");
 

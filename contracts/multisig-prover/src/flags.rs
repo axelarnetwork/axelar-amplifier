@@ -21,7 +21,12 @@ pub fn query_payload_digest(
         client::ContractClient::new(deps.querier, &config.chain_codec).into();
 
     chain_codec
-        .payload_digest(config.domain_separator, verifier_set, payload, full_message_payloads)
+        .payload_digest(
+            config.domain_separator,
+            verifier_set,
+            payload,
+            full_message_payloads,
+        )
         .change_context(ContractError::FailedToQueryChainCodec)
 }
 
@@ -52,7 +57,9 @@ pub fn receive_full_payloads(
         }
     }
 
-    FULL_MESSAGE_PAYLOADS.save(deps.storage, &payload_id, full_message_payloads).map_err(ContractError::from)?;
+    FULL_MESSAGE_PAYLOADS
+        .save(deps.storage, &payload_id, full_message_payloads)
+        .map_err(ContractError::from)?;
 
     Ok(())
 }

@@ -13,11 +13,12 @@ pub struct ChainCodecContract {
 }
 
 impl ChainCodecContract {
-    pub fn instantiate_contract(
-        protocol: &mut Protocol,
-        multisig_prover: Addr,
-    ) -> Self {
-        let code = ContractWrapper::new_with_empty(|_, _, _, _: Empty| StdResult::Err(StdError::generic_err("no execute endpoint")), instantiate, query);
+    pub fn instantiate_contract(protocol: &mut Protocol, multisig_prover: Addr) -> Self {
+        let code = ContractWrapper::new_with_empty(
+            |_, _, _, _: Empty| StdResult::Err(StdError::generic_err("no execute endpoint")),
+            instantiate,
+            query,
+        );
 
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));

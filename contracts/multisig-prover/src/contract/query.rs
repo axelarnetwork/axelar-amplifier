@@ -39,7 +39,12 @@ pub fn proof(deps: Deps, multisig_session_id: Uint64) -> Result<ProofResponse, C
                 client::ContractClient::new(deps.querier, &config.chain_codec).into();
             let signers = multisig.optimize_signatures();
             let execute_data = chain_codec
-                .encode_exec_data(config.domain_separator, multisig.verifier_set, signers, payload.clone())
+                .encode_exec_data(
+                    config.domain_separator,
+                    multisig.verifier_set,
+                    signers,
+                    payload.clone(),
+                )
                 .change_context(ContractError::FailedToQueryChainCodec)?;
             ProofStatus::Completed { execute_data }
         }

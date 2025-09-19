@@ -1,4 +1,5 @@
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
 use msgs_derive::Permissions;
@@ -79,7 +80,10 @@ impl ConstructProofMsg {
     pub fn ids_and_payloads(self) -> (Vec<CrossChainId>, Vec<HexBinary>) {
         match self {
             ConstructProofMsg::Messages(message_ids) => (message_ids, vec![]),
-            ConstructProofMsg::WithFullPayloads { message_ids, full_message_payloads } => (message_ids, full_message_payloads),
+            ConstructProofMsg::WithFullPayloads {
+                message_ids,
+                full_message_payloads,
+            } => (message_ids, full_message_payloads),
         }
     }
 }

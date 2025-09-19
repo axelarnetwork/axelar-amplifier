@@ -735,8 +735,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             .unwrap()
     });
 
-    let chain_codec =
-        ChainCodecContract::instantiate_contract(protocol, prover_address.clone());
+    let chain_codec = ChainCodecContract::instantiate_contract(protocol, prover_address.clone());
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,

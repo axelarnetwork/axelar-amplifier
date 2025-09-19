@@ -1,6 +1,7 @@
 use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::FnExt;
+use chain_codec_api::error::Error;
 use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
@@ -9,8 +10,6 @@ use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
-
-use chain_codec_api::error::Error;
 
 #[inline]
 pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {

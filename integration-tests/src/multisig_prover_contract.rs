@@ -1,5 +1,6 @@
 use axelar_core_std::query::AxelarQueryMsg;
-use axelar_wasm_std::{hash::Hash, Threshold};
+use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::Threshold;
 use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
@@ -17,6 +18,7 @@ pub struct MultisigProverContract {
 }
 
 impl MultisigProverContract {
+    #[allow(clippy::too_many_arguments)]
     pub fn instantiate_contract(
         protocol: &mut Protocol,
         admin_address: Addr,

@@ -65,7 +65,13 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    receive_full_payloads(deps.branch(), &config, payload_id, &full_message_payloads, messages)?;
+    receive_full_payloads(
+        deps.branch(),
+        &config,
+        payload_id,
+        &full_message_payloads,
+        messages,
+    )?;
 
     let digest = query_payload_digest(
         deps.as_ref(),

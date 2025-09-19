@@ -79,7 +79,11 @@ pub fn execute(
     match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::ConstructProof(proof_msg) => {
             let (message_ids, full_message_payloads) = proof_msg.ids_and_payloads();
-            Ok(execute::construct_proof(deps, message_ids, full_message_payloads)?)
+            Ok(execute::construct_proof(
+                deps,
+                message_ids,
+                full_message_payloads,
+            )?)
         }
         ExecuteMsg::UpdateVerifierSet => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet => Ok(execute::confirm_verifier_set(deps, info.sender)?),
@@ -138,7 +142,9 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use multisig_prover_api::msg::{ConstructProofMsg, ProofResponse, ProofStatus, VerifierSetResponse};
+    use multisig_prover_api::msg::{
+        ConstructProofMsg, ProofResponse, ProofStatus, VerifierSetResponse,
+    };
     use prost::Message;
     use router_api::{cosmos_addr, CrossChainId};
 
