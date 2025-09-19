@@ -27,6 +27,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
+// safe upper bound for expected metric throughput;
+// shouldn't exceed 1000 message
+const CHANNEL_SIZE: usize = 1000;
+
 /// content-Type for Prometheus/OpenMetrics text format responses.
 const OPENMETRICS_CONTENT_TYPE: &str = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
@@ -148,8 +152,8 @@ impl Client {
 ///
 /// Panics if the Prometheus registry cannot be created or
 /// if metrics cannot be registered. This should never happen in normal operation.
-pub fn create_endpoint(channel_size: usize) -> (MethodRouter, Process, Client) {
-    let (tx, rx) = mpsc::channel(channel_size);
+pub fn create_endpoint() -> (MethodRouter, Process, Client) {
+    let (tx, rx) = mpsc::channel(CHANNEL_SIZE);
 
     let mut registry = <Registry>::default();
     let metrics = Metrics::new(&mut registry);
@@ -632,8 +636,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn should_update_all_metrics_successfully() {
-        let channel_size = 1000;
-        let (router, process, client) = create_endpoint(channel_size);
+        let (router, process, client) = create_endpoint();
         _ = process.run(CancellationToken::new());
 
         let router = Router::new().route("/test", router);

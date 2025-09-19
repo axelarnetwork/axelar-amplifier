@@ -18,18 +18,6 @@ pub struct Config {
     pub queue_cap: usize,
     #[serde(with = "humantime_serde")]
     pub broadcast_interval: Duration,
-    // Maximum number of transaction confirmations to process concurrently.
-    // - Controls parallelism when confirming transactions
-    // - Higher values increase throughput for confirming many transactions
-    // - Lower values reduce resource consumption
-    // - Balance based on network capacity and system resources
-    pub tx_confirmation_buffer_size: usize,
-    // Maximum capacity of the transaction confirmation queue.
-    // - Determines how many transactions can be queued for confirmation before backpressure
-    // - Larger values provide more buffering for high-volume transaction periods
-    // - Too small may cause confirmation requests to be dropped during traffic spikes
-    // - Too large may consume excessive memory if confirmations become backlogged
-    pub tx_confirmation_queue_cap: usize,
 }
 
 impl Default for Config {
@@ -45,8 +33,6 @@ impl Default for Config {
             batch_gas_limit: 1000000,
             queue_cap: 1000,
             broadcast_interval: Duration::from_secs(5),
-            tx_confirmation_buffer_size: 10,
-            tx_confirmation_queue_cap: 1000,
         }
     }
 }
