@@ -6,20 +6,6 @@ license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 description = "Chain codec contract for EVM / Sui / Stellar chains, using their respective encodings and address formats"
 
-[package.metadata.optimizer]
-standard-build = false
-builds = [
-    { name = "sui", features = [
-        "sui",
-    ], default-features = false },
-    { name = "evm", features = [
-        "evm",
-    ], default-features = false },
-    { name = "stellar", features = [
-        "stellar",
-    ], default-features = false },
-]
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -30,16 +16,6 @@ path = "src/bin/schema.rs"
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-
-default = ["evm"]
-
-# one of the following needs to be enabled:
-# enable this to build the Sui contract with BCS encoding and Sui addresses
-sui = []
-# enable this to build the EVM contract with ABI encoding and EIP55 addresses
-evm = []
-# enable this to build the Stellar contract with XDR encoding and Stellar addresses
-stellar = []
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
