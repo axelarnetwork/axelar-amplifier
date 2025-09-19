@@ -1,0 +1,9 @@
+{
+  "NotifySigningSession": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "multisig_prover"
+    ]
+  }
+}

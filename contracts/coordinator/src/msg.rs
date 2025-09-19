@@ -97,6 +97,11 @@ pub struct ProverMsg {
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
     pub key_type: KeyType,
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub domain_separator: Hash,
+    pub notify_signing_session: bool,
+    pub expect_full_message_payloads: bool,
     pub sig_verifier_address: Option<String>,
 }
 
