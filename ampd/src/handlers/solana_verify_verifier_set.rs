@@ -12,7 +12,6 @@ use events::Error::EventTypeMismatch;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
-use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -23,7 +22,7 @@ use crate::handlers::errors::Error;
 use crate::monitoring;
 use crate::monitoring::metrics;
 use crate::solana::verifier_set_verifier::verify_verifier_set;
-use crate::solana::SolanaRpcClientProxy;
+use crate::solana::{SolanaRpcClientProxy, SolanaTransaction};
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -95,12 +94,9 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
     async fn fetch_message(
         &self,
         msg: &VerifierSetConfirmation,
-    ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
+    ) -> Option<SolanaTransaction> {
         let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
-        self.rpc_client
-            .tx(&signature)
-            .await
-            .map(|tx| (signature, tx))
+        self.rpc_client.tx(&signature).await
     }
 }
 
@@ -150,12 +146,8 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         .in_scope(|| {
             info!("ready to verify a new verifier set in poll");
 
-            let vote = tx_receipt.map_or(Vote::NotFound, |(signature, tx_receipt)| {
-                verify_verifier_set(
-                    (&signature, &tx_receipt),
-                    &verifier_set,
-                    &self.solana_gateway_domain_separator,
-                )
+            let vote = tx_receipt.map_or(Vote::NotFound, |tx| {
+                verify_verifier_set(&tx, &verifier_set, &self.solana_gateway_domain_separator)
             });
 
             self.monitoring_client
@@ -195,7 +187,6 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::chain_name;
     use solana_sdk::signature::Signature;
-    use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
@@ -212,7 +203,7 @@ mod tests {
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
-        async fn tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+        async fn tx(&self, _signature: &Signature) -> Option<SolanaTransaction> {
             None
         }
 
@@ -224,21 +215,12 @@ mod tests {
     struct ValidResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
-        async fn tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
-            Some(UiTransactionStatusMeta {
+        async fn tx(&self, _signature: &Signature) -> Option<SolanaTransaction> {
+            Some(SolanaTransaction {
+                signature: *_signature,
+                ixs: vec![],
                 err: None,
-                status: Ok(()),
-                fee: 0,
-                pre_balances: vec![],
-                post_balances: vec![],
-                inner_instructions: OptionSerializer::None,
-                log_messages: OptionSerializer::None,
-                pre_token_balances: OptionSerializer::None,
-                post_token_balances: OptionSerializer::None,
-                rewards: OptionSerializer::None,
-                loaded_addresses: OptionSerializer::None,
-                return_data: OptionSerializer::None,
-                compute_units_consumed: OptionSerializer::None,
+                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID],
             })
         }
 

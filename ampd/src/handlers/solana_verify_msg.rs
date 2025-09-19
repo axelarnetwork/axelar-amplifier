@@ -13,13 +13,13 @@ use events::Error::EventTypeMismatch;
 use router_api::ChainName;
 use serde::Deserialize;
 use solana_sdk::pubkey::Pubkey;
-use solana_transaction_status::UiTransactionStatusMeta;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::solana::SolanaTransaction;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
@@ -88,15 +88,9 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         }
     }
 
-    async fn fetch_message(
-        &self,
-        msg: &Message,
-    ) -> Option<(solana_sdk::signature::Signature, UiTransactionStatusMeta)> {
+    async fn fetch_message(&self, msg: &Message) -> Option<SolanaTransaction> {
         let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
-        self.rpc_client
-            .tx(&signature)
-            .await
-            .map(|tx| (signature, tx))
+        self.rpc_client.tx(&signature).await
     }
 }
 
@@ -136,12 +130,17 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             return Ok(vec![]);
         }
 
-        let tx_calls = messages.iter().map(|msg| self.fetch_message(msg));
+        let tx_calls = messages.iter().map(|msg| async {
+            self.fetch_message(msg)
+                .await
+                .map(|tx| (msg.message_id.raw_signature.into(), tx))
+        });
         let finalized_tx_receipts = futures::future::join_all(tx_calls)
             .await
             .into_iter()
             .flatten()
-            .collect::<HashMap<_, _>>();
+            .collect::<HashMap<solana_sdk::signature::Signature, SolanaTransaction>>(
+            );
 
         let votes = info_span!(
             "verify messages from Solana",
@@ -160,8 +159,8 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
                 .iter()
                 .map(|msg| {
                     finalized_tx_receipts
-                        .get_key_value(&msg.message_id.raw_signature.into())
-                        .map_or(Vote::NotFound, |entry| verify_message(entry, msg))
+                        .get(&msg.message_id.raw_signature.into())
+                        .map_or(Vote::NotFound, |tx| verify_message(tx, msg))
                 })
                 .inspect(|vote| {
                     self.monitoring_client.metrics().record_metric(
@@ -195,7 +194,6 @@ mod test {
     use cosmrs::AccountId;
     use router_api::{address, chain_name};
     use solana_sdk::signature::Signature;
-    use solana_transaction_status::option_serializer::OptionSerializer;
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
@@ -211,7 +209,7 @@ mod test {
     struct EmptyResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for EmptyResponseSolanaRpc {
-        async fn tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
+        async fn tx(&self, _signature: &Signature) -> Option<SolanaTransaction> {
             None
         }
 
@@ -223,21 +221,13 @@ mod test {
     struct ValidResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
-        async fn tx(&self, _signature: &Signature) -> Option<UiTransactionStatusMeta> {
-            Some(UiTransactionStatusMeta {
+        async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
+            // Create mock transaction with empty instructions for testing
+            Some(SolanaTransaction {
+                signature: *signature,
+                ixs: vec![],
                 err: None,
-                status: Ok(()),
-                fee: 0,
-                pre_balances: vec![],
-                post_balances: vec![],
-                inner_instructions: OptionSerializer::None,
-                log_messages: OptionSerializer::None,
-                pre_token_balances: OptionSerializer::None,
-                post_token_balances: OptionSerializer::None,
-                rewards: OptionSerializer::None,
-                loaded_addresses: OptionSerializer::None,
-                return_data: OptionSerializer::None,
-                compute_units_consumed: OptionSerializer::None,
+                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
             })
         }
 
