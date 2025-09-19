@@ -1,6 +1,6 @@
-use chain_codec_evm::contract::{execute, instantiate, query};
+use chain_codec_evm::contract::{instantiate, query};
 use cosmwasm_std::testing::MockApi;
-use cosmwasm_std::{Addr, Empty};
+use cosmwasm_std::{Addr, Empty, StdError, StdResult};
 use cw_multi_test::{ContractWrapper, Executor};
 
 use crate::contract::Contract;
@@ -17,7 +17,7 @@ impl ChainCodecContract {
         protocol: &mut Protocol,
         multisig_prover: Addr,
     ) -> Self {
-        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
+        let code = ContractWrapper::new_with_empty(|_, _, _, _: Empty| StdResult::Err(StdError::generic_err("no execute endpoint")), instantiate, query);
 
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
