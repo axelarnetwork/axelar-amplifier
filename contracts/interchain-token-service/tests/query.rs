@@ -162,6 +162,50 @@ fn query_token_chain_config() {
 }
 
 #[test]
+fn query_token_config() {
+    let (
+        mut deps,
+        utils::TestMessage {
+            router_message,
+            source_its_contract,
+            source_its_chain,
+            destination_its_chain,
+            ..
+        },
+    ) = utils::setup();
+
+    let token_id = TokenId::new([1; 32]);
+
+    let token_config = utils::query_token_config(deps.as_ref(), token_id).unwrap();
+    assert_eq!(token_config, None);
+
+    let deploy_message = interchain_token_service_std::DeployInterchainToken {
+        token_id,
+        name: "Test Token".try_into().unwrap(),
+        symbol: "TEST".try_into().unwrap(),
+        decimals: 18,
+        minter: None,
+    };
+
+    let hub_message = interchain_token_service_std::HubMessage::SendToHub {
+        destination_chain: destination_its_chain.clone(),
+        message: deploy_message.into(),
+    };
+
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        router_message.cc_id.clone(),
+        source_its_contract.clone(),
+        hub_message,
+    ));
+
+    let token_config = utils::query_token_config(deps.as_ref(), token_id).unwrap();
+    assert!(token_config.is_some());
+    let config = token_config.unwrap();
+    assert_eq!(config.origin_chain, source_its_chain);
+}
+
+#[test]
 fn query_contract_enable_disable_lifecycle() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
