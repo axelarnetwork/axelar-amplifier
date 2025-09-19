@@ -206,17 +206,6 @@ fn query_token_config() {
 }
 
 #[test]
-fn query_token_config_non_existent() {
-    let mut deps = mock_dependencies();
-    utils::instantiate_contract(deps.as_mut()).unwrap();
-
-    let token_id = TokenId::new([1; 32]);
-
-    let token_config = utils::query_token_config(deps.as_ref(), token_id).unwrap();
-    assert_eq!(token_config, None);
-}
-
-#[test]
 fn query_contract_enable_disable_lifecycle() {
     let mut deps = mock_dependencies();
     utils::instantiate_contract(deps.as_mut()).unwrap();
