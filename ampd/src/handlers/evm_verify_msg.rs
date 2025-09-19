@@ -32,7 +32,7 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
