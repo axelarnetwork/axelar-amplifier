@@ -55,6 +55,7 @@ ethers-core = { workspace = true }
 evm-gateway = { workspace = true }
 itertools = { workspace = true }
 k256 = { workspace = true }
+msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 sha3 = { workspace = true }
 stellar = { workspace = true }

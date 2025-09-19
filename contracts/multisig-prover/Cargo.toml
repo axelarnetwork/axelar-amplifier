@@ -9,16 +9,6 @@ description = "Multisig prover contract"
 exclude = ["contract.wasm", "hash.txt"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[package.metadata.optimizer]
-standard-build = true
-builds = [
-    # other configurations are possible, but we currently only need the standard build and this one
-    { name = "rp-nss", features = [
-        "receive-payload",
-        "notify-signing-session",
-    ] },
-]
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -29,11 +19,6 @@ path = "src/bin/schema.rs"
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-receive-payload = [
-    "chain-codec-api/receive-payload",
-    "multisig-prover-api/receive-payload",
-]
-notify-signing-session = ["chain-codec-api/notify-signing-session"]
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }

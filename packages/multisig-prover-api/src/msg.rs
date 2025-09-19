@@ -1,4 +1,4 @@
-use axelar_wasm_std::MajorityThreshold;
+use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
 use msgs_derive::Permissions;
@@ -48,9 +48,40 @@ pub struct InstantiateMsg {
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
+    /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+    /// Value must be a String in hex format without `0x`, e.g. "598ba04d225cec385d1ce3cf3c9a076af803aa5c614bc0e0d176f04ac8d28f55".
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub domain_separator: Hash,
+    /// Whether to send the `NotifySigningSession` message to the chain-codec contract after a signing session is created.
+    /// Disabling this will save some gas.
+    pub notify_signing_session: bool,
+    /// Whether to expect the full message payloads during proof construction. Disable this if your relayer does not send the full message payloads.
+    pub expect_full_message_payloads: bool,
     /// Address of a contract responsible for signature verification.
     /// For detailed information, see [`multisig::msg::ExecuteMsg::StartSigningSession::sig_verifier`]
     pub sig_verifier_address: Option<String>,
+}
+
+#[cw_serde]
+#[serde(untagged)]
+pub enum ConstructProofMsg {
+    /// This variant is the default one and is used by most prover contracts.
+    Messages(Vec<CrossChainId>),
+    /// This variant was introduced for external integrations that need to receive the full message payloads in their chain-codec contract.
+    WithFullPayloads {
+        message_ids: Vec<CrossChainId>,
+        full_message_payloads: Vec<HexBinary>,
+    },
+}
+
+impl ConstructProofMsg {
+    pub fn ids_and_payloads(self) -> (Vec<CrossChainId>, Vec<HexBinary>) {
+        match self {
+            ConstructProofMsg::Messages(message_ids) => (message_ids, vec![]),
+            ConstructProofMsg::WithFullPayloads { message_ids, full_message_payloads } => (message_ids, full_message_payloads),
+        }
+    }
 }
 
 #[cw_serde]
@@ -59,17 +90,7 @@ pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
     #[permission(Any)]
-    #[cfg(not(feature = "receive-payload"))]
-    ConstructProof(Vec<CrossChainId>),
-    #[permission(Any)]
-    #[cfg(feature = "receive-payload")]
-    ConstructProof {
-        message_ids: Vec<CrossChainId>,
-        /// This contains the full message payloads for each message in `message_ids`.
-        /// The order has to be the same as `message_ids`, i.e. `full_message_payloads[i]` corresponds to `message_ids[i]`.
-        /// The hash of each payload is checked to match the message payload.
-        full_message_payloads: Vec<HexBinary>,
-    },
+    ConstructProof(ConstructProofMsg),
 
     #[permission(Elevated)]
     UpdateVerifierSet,

@@ -1,4 +1,3 @@
-use axelar_wasm_std::hash::Hash;
 use chain_codec::contract::{execute, instantiate, query};
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, Empty};
@@ -16,7 +15,6 @@ pub struct ChainCodecContract {
 impl ChainCodecContract {
     pub fn instantiate_contract(
         protocol: &mut Protocol,
-        domain_separator: Hash,
         multisig_prover: Addr,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
@@ -29,7 +27,6 @@ impl ChainCodecContract {
                 code_id,
                 MockApi::default().addr_make("anyone"),
                 &chain_codec_api::msg::InstantiateMsg {
-                    domain_separator,
                     multisig_prover: multisig_prover.to_string(),
                 },
                 &[],

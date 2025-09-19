@@ -26,7 +26,7 @@ use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use k256::ecdsa;
 use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
-use multisig_prover_api::msg::VerifierSetResponse;
+use multisig_prover_api::msg::{ConstructProofMsg, VerifierSetResponse};
 use rewards::PoolId;
 use router_api::{
     chain_name, cosmos_addr, Address, ChainName, CrossChainId, GatewayDirection, Message,
@@ -208,9 +208,9 @@ pub fn construct_proof_and_sign(
     let response = multisig_prover.execute(
         &mut protocol.app,
         cosmos_addr!(RELAYER),
-        &multisig_prover_api::msg::ExecuteMsg::ConstructProof(
+        &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(
             messages.iter().map(|msg| msg.cc_id.clone()).collect(),
-        ),
+        )),
     );
     assert!(response.is_ok());
 
@@ -736,7 +736,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     });
 
     let chain_codec =
-        ChainCodecContract::instantiate_contract(protocol, [0; 32], prover_address.clone());
+        ChainCodecContract::instantiate_contract(protocol, prover_address.clone());
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
@@ -761,6 +761,9 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
         None,
+        [0; 32],
+        false,
+        false,
     );
 
     // sanity check

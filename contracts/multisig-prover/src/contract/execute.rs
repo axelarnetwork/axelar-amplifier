@@ -24,7 +24,7 @@ use crate::state::{
 pub fn construct_proof(
     mut deps: DepsMut,
     message_ids: Vec<CrossChainId>,
-    full_message_payloads: Vec<cosmwasm_std::HexBinary>, // this is empty if the `receive-payload` feature is not enabled
+    full_message_payloads: Vec<cosmwasm_std::HexBinary>, // this is empty if the `ConstructProofMsg::Messages` variant was received
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
@@ -65,7 +65,7 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    receive_full_payloads(deps.branch(), payload_id, &full_message_payloads, messages)?;
+    receive_full_payloads(deps.branch(), &config, payload_id, &full_message_payloads, messages)?;
 
     let digest = query_payload_digest(
         deps.as_ref(),
@@ -577,6 +577,9 @@ mod tests {
             chain_name: chain_name!("ethereum"),
             verifier_set_diff_threshold: 0,
             key_type: multisig::key::KeyType::Ecdsa,
+            domain_separator: [0; 32],
+            notify_signing_session: false,
+            expect_full_message_payloads: false,
             sig_verifier_address: None,
         }
     }

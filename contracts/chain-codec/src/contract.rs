@@ -1,10 +1,11 @@
 use axelar_wasm_std::error::ContractError;
-use chain_codec_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use chain_codec_api::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response, Storage
 };
+use msgs_derive::ensure_permissions;
 
 use crate::encoding;
 use crate::error::Error;
@@ -25,7 +26,6 @@ pub fn instantiate(
     save_config(
         deps.storage,
         &Config {
-            domain_separator: msg.domain_separator,
             multisig_prover: deps.api.addr_validate(&msg.multisig_prover)?,
         },
     )?;
@@ -34,17 +34,16 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     Ok(match msg {
         QueryMsg::EncodeExecData {
+            domain_separator,
             verifier_set,
             signers,
             payload,
         } => {
-            let config = load_config(deps.storage);
-
             to_json_binary(&encoding::encode_execute_data(
-                &config.domain_separator,
+                &domain_separator,
                 &verifier_set,
                 signers,
                 &payload,
@@ -56,13 +55,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             to_json_binary(&Empty {})?
         }
         QueryMsg::PayloadDigest {
+            domain_separator,
             verifier_set,
             payload,
+            full_message_payloads: _, // we don't need this here
         } => {
-            let config = load_config(deps.storage);
-
             to_json_binary(&HexBinary::from(encoding::payload_digest(
-                &config.domain_separator,
+                &domain_separator,
                 &verifier_set,
                 &payload,
             )?))?
@@ -71,14 +70,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-// ExecuteMsg is just Empty because we don't enable notify-signing-session for chain-codec-api,
-// so we cannot call ensure_permissions
-#[allow(unknown_lints, execute_without_explicit_permissions)]
+#[ensure_permissions(direct(prover=find_prover_address))]
 pub fn execute(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     _msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     Ok(Response::new())
+}
+
+fn find_prover_address(
+    storage: &dyn Storage,
+    sender: &Addr,
+    _msg: &ExecuteMsg,
+) -> error_stack::Result<bool, Error> {
+    Ok(load_config(storage).multisig_prover == *sender)
 }

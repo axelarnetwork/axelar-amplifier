@@ -1,3 +1,4 @@
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::{Empty, HexBinary};
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
@@ -18,29 +19,15 @@ pub struct Client<'a> {
 }
 
 impl Client<'_> {
-    #[cfg(not(feature = "receive-payload"))]
     pub fn payload_digest(
         &self,
-        verifier_set: VerifierSet,
-        payload: Payload,
-    ) -> Result<HexBinary, Error> {
-        let msg = QueryMsg::PayloadDigest {
-            verifier_set,
-            payload,
-        };
-        self.client
-            .query(&msg)
-            .change_context_lazy(|| Error::for_query(msg))
-    }
-
-    #[cfg(feature = "receive-payload")]
-    pub fn payload_digest(
-        &self,
+        domain_separator: Hash,
         verifier_set: VerifierSet,
         payload: Payload,
         full_message_payloads: Vec<HexBinary>,
     ) -> Result<HexBinary, Error> {
         let msg = QueryMsg::PayloadDigest {
+            domain_separator,
             verifier_set,
             payload,
             full_message_payloads,
@@ -50,29 +37,16 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    #[cfg(all(feature = "notify-signing-session", not(feature = "receive-payload")))]
     pub fn notify_signing_session(
         &self,
-        multisig_session_id: cosmwasm_std::Uint64,
-        verifier_set: VerifierSet,
-        payload: Payload,
-    ) -> cosmwasm_std::CosmosMsg {
-        self.client.execute(&ExecuteMsg::NotifySigningSession {
-            multisig_session_id,
-            verifier_set,
-            payload,
-        })
-    }
-
-    #[cfg(all(feature = "notify-signing-session", feature = "receive-payload"))]
-    pub fn notify_signing_session(
-        &self,
+        domain_separator: Hash,
         multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
         full_message_payloads: Vec<HexBinary>,
     ) -> cosmwasm_std::CosmosMsg {
         self.client.execute(&ExecuteMsg::NotifySigningSession {
+            domain_separator,
             multisig_session_id,
             verifier_set,
             payload,
@@ -82,11 +56,13 @@ impl Client<'_> {
 
     pub fn encode_exec_data(
         &self,
+        domain_separator: Hash,
         verifier_set: VerifierSet,
         signers: Vec<SignerWithSig>,
         payload: Payload,
     ) -> Result<HexBinary, Error> {
         let msg = QueryMsg::EncodeExecData {
+            domain_separator,
             verifier_set,
             signers,
             payload,

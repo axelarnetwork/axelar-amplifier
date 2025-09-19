@@ -1,5 +1,5 @@
 use axelar_core_std::query::AxelarQueryMsg;
-use axelar_wasm_std::Threshold;
+use axelar_wasm_std::{hash::Hash, Threshold};
 use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
@@ -25,6 +25,9 @@ impl MultisigProverContract {
         chain_codec_address: Addr,
         chain_name: String,
         sig_verifier: Option<Addr>,
+        domain_separator: Hash,
+        notify_signing_session: bool,
+        expect_full_message_payloads: bool,
     ) -> Self {
         let code =
             ContractWrapper::new_with_empty(execute, instantiate, query).with_reply(custom_reply);
@@ -53,6 +56,9 @@ impl MultisigProverContract {
                     verifier_set_diff_threshold: 0,
                     key_type: KeyType::Ecdsa,
                     sig_verifier_address: sig_verifier.map(|addr| addr.to_string()),
+                    domain_separator,
+                    notify_signing_session,
+                    expect_full_message_payloads,
                 },
                 &[],
                 "multisig_prover",

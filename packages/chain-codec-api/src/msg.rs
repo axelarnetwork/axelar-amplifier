@@ -19,11 +19,6 @@ use multisig_prover_api::payload::Payload;
 /// }
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
-    /// Value must be a String in hex format without `0x`, e.g. "598ba04d225cec385d1ce3cf3c9a076af803aa5c614bc0e0d176f04ac8d28f55".
-    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
-    pub domain_separator: Hash,
     /// The multisig prover contract address.
     /// This is used for access control.
     pub multisig_prover: String,
@@ -35,6 +30,10 @@ pub enum QueryMsg {
     /// Encodes the execute data for the target chain that the relayer will submit.
     #[returns(HexBinary)]
     EncodeExecData {
+        /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        domain_separator: Hash,
         verifier_set: VerifierSet,
         signers: Vec<SignerWithSig>,
         payload: Payload,
@@ -47,21 +46,19 @@ pub enum QueryMsg {
     /// It's called by the multisig-prover contract during proof construction.
     #[returns(HexBinary)]
     PayloadDigest {
+        /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        domain_separator: Hash,
         verifier_set: VerifierSet,
         payload: Payload,
-        /// This field is only available if the multisig-prover contract was compiled with the `receive-payload` feature flag.
-        /// Therefore, it is also feature-gated in this crate.
-        /// This is only filled if the digest is for proof construction. For a verifier set update, it is empty.
-        /// Please note that you should validate this in some way.
-        #[cfg(feature = "receive-payload")]
+        /// This field is only available if the multisig-prover contract received the full message payloads and
+        /// if the digest is for proof construction. For a verifier set update or if the multisig-prover contract
+        /// did not receive the full message payloads, it is empty.
         full_message_payloads: Vec<HexBinary>,
     },
 }
 
-#[cfg(not(feature = "notify-signing-session"))]
-pub type ExecuteMsg = Empty;
-
-#[cfg(feature = "notify-signing-session")]
 #[cw_serde]
 #[derive(msgs_derive::Permissions)]
 pub enum ExecuteMsg {
@@ -75,13 +72,15 @@ pub enum ExecuteMsg {
     /// Therefore, it is also feature-gated in this crate.
     #[permission(Specific(multisig_prover))]
     NotifySigningSession {
+        /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+        #[serde(with = "axelar_wasm_std::hex")]
+        #[schemars(with = "String")]
+        domain_separator: Hash,
         multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
-        /// This field is only available if the multisig-prover contract was compiled with the `receive-payload` feature flag.
-        /// Therefore, it is also feature-gated in this crate.
-        /// This is only filled if the session is for proof construction. For a verifier set update, it is empty.
-        #[cfg(feature = "receive-payload")]
+        /// This field is only filled if the multisig-prover contract received the full message payloads and
+        /// if the session is for proof construction. For a verifier set update, it is empty.
         full_message_payloads: Vec<HexBinary>,
     },
 }

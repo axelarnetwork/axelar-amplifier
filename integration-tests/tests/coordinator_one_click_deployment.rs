@@ -16,6 +16,7 @@ use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
+use multisig_prover_api::msg::ConstructProofMsg;
 use router_api::{chain_name, cosmos_addr, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
@@ -142,6 +143,9 @@ fn instantiate_contracts(
                             protocol.governance_address.to_string(),
                         )
                         .expect("expected non-empty address"),
+                        domain_separator: [0; 32],
+                        notify_signing_session: false,
+                        expect_full_message_payloads: false,
                     },
                     contract_admin: protocol.governance_address.clone(),
                 },
@@ -527,11 +531,11 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         .execute(
             &mut protocol.app,
             protocol.governance_address.clone(),
-            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(vec![CrossChainId::new(
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(vec![CrossChainId::new(
                 chain1.chain_name.clone(),
                 "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
             )
-            .unwrap()])
+            .unwrap()]))
         )
         .is_ok());
 }

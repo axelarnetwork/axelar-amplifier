@@ -11,6 +11,7 @@ use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::PublicKey;
+use multisig_prover_api::msg::ConstructProofMsg;
 use router_api::{chain_name, cosmos_addr};
 
 pub mod test_utils;
@@ -32,7 +33,7 @@ fn sig_verifier_called() {
     });
 
     let chain_codec =
-        ChainCodecContract::instantiate_contract(&mut protocol, [0; 32], prover_address.clone());
+        ChainCodecContract::instantiate_contract(&mut protocol, prover_address.clone());
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol,
@@ -59,6 +60,9 @@ fn sig_verifier_called() {
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
         Some(sig_verifier.contract_addr.clone()),
+        [0; 32],
+        false,
+        false,
     );
 
     let response = protocol.coordinator.execute(
@@ -99,7 +103,7 @@ fn sig_verifier_called() {
         .execute(
             &mut protocol.app,
             cosmos_addr!("anyone"),
-            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(vec![]),
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(vec![])),
         )
         .unwrap();
 
