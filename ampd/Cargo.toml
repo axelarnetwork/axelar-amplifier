@@ -22,6 +22,9 @@ axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
+bech32 = "0.11.0"
+borsh = "1.5.1"
+bs58 = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = { workspace = true }
@@ -56,6 +59,7 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
+primitive-types = "0.12"
 prometheus-client = "0.23.1"
 prost = "0.13.5"
 prost-types = "0.13.5"

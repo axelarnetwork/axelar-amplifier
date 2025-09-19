@@ -6,15 +6,13 @@ use axelar_solana_gateway::processor::{GatewayEvent, VerifierSetRotated};
 use axelar_wasm_std::voting::Vote;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
-use solana_sdk::signature::Signature;
-use solana_transaction_status::UiTransactionStatusMeta;
 use tracing::error;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
 use crate::solana::verify;
 
 pub fn verify_verifier_set(
-    tx: (&Signature, &UiTransactionStatusMeta),
+    tx: &crate::solana::SolanaTransaction,
     message: &VerifierSetConfirmation,
     domain_separator: &[u8; 32],
 ) -> Vote {
@@ -86,93 +84,90 @@ mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
     use solana_sdk::pubkey::Pubkey;
-    use solana_transaction_status::option_serializer::OptionSerializer;
-    use solana_transaction_status::UiTransactionStatusMeta;
 
     use super::*;
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
-        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
         event.message_id.raw_signature = [0; 64];
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_failed() {
-        let ((signature, mut tx), event) = fixture_success_call_contract_tx_data();
+        let (mut tx, event) = fixture_success_call_contract_tx_data();
 
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::FailedOnChain
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
-        let ((signature, tx), event) = fixture_bad_gateway_call_contract_tx_data();
+        let (tx, event) = fixture_bad_gateway_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_log_index_does_not_match() {
-        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.event_index -= 1;
+        event.message_id.event_index = 999; // Use a high index that won't exist
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
-        event.message_id.event_index += 2;
+        event.message_id.event_index = 1001; // Another high index that won't exist
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
-        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
         event.message_id.event_index = u32::MAX as u64 + 1;
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
 
     #[test]
     fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
-        let ((signature, tx), mut event) = fixture_success_call_contract_tx_data();
+        let (tx, mut event) = fixture_success_call_contract_tx_data();
 
         event.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
     }
 
     #[test_log::test]
     fn should_verify_verifier_set_if_correct() {
-        let ((signature, tx), event) = fixture_success_call_contract_tx_data();
+        let (tx, event) = fixture_success_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set((&signature, &tx), &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::SucceededOnChain
         );
     }
 
     const DOMAIN_SEPARATOR: [u8; 32] = [42; 32];
-    const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
     const RAW_SIGNATURE: [u8; 64] = [42; 64];
 
     fn fixture_rotate_verifier_set() -> (
@@ -223,41 +218,63 @@ mod tests {
         (base64_data.to_string(), event, verifier_set)
     }
 
-    fn fixture_success_call_contract_tx_data() -> (
-        (Signature, UiTransactionStatusMeta),
-        VerifierSetConfirmation,
-    ) {
-        let (base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
-        let logs = vec![
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"),
-            "Program log: Instruction: Rotate Signers".to_string(),
-            "Program 11111111111111111111111111111111 invoke [2]".to_string(),
-            "Program 11111111111111111111111111111111 success".to_string(),
-            format!("Program data: {base64_data}"),
-            format!("Program {GATEWAY_PROGRAM_ID} consumed 11970 of 200000 compute units"),
-            format!("Program {GATEWAY_PROGRAM_ID} success"),
-        ];
+    fn fixture_success_call_contract_tx_data(
+    ) -> (crate::solana::SolanaTransaction, VerifierSetConfirmation) {
+        let (_base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
+        // Create mock CPI instruction data for VerifierSetRotated event
+        let mut epoch_bytes = [0u8; 32];
+        epoch_bytes[..8].copy_from_slice(&2_u64.to_le_bytes()); // Put u64 in first 8 bytes
+        let verifier_set_rotated_data = crate::solana::VerifierSetRotatedEventData {
+            epoch: epoch_bytes,
+            verifier_set_hash: [
+                172, 102, 223, 34, 98, 37, 150, 236, 159, 55, 30, 83, 126, 25, 217, 16, 52, 190,
+                185, 64, 74, 9, 32, 209, 0, 157, 188, 102, 123, 165, 110, 12,
+            ],
+        };
+
+        // Serialize the event with discriminators
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(&crate::solana::CPI_EVENT_DISC);
+        instruction_data.extend_from_slice(&crate::solana::VERIFIER_SET_ROTATED_EVENT_DISC);
+        instruction_data.extend_from_slice(&borsh::to_vec(&verifier_set_rotated_data).unwrap());
+
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 0,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let instruction = solana_transaction_status::UiInstruction::Compiled(compiled_instruction);
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![instruction],
+        }];
 
         (
-            (RAW_SIGNATURE.into(), tx_meta(logs)),
+            crate::solana::SolanaTransaction {
+                signature: RAW_SIGNATURE.into(),
+                ixs: inner_instructions,
+                err: None,
+                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+            },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    event_index: 4,
+                    event_index: 0, // CPI events start at index 0
                 },
                 verifier_set: actual_verifier_set,
             },
         )
     }
 
-    fn fixture_bad_gateway_call_contract_tx_data() -> (
-        (Signature, UiTransactionStatusMeta),
-        VerifierSetConfirmation,
-    ) {
+    fn fixture_bad_gateway_call_contract_tx_data(
+    ) -> (crate::solana::SolanaTransaction, VerifierSetConfirmation) {
         let gateway_address = Pubkey::new_unique();
 
         let (base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
-        let logs = vec![
+        let _logs = [
             format!("Program {gateway_address} invoke [1]"),
             "Program log: Instruction: Rotate Signers".to_string(),
             "Program 11111111111111111111111111111111 invoke [2]".to_string(),
@@ -268,32 +285,19 @@ mod tests {
         ];
 
         (
-            (RAW_SIGNATURE.into(), tx_meta(logs)),
+            crate::solana::SolanaTransaction {
+                signature: RAW_SIGNATURE.into(),
+                ixs: vec![],
+                err: None,
+                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+            },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    event_index: 4,
+                    event_index: 0, // CPI events start at index 0
                 },
                 verifier_set: actual_verifier_set,
             },
         )
-    }
-
-    fn tx_meta(logs: Vec<String>) -> UiTransactionStatusMeta {
-        UiTransactionStatusMeta {
-            err: None,
-            status: Ok(()),
-            fee: 0,
-            pre_balances: vec![0],
-            post_balances: vec![0],
-            inner_instructions: OptionSerializer::None,
-            log_messages: OptionSerializer::Some(logs),
-            pre_token_balances: OptionSerializer::None,
-            post_token_balances: OptionSerializer::None,
-            rewards: OptionSerializer::None,
-            loaded_addresses: OptionSerializer::None,
-            return_data: OptionSerializer::None,
-            compute_units_consumed: OptionSerializer::None,
-        }
     }
 }
