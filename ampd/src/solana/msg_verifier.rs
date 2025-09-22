@@ -100,9 +100,16 @@ mod tests {
 
     #[test]
     fn should_fail_tx_failed() {
-        // For SolanaTransaction, we don't have err field, so this test is no longer applicable
-        // In the new structure, transaction failure would be handled at the RPC level
-        // and we wouldn't get a SolanaTransaction object at all
+        let (tx, _event, msg) = fixture_success_call_contract_tx_data();
+        
+        // Create a failed transaction by setting the err field
+        let mut failed_tx = tx;
+        failed_tx.err = Some(solana_sdk::transaction::TransactionError::InstructionError(
+            0,
+            solana_sdk::instruction::InstructionError::Custom(1)
+        ));
+        
+        assert_eq!(Vote::FailedOnChain, verify_message(&failed_tx, &msg));
     }
 
     #[test]
