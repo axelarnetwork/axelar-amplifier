@@ -12,6 +12,9 @@ commands = []
 config = []
 url = []
 dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
+aleo-testnet = []
+aleo-mainnet = []
+aleo-canary = []
 
 [dependencies]
 aleo-gmp-types = { workspace = true }
