@@ -14,7 +14,10 @@ use multisig::key::PublicKey;
 use rewards::PoolId;
 use router_api::{chain_name, cosmos_addr};
 
-use crate::test_utils::{create_new_verifiers_vec, register_service, register_verifiers, setup_protocol, AXL_DENOMINATION, ETHEREUM};
+use crate::test_utils::{
+    create_new_verifiers_vec, register_service, register_verifiers, setup_protocol,
+    AXL_DENOMINATION, ETHEREUM,
+};
 
 pub mod test_utils;
 
