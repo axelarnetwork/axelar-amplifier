@@ -200,6 +200,46 @@ impl Uint128 {
     }
 }
 
+#[cw_serde]
+#[derive(Copy, PartialOrd, Ord, Eq, IntoInner)]
+pub struct Uint32(u32);
+
+impl TryFrom<u32> for Uint32 {
+    type Error = Error;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Err(Error::InvalidValue(value.to_string()))
+        } else {
+            Ok(Uint32(value))
+        }
+    }
+}
+
+impl TryFrom<i32> for Uint32 {
+    type Error = Error;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if value <= 0 {
+            Err(Error::InvalidValue(value.to_string()))
+        } else {
+            Ok(Uint32(value as u32))
+        }
+    }
+}
+
+impl From<Uint32> for u32 {
+    fn from(value: Uint32) -> Self {
+        value.0
+    }
+}
+
+impl From<Uint32> for usize {
+    fn from(value: Uint32) -> Self {
+        value.0 as usize
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,5 +345,29 @@ mod tests {
     fn convert_from_uint128_to_non_empty_uint128() {
         assert!(Uint128::try_from(0u128).is_err());
         assert!(Uint128::try_from(1u128).is_ok());
+    }
+
+    #[test]
+    fn convert_from_u32_to_uint32() {
+        // zero
+        assert_eq!(
+            Uint32::try_from(0u32).unwrap_err(),
+            Error::InvalidValue("0".into())
+        );
+
+        // non-zero
+        assert_eq!(u32::from(Uint32::try_from(100u32).unwrap()), 100u32);
+    }
+
+    #[test]
+    fn convert_from_i32_to_uint32() {
+        // zero
+        assert_eq!(
+            Uint32::try_from(0i32).unwrap_err(),
+            Error::InvalidValue("0".into())
+        );
+
+        // non-zero
+        assert_eq!(u32::from(Uint32::try_from(100i32).unwrap()), 100u32);
     }
 }

@@ -17,7 +17,7 @@ pub fn chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEndpoi
 pub fn chains(
     storage: &dyn Storage,
     start_after: Option<ChainName>,
-    limit: nonempty::Usize,
+    limit: nonempty::Uint32,
 ) -> Result<Vec<ChainEndpoint>, Error> {
     let start = start_after.map(Bound::exclusive);
 
@@ -107,7 +107,7 @@ mod test {
         let result = super::chains(
             deps.as_ref().storage,
             None,
-            nonempty::Usize::try_from(u32::MAX).unwrap(),
+            nonempty::Uint32::try_from(u32::MAX).unwrap(),
         )
         .unwrap();
         assert_eq!(result.len(), 4);
@@ -117,7 +117,7 @@ mod test {
         let result = super::chains(
             deps.as_ref().storage,
             None,
-            nonempty::Usize::try_from(2u32).unwrap(),
+            nonempty::Uint32::try_from(2u32).unwrap(),
         )
         .unwrap();
         assert_eq!(result.len(), 2);
@@ -127,7 +127,7 @@ mod test {
         let result = super::chains(
             deps.as_ref().storage,
             Some(chain_name!("c-chain")),
-            nonempty::Usize::try_from(2u32).unwrap(),
+            nonempty::Uint32::try_from(2u32).unwrap(),
         )
         .unwrap();
         assert_eq!(result.len(), 1);
@@ -137,7 +137,7 @@ mod test {
         let result = super::chains(
             deps.as_ref().storage,
             Some(chain_name!("d-chain")),
-            nonempty::Usize::try_from(2u32).unwrap(),
+            nonempty::Uint32::try_from(2u32).unwrap(),
         )
         .unwrap();
         assert_eq!(result.len(), 0);
@@ -146,7 +146,7 @@ mod test {
         let result = super::chains(
             deps.as_ref().storage,
             Some(chain_name!("e-chain")),
-            nonempty::Usize::try_from(2u32).unwrap(),
+            nonempty::Uint32::try_from(2u32).unwrap(),
         )
         .unwrap();
         assert_eq!(result.len(), 0);

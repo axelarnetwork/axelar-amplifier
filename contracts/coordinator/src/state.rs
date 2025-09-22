@@ -231,7 +231,7 @@ pub fn deployment(
 pub fn deployments(
     storage: &dyn Storage,
     start_after: Option<nonempty::String>,
-    limit: nonempty::Usize,
+    limit: nonempty::Uint32,
 ) -> Result<impl Iterator<Item = ChainContracts> + '_, Error> {
     Ok(DEPLOYED_CHAINS
         .range(

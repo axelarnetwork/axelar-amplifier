@@ -184,7 +184,7 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
             deps,
             filter,
             start_after,
-            nonempty::Usize::try_from(limit).map_err(|_| Error::InvalidLimit)?,
+            nonempty::Uint32::try_from(limit).map_err(|_| Error::InvalidLimit)?,
         )
         .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {

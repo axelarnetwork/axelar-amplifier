@@ -143,7 +143,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::Deployments { start_after, limit } => Ok(to_json_binary(&query::deployments(
             deps,
             start_after,
-            nonempty::Usize::try_from(limit).map_err(|_| Error::InvalidLimit)?,
+            nonempty::Uint32::try_from(limit).map_err(|_| Error::InvalidLimit)?,
         )?)?),
         QueryMsg::Deployment { deployment_name } => {
             Ok(to_json_binary(&query::deployment(deps, deployment_name)?)?)

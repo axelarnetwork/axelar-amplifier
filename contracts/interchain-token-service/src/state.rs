@@ -198,7 +198,7 @@ pub fn load_chain_configs<'a>(
     storage: &'a dyn Storage,
     filter: impl Fn(&ChainConfig) -> bool + 'a,
     start_after: Option<ChainNameRaw>,
-    limit: nonempty::Usize,
+    limit: nonempty::Uint32,
 ) -> impl Iterator<Item = Result<(ChainNameRaw, ChainConfig), Error>> + 'a {
     let start = start_after.as_ref().map(Bound::exclusive);
 

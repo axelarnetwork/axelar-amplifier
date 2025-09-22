@@ -120,7 +120,7 @@ pub fn instantiate2_addr(deps: &Deps, env: &Env, code_id: u64, salt: &[u8]) -> R
 pub fn deployments(
     deps: Deps,
     start_after: Option<nonempty::String>,
-    limit: nonempty::Usize,
+    limit: nonempty::Uint32,
 ) -> Result<Vec<ChainContractsResponse>, Error> {
     Ok(state::deployments(deps.storage, start_after, limit)
         .change_context(Error::ChainContractsInfo)?

@@ -1088,7 +1088,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: nonempty::Usize::try_from(u32::MAX).unwrap(),
+                limit: nonempty::Uint32::try_from(u32::MAX).unwrap(),
             },
         )
         .unwrap()
@@ -1127,7 +1127,7 @@ mod test {
             mock_env(),
             QueryMsg::Chains {
                 start_after: None,
-                limit: nonempty::Usize::try_from(u32::MAX).unwrap(),
+                limit: nonempty::Uint32::try_from(u32::MAX).unwrap(),
             },
         )
         .unwrap()

@@ -10,8 +10,8 @@ use crate::primitives::*;
 // Pagination limits
 const DEFAULT_PAGINATION_LIMIT: u32 = u32::MAX;
 
-fn default_pagination_limit() -> nonempty::Usize {
-    nonempty::Usize::try_from(DEFAULT_PAGINATION_LIMIT)
+fn default_pagination_limit() -> nonempty::Uint32 {
+    nonempty::Uint32::try_from(DEFAULT_PAGINATION_LIMIT)
         .expect("default pagination limit must be a u32")
 }
 
@@ -70,7 +70,7 @@ pub enum QueryMsg {
     Chains {
         start_after: Option<ChainName>,
         #[serde(default = "default_pagination_limit")]
-        limit: nonempty::Usize,
+        limit: nonempty::Uint32,
     },
     #[returns(bool)]
     IsEnabled,
