@@ -389,10 +389,9 @@ fn parse_verifier_set_rotated_event_from_instruction(
     let verifier_set_rotated_data = VerifierSetRotatedEventData::try_from_slice(event_data)
         .map_err(|e| format!("Failed to deserialize VerifierSetRotated event: {:?}", e))?;
 
-    let verifier_set_rotated = axelar_solana_gateway::processor::VerifierSetRotated {
-        epoch: verifier_set_rotated_data.epoch.to_vec(),
-        verifier_set_hash: verifier_set_rotated_data.verifier_set_hash.to_vec(),
-    };
+    let verifier_set_rotated = axelar_solana_gateway::processor::VerifierSetRotated::new(
+        [verifier_set_rotated_data.epoch.to_vec(), verifier_set_rotated_data.verifier_set_hash.to_vec()].into_iter()
+    ).map_err(|e| format!("Failed to construct VerifierSetRotated: {:?}", e))?;
 
     Ok(GatewayEvent::VerifierSetRotated(verifier_set_rotated))
 }
