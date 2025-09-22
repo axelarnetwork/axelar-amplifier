@@ -1,6 +1,5 @@
 mod asyncutil;
 mod block_height_monitor;
-#[allow(dead_code)]
 mod broadcast;
 #[cfg(feature = "commands")]
 pub mod commands;
@@ -158,6 +157,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .service_registry(service_registry.cosmwasm_contract)
+        .latest_block_height(block_height_monitor.latest_block_height())
         .rewards(rewards.cosmwasm_contract)
         .monitoring_client(monitoring_client.clone())
         .build();

@@ -6,7 +6,7 @@ use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{
     AddressRequest, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyRequest,
-    SignRequest, SubscribeRequest,
+    LatestBlockHeightRequest, SignRequest, SubscribeRequest,
 };
 use async_trait::async_trait;
 use axelar_wasm_std::nonempty;
@@ -65,6 +65,8 @@ pub trait Client {
     ) -> Result<T, Error>;
 
     async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error>;
+
+    async fn latest_block_height(&mut self) -> Result<u64, Error>;
 
     async fn sign(
         &mut self,
@@ -166,6 +168,21 @@ impl Client for GrpcClient {
 
         let ampd_broadcaster_address = parse_addr(&broadcaster_address)?;
         Ok(ampd_broadcaster_address)
+    }
+
+    async fn latest_block_height(&mut self) -> Result<u64, Error> {
+        let channel = self.channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
+
+        let height = blockchain_client
+            .latest_block_height(Request::new(LatestBlockHeightRequest {}))
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()?
+            .into_inner()
+            .height;
+
+        Ok(height)
     }
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
@@ -274,7 +291,8 @@ mod tests {
     use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
     use ampd_proto::{
         AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
-        KeyResponse, SignResponse, SubscribeResponse,
+        KeyResponse, LatestBlockHeightRequest, LatestBlockHeightResponse, SignResponse,
+        SubscribeResponse,
     };
     use axelar_wasm_std::chain_name;
     use cosmrs::{AccountId, Any};
@@ -305,6 +323,7 @@ mod tests {
             async fn contract_state(&self, request: Request<ContractStateRequest>) -> std::result::Result<Response<ContractStateResponse>, Status>;
             async fn address(&self, request: Request<AddressRequest>) -> std::result::Result<Response<AddressResponse>, Status>;
             async fn contracts(&self, request: Request<ContractsRequest>) -> std::result::Result<Response<ContractsResponse>, Status>;
+            async fn latest_block_height(&self, request: Request<LatestBlockHeightRequest>) -> std::result::Result<Response<LatestBlockHeightResponse>, Status>;
         }
     }
 
@@ -462,6 +481,43 @@ mod tests {
             assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
             assert_eq!(result.unwrap(), expected_address);
         }
+    }
+
+    #[tokio::test]
+    async fn latest_block_height_should_succeed_returning_the_height() {
+        let mut mock_blockchain = MockBlockchainService::new();
+        let expected_height = 12345u64;
+        let mock_response = LatestBlockHeightResponse {
+            height: expected_height,
+        };
+
+        mock_blockchain
+            .expect_latest_block_height()
+            .return_once(move |_request| Ok(Response::new(mock_response)));
+
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.latest_block_height().await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_height);
+    }
+
+    #[tokio::test]
+    async fn latest_block_height_should_return_error_if_grpc_error_occurs() {
+        let mut mock_blockchain = MockBlockchainService::new();
+
+        mock_blockchain
+            .expect_latest_block_height()
+            .return_once(|_request| Err(Status::unavailable("service unavailable")));
+
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.latest_block_height().await;
+
+        assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
+            Error::Grpc(GrpcError::ServiceUnavailable(_))
+        ));
     }
 
     #[tokio::test]

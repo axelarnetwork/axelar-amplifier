@@ -10,6 +10,7 @@ ampd = { path = "../../ampd", default-features = false, features = ["url"] }
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
+config = { workspace = true }
 cosmrs = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
@@ -19,6 +20,7 @@ humantime-serde = { workspace = true }
 mockall = { workspace = true }
 report = { workspace = true }
 serde = { workspace = true }
+serde-aux = "4.7.0"
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -32,6 +34,8 @@ valuable = { workspace = true }
 [build-dependencies]
 
 [dev-dependencies]
+temp-env = "0.3.6"
+tempfile = "3.21.0"
 tokio = { workspace = true, features = ["test-util"] }
 
 [lints]

@@ -18,6 +18,9 @@ pub enum ContractError {
     #[error(transparent)]
     Overflow(#[from] OverflowError),
 
+    #[error("unable to parse results from storage")]
+    Storage,
+
     #[error("no active verifier set found for {verifier_set_id:?}")]
     NoActiveVerifierSetFound { verifier_set_id: String },
 
@@ -71,4 +74,7 @@ pub enum ContractError {
 
     #[error("specified chain name is incorrect. expected: {expected}")]
     WrongChainName { expected: ChainName },
+
+    #[error("prover not found for chain {0}")]
+    ProverNotFound(ChainName),
 }
