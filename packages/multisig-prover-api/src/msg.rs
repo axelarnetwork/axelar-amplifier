@@ -154,3 +154,26 @@ impl From<multisig::verifier_set::VerifierSet> for VerifierSetResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_construct_proof_backwards_compatibility() {
+        // This is what the ConstructProof variant looked like in a previous version of the contract.
+        #[cw_serde]
+        enum OldExecMsg {
+            ConstructProof(Vec<CrossChainId>),
+        }
+
+        // serialize the old msg
+        let message_ids = vec![CrossChainId::new("test".to_string(), "test".to_string()).unwrap()];
+        let old_exec_msg_json = cosmwasm_std::to_json_string(&OldExecMsg::ConstructProof(message_ids.clone())).unwrap();
+
+        // ExecuteMsg should be able to deserialize the old json
+        let construct_proof_msg = ConstructProofMsg::Messages(message_ids);
+        let new_exec_msg = cosmwasm_std::from_json::<ExecuteMsg>(&old_exec_msg_json).unwrap();
+        assert_eq!(new_exec_msg, ExecuteMsg::ConstructProof(construct_proof_msg));
+    }
+}
