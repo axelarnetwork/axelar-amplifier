@@ -143,7 +143,7 @@ pub enum Error {
     InvalidChainName(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum EventFilter {
     EventType(nonempty::String),
     Contract(TMAddress),
@@ -184,13 +184,20 @@ impl EventFilter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EventFilters {
     filters: Vec<EventFilter>,
     include_block_begin_end: bool,
 }
 
 impl EventFilters {
+    pub fn new(filters: Vec<EventFilter>, include_block_begin_end: bool) -> Self {
+        Self {
+            filters,
+            include_block_begin_end,
+        }
+    }
+
     pub fn filter(&self, event: &events::Event) -> bool {
         let contract = event.contract_address();
 

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::nonempty_str;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
@@ -18,6 +19,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 
 use crate::event_processor::EventHandler;
+use crate::grpc::reqs::{EventFilter, EventFilters};
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::{self, Multisig};
 use crate::types::{PublicKey, TMAddress};
@@ -171,6 +173,16 @@ where
                 Ok(vec![])
             }
         }
+    }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                nonempty_str!("wasm-signing_started"),
+                self.multisig.clone(),
+            )],
+            true,
+        )
     }
 }
 

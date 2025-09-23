@@ -2,6 +2,7 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::nonempty_str;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -23,6 +24,7 @@ use crate::evm::finalizer;
 use crate::evm::finalizer::Finalization;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_verifier_set;
+use crate::grpc::reqs::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::monitoring;
 use crate::monitoring::metrics;
@@ -206,6 +208,16 @@ where
             .vote_msg(poll_id, vote)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                nonempty_str!("wasm-verifier_set_poll_started"),
+                self.voting_verifier_contract.clone(),
+            )],
+            true,
+        )
     }
 }
 

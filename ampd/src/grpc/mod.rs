@@ -30,7 +30,7 @@ use crate::{broadcast, cosmos, event_sub, monitoring, tofnd};
 
 mod blockchain_service;
 mod crypto_service;
-mod reqs;
+pub(crate) mod reqs; // TODO: remove pub(crate)
 mod status;
 
 #[derive(Error, Debug)]
