@@ -28,7 +28,7 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
     });
 
     let chain_codec =
-        ChainCodecContract::instantiate_contract(&mut protocol, [0; 32], prover_address.clone());
+        ChainCodecContract::instantiate_contract(&mut protocol, prover_address.clone());
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol,
@@ -53,6 +53,9 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
         None,
+        [0; 32],
+        false,
+        false,
     );
 
     let response = protocol.coordinator.execute(

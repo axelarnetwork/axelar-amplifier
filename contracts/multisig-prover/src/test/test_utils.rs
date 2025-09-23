@@ -183,10 +183,10 @@ fn chain_codec_mock_querier_handler(msg: chain_codec_api::msg::QueryMsg) -> Quer
             to_json_binary(&validate_address(&address, &AddressFormat::Eip55).is_ok())
         }
         chain_codec_api::msg::QueryMsg::PayloadDigest {
+            domain_separator: _,
             verifier_set: _,
             payload: _,
-            #[cfg(feature = "receive-payload")]
-                full_message_payloads: _,
+            full_message_payloads: _,
         } => to_json_binary(&HexBinary::from_hex("deadbeef").unwrap()),
     };
     Ok(result.into()).into()
