@@ -92,10 +92,11 @@ pub fn is_contract_enabled(deps: Deps) -> Result<Binary, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::state;
     use cosmwasm_std::from_json;
     use cosmwasm_std::testing::mock_dependencies;
+
+    use super::*;
+    use crate::state;
 
     #[test]
     fn query_token_config() {
