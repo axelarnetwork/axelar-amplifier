@@ -171,9 +171,7 @@ impl<T> From<T> for Extended<T> {
 
 #[cw_serde]
 pub struct ChainCodecMsg {
-    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
-    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
-    pub domain_separator: Hash,
+    // no params needed for now
 }
 
 #[cw_serde]

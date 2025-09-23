@@ -84,10 +84,7 @@ fn instantiate_contracts(
                 chain_codec: ContractDeploymentInfo {
                     code_id: chain.chain_codec.code_id,
                     label: "ChainCodec1.0.0".to_string(),
-                    msg: ChainCodecMsg {
-                        domain_separator: [0; 32],
-                    }
-                    .into(),
+                    msg: ChainCodecMsg {}.into(),
                     contract_admin: protocol.governance_address.clone(),
                 },
                 verifier: ContractDeploymentInfo {
