@@ -55,11 +55,11 @@ pub fn receive_full_payloads(
                 }));
             }
         }
-    }
 
-    FULL_MESSAGE_PAYLOADS
-        .save(deps.storage, &payload_id, full_message_payloads)
-        .map_err(ContractError::from)?;
+        FULL_MESSAGE_PAYLOADS
+            .save(deps.storage, &payload_id, full_message_payloads)
+            .map_err(ContractError::from)?;
+    }
 
     Ok(())
 }
