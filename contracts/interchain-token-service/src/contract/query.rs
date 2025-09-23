@@ -102,3 +102,34 @@ pub fn is_contract_enabled(deps: Deps) -> Result<Binary, Error> {
     to_json_binary(&killswitch::is_contract_active(deps.storage))
         .change_context(Error::JsonSerialization)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state;
+    use cosmwasm_std::from_json;
+    use cosmwasm_std::testing::mock_dependencies;
+
+    #[test]
+    fn query_custom_token_metadata() {
+        let mut deps = mock_dependencies();
+        let chain: ChainNameRaw = "ethereum".try_into().unwrap();
+        let token_address = nonempty::HexBinary::try_from(vec![1u8; 32]).unwrap();
+
+        let result =
+            custom_token_metadata(deps.as_ref(), chain.clone(), token_address.clone()).unwrap();
+        let metadata: Option<msg::CustomTokenMetadata> = from_json(result).unwrap();
+        assert!(metadata.is_none());
+
+        let register_metadata = interchain_token_service_std::RegisterTokenMetadata {
+            decimals: 18,
+            token_address: token_address.clone(),
+        };
+        state::save_custom_token_metadata(deps.as_mut().storage, chain.clone(), register_metadata)
+            .unwrap();
+
+        let result = custom_token_metadata(deps.as_ref(), chain, token_address).unwrap();
+        let metadata: Option<msg::CustomTokenMetadata> = from_json(result).unwrap();
+        assert_eq!(metadata.unwrap().decimals, 18);
+    }
+}
