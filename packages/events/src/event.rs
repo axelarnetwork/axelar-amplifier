@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
-use axelar_wasm_std::FnExt;
+use axelar_wasm_std::{nonempty, FnExt};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use cosmrs::AccountId;
@@ -191,6 +191,10 @@ impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
             }),
         }
     }
+}
+
+pub trait EventType {
+    fn event_type() -> nonempty::String;
 }
 
 #[cfg(test)]

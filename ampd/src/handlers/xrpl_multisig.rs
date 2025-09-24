@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::nonempty_str;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
-use events::try_from;
 use events::Error::EventTypeMismatch;
+use events::{try_from, EventType};
 use hex::encode;
 use multisig::msg::ExecuteMsg;
 use multisig::types::MsgToSign;
@@ -186,7 +185,7 @@ where
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
             vec![EventFilter::EventTypeAndContract(
-                nonempty_str!("wasm-signing_started"),
+                SigningStartedEvent::event_type(),
                 self.multisig.clone(),
             )],
             true,

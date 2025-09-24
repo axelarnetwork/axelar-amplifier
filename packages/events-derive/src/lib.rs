@@ -70,5 +70,11 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
                 Self::try_from(&event)
             }
         }
+
+        impl _internal_events::EventType for #event_struct {
+            fn event_type() -> axelar_wasm_std::nonempty::String {
+                axelar_wasm_std::nonempty_str!(#event_type)
+            }
+        }
     })
 }

@@ -2,14 +2,13 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
-use axelar_wasm_std::nonempty_str;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use events::try_from;
 use events::Error::EventTypeMismatch;
+use events::{try_from, EventType};
 use futures::future::join_all;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -172,7 +171,7 @@ where
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
             vec![EventFilter::EventTypeAndContract(
-                nonempty_str!("wasm-messages_poll_started"),
+                PollStartedEvent::event_type(),
                 self.voting_verifier.clone(),
             )],
             true,

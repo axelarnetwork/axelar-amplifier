@@ -3,14 +3,13 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-use axelar_wasm_std::nonempty_str;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::{try_from, Event};
+use events::{try_from, Event, EventType};
 use lazy_static::lazy_static;
 use router_api::{chain_name, ChainName};
 use serde::Deserialize;
@@ -188,7 +187,7 @@ impl EventHandler for Handler {
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
             vec![EventFilter::EventTypeAndContract(
-                nonempty_str!("wasm-messages_poll_started"),
+                PollStartedEvent::event_type(),
                 self.voting_verifier_contract.clone(),
             )],
             true,
