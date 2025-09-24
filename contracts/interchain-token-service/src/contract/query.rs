@@ -104,7 +104,7 @@ mod tests {
         let token_id = TokenId::new([1; 32]);
 
         let result = token_config(deps.as_ref(), token_id).unwrap();
-        let config: Option<msg::TokenConfig> = from_json(result).unwrap();
+        let config: Option<state::TokenConfig> = from_json(result).unwrap();
         assert_eq!(config, None);
 
         let origin_chain: ChainNameRaw = "ethereum".try_into().unwrap();
@@ -118,7 +118,7 @@ mod tests {
         .unwrap();
 
         let result = token_config(deps.as_ref(), token_id).unwrap();
-        let config: Option<msg::TokenConfig> = from_json(result).unwrap();
+        let config: Option<state::TokenConfig> = from_json(result).unwrap();
         assert_eq!(config.unwrap().origin_chain, origin_chain);
     }
 }
