@@ -1,4 +1,5 @@
 use error_stack::{Result, ResultExt};
+use events::EventType;
 use serde::Deserialize;
 
 #[allow(dead_code)]
@@ -62,4 +63,9 @@ fn convert_matching_event() {
 
     let res: Result<TestEvent, events::Error> = correct_event.try_into();
     assert!(res.is_ok());
+}
+
+#[test]
+fn struct_implements_event_type_trait() {
+    assert_eq!(TestEvent::event_type(), "test_event");
 }
