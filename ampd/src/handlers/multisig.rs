@@ -19,7 +19,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 
 use crate::event_processor::EventHandler;
-use crate::grpc::reqs::{EventFilter, EventFilters};
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::{self, Multisig};
 use crate::types::{PublicKey, TMAddress};

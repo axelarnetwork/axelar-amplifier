@@ -21,7 +21,7 @@ use tracing::info;
 use xrpl_types::types::XRPLAccountId;
 
 use crate::event_processor::EventHandler;
-use crate::grpc::reqs::{EventFilter, EventFilters};
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::{Algorithm, Multisig};
 use crate::types::{PublicKey, TMAddress};

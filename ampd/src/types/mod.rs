@@ -123,6 +123,7 @@ impl fmt::Display for AxelarAddress {
 pub mod test_utils {
     use super::key::test_utils::random_cosmos_public_key;
     use crate::types::{AxelarAddress, TMAddress};
+    use crate::PREFIX;
 
     impl TMAddress {
         pub fn random(prefix: &str) -> Self {
@@ -135,8 +136,8 @@ pub mod test_utils {
     }
 
     impl AxelarAddress {
-        pub fn random(prefix: &str) -> Self {
-            Self(TMAddress::random(prefix))
+        pub fn random() -> Self {
+            Self(TMAddress::random(PREFIX))
         }
     }
 }
