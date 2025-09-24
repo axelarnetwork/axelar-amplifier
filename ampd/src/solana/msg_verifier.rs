@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use axelar_solana_gateway::processor::GatewayEvent;
+use axelar_solana_gateway::events::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use router_api::ChainName;
 use tracing::error;
@@ -14,7 +14,7 @@ pub fn verify_message(tx: &crate::solana::SolanaTransaction, message: &Message) 
             match gateway_event {
                 // This event is emitted when a contract call is initiated to an external chain.
                 GatewayEvent::CallContract(event) => (
-                    &event.sender_key,
+                    &event.sender,
                     &event.payload_hash,
                     &event.destination_chain,
                     &event.destination_contract_address,
@@ -41,7 +41,8 @@ pub fn verify_message(tx: &crate::solana::SolanaTransaction, message: &Message) 
 mod tests {
     use std::str::FromStr;
 
-    use axelar_solana_gateway::processor::CallContractEvent;
+    use axelar_solana_gateway::events::CallContractEvent;
+    use event_cpi::Discriminator;
     use router_api::chain_name;
     use solana_sdk::pubkey::Pubkey;
     use solana_transaction_status::option_serializer::OptionSerializer;
@@ -118,16 +119,16 @@ mod tests {
         let (_base64_data, event) = fixture_call_contract_log();
 
         // Create two different call contract events for testing
-        let call_contract_event1 = crate::solana::CallContractEventData {
-            sender_key: solana_sdk::pubkey::Pubkey::new_unique(),
+        let call_contract_event1 = CallContractEvent {
+            sender: solana_sdk::pubkey::Pubkey::new_unique(),
             destination_chain: "polygon".to_owned(),
             destination_contract_address: "0x1111111111111111111111111111111111111111".to_owned(),
             payload: vec![1, 2, 3, 4],
             payload_hash: [1; 32],
         };
 
-        let call_contract_event2 = crate::solana::CallContractEventData {
-            sender_key: solana_sdk::pubkey::Pubkey::from_str(
+        let call_contract_event2 = CallContractEvent {
+            sender: solana_sdk::pubkey::Pubkey::from_str(
                 "GfpyaXoJrd9XHHRehAPCGETie3wpM8xDxscAUoC12Cxt",
             )
             .unwrap(),
@@ -145,13 +146,13 @@ mod tests {
 
         // Create instructions for both events
         let mut instruction_data1 = Vec::new();
-        instruction_data1.extend_from_slice(&crate::solana::CPI_EVENT_DISC);
-        instruction_data1.extend_from_slice(&crate::solana::CALL_CONTRACT_EVENT_DISC);
+        instruction_data1.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data1.extend_from_slice(&CallContractEvent::DISCRIMINATOR);
         instruction_data1.extend_from_slice(&borsh::to_vec(&call_contract_event1).unwrap());
 
         let mut instruction_data2 = Vec::new();
-        instruction_data2.extend_from_slice(&crate::solana::CPI_EVENT_DISC);
-        instruction_data2.extend_from_slice(&crate::solana::CALL_CONTRACT_EVENT_DISC);
+        instruction_data2.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data2.extend_from_slice(&CallContractEvent::DISCRIMINATOR);
         instruction_data2.extend_from_slice(&borsh::to_vec(&call_contract_event2).unwrap());
 
         let compiled_instruction1 = solana_transaction_status::UiCompiledInstruction {
@@ -181,15 +182,15 @@ mod tests {
 
         let solana_tx = crate::solana::SolanaTransaction {
             signature,
-            ixs: inner_instructions,
+            inner_instructions,
+            top_level_instructions: vec![],
             err: None,
-            account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+            account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
         };
 
         assert_eq!(Vote::SucceededOnChain, verify_message(&solana_tx, &msg));
     }
 
-    const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
     const RAW_SIGNATURE: [u8; 64] = [42; 64];
 
     fn fixture_call_contract_log() -> (String, CallContractEvent) {
@@ -197,7 +198,7 @@ mod tests {
         let base64_data = "Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2YzIwNjAzYzdiODc2NjgyYzEyMTczYmRlZjlhMWRjYTUyOGYxNGZk 8J+QqvCfkKrwn5Cq8J+Qqg==";
         // Simple `CallContract` fixture
         let event = CallContractEvent {
-            sender_key: Pubkey::from_str("GfpyaXoJrd9XHHRehAPCGETie3wpM8xDxscAUoC12Cxt").unwrap(),
+            sender: Pubkey::from_str("GfpyaXoJrd9XHHRehAPCGETie3wpM8xDxscAUoC12Cxt").unwrap(),
             destination_chain: "ethereum".to_owned(),
             destination_contract_address:
                 "0x0000000000000000000000006c20603c7b876682c12173bdef9a1dca528f14fd".to_owned(),
@@ -221,7 +222,7 @@ mod tests {
             },
             destination_address: event.destination_contract_address.clone(),
             destination_chain: event.destination_chain.clone().parse().unwrap(),
-            source_address: event.sender_key,
+            source_address: event.sender,
             payload_hash: event.payload_hash.into(),
         }
     }
@@ -230,10 +231,10 @@ mod tests {
     ) -> (crate::solana::SolanaTransaction, CallContractEvent, Message) {
         let (base64_data, event) = fixture_call_contract_log();
         let logs = vec![
-            format!("Program {GATEWAY_PROGRAM_ID} invoke [1]"), // Invocation 1 starts
+            format!("Program {} invoke [1]", axelar_solana_gateway::ID), // Invocation 1 starts
             "Program log: Instruction: Call Contract".to_owned(),
             format!("Program data: {}", base64_data),
-            format!("Program {GATEWAY_PROGRAM_ID} success"), // Invocation 1 succeeds
+            format!("Program {} success", axelar_solana_gateway::ID), // Invocation 1 succeeds
         ];
 
         let msg = create_msg_counterpart(&event, 0); // Use index 0 since we'll have one instruction
@@ -242,9 +243,10 @@ mod tests {
 
         let solana_tx = crate::solana::SolanaTransaction {
             signature,
-            ixs: tx_meta.inner_instructions.as_ref().unwrap().clone(),
+            inner_instructions: tx_meta.inner_instructions.as_ref().unwrap().clone(),
+            top_level_instructions: vec![],
             err: None,
-            account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+            account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
         };
 
         (solana_tx, event, msg)
@@ -252,8 +254,8 @@ mod tests {
 
     fn tx_meta(logs: Vec<String>) -> solana_transaction_status::UiTransactionStatusMeta {
         // Create mock CPI instruction data for CallContract event
-        let call_contract_event = crate::solana::CallContractEventData {
-            sender_key: solana_sdk::pubkey::Pubkey::from_str(
+        let call_contract_event = CallContractEvent {
+            sender: solana_sdk::pubkey::Pubkey::from_str(
                 "GfpyaXoJrd9XHHRehAPCGETie3wpM8xDxscAUoC12Cxt",
             )
             .unwrap(),
@@ -271,8 +273,8 @@ mod tests {
 
         // Serialize the event with discriminators
         let mut instruction_data = Vec::new();
-        instruction_data.extend_from_slice(&crate::solana::CPI_EVENT_DISC);
-        instruction_data.extend_from_slice(&crate::solana::CALL_CONTRACT_EVENT_DISC);
+        instruction_data.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(&CallContractEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&call_contract_event).unwrap());
 
         let compiled_instruction = solana_transaction_status::UiCompiledInstruction {

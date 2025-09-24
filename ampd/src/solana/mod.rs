@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use axelar_solana_gateway::processor::GatewayEvent;
+use event_cpi::Discriminator;
+
+use axelar_solana_gateway::events::{CallContractEvent, GatewayEvent, VerifierSetRotatedEvent};
 use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
@@ -11,8 +13,8 @@ use serde::Deserializer;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::option_serializer::OptionSerializer;
+use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
 use tracing::{debug, error, warn};
 
@@ -70,33 +72,38 @@ impl SolanaRpcClientProxy for Client {
             let meta = tx_data.transaction.meta?;
             let inner_instructions = match meta.inner_instructions.as_ref() {
                 OptionSerializer::Some(inner) => inner.clone(),
-                _ => return None,
+                _ => vec![],
             };
 
-            // Extract account keys from the transaction
-            let account_keys = match &tx_data.transaction.transaction {
+            // Extract account keys and top-level instructions from the transaction
+            let (account_keys, top_level_instructions) = match &tx_data.transaction.transaction {
                 solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
                     match &ui_transaction.message {
-                        solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
-                            .account_keys
-                            .iter()
-                            .filter_map(|key_str| Pubkey::from_str(key_str).ok())
-                            .collect(),
-                            _ => {
-                                error!("RPC returned Parsed message, but we requested Raw message");
-                                vec![]
-                            }
+                        solana_transaction_status::UiMessage::Raw(raw_message) => {
+                            let account_keys = raw_message
+                                .account_keys
+                                .iter()
+                                .filter_map(|key_str| Pubkey::from_str(key_str).ok())
+                                .collect();
+                            let top_level_instructions = raw_message.instructions.clone();
+                            (account_keys, top_level_instructions)
+                        }
+                        _ => {
+                            error!("RPC returned Parsed message, but we requested Raw message");
+                            (vec![], vec![])
+                        }
                     }
                 }
                 _ => {
                     error!("RPC returned non-JSON encoded transaction, but we requested JSON");
-                    vec![]
+                    (vec![], vec![])
                 }
             };
 
             Some(SolanaTransaction {
                 signature: *signature,
-                ixs: inner_instructions,
+                inner_instructions,
+                top_level_instructions,
                 err: meta.err.clone(),
                 account_keys,
             })
@@ -131,43 +138,14 @@ where
     Pubkey::from_str(&s).map_err(serde::de::Error::custom)
 }
 
-// CPI event discriminators - these identify the event type in CPI instructions
-const CPI_EVENT_DISC: [u8; 8] = [228, 69, 165, 46, 81, 203, 154, 29]; // EVENT_IX_TAG in LE
-const CALL_CONTRACT_EVENT_DISC: [u8; 8] = [211, 211, 80, 126, 150, 98, 181, 198];
-const VERIFIER_SET_ROTATED_EVENT_DISC: [u8; 8] = [66, 220, 124, 251, 31, 123, 214, 18];
 
-// Gateway program ID for validation
-pub const GATEWAY_PROGRAM_ID: Pubkey = axelar_solana_gateway::ID;
 
-/// Internal struct for deserializing CallContract events from CPI instructions
-#[derive(BorshDeserialize, borsh::BorshSerialize, Clone, Debug)]
-pub struct CallContractEventData {
-    /// Sender's public key.
-    pub sender_key: Pubkey,
-    /// Payload hash, 32 bytes.
-    pub payload_hash: [u8; 32],
-    /// Destination chain as a `String`.
-    pub destination_chain: String,
-    /// Destination contract address as a `String`.
-    pub destination_contract_address: String,
-    /// Payload data as a `Vec<u8>`.
-    pub payload: Vec<u8>,
-}
 
-/// Internal struct for deserializing VerifierSetRotated events from CPI instructions
-#[derive(BorshDeserialize, borsh::BorshSerialize, Clone, Debug)]
-pub struct VerifierSetRotatedEventData {
-    /// Epoch of the new verifier set (U256 as 32 bytes little-endian)
-    pub epoch: [u8; 32],
-    /// The hash of the new verifier set
-    pub verifier_set_hash: [u8; 32],
-}
-
-/// Simplified SolanaTransaction structure for parsing
 #[derive(Clone, Debug)]
 pub struct SolanaTransaction {
     pub signature: Signature,
-    pub ixs: Vec<UiInnerInstructions>,
+    pub inner_instructions: Vec<UiInnerInstructions>,
+    pub top_level_instructions: Vec<UiCompiledInstruction>,
     pub err: Option<TransactionError>,
     pub account_keys: Vec<Pubkey>,
 }
@@ -180,13 +158,11 @@ pub fn verify<F>(
 where
     F: Fn(&GatewayEvent) -> bool,
 {
-    // message id signatures must match
     if tx.signature.as_ref() != message_id.raw_signature {
         error!("signatures don't match");
         return Vote::NotFound;
     }
 
-    // the tx must be successful
     if tx.err.is_some() {
         error!("Transaction failed");
         return Vote::FailedOnChain;
@@ -254,10 +230,10 @@ fn is_instruction_from_gateway_program(
     }
 
     let program_id = account_keys[program_id_index];
-    if program_id != GATEWAY_PROGRAM_ID {
+    if program_id != axelar_solana_gateway::ID {
         debug!(
             "Instruction not from gateway program. Expected: {}, got: {}",
-            GATEWAY_PROGRAM_ID, program_id
+            axelar_solana_gateway::ID, program_id
         );
         return false;
     }
@@ -271,9 +247,9 @@ fn get_instruction_at_index(
 ) -> Option<UiCompiledInstruction> {
     let mut index = 0;
 
-    for group in transaction.ixs.iter() {
-        for inst in group.instructions.iter() {
-            if let UiInstruction::Compiled(ci) = inst {
+    for group in transaction.inner_instructions.iter() {
+        for instruction in group.instructions.iter() {
+            if let UiInstruction::Compiled(ci) = instruction {
                 if index == desired_event_idx {
                     return Some(ci.clone());
                 }
@@ -285,47 +261,6 @@ fn get_instruction_at_index(
     None
 }
 
-fn parse_call_contract_event_from_instruction(
-    instruction: &UiCompiledInstruction,
-) -> Result<GatewayEvent, Box<dyn std::error::Error>> {
-    let bytes = bs58::decode(&instruction.data)
-        .into_vec()
-        .map_err(|e| format!("Failed to decode instruction data: {:?}", e))?;
-
-    if bytes.len() < 16 {
-        return Err("Instruction data too short for CPI event".into());
-    }
-
-    if bytes.get(0..8) != Some(CPI_EVENT_DISC.as_slice()) {
-        return Err(format!(
-            "Expected CPI event discriminator, got {:?}",
-            bytes.get(0..8)
-        )
-        .into());
-    }
-
-    if bytes.get(8..16) != Some(CALL_CONTRACT_EVENT_DISC.as_slice()) {
-        return Err(format!(
-            "Expected CallContract event discriminator, got {:?}",
-            bytes.get(8..16)
-        )
-        .into());
-    }
-
-    let event_data = &bytes[16..];
-    let call_contract_event_data = CallContractEventData::try_from_slice(event_data)
-        .map_err(|e| format!("Failed to deserialize CallContract event: {:?}", e))?;
-
-    Ok(GatewayEvent::CallContract(
-        axelar_solana_gateway::processor::CallContractEvent {
-            sender_key: call_contract_event_data.sender_key,
-            payload_hash: call_contract_event_data.payload_hash,
-            destination_chain: call_contract_event_data.destination_chain,
-            destination_contract_address: call_contract_event_data.destination_contract_address,
-            payload: call_contract_event_data.payload,
-        },
-    ))
-}
 
 fn parse_gateway_event_from_instruction(
     instruction: &UiCompiledInstruction,
@@ -338,7 +273,7 @@ fn parse_gateway_event_from_instruction(
         return Err("Instruction data too short for CPI event".into());
     }
 
-    if bytes.get(0..8) != Some(CPI_EVENT_DISC.as_slice()) {
+    if bytes.get(0..8) != Some(event_cpi::EVENT_IX_TAG_LE) {
         return Err(format!(
             "Expected CPI event discriminator, got {:?}",
             bytes.get(0..8)
@@ -346,55 +281,23 @@ fn parse_gateway_event_from_instruction(
         .into());
     }
 
+    let event_data = &bytes[16..];
     match bytes.get(8..16) {
-        Some(disc) if disc == CALL_CONTRACT_EVENT_DISC.as_slice() => {
-            parse_call_contract_event_from_instruction(instruction)
+        Some(disc) if disc == CallContractEvent::DISCRIMINATOR => {
+            let call_contract_event = CallContractEvent::try_from_slice(event_data)
+                .map_err(|e| format!("Failed to deserialize CallContract event: {:?}", e))?;
+            Ok(GatewayEvent::CallContract(call_contract_event))
         }
-        Some(disc) if disc == VERIFIER_SET_ROTATED_EVENT_DISC.as_slice() => {
-            parse_verifier_set_rotated_event_from_instruction(instruction)
+        Some(disc) if disc == VerifierSetRotatedEvent::DISCRIMINATOR => {
+            let verifier_set_rotated_event = VerifierSetRotatedEvent::try_from_slice(event_data)
+                .map_err(|e| format!("Failed to deserialize VerifierSetRotated event: {:?}", e))?;
+            Ok(GatewayEvent::VerifierSetRotated(verifier_set_rotated_event))
         }
         Some(disc) => Err(format!("Unknown event discriminator: {:?}", disc).into()),
         None => Err("Missing event discriminator".into()),
     }
 }
 
-fn parse_verifier_set_rotated_event_from_instruction(
-    instruction: &UiCompiledInstruction,
-) -> Result<GatewayEvent, Box<dyn std::error::Error>> {
-    let bytes = bs58::decode(&instruction.data)
-        .into_vec()
-        .map_err(|e| format!("Failed to decode instruction data: {:?}", e))?;
-
-    if bytes.len() < 16 {
-        return Err("Instruction data too short for CPI event".into());
-    }
-
-    if bytes.get(0..8) != Some(CPI_EVENT_DISC.as_slice()) {
-        return Err(format!(
-            "Expected CPI event discriminator, got {:?}",
-            bytes.get(0..8)
-        )
-        .into());
-    }
-
-    if bytes.get(8..16) != Some(VERIFIER_SET_ROTATED_EVENT_DISC.as_slice()) {
-        return Err(format!(
-            "Expected VerifierSetRotated event discriminator, got {:?}",
-            bytes.get(8..16)
-        )
-        .into());
-    }
-
-    let event_data = &bytes[16..];
-    let verifier_set_rotated_data = VerifierSetRotatedEventData::try_from_slice(event_data)
-        .map_err(|e| format!("Failed to deserialize VerifierSetRotated event: {:?}", e))?;
-
-    let verifier_set_rotated = axelar_solana_gateway::processor::VerifierSetRotated::new(
-        [verifier_set_rotated_data.epoch.to_vec(), verifier_set_rotated_data.verifier_set_hash.to_vec()].into_iter()
-    ).map_err(|e| format!("Failed to construct VerifierSetRotated: {:?}", e))?;
-
-    Ok(GatewayEvent::VerifierSetRotated(verifier_set_rotated))
-}
 
 #[cfg(test)]
 mod test {
@@ -407,6 +310,7 @@ mod test {
     use super::{Client, SolanaRpcClientProxy};
     use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
+
 
     #[tokio::test]
     async fn should_record_rpc_failure_metrics_successfully() {

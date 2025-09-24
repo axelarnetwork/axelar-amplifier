@@ -218,9 +218,10 @@ mod tests {
         async fn tx(&self, _signature: &Signature) -> Option<SolanaTransaction> {
             Some(SolanaTransaction {
                 signature: *_signature,
-                ixs: vec![],
+                inner_instructions: vec![],
+                top_level_instructions: vec![],
                 err: None,
-                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID],
+                account_keys: vec![axelar_solana_gateway::ID],
             })
         }
 

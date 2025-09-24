@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use axelar_solana_encoding::hasher::NativeHasher;
 use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
-use axelar_solana_gateway::processor::{GatewayEvent, VerifierSetRotated};
+use axelar_solana_gateway::events::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
@@ -17,14 +17,12 @@ pub fn verify_verifier_set(
     domain_separator: &[u8; 32],
 ) -> Vote {
     verify(tx, &message.message_id, |gateway_event| {
-        let GatewayEvent::VerifierSetRotated(VerifierSetRotated {
-            verifier_set_hash: incoming_verifier_set_hash,
-            epoch: _,
-        }) = gateway_event
-        else {
+        let GatewayEvent::VerifierSetRotated(verifier_set_rotated) = gateway_event else {
             error!("found gateway event but it's not VerifierSetRotated event");
             return false;
         };
+        
+        let incoming_verifier_set_hash = &verifier_set_rotated.verifier_set_hash;
 
         let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
             error!("verifier set data structure could not be parsed");
@@ -79,7 +77,8 @@ fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::P
 mod tests {
     use std::collections::BTreeMap;
 
-    use axelar_solana_gateway::processor::VerifierSetRotated;
+    use axelar_solana_gateway::events::VerifierSetRotatedEvent;
+    use event_cpi::Discriminator;
     use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
@@ -172,7 +171,7 @@ mod tests {
 
     fn fixture_rotate_verifier_set() -> (
         String,
-        VerifierSetRotated,
+        VerifierSetRotatedEvent,
         multisig::verifier_set::VerifierSet,
     ) {
         let base64_data = "c2lnbmVycyByb3RhdGVkXw== AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= rGbfImIlluyfNx5TfhnZEDS+uUBKCSDRAJ28Znulbgw=";
@@ -210,8 +209,8 @@ mod tests {
         >(&newly_created_vs, &DOMAIN_SEPARATOR)
         .unwrap();
         assert_eq!(verifier_set_hash, expected_hash);
-        let event = VerifierSetRotated {
-            epoch: 2_u64.into(),
+        let event = VerifierSetRotatedEvent {
+            epoch: axelar_message_primitives::U256::from(2_u64),
             verifier_set_hash,
         };
 
@@ -224,8 +223,21 @@ mod tests {
         // Create mock CPI instruction data for VerifierSetRotated event
         let mut epoch_bytes = [0u8; 32];
         epoch_bytes[..8].copy_from_slice(&2_u64.to_le_bytes()); // Put u64 in first 8 bytes
-        let verifier_set_rotated_data = crate::solana::VerifierSetRotatedEventData {
-            epoch: epoch_bytes,
+        // Convert epoch_bytes to [u64; 4] for U256::from_inner
+        let mut epoch_u64_array = [0u64; 4];
+        for i in 0..4 {
+            let start = i * 8;
+            let end = start + 8;
+            if end <= epoch_bytes.len() {
+                epoch_u64_array[i] = u64::from_le_bytes([
+                    epoch_bytes[start], epoch_bytes[start+1], epoch_bytes[start+2], epoch_bytes[start+3],
+                    epoch_bytes[start+4], epoch_bytes[start+5], epoch_bytes[start+6], epoch_bytes[start+7],
+                ]);
+            }
+        }
+        
+        let verifier_set_rotated_data = VerifierSetRotatedEvent {
+            epoch: axelar_message_primitives::U256::from_le_bytes(epoch_bytes),
             verifier_set_hash: [
                 172, 102, 223, 34, 98, 37, 150, 236, 159, 55, 30, 83, 126, 25, 217, 16, 52, 190,
                 185, 64, 74, 9, 32, 209, 0, 157, 188, 102, 123, 165, 110, 12,
@@ -234,8 +246,8 @@ mod tests {
 
         // Serialize the event with discriminators
         let mut instruction_data = Vec::new();
-        instruction_data.extend_from_slice(&crate::solana::CPI_EVENT_DISC);
-        instruction_data.extend_from_slice(&crate::solana::VERIFIER_SET_ROTATED_EVENT_DISC);
+        instruction_data.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(&VerifierSetRotatedEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&verifier_set_rotated_data).unwrap());
 
         let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
@@ -255,9 +267,10 @@ mod tests {
         (
             crate::solana::SolanaTransaction {
                 signature: RAW_SIGNATURE.into(),
-                ixs: inner_instructions,
+                inner_instructions,
+                top_level_instructions: vec![],
                 err: None,
-                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
             },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
@@ -271,25 +284,17 @@ mod tests {
 
     fn fixture_bad_gateway_call_contract_tx_data(
     ) -> (crate::solana::SolanaTransaction, VerifierSetConfirmation) {
-        let gateway_address = Pubkey::new_unique();
+        let _gateway_address = Pubkey::new_unique();
 
-        let (base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
-        let _logs = [
-            format!("Program {gateway_address} invoke [1]"),
-            "Program log: Instruction: Rotate Signers".to_string(),
-            "Program 11111111111111111111111111111111 invoke [2]".to_string(),
-            "Program 11111111111111111111111111111111 success".to_string(),
-            format!("Program data: {base64_data}"),
-            format!("Program {gateway_address} consumed 11970 of 200000 compute units"),
-            format!("Program {gateway_address} success"),
-        ];
+        let (_base64_data, _event, actual_verifier_set) = fixture_rotate_verifier_set();
 
         (
             crate::solana::SolanaTransaction {
                 signature: RAW_SIGNATURE.into(),
-                ixs: vec![],
+                inner_instructions: vec![],
+                top_level_instructions: vec![],
                 err: None,
-                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
             },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {

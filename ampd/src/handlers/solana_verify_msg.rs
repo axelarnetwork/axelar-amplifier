@@ -222,12 +222,12 @@ mod test {
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
         async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
-            // Create mock transaction with empty instructions for testing
             Some(SolanaTransaction {
                 signature: *signature,
-                ixs: vec![],
+                inner_instructions: vec![],
+                top_level_instructions: vec![],
                 err: None,
-                account_keys: vec![crate::solana::GATEWAY_PROGRAM_ID], // Gateway program at index 0
+                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
             })
         }
 
