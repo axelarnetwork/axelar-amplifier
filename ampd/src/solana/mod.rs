@@ -1,20 +1,19 @@
 use std::str::FromStr;
 
-use event_cpi::Discriminator;
-
 use axelar_solana_gateway::events::{CallContractEvent, GatewayEvent, VerifierSetRotatedEvent};
 use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
+use event_cpi::Discriminator;
 use router_api::ChainName;
 use serde::Deserializer;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_sdk::transaction::TransactionError;
+use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
 use tracing::{debug, error, warn};
 
@@ -138,9 +137,6 @@ where
     Pubkey::from_str(&s).map_err(serde::de::Error::custom)
 }
 
-
-
-
 #[derive(Clone, Debug)]
 pub struct SolanaTransaction {
     pub signature: Signature,
@@ -168,28 +164,25 @@ where
         return Vote::FailedOnChain;
     }
 
-    // the event idx cannot be larger than usize. However, a valid event will never have an index larger than usize,
-    // as the native arch will be 64 bit, and the event index is a u64.
-    let desired_event_idx: usize = match message_id.event_index.try_into() {
-        Ok(idx) => idx,
-        Err(_) => {
-            error!("Cannot fit event index into system usize. Index was: {}, but current system usize is: {}", message_id.event_index, usize::MAX);
-            return Vote::NotFound;
-        }
-    };
-
-    let instruction = match get_instruction_at_index(tx, desired_event_idx) {
+    let instruction = match get_instruction_at_index(
+        tx,
+        message_id.top_level_ix_index,
+        message_id.inner_ix_index,
+    ) {
         Some(inst) => inst,
         None => {
-            error!("Instruction not found at index {}", desired_event_idx);
+            error!(
+                "Instruction not found at top_level_ix_index: {}, inner_ix_index: {}",
+                message_id.top_level_ix_index, message_id.inner_ix_index
+            );
             return Vote::NotFound;
         }
     };
 
     if !is_instruction_from_gateway_program(&instruction, &tx.account_keys) {
         error!(
-            "Instruction at index {} is not from gateway program",
-            desired_event_idx
+            "Instruction at top_level_ix_index: {}, inner_ix_index: {} is not from gateway program",
+            message_id.top_level_ix_index, message_id.inner_ix_index
         );
         return Vote::NotFound;
     }
@@ -233,7 +226,8 @@ fn is_instruction_from_gateway_program(
     if program_id != axelar_solana_gateway::ID {
         debug!(
             "Instruction not from gateway program. Expected: {}, got: {}",
-            axelar_solana_gateway::ID, program_id
+            axelar_solana_gateway::ID,
+            program_id
         );
         return false;
     }
@@ -241,26 +235,39 @@ fn is_instruction_from_gateway_program(
     true
 }
 
-fn get_instruction_at_index(
+pub(crate) fn get_instruction_at_index(
     transaction: &SolanaTransaction,
-    desired_event_idx: usize,
+    top_level_ix_index: u32,
+    inner_ix_index: u32,
 ) -> Option<UiCompiledInstruction> {
-    let mut index = 0;
+    // Safely convert u32 to usize
+    let top_level_ix_index = usize::try_from(top_level_ix_index).ok()?;
+    let inner_ix_index = usize::try_from(inner_ix_index).ok()?;
 
-    for group in transaction.inner_instructions.iter() {
-        for instruction in group.instructions.iter() {
-            if let UiInstruction::Compiled(ci) = instruction {
-                if index == desired_event_idx {
-                    return Some(ci.clone());
-                }
-                index = index.checked_add(1)?;
-            }
+    if inner_ix_index == 0 {
+        // Use the top-level instruction at the specified index
+        transaction
+            .top_level_instructions
+            .get(top_level_ix_index)
+            .cloned()
+    } else {
+        // Find the inner instruction group that corresponds to the top-level instruction
+        let inner_group = transaction
+            .inner_instructions
+            .iter()
+            .find(|group| usize::from(group.index) == top_level_ix_index)?;
+
+        // Get the inner instruction at the specified index (1-based, so subtract 1)
+        let inner_instruction_index = inner_ix_index.checked_sub(1)?;
+        let inner_instruction = inner_group.instructions.get(inner_instruction_index)?;
+
+        if let UiInstruction::Compiled(ci) = inner_instruction {
+            Some(ci.clone())
+        } else {
+            None
         }
     }
-
-    None
 }
-
 
 fn parse_gateway_event_from_instruction(
     instruction: &UiCompiledInstruction,
@@ -298,7 +305,6 @@ fn parse_gateway_event_from_instruction(
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
@@ -310,7 +316,6 @@ mod test {
     use super::{Client, SolanaRpcClientProxy};
     use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
-
 
     #[tokio::test]
     async fn should_record_rpc_failure_metrics_successfully() {
@@ -347,5 +352,160 @@ mod test {
         );
 
         assert!(receiver.try_recv().is_err());
+    }
+
+    /// Helper function to create a top-level instruction
+    fn create_top_level_instruction(
+        index: u32,
+        program_id_index: u8,
+    ) -> solana_transaction_status::UiCompiledInstruction {
+        use solana_transaction_status::UiCompiledInstruction;
+        UiCompiledInstruction {
+            program_id_index,
+            accounts: vec![0, 1, 2],
+            data: format!("top_level_instruction_{}", index),
+            stack_height: Some(1),
+        }
+    }
+
+    /// Helper function to create an inner instruction
+    fn create_inner_instruction(
+        top_level_index: u32,
+        inner_index: u32,
+        program_id_index: u8,
+    ) -> solana_transaction_status::UiCompiledInstruction {
+        use solana_transaction_status::UiCompiledInstruction;
+        UiCompiledInstruction {
+            program_id_index,
+            accounts: vec![0, 1],
+            data: format!("inner_instruction_{}_{}", top_level_index, inner_index),
+            stack_height: Some(2),
+        }
+    }
+
+    /// Helper function to create an inner instruction group with specified number of instructions
+    fn create_inner_instruction_group(
+        top_level_index: u32,
+        num_inner_instructions: u32,
+    ) -> solana_transaction_status::UiInnerInstructions {
+        use solana_transaction_status::{UiInnerInstructions, UiInstruction};
+        let instructions = (0..num_inner_instructions)
+            .map(|i| UiInstruction::Compiled(create_inner_instruction(top_level_index, i, 1)))
+            .collect();
+
+        UiInnerInstructions {
+            index: u8::try_from(top_level_index)
+                .expect("top_level_index should fit in u8 for test"),
+            instructions,
+        }
+    }
+
+    /// Helper function to create a transaction with specified number of top-level instructions and inner instruction groups
+    fn create_test_transaction(
+        num_top_level: u32,
+        inner_group_size: u32,
+    ) -> crate::solana::SolanaTransaction {
+        use solana_transaction_status::UiCompiledInstruction;
+
+        // Create top-level instructions
+        let top_level_instructions: Vec<UiCompiledInstruction> = (0..num_top_level)
+            .map(|i| create_top_level_instruction(i, 1))
+            .collect();
+
+        // Create inner instruction groups for all top-level instructions
+        let inner_instructions = (0..num_top_level)
+            .map(|i| create_inner_instruction_group(i, inner_group_size))
+            .collect();
+
+        crate::solana::SolanaTransaction {
+            signature: [42; 64].into(),
+            inner_instructions,
+            top_level_instructions,
+            err: None,
+            account_keys: vec![],
+        }
+    }
+
+    #[test]
+    fn get_instruction_at_index_should_get_correct_instruction() {
+        use super::get_instruction_at_index;
+
+        const NUM_TOP_LEVEL: u32 = 5;
+        const INNER_GROUP_SIZE: u32 = 3;
+
+        let tx = create_test_transaction(NUM_TOP_LEVEL, INNER_GROUP_SIZE);
+
+        // Test all valid top-level instructions (inner_ix_index = 0)
+        for top_level_idx in 0..NUM_TOP_LEVEL {
+            let result = get_instruction_at_index(&tx, top_level_idx, 0);
+            let instruction = result.unwrap_or_else(|| {
+                panic!(
+                    "Should find top-level instruction at index {}",
+                    top_level_idx
+                )
+            });
+            assert_eq!(
+                instruction.data,
+                format!("top_level_instruction_{}", top_level_idx)
+            );
+        }
+
+        // Test all valid inner instructions (inner_ix_index = 1 to INNER_GROUP_SIZE)
+        for top_level_idx in 0..NUM_TOP_LEVEL {
+            for inner_idx in 1..=INNER_GROUP_SIZE {
+                let result = get_instruction_at_index(&tx, top_level_idx, inner_idx);
+                let instruction = result.unwrap_or_else(|| {
+                    panic!(
+                        "Should find inner instruction {} for top-level {}",
+                        inner_idx, top_level_idx
+                    )
+                });
+                assert_eq!(
+                    instruction.data,
+                    format!("inner_instruction_{}_{}", top_level_idx, inner_idx - 1)
+                );
+            }
+        }
+
+        // Test out-of-bounds cases
+
+        // Invalid top-level index (out of bounds)
+        let result = get_instruction_at_index(&tx, NUM_TOP_LEVEL, 0);
+        assert!(
+            result.is_none(),
+            "Should not find instruction at out-of-bounds top-level index"
+        );
+
+        let result = get_instruction_at_index(&tx, NUM_TOP_LEVEL + 1, 1);
+        assert!(
+            result.is_none(),
+            "Should not find instruction at out-of-bounds top-level index"
+        );
+
+        // Valid top-level index but inner instruction index out of bounds
+        let result = get_instruction_at_index(&tx, 0, INNER_GROUP_SIZE + 1);
+        assert!(
+            result.is_none(),
+            "Should not find instruction at out-of-bounds inner index"
+        );
+
+        let result = get_instruction_at_index(&tx, NUM_TOP_LEVEL - 1, INNER_GROUP_SIZE + 2);
+        assert!(
+            result.is_none(),
+            "Should not find instruction at out-of-bounds inner index"
+        );
+
+        // Test type conversion limits
+        let result = get_instruction_at_index(&tx, u32::MAX, 0);
+        assert!(
+            result.is_none(),
+            "Should not find instruction with u32::MAX top-level index"
+        );
+
+        let result = get_instruction_at_index(&tx, 0, u32::MAX);
+        assert!(
+            result.is_none(),
+            "Should not find instruction with u32::MAX inner index"
+        );
     }
 }

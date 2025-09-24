@@ -21,7 +21,7 @@ pub fn verify_verifier_set(
             error!("found gateway event but it's not VerifierSetRotated event");
             return false;
         };
-        
+
         let incoming_verifier_set_hash = &verifier_set_rotated.verifier_set_hash;
 
         let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
@@ -78,10 +78,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use axelar_solana_gateway::events::VerifierSetRotatedEvent;
-    use event_cpi::Discriminator;
     use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
+    use event_cpi::Discriminator;
     use solana_sdk::pubkey::Pubkey;
 
     use super::*;
@@ -122,12 +122,12 @@ mod tests {
     fn should_not_verify_verifier_set_if_log_index_does_not_match() {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.event_index = 999; // Use a high index that won't exist
+        event.message_id.top_level_ix_index = 999; // Use a high index that won't exist
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
-        event.message_id.event_index = 1001; // Another high index that won't exist
+        event.message_id.inner_ix_index = 1001; // Another high index that won't exist
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
@@ -138,7 +138,8 @@ mod tests {
     fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.event_index = u32::MAX as u64 + 1;
+        event.message_id.top_level_ix_index = u32::MAX; // Use max u32 value
+        event.message_id.inner_ix_index = u32::MAX;
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
@@ -223,19 +224,14 @@ mod tests {
         // Create mock CPI instruction data for VerifierSetRotated event
         let mut epoch_bytes = [0u8; 32];
         epoch_bytes[..8].copy_from_slice(&2_u64.to_le_bytes()); // Put u64 in first 8 bytes
-        // Convert epoch_bytes to [u64; 4] for U256::from_inner
+                                                                // Convert epoch_bytes to [u64; 4] for U256::from_le_bytes
         let mut epoch_u64_array = [0u64; 4];
-        for i in 0..4 {
-            let start = i * 8;
-            let end = start + 8;
-            if end <= epoch_bytes.len() {
-                epoch_u64_array[i] = u64::from_le_bytes([
-                    epoch_bytes[start], epoch_bytes[start+1], epoch_bytes[start+2], epoch_bytes[start+3],
-                    epoch_bytes[start+4], epoch_bytes[start+5], epoch_bytes[start+6], epoch_bytes[start+7],
-                ]);
+        for (i, chunk) in epoch_bytes.chunks_exact(8).enumerate().take(4) {
+            if let Ok(bytes) = chunk.try_into() {
+                epoch_u64_array[i] = u64::from_le_bytes(bytes);
             }
         }
-        
+
         let verifier_set_rotated_data = VerifierSetRotatedEvent {
             epoch: axelar_message_primitives::U256::from_le_bytes(epoch_bytes),
             verifier_set_hash: [
@@ -247,7 +243,7 @@ mod tests {
         // Serialize the event with discriminators
         let mut instruction_data = Vec::new();
         instruction_data.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
-        instruction_data.extend_from_slice(&VerifierSetRotatedEvent::DISCRIMINATOR);
+        instruction_data.extend_from_slice(VerifierSetRotatedEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&verifier_set_rotated_data).unwrap());
 
         let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
@@ -275,7 +271,8 @@ mod tests {
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    event_index: 0, // CPI events start at index 0
+                    top_level_ix_index: 0, // Inner instruction group 0
+                    inner_ix_index: 1,     // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
             },
@@ -299,7 +296,8 @@ mod tests {
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    event_index: 0, // CPI events start at index 0
+                    top_level_ix_index: 0, // Inner instruction group 0
+                    inner_ix_index: 1,     // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
             },

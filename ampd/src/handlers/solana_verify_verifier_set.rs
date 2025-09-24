@@ -91,10 +91,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         }
     }
 
-    async fn fetch_message(
-        &self,
-        msg: &VerifierSetConfirmation,
-    ) -> Option<SolanaTransaction> {
+    async fn fetch_message(&self, msg: &VerifierSetConfirmation) -> Option<SolanaTransaction> {
         let signature = solana_sdk::signature::Signature::from(msg.message_id.raw_signature);
         self.rpc_client.tx(&signature).await
     }
@@ -414,8 +411,9 @@ mod tests {
         expires_at: u64,
     ) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-        let event_idx_1 = 10_u32;
-        let message_id_1 = format!("{signature_1}-{event_idx_1}");
+        let top_level_ix_index_1 = 0_u32;
+        let inner_ix_index_1 = 10_u32;
+        let message_id_1 = format!("{signature_1}-{top_level_ix_index_1}.{inner_ix_index_1}");
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -433,7 +431,7 @@ mod tests {
                 tx_id: signature_1
                     .parse()
                     .unwrap(),
-                event_index: event_idx_1,
+                event_index: inner_ix_index_1,
                 message_id: message_id_1
                     .to_string()
                     .try_into()

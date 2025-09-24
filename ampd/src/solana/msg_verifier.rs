@@ -7,8 +7,9 @@ use tracing::error;
 
 use super::verify;
 use crate::handlers::solana_verify_msg::Message;
+use crate::solana::SolanaTransaction;
 
-pub fn verify_message(tx: &crate::solana::SolanaTransaction, message: &Message) -> Vote {
+pub fn verify_message(tx: &SolanaTransaction, message: &Message) -> Vote {
     verify(tx, &message.message_id, |gateway_event| {
         let (sender, payload_hash, destination_chain, destination_contract_address) =
             match gateway_event {
@@ -59,7 +60,7 @@ mod tests {
     #[test]
     fn should_not_verify_msg_if_event_idx_is_invalid() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.message_id.event_index = 100;
+        msg.message_id.inner_ix_index = 100;
         assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
     }
 
@@ -102,14 +103,14 @@ mod tests {
     #[test]
     fn should_fail_tx_failed() {
         let (tx, _event, msg) = fixture_success_call_contract_tx_data();
-        
+
         // Create a failed transaction by setting the err field
         let mut failed_tx = tx;
         failed_tx.err = Some(solana_sdk::transaction::TransactionError::InstructionError(
             0,
-            solana_sdk::instruction::InstructionError::Custom(1)
+            solana_sdk::instruction::InstructionError::Custom(1),
         ));
-        
+
         assert_eq!(Vote::FailedOnChain, verify_message(&failed_tx, &msg));
     }
 
@@ -147,12 +148,12 @@ mod tests {
         // Create instructions for both events
         let mut instruction_data1 = Vec::new();
         instruction_data1.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
-        instruction_data1.extend_from_slice(&CallContractEvent::DISCRIMINATOR);
+        instruction_data1.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data1.extend_from_slice(&borsh::to_vec(&call_contract_event1).unwrap());
 
         let mut instruction_data2 = Vec::new();
         instruction_data2.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
-        instruction_data2.extend_from_slice(&CallContractEvent::DISCRIMINATOR);
+        instruction_data2.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data2.extend_from_slice(&borsh::to_vec(&call_contract_event2).unwrap());
 
         let compiled_instruction1 = solana_transaction_status::UiCompiledInstruction {
@@ -177,7 +178,7 @@ mod tests {
             instructions: vec![instruction1, instruction2],
         }];
 
-        let msg = create_msg_counterpart(&event, 1); // Look for the second instruction (index 1)
+        let msg = create_msg_counterpart(&event, 0, 2); // Look for the second instruction in group 0 (inner_ix_index 2 = 1-based index)
         let signature = msg.message_id.raw_signature.into();
 
         let solana_tx = crate::solana::SolanaTransaction {
@@ -214,11 +215,16 @@ mod tests {
         (base64_data.to_string(), event)
     }
 
-    fn create_msg_counterpart(event: &CallContractEvent, event_index: u64) -> Message {
+    fn create_msg_counterpart(
+        event: &CallContractEvent,
+        top_level_ix_index: u32,
+        inner_ix_index: u32,
+    ) -> Message {
         Message {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
                 raw_signature: RAW_SIGNATURE,
-                event_index,
+                top_level_ix_index,
+                inner_ix_index,
             },
             destination_address: event.destination_contract_address.clone(),
             destination_chain: event.destination_chain.clone().parse().unwrap(),
@@ -237,7 +243,7 @@ mod tests {
             format!("Program {} success", axelar_solana_gateway::ID), // Invocation 1 succeeds
         ];
 
-        let msg = create_msg_counterpart(&event, 0); // Use index 0 since we'll have one instruction
+        let msg = create_msg_counterpart(&event, 0, 1); // Use inner_ix_index 1 (first inner instruction in group 0)
         let signature = msg.message_id.raw_signature.into();
         let tx_meta = tx_meta(logs);
 
@@ -274,7 +280,7 @@ mod tests {
         // Serialize the event with discriminators
         let mut instruction_data = Vec::new();
         instruction_data.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
-        instruction_data.extend_from_slice(&CallContractEvent::DISCRIMINATOR);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&call_contract_event).unwrap());
 
         let compiled_instruction = solana_transaction_status::UiCompiledInstruction {

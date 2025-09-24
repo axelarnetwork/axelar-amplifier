@@ -256,7 +256,8 @@ mod test {
             MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
                 Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: Keccak512::digest(id.as_bytes()).into(),
-                    event_index: index,
+                    top_level_ix_index: index as u32,
+                    inner_ix_index: 0,
                 }
                 .to_string()
                 .parse()

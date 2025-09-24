@@ -77,7 +77,8 @@ PollStartedEvent {
                     188,
                     8,
                 ],
-                event_index: 10,
+                top_level_ix_index: 0,
+                inner_ix_index: 10,
             },
             destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1",
             destination_chain: ChainName(
@@ -154,7 +155,8 @@ PollStartedEvent {
                     129,
                     12,
                 ],
-                event_index: 88,
+                top_level_ix_index: 1,
+                inner_ix_index: 88,
             },
             destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2",
             destination_chain: ChainName(

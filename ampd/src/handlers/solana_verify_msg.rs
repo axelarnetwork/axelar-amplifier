@@ -19,13 +19,12 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
-use crate::solana::SolanaTransaction;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
 use crate::monitoring::metrics;
 use crate::solana::msg_verifier::verify_message;
-use crate::solana::SolanaRpcClientProxy;
+use crate::solana::{SolanaRpcClientProxy, SolanaTransaction};
 use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -139,8 +138,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             .await
             .into_iter()
             .flatten()
-            .collect::<HashMap<solana_sdk::signature::Signature, SolanaTransaction>>(
-            );
+            .collect::<HashMap<solana_sdk::signature::Signature, SolanaTransaction>>();
 
         let votes = info_span!(
             "verify messages from Solana",
@@ -411,12 +409,14 @@ mod test {
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-        let event_idx_1 = 10_u32;
-        let message_id_1 = format!("{signature_1}-{event_idx_1}");
+        let top_level_ix_index_1 = 0_u32;
+        let inner_ix_index_1 = 10_u32;
+        let message_id_1 = format!("{signature_1}-{top_level_ix_index_1}.{inner_ix_index_1}");
 
         let signature_2 = "41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT";
-        let event_idx_2 = 88_u32;
-        let message_id_2 = format!("{signature_2}-{event_idx_2}");
+        let top_level_ix_index_2 = 1_u32;
+        let inner_ix_index_2 = 88_u32;
+        let message_id_2 = format!("{signature_2}-{top_level_ix_index_2}.{inner_ix_index_2}");
 
         let source_gateway_address =
             Pubkey::from_str("4uX3jFnWLa4vBPyWJKd2XnUEX6JvP8q1BG7mTwQYhQeL").unwrap();
@@ -437,7 +437,7 @@ mod test {
             messages: vec![
                 TxEventConfirmation {
                     tx_id: signature_1.parse().unwrap(),
-                    event_index: event_idx_1,
+                    event_index: inner_ix_index_1,
                     source_address: Pubkey::from_str(
                         "9Tp4XJZLQKdM82BHYfNAG6V3RWpLC7Y5mXo1UqKZFTJ3",
                     )
@@ -452,7 +452,7 @@ mod test {
                 },
                 TxEventConfirmation {
                     tx_id: signature_2.parse().unwrap(),
-                    event_index: event_idx_2,
+                    event_index: inner_ix_index_2,
                     source_address: Pubkey::from_str(
                         "H1QLZVpX7B4WMNY5UqKZG3RFTJ9M82BXoLQF26TJCY5N",
                     )
