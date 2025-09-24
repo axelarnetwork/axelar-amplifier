@@ -116,11 +116,13 @@ jobs:
         uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
         with:
           crate: cargo-dylint
+          version: 4.1.0
 
       - name: Install dylint-link
         uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
         with:
           crate: dylint-link
+          version: 4.1.0
 
       - name: Run cargo fmt
         run: cargo +nightly fmt-check # alias
