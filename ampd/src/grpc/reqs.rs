@@ -8,11 +8,10 @@ use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::nonempty;
 use cosmrs::Any;
 use error_stack::{bail, ensure, report, Report, Result, ResultExt};
-use report::ResultCompatExt;
 use thiserror::Error;
 use tonic::Request;
 
-use crate::types::TMAddress;
+use crate::types::{AxelarAddress, TMAddress};
 use crate::{tofnd, PREFIX};
 
 type ContractQuery = Vec<u8>;
@@ -49,7 +48,7 @@ impl Validate for Request<BroadcastRequest> {
 }
 
 impl Validate for Request<ContractStateRequest> {
-    type Output = (TMAddress, ContractQuery);
+    type Output = (AxelarAddress, ContractQuery);
 
     fn validate(self) -> Result<Self::Output, Error> {
         let ContractStateRequest { contract, query } = self.into_inner();
@@ -58,12 +57,16 @@ impl Validate for Request<ContractStateRequest> {
         let _: serde_json::Value =
             serde_json::from_slice(&query).change_context(Error::InvalidQuery)?;
 
-        Ok((validate_address(&contract)?, query))
+        let contract = contract
+            .parse::<AxelarAddress>()
+            .change_context(Error::InvalidContractAddress(contract))?;
+
+        Ok((contract, query))
     }
 }
 
-fn validate_address(address: &str) -> Result<TMAddress, Error> {
-    let address = TMAddress::from_str(address)
+fn validate_address(address: &str) -> Result<AxelarAddress, Error> {
+    let address = AxelarAddress::from_str(address)
         .change_context(Error::InvalidContractAddress(address.to_string()))?;
     ensure!(
         address.prefix() == PREFIX,
@@ -146,8 +149,8 @@ pub enum Error {
 #[derive(Clone, Debug)]
 pub enum EventFilter {
     EventType(nonempty::String),
-    Contract(TMAddress),
-    EventTypeAndContract(nonempty::String, TMAddress),
+    Contract(AxelarAddress),
+    EventTypeAndContract(nonempty::String, AxelarAddress),
 }
 
 impl TryFrom<ampd_proto::EventFilter> for EventFilter {
@@ -158,7 +161,12 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
         let contract = if event_filter.contract.is_empty() {
             None
         } else {
-            Some(validate_address(&event_filter.contract)?)
+            let contract = event_filter
+                .contract
+                .parse::<AxelarAddress>()
+                .change_context(Error::InvalidContractAddress(event_filter.contract))?;
+
+            Some(contract)
         };
 
         match (event_type, contract) {
@@ -176,9 +184,9 @@ impl EventFilter {
     pub fn filter(&self, event_type: &str, contract: Option<&TMAddress>) -> bool {
         match self {
             EventFilter::EventType(event_type_filter) => event_type_filter == event_type,
-            EventFilter::Contract(contract_filter) => Some(contract_filter) == contract,
+            EventFilter::Contract(contract_filter) => Some(contract_filter.as_ref()) == contract,
             EventFilter::EventTypeAndContract(event_type_filter, contract_filter) => {
-                event_type_filter == event_type && Some(contract_filter) == contract
+                event_type_filter == event_type && Some(contract_filter.as_ref()) == contract
             }
         }
     }
@@ -509,7 +517,7 @@ mod tests {
 
     #[test]
     fn validate_contract_state_should_extract_contract_and_query() {
-        let address = TMAddress::random(PREFIX);
+        let address = AxelarAddress::random(PREFIX);
         let query_json = serde_json::json!({"get_config": {}});
         let query_bytes = serde_json::to_vec(&query_json).unwrap();
 
