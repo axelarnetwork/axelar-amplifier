@@ -1,4 +1,7 @@
-use aleo_gateway_types::{ItsOutgoingInterchainTransfer, RemoteDeployInterchainToken};
+use aleo_compatible_keccak::AleoBitsToBytesExt;
+use aleo_gateway_types::{
+    ItsOutgoingInterchainTransfer, RegisterTokenMetadata, RemoteDeployInterchainToken,
+};
 use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
 use aleo_gmp_types::SafeGmpChainName;
 use aleo_string_encoder::StringEncoder;
@@ -116,5 +119,18 @@ impl<N: Network> ToItsHubMessage for ItsOutgoingInterchainTransfer<N> {
             destination_chain: ChainNameRaw::try_from(destination_chain)?,
             message: Message::InterchainTransfer(interchain_transfer),
         })
+    }
+}
+
+impl<N: Network> ToItsHubMessage for RegisterTokenMetadata<N> {
+    type Error = Error;
+
+    fn to_hub_message(self) -> Result<HubMessage, Self::Error> {
+        let register_token_metadata = interchain_token_service_std::RegisterTokenMetadata {
+            decimals: self.decimals,
+            token_address: self.token_address.to_bytes().try_into()?,
+        };
+
+        Ok(HubMessage::RegisterTokenMetadata(register_token_metadata))
     }
 }

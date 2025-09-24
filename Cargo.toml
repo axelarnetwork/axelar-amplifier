@@ -1,17 +1,17 @@
 [workspace]
 members = [
-    "ampd",
-    "ampd-handlers",
-    "contracts/*",
-    "external-gateways/*",
-    "integration-tests",
-    "packages/*",
-    "tools/*",
+  "ampd",
+  "ampd-handlers",
+  "contracts/*",
+  "external-gateways/*",
+  "integration-tests",
+  "packages/*",
+  "tools/*",
 ]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.86.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.86.0"       # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -23,14 +23,14 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
-aleo-compatible-keccak = { path = "../reshape-crate/crates/aleo-compatible-keccak" }
-aleo-gateway-types = { path = "../reshape-crate/crates/aleo-gateway-types" }
+aleo-compatible-keccak = { path = "../ITS-custom-tokens/crates/aleo-compatible-keccak" }
+aleo-gateway-types = { path = "../ITS-custom-tokens/crates/aleo-gateway-types" }
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
 aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
 aleo-validate = { path = "packages/aleo-validate" }
-plaintext-trait = { path = "../reshape-crate/crates/plaintext-trait" }
-aleo-utils = { path = "/home/angelos/Documents/work/reshape-crate/crates/aleo-utils" }
+plaintext-trait = { path = "../ITS-custom-tokens/crates/plaintext-trait" }
+aleo-utils = { path = "/home/angelos/Documents/work/ITS-custom-tokens/crates/aleo-utils" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
 ] }

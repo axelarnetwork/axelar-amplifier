@@ -73,8 +73,12 @@ pub fn aleo_inbound_hub_message<N: Network>(
 pub fn aleo_outbound_hub_message<N: Network>(
     payload: HexBinary,
 ) -> Result<HubMessage, Report<Error>> {
-    let value = aleo_compatible_keccak::from_bytes(&payload);
-    let plaintext = Plaintext::from_bits_le(&value).map_err(|e| report!(Error::SnarkVm(e)))?;
+    let value_bytes = aleo_compatible_keccak::from_bytes(&payload);
+    // TODO: explain why we translate a Value to bytes and then
+    // from bytes we went directly to Plaintext
+    // https://github.com/ProvableHQ/snarkVM/blob/v4.1.0/console/program/src/data/value/to_bits.rs
+    let plaintext =
+        Plaintext::from_bits_le(&value_bytes).map_err(|e| report!(Error::SnarkVm(e)))?;
 
     if let Ok(its_outbound_transfer) =
         aleo_gateway_types::ItsOutgoingInterchainTransfer::<N>::try_from(&plaintext)
@@ -84,6 +88,10 @@ pub fn aleo_outbound_hub_message<N: Network>(
         aleo_gateway_types::RemoteDeployInterchainToken::try_from(&plaintext)
     {
         Ok(remote_deploy_interchain_token.to_hub_message()?)
+    } else if let Ok(register_token_metadata) =
+        aleo_gateway_types::RegisterTokenMetadata::try_from(&plaintext)
+    {
+        Ok(register_token_metadata.to_hub_message()?)
     } else {
         bail!(Error::TranslationFailed(format!(
             "Failed to convert Plaintext to ItsOutboundInterchainTransfer or RemoteDeployInterchainToken. Received plaintext: {plaintext:?}"
