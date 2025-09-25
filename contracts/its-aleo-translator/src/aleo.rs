@@ -43,37 +43,48 @@ pub fn aleo_inbound_hub_message<N: Network>(
             source_chain,
             message: Message::InterchainTransfer(interchain_transfer),
         } => {
-            let source_chain = SafeGmpChainName::try_from(source_chain).unwrap();
-            let interchain_transfer = interchain_transfer.to_leo().unwrap();
+            let source_chain = SafeGmpChainName::try_from(source_chain)
+                .map_err(|e| report!(Error::InvalidChainName(e.to_string())))?;
+            let interchain_transfer = interchain_transfer
+                .to_leo()
+                .map_err(|e| report!(Error::AleoGmpTypes(e)))?;
             let interchain_transfer = ItsIncomingInterchainTransfer {
                 inner_message: interchain_transfer,
                 source_chain: source_chain.aleo_chain_name(),
             };
-            Ok(Value::<N>::try_from(&interchain_transfer).unwrap())
+            Ok(Value::<N>::try_from(&interchain_transfer)
+                .map_err(|e| report!(Error::SnarkVm(e)))?)
         }
         HubMessage::ReceiveFromHub {
             source_chain,
             message: Message::DeployInterchainToken(deploy_interchain_token),
         } => {
-            let source_chain = SafeGmpChainName::try_from(source_chain).unwrap();
-            let deploy_interchain_token = deploy_interchain_token.to_leo().unwrap();
+            let source_chain = SafeGmpChainName::try_from(source_chain)
+                .map_err(|e| report!(Error::InvalidChainName(e.to_string())))?;
+            let deploy_interchain_token = deploy_interchain_token
+                .to_leo()
+                .map_err(|e| report!(Error::AleoGmpTypes(e)))?;
             let deploy_interchain_token = ItsMessageDeployInterchainToken {
                 inner_message: deploy_interchain_token,
                 source_chain: source_chain.aleo_chain_name(),
             };
-            Ok(Value::<N>::try_from(&deploy_interchain_token).unwrap())
+            Ok(Value::<N>::try_from(&deploy_interchain_token)
+                .map_err(|e| report!(Error::SnarkVm(e)))?)
         }
         HubMessage::ReceiveFromHub {
             source_chain,
             message: Message::LinkToken(link_token),
         } => {
-            let source_chain = SafeGmpChainName::try_from(source_chain).unwrap();
-            let link_token = link_token.to_leo().unwrap();
+            let source_chain = SafeGmpChainName::try_from(source_chain)
+                .map_err(|e| report!(Error::InvalidChainName(e.to_string())))?;
+            let link_token = link_token
+                .to_leo()
+                .map_err(|e| report!(Error::AleoGmpTypes(e)))?;
             let link_token = aleo_gateway_types::WrappedReceivedLinkToken {
                 link_token,
                 source_chain: source_chain.aleo_chain_name(),
             };
-            Ok(Value::<N>::try_from(&link_token).unwrap())
+            Ok(Value::<N>::try_from(&link_token).map_err(|e| report!(Error::SnarkVm(e)))?)
         }
         _ => bail!(Error::TranslationFailed(format!(
             "Unsupported HubMessage type for inbound translation: {hub_message:?}"
@@ -131,7 +142,13 @@ pub fn aleo_outbound_hub_message<N: Network>(
         Ok(wrapped_send_linked_token.to_hub_message()?)
     } else {
         bail!(Error::TranslationFailed(format!(
-            "Failed to convert Plaintext to ItsOutboundInterchainTransfer or RemoteDeployInterchainToken. Received plaintext: {plaintext:?}"
+            "Failed to convert Plaintext to one of the expected types.
+            Expected types are:
+                1. ItsOutboundInterchainTransfer
+                2. RemoteDeployInterchainToken
+                3. RegisterTokenMetadata
+                4. WrappedSendLinkToken
+            Received plaintext: {plaintext:?}"
         )))
     }
 }
