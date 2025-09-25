@@ -122,7 +122,7 @@ mod tests {
     fn should_not_verify_verifier_set_if_log_index_does_not_match() {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.top_level_ix_index = 999; // Use a high index that won't exist
+        event.message_id.inner_ix_group_index = 999; // Use a high index that won't exist
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
@@ -138,7 +138,7 @@ mod tests {
     fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.top_level_ix_index = u32::MAX; // Use max u32 value
+        event.message_id.inner_ix_group_index = u32::MAX; // Use max u32 value
         event.message_id.inner_ix_index = u32::MAX;
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
@@ -264,15 +264,14 @@ mod tests {
             crate::solana::SolanaTransaction {
                 signature: RAW_SIGNATURE.into(),
                 inner_instructions,
-                top_level_instructions: vec![],
                 err: None,
                 account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
             },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    top_level_ix_index: 0, // Inner instruction group 0
-                    inner_ix_index: 1,     // First inner instruction (1-based)
+                    inner_ix_group_index: 0, // Inner instruction group 0
+                    inner_ix_index: 1,       // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
             },
@@ -289,15 +288,14 @@ mod tests {
             crate::solana::SolanaTransaction {
                 signature: RAW_SIGNATURE.into(),
                 inner_instructions: vec![],
-                top_level_instructions: vec![],
                 err: None,
                 account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
             },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    top_level_ix_index: 0, // Inner instruction group 0
-                    inner_ix_index: 1,     // First inner instruction (1-based)
+                    inner_ix_group_index: 0, // Inner instruction group 0
+                    inner_ix_index: 1,       // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
             },

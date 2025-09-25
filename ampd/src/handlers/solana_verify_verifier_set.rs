@@ -216,7 +216,6 @@ mod tests {
             Some(SolanaTransaction {
                 signature: *_signature,
                 inner_instructions: vec![],
-                top_level_instructions: vec![],
                 err: None,
                 account_keys: vec![axelar_solana_gateway::ID],
             })
@@ -411,9 +410,9 @@ mod tests {
         expires_at: u64,
     ) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-        let top_level_ix_index_1 = 0_u32;
+        let inner_ix_group_index_1 = 0_u32;
         let inner_ix_index_1 = 10_u32;
-        let message_id_1 = format!("{signature_1}-{top_level_ix_index_1}.{inner_ix_index_1}");
+        let message_id_1 = format!("{signature_1}-{inner_ix_group_index_1}.{inner_ix_index_1}");
         PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),

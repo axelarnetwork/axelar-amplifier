@@ -184,7 +184,6 @@ mod tests {
         let solana_tx = crate::solana::SolanaTransaction {
             signature,
             inner_instructions,
-            top_level_instructions: vec![],
             err: None,
             account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
         };
@@ -217,13 +216,13 @@ mod tests {
 
     fn create_msg_counterpart(
         event: &CallContractEvent,
-        top_level_ix_index: u32,
+        inner_ix_group_index: u32,
         inner_ix_index: u32,
     ) -> Message {
         Message {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
                 raw_signature: RAW_SIGNATURE,
-                top_level_ix_index,
+                inner_ix_group_index,
                 inner_ix_index,
             },
             destination_address: event.destination_contract_address.clone(),
@@ -250,7 +249,6 @@ mod tests {
         let solana_tx = crate::solana::SolanaTransaction {
             signature,
             inner_instructions: tx_meta.inner_instructions.as_ref().unwrap().clone(),
-            top_level_instructions: vec![],
             err: None,
             account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
         };

@@ -74,35 +74,30 @@ impl SolanaRpcClientProxy for Client {
                 _ => vec![],
             };
 
-            // Extract account keys and top-level instructions from the transaction
-            let (account_keys, top_level_instructions) = match &tx_data.transaction.transaction {
+            // Extract account keys from the transaction
+            let account_keys = match &tx_data.transaction.transaction {
                 solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
                     match &ui_transaction.message {
-                        solana_transaction_status::UiMessage::Raw(raw_message) => {
-                            let account_keys = raw_message
-                                .account_keys
-                                .iter()
-                                .filter_map(|key_str| Pubkey::from_str(key_str).ok())
-                                .collect();
-                            let top_level_instructions = raw_message.instructions.clone();
-                            (account_keys, top_level_instructions)
-                        }
+                        solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
+                            .account_keys
+                            .iter()
+                            .filter_map(|key_str| Pubkey::from_str(key_str).ok())
+                            .collect(),
                         _ => {
                             error!("RPC returned Parsed message, but we requested Raw message");
-                            (vec![], vec![])
+                            vec![]
                         }
                     }
                 }
                 _ => {
                     error!("RPC returned non-JSON encoded transaction, but we requested JSON");
-                    (vec![], vec![])
+                    vec![]
                 }
             };
 
             Some(SolanaTransaction {
                 signature: *signature,
                 inner_instructions,
-                top_level_instructions,
                 err: meta.err.clone(),
                 account_keys,
             })
@@ -141,7 +136,6 @@ where
 pub struct SolanaTransaction {
     pub signature: Signature,
     pub inner_instructions: Vec<UiInnerInstructions>,
-    pub top_level_instructions: Vec<UiCompiledInstruction>,
     pub err: Option<TransactionError>,
     pub account_keys: Vec<Pubkey>,
 }
@@ -166,14 +160,14 @@ where
 
     let instruction = match get_instruction_at_index(
         tx,
-        message_id.top_level_ix_index,
+        message_id.inner_ix_group_index,
         message_id.inner_ix_index,
     ) {
         Some(inst) => inst,
         None => {
             error!(
-                "Instruction not found at top_level_ix_index: {}, inner_ix_index: {}",
-                message_id.top_level_ix_index, message_id.inner_ix_index
+                "Instruction not found at inner_ix_group_index: {}, inner_ix_index: {}",
+                message_id.inner_ix_group_index, message_id.inner_ix_index
             );
             return Vote::NotFound;
         }
@@ -181,8 +175,8 @@ where
 
     if !is_instruction_from_gateway_program(&instruction, &tx.account_keys) {
         error!(
-            "Instruction at top_level_ix_index: {}, inner_ix_index: {} is not from gateway program",
-            message_id.top_level_ix_index, message_id.inner_ix_index
+            "Instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            message_id.inner_ix_group_index, message_id.inner_ix_index
         );
         return Vote::NotFound;
     }
@@ -237,35 +231,32 @@ fn is_instruction_from_gateway_program(
 
 pub(crate) fn get_instruction_at_index(
     transaction: &SolanaTransaction,
-    top_level_ix_index: u32,
+    inner_ix_group_index: u32,
     inner_ix_index: u32,
 ) -> Option<UiCompiledInstruction> {
     // Safely convert u32 to usize
-    let top_level_ix_index = usize::try_from(top_level_ix_index).ok()?;
+    let inner_ix_group_index = usize::try_from(inner_ix_group_index).ok()?;
     let inner_ix_index = usize::try_from(inner_ix_index).ok()?;
 
+    // Events are always inner instructions (emitted via emit_cpi!), never top-level
     if inner_ix_index == 0 {
-        // Use the top-level instruction at the specified index
-        transaction
-            .top_level_instructions
-            .get(top_level_ix_index)
-            .cloned()
+        return None;
+    }
+
+    // Find the inner instruction group that corresponds to the group index
+    let inner_group = transaction
+        .inner_instructions
+        .iter()
+        .find(|group| usize::from(group.index) == inner_ix_group_index)?;
+
+    // Get the inner instruction at the specified index (1-based, so subtract 1)
+    let inner_instruction_index = inner_ix_index.checked_sub(1)?;
+    let inner_instruction = inner_group.instructions.get(inner_instruction_index)?;
+
+    if let UiInstruction::Compiled(ci) = inner_instruction {
+        Some(ci.clone())
     } else {
-        // Find the inner instruction group that corresponds to the top-level instruction
-        let inner_group = transaction
-            .inner_instructions
-            .iter()
-            .find(|group| usize::from(group.index) == top_level_ix_index)?;
-
-        // Get the inner instruction at the specified index (1-based, so subtract 1)
-        let inner_instruction_index = inner_ix_index.checked_sub(1)?;
-        let inner_instruction = inner_group.instructions.get(inner_instruction_index)?;
-
-        if let UiInstruction::Compiled(ci) = inner_instruction {
-            Some(ci.clone())
-        } else {
-            None
-        }
+        None
     }
 }
 
@@ -354,23 +345,9 @@ mod test {
         assert!(receiver.try_recv().is_err());
     }
 
-    /// Helper function to create a top-level instruction
-    fn create_top_level_instruction(
-        index: u32,
-        program_id_index: u8,
-    ) -> solana_transaction_status::UiCompiledInstruction {
-        use solana_transaction_status::UiCompiledInstruction;
-        UiCompiledInstruction {
-            program_id_index,
-            accounts: vec![0, 1, 2],
-            data: format!("top_level_instruction_{}", index),
-            stack_height: Some(1),
-        }
-    }
-
     /// Helper function to create an inner instruction
     fn create_inner_instruction(
-        top_level_index: u32,
+        group_index: u32,
         inner_index: u32,
         program_id_index: u8,
     ) -> solana_transaction_status::UiCompiledInstruction {
@@ -378,24 +355,23 @@ mod test {
         UiCompiledInstruction {
             program_id_index,
             accounts: vec![0, 1],
-            data: format!("inner_instruction_{}_{}", top_level_index, inner_index),
+            data: format!("inner_instruction_{}_{}", group_index, inner_index),
             stack_height: Some(2),
         }
     }
 
     /// Helper function to create an inner instruction group with specified number of instructions
     fn create_inner_instruction_group(
-        top_level_index: u32,
+        group_index: u32,
         num_inner_instructions: u32,
     ) -> solana_transaction_status::UiInnerInstructions {
         use solana_transaction_status::{UiInnerInstructions, UiInstruction};
         let instructions = (0..num_inner_instructions)
-            .map(|i| UiInstruction::Compiled(create_inner_instruction(top_level_index, i, 1)))
+            .map(|i| UiInstruction::Compiled(create_inner_instruction(group_index, i, 1)))
             .collect();
 
         UiInnerInstructions {
-            index: u8::try_from(top_level_index)
-                .expect("top_level_index should fit in u8 for test"),
+            index: u8::try_from(group_index).expect("group_index should fit in u8 for test"),
             instructions,
         }
     }
@@ -405,13 +381,6 @@ mod test {
         num_top_level: u32,
         inner_group_size: u32,
     ) -> crate::solana::SolanaTransaction {
-        use solana_transaction_status::UiCompiledInstruction;
-
-        // Create top-level instructions
-        let top_level_instructions: Vec<UiCompiledInstruction> = (0..num_top_level)
-            .map(|i| create_top_level_instruction(i, 1))
-            .collect();
-
         // Create inner instruction groups for all top-level instructions
         let inner_instructions = (0..num_top_level)
             .map(|i| create_inner_instruction_group(i, inner_group_size))
@@ -420,7 +389,6 @@ mod test {
         crate::solana::SolanaTransaction {
             signature: [42; 64].into(),
             inner_instructions,
-            top_level_instructions,
             err: None,
             account_keys: vec![],
         }
@@ -435,34 +403,27 @@ mod test {
 
         let tx = create_test_transaction(NUM_TOP_LEVEL, INNER_GROUP_SIZE);
 
-        // Test all valid top-level instructions (inner_ix_index = 0)
-        for top_level_idx in 0..NUM_TOP_LEVEL {
-            let result = get_instruction_at_index(&tx, top_level_idx, 0);
-            let instruction = result.unwrap_or_else(|| {
-                panic!(
-                    "Should find top-level instruction at index {}",
-                    top_level_idx
-                )
-            });
-            assert_eq!(
-                instruction.data,
-                format!("top_level_instruction_{}", top_level_idx)
+        for group_idx in 0..NUM_TOP_LEVEL {
+            let result = get_instruction_at_index(&tx, group_idx, 0);
+            assert!(
+                result.is_none(),
+                "Should not find instruction at top-level (inner_ix_index = 0) since events are always inner instructions"
             );
         }
 
         // Test all valid inner instructions (inner_ix_index = 1 to INNER_GROUP_SIZE)
-        for top_level_idx in 0..NUM_TOP_LEVEL {
+        for group_idx in 0..NUM_TOP_LEVEL {
             for inner_idx in 1..=INNER_GROUP_SIZE {
-                let result = get_instruction_at_index(&tx, top_level_idx, inner_idx);
+                let result = get_instruction_at_index(&tx, group_idx, inner_idx);
                 let instruction = result.unwrap_or_else(|| {
                     panic!(
-                        "Should find inner instruction {} for top-level {}",
-                        inner_idx, top_level_idx
+                        "Should find inner instruction {} for group {}",
+                        inner_idx, group_idx
                     )
                 });
                 assert_eq!(
                     instruction.data,
-                    format!("inner_instruction_{}_{}", top_level_idx, inner_idx - 1)
+                    format!("inner_instruction_{}_{}", group_idx, inner_idx - 1)
                 );
             }
         }
