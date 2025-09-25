@@ -157,6 +157,7 @@ pub fn aleo_outbound_hub_message<N: Network>(
 mod tests {
     use std::str::FromStr;
 
+    use aleo_gateway_types::constants::{CHAIN_NAME_LEN, TOKEN_ID_LEN};
     use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
     use aleo_gmp_types::{SafeGmpChainName, GMP_ADDRESS_LENGTH};
     use aleo_string_encoder::StringEncoder;
@@ -194,14 +195,28 @@ mod tests {
     }
 
     fn format_aleo_array(data: &[u128], len: usize) -> String {
-        data.iter()
-            .map(|n| format!("{n}u128"))
-            .chain(std::iter::repeat_n(
-                "0u128".to_string(),
-                len.saturating_sub(data.len()),
-            ))
-            .collect::<Vec<String>>()
-            .join(", ")
+        format!(
+            "[ {} ]",
+            data.iter()
+                .map(|n| format!("{n}u128"))
+                .chain(std::iter::repeat_n(
+                    "0u128".to_string(),
+                    len.saturating_sub(data.len()),
+                ))
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+
+    fn format_its_token_id(token_id: TokenId) -> String {
+        let its_token_id = ItsTokenIdNewType::from(token_id);
+        format_aleo_array(&its_token_id.0, TOKEN_ID_LEN)
+    }
+
+    fn format_chain_name(chain_name: &ChainNameRaw) -> String {
+        let safe_chain_name = SafeGmpChainName::try_from(chain_name)
+            .expect("Failed to convert ChainNameRaw to SafeGmpChainName");
+        format_aleo_array(&safe_chain_name.aleo_chain_name(), CHAIN_NAME_LEN)
     }
 
     struct TestTransferBuilder {
@@ -250,7 +265,7 @@ mod tests {
         }
 
         fn inbound_aleo_message(&self) -> String {
-            let its_token_id = ItsTokenIdNewType::from(self.token_id);
+            let its_token_id = format_its_token_id(self.token_id);
             let amount = self.amount;
             let destination_address = &self.destination_address;
             let source_address = {
@@ -261,33 +276,32 @@ mod tests {
                 format_aleo_array(&source_address, GMP_ADDRESS_LENGTH)
             };
 
-            let source_chain = SafeGmpChainName::try_from(&self.external_chain)
-                .expect("Failed to convert external chain to SafeGmpChainName")
-                .aleo_chain_name();
+            let source_chain = {
+                let source_chain = SafeGmpChainName::try_from(&self.external_chain)
+                    .expect("Failed to convert external chain to SafeGmpChainName")
+                    .aleo_chain_name();
+                format_aleo_array(&source_chain, 2)
+            };
 
             let aleo_message = format!(
-                r#"{{
-                        inner_message: {{
-                            its_token_id: [ {}u128, {}u128 ],
-                            source_address: [ {source_address} ],
-                            destination_address: {destination_address},
-                            amount: {amount}u128
-                        }},
-                        source_chain: [ {}u128, {}u128 ]
-                    }}"#,
-                its_token_id[0], its_token_id[1], source_chain[0], source_chain[1],
+                "{{
+                    inner_message: {{
+                        its_token_id: {its_token_id},
+                        source_address: {source_address},
+                        destination_address: {destination_address},
+                        amount: {amount}u128
+                    }},
+                    source_chain: {source_chain}
+                }}"
             );
             aleo_message
         }
 
         fn outbound_aleo_message(&self) -> String {
-            let its_token_id = ItsTokenIdNewType::from(self.token_id);
+            let its_token_id = format_its_token_id(self.token_id);
             let amount = self.amount;
             let source_address = &self.source_address;
-            let destination_chain = SafeGmpChainName::try_from(&self.external_chain)
-                .expect("Failed to convert external chain to SafeGmpChainName")
-                .aleo_chain_name();
-
+            let destination_chain = format_chain_name(&self.external_chain);
             let destination_address = {
                 let destination_address = StringEncoder::encode_string(&self.destination_address)
                     .expect("Failed to encode destination address")
@@ -297,16 +311,15 @@ mod tests {
             };
 
             format!(
-                r#"{{
+                "{{
                     inner_message: {{
-                        its_token_id: [ {}u128, {}u128 ],
+                        its_token_id: {its_token_id},
                         source_address: {source_address},
-                        destination_address: [ {destination_address} ],
+                        destination_address: {destination_address},
                         amount: {amount}u128
                     }},
-                    destination_chain: [ {}u128, {}u128 ]
-                }}"#,
-                its_token_id[0], its_token_id[1], destination_chain[0], destination_chain[1]
+                    destination_chain: {destination_chain}
+                }}",
             )
         }
     }
@@ -317,7 +330,7 @@ mod tests {
         token_symbol: String,
         decimals: u8,
         minter: Option<String>,
-        destination_chain: ChainNameRaw,
+        external_chain: ChainNameRaw,
     }
 
     impl TestDeployBuilder {
@@ -335,13 +348,13 @@ mod tests {
                 token_symbol,
                 decimals,
                 minter,
-                destination_chain,
+                external_chain: destination_chain,
             }
         }
 
         fn inbound_hub_message(&self) -> HubMessage {
             HubMessage::ReceiveFromHub {
-                source_chain: self.destination_chain.clone(),
+                source_chain: self.external_chain.clone(),
                 message: Message::DeployInterchainToken(
                     interchain_token_service_std::DeployInterchainToken {
                         token_id: self.token_id,
@@ -364,7 +377,7 @@ mod tests {
 
         fn outbound_hub_message(&self) -> HubMessage {
             HubMessage::SendToHub {
-                destination_chain: self.destination_chain.clone(),
+                destination_chain: self.external_chain.clone(),
                 message: Message::DeployInterchainToken(
                     interchain_token_service_std::DeployInterchainToken {
                         token_id: self.token_id,
@@ -386,7 +399,7 @@ mod tests {
         }
 
         fn outbound_aleo_deploy_interchain_token(&self) -> String {
-            let its_token_id = ItsTokenIdNewType::from(self.token_id);
+            let its_token_id = format_its_token_id(self.token_id);
 
             let token_name = StringEncoder::encode_string(&self.token_name)
                 .expect("Failed to encode token name")
@@ -405,27 +418,24 @@ mod tests {
             });
             let minter = format_aleo_array(&minter, GMP_ADDRESS_LENGTH);
 
-            let destination_chain = SafeGmpChainName::try_from(&self.destination_chain)
-                .expect("Failed to convert destination chain to SafeGmpChainName")
-                .aleo_chain_name();
+            let destination_chain = format_chain_name(&self.external_chain);
 
             format!(
-                r#"{{
+                "{{
                     payload: {{
-                        its_token_id: [ {}u128, {}u128 ],
+                        its_token_id: {its_token_id},
                         name: {token_name}u128,
                         symbol: {token_symbol}u128,
                         decimals: {decimals}u8,
-                        minter: [ {minter} ]
+                        minter: {minter}
                     }},
-                    destination_chain: [ {}u128, {}u128 ]
-                }}"#,
-                its_token_id[0], its_token_id[1], destination_chain[0], destination_chain[1]
+                    destination_chain: {destination_chain}
+                }}",
             )
         }
 
         fn inbound_aleo_deploy_interchain_token(&self) -> String {
-            let its_token_id = ItsTokenIdNewType::from(self.token_id);
+            let its_token_id = format_its_token_id(self.token_id);
 
             let decimals = self.decimals;
 
@@ -434,9 +444,7 @@ mod tests {
                 ToString::to_string,
             );
 
-            let source_chain = SafeGmpChainName::try_from(&self.destination_chain)
-                .expect("Failed to convert destination chain to SafeGmpChainName")
-                .aleo_chain_name();
+            let source_chain = format_chain_name(&self.external_chain);
 
             let aleo_token_name = StringEncoder::encode_string(&self.token_name)
                 .expect("Failed to encode token name")
@@ -448,19 +456,14 @@ mod tests {
             format!(
                 "{{
                 inner_message: {{
-                    its_token_id: [
-                        {}u128,
-                        {}u128
-                    ],
+                    its_token_id: {its_token_id},
                     name: {aleo_token_name}u128,
                     symbol: {aleo_token_symbol}u128,
                     decimals: {decimals}u8,
                     minter: {minter}
                 }},
-                source_chain: [ {}u128, {}u128 ]
-            }}",
-                its_token_id[0], its_token_id[1], source_chain[0], source_chain[1]
-            )
+                source_chain: {source_chain}
+            }}")
         }
     }
 
