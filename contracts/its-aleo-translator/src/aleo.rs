@@ -5,7 +5,7 @@ use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{ConversionOverflowError, HexBinary};
 use error_stack::{bail, report, Report};
 use interchain_token_service_std::{HubMessage, Message};
-use snarkvm_cosmwasm::prelude::{FromBits as _, Network, Plaintext, Value};
+use snarkvm_cosmwasm::prelude::{FromBytes as _, Network, Value};
 use thiserror::Error;
 
 use crate::aleo::to_its_hub_message::ToItsHubMessage;
@@ -96,33 +96,13 @@ pub fn aleo_inbound_hub_message<N: Network>(
 pub fn aleo_outbound_hub_message<N: Network>(
     payload: HexBinary,
 ) -> Result<HubMessage, Report<Error>> {
-    let value_bytes = aleo_compatible_keccak::from_bytes(&payload);
-    // The payload is serialized as bytes using AleoBitsToBytesExt::to_bytes()
-    // and is applied to a snarkvm Value.
-    //
-    // Here we are deserializing the bytes to a snarkvm Plaintext.
-    // The question is: Why is this acceptable?
-    //
-    // It is acceptable because the serialization of Value uses enum variant-specific
-    // serialization. In particular, when the Value is a Plaintext variant, its bytes
-    // are serialized using the Plaintext serialization format.
-    //
-    // For reference, Value is defined as follows:
-    // #[derive(Clone)]
-    // pub enum Value<N: Network> {
-    //     /// A plaintext value.
-    //     Plaintext(Plaintext<N>),
-    //     /// A record value.
-    //     Record(Record<N, Plaintext<N>>),
-    //     /// A future.
-    //     Future(Future<N>),
-    // }
-    //
-    // Value serialization is defined here:
-    // https://github.com/ProvableHQ/snarkVM/blob/v4.1.0/console/program/src/data/value/to_bits.rs
-
-    let plaintext =
-        Plaintext::from_bits_le(&value_bytes).map_err(|e| report!(Error::SnarkVm(e)))?;
+    let v = Value::<N>::from_bytes_le(&payload).map_err(|e| report!(Error::SnarkVm(e)))?;
+    let plaintext = match v {
+        Value::Plaintext(p) => p,
+        _ => bail!(Error::TranslationFailed(
+            "Expected Value to be of Plaintext variant".to_string()
+        )),
+    };
 
     if let Ok(its_outbound_transfer) =
         aleo_gateway_types::ItsOutgoingInterchainTransfer::<N>::try_from(&plaintext)
@@ -507,8 +487,7 @@ mod tests {
     }
 
     mod outbound {
-        use aleo_compatible_keccak::AleoBitsToBytesExt as _;
-        use snarkvm_cosmwasm::prelude::{Field, ToBytes as _};
+        use snarkvm_cosmwasm::prelude::{Field, Plaintext, ToBytes as _};
 
         use super::*;
 
@@ -523,7 +502,8 @@ mod tests {
 
             let aleo_value = Value::<CurrentNetwork>::from_str(&aleo_value_str)
                 .expect("Valid Aleo value")
-                .to_bytes();
+                .to_bytes_le()
+                .expect("Valid bytes");
 
             let result = aleo_outbound_hub_message::<CurrentNetwork>(aleo_value.into())
                 .expect("Successful conversion");
@@ -549,7 +529,8 @@ mod tests {
                 let aleo_value =
                     Value::<CurrentNetwork>::from_str(&outbound_deploy_interchain_token)
                         .expect("Failed to parse Aleo value")
-                        .to_bytes();
+                        .to_bytes_le()
+                        .expect("Valid bytes");
 
                 let its_hub_message =
                     aleo_outbound_hub_message::<CurrentNetwork>(aleo_value.into())
@@ -574,7 +555,9 @@ mod tests {
             };
             let aleo_plaintest =
                 Plaintext::try_from(&aleo_register_token_metadata).expect("Valid plaintext");
-            let aleo_value = Value::<CurrentNetwork>::from(aleo_plaintest).to_bytes();
+            let aleo_value = Value::<CurrentNetwork>::from(aleo_plaintest)
+                .to_bytes_le()
+                .expect("Valid bytes");
 
             let expected = HubMessage::RegisterTokenMetadata(
                 interchain_token_service_std::RegisterTokenMetadata {
