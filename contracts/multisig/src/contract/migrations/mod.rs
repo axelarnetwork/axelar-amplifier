@@ -5,6 +5,7 @@ use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, Order, Response};
+use itertools::Itertools;
 
 use crate::contract::migrations::legacy_state::AUTHORIZED_CALLERS;
 use crate::state::{save_prover, Config, CONFIG};
@@ -45,6 +46,7 @@ fn migrate_authorized_callers(
     let authorized_callers: Vec<_> = AUTHORIZED_CALLERS
         .range(deps.storage, None, None, Order::Ascending)
         .filter_map(|value| value.ok())
+        .dedup_by(|(_, chain_name_a), (_, chain_name_b)| chain_name_a == chain_name_b)
         .collect();
 
     for (contract_address, chain_name) in authorized_callers {
@@ -74,7 +76,8 @@ mod tests {
     const ADMIN: &str = "admin";
     const COORDINATOR: &str = "coordinator";
     const SENDER: &str = "sender";
-    const PROVER: &str = "prover";
+    const PROVER1: &str = "prover1";
+    const PROVER2: &str = "prover2";
 
     #[test]
     fn migrate_properly_registers_coordinator() {
@@ -134,7 +137,15 @@ mod tests {
         assert!(AUTHORIZED_CALLERS
             .save(
                 &mut deps.storage,
-                &cosmos_addr!(PROVER),
+                &cosmos_addr!(PROVER2),
+                &ChainName::from_str("chain1").unwrap()
+            )
+            .is_ok());
+
+        assert!(AUTHORIZED_CALLERS
+            .save(
+                &mut deps.storage,
+                &cosmos_addr!(PROVER1),
                 &ChainName::from_str("chain1").unwrap()
             )
             .is_ok());
@@ -154,6 +165,6 @@ mod tests {
 
         let res = prover_by_chain(&deps.storage, chain_name!("chain1"));
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), Some(cosmos_addr!(PROVER)));
+        assert_eq!(res.unwrap(), Some(cosmos_addr!(PROVER1)));
     }
 }
