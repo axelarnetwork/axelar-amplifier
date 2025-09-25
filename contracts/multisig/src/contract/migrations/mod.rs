@@ -46,9 +46,7 @@ fn migrate_authorized_callers(
     let authorized_callers: Vec<_> = AUTHORIZED_CALLERS
         .range(deps.storage, None, None, Order::Ascending)
         .filter_map(|value| value.ok())
-        .dedup_by(|&(_, ref chain_name_a), &(_, ref chain_name_b)| {
-            chain_name_a == chain_name_b
-        })
+        .dedup_by(|(_, chain_name_a), (_, chain_name_b)| chain_name_a == chain_name_b)
         .collect();
 
     for (contract_address, chain_name) in authorized_callers {
@@ -156,15 +154,14 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), None);
 
-        let res = migrate(
+        assert!(migrate(
             deps.as_mut(),
             env,
             MigrateMsg {
                 coordinator: cosmos_addr!(COORDINATOR).to_string(),
             },
-        );
-
-        assert!(res.is_ok());
+        )
+        .is_ok());
 
         let res = prover_by_chain(&deps.storage, chain_name!("chain1"));
         assert!(res.is_ok());
