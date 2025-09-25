@@ -12,7 +12,7 @@ use interchain_token_service_std::{
     InterchainTransfer as ItsHubInterchainTransfer, LinkToken, Message, TokenId,
 };
 use router_api::ChainNameRaw;
-use snarkvm_cosmwasm::prelude::Network;
+use snarkvm_cosmwasm::prelude::{Network, ToBytes as _};
 
 use crate::aleo::Error;
 
@@ -177,7 +177,7 @@ impl<N: Network> ToItsHubMessage for RegisterTokenMetadata<N> {
     fn to_hub_message(self) -> Result<HubMessage, Self::Error> {
         let register_token_metadata = interchain_token_service_std::RegisterTokenMetadata {
             decimals: self.decimals,
-            token_address: self.token_address.to_bytes().try_into()?,
+            token_address: self.token_address.to_bytes_le()?.try_into()?,
         };
 
         Ok(HubMessage::RegisterTokenMetadata(register_token_metadata))

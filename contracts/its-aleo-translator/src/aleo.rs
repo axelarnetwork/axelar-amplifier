@@ -219,6 +219,13 @@ mod tests {
         format_aleo_array(&safe_chain_name.aleo_chain_name(), CHAIN_NAME_LEN)
     }
 
+    fn format_address(address: &str) -> String {
+        let encoded_address = StringEncoder::encode_string(address)
+            .expect("Failed to encode string to Aleo GMP address")
+            .consume();
+        format_aleo_array(&encoded_address, GMP_ADDRESS_LENGTH)
+    }
+
     struct TestTransferBuilder {
         token_id: TokenId,
         source_address: String,
@@ -268,20 +275,8 @@ mod tests {
             let its_token_id = format_its_token_id(self.token_id);
             let amount = self.amount;
             let destination_address = &self.destination_address;
-            let source_address = {
-                let source_address = StringEncoder::encode_string(&self.source_address)
-                    .expect("Failed to encode source address")
-                    .consume();
-
-                format_aleo_array(&source_address, GMP_ADDRESS_LENGTH)
-            };
-
-            let source_chain = {
-                let source_chain = SafeGmpChainName::try_from(&self.external_chain)
-                    .expect("Failed to convert external chain to SafeGmpChainName")
-                    .aleo_chain_name();
-                format_aleo_array(&source_chain, 2)
-            };
+            let source_address = format_address(&self.source_address);
+            let source_chain = format_chain_name(&self.external_chain);
 
             let aleo_message = format!(
                 "{{
@@ -302,13 +297,7 @@ mod tests {
             let amount = self.amount;
             let source_address = &self.source_address;
             let destination_chain = format_chain_name(&self.external_chain);
-            let destination_address = {
-                let destination_address = StringEncoder::encode_string(&self.destination_address)
-                    .expect("Failed to encode destination address")
-                    .consume();
-
-                format_aleo_array(&destination_address, GMP_ADDRESS_LENGTH)
-            };
+            let destination_address = format_address(&self.destination_address);
 
             format!(
                 "{{
@@ -463,7 +452,8 @@ mod tests {
                     minter: {minter}
                 }},
                 source_chain: {source_chain}
-            }}")
+            }}"
+            )
         }
     }
 
@@ -518,6 +508,7 @@ mod tests {
 
     mod outbound {
         use aleo_compatible_keccak::AleoBitsToBytesExt as _;
+        use snarkvm_cosmwasm::prelude::{Field, ToBytes as _};
 
         use super::*;
 
@@ -570,6 +561,36 @@ mod tests {
                     "Expected HubMessage does not match the actual HubMessage.",
                 );
             }
+        }
+
+        #[test]
+        fn translate_register_token_metadata() {
+            let decimals = 8u8;
+            let token_address = Field::from_str("3field").expect("Valid field");
+
+            let aleo_register_token_metadata = aleo_gateway_types::RegisterTokenMetadata {
+                decimals,
+                token_address,
+            };
+            let aleo_plaintest =
+                Plaintext::try_from(&aleo_register_token_metadata).expect("Valid plaintext");
+            let aleo_value = Value::<CurrentNetwork>::from(aleo_plaintest).to_bytes();
+
+            let expected = HubMessage::RegisterTokenMetadata(
+                interchain_token_service_std::RegisterTokenMetadata {
+                    decimals,
+                    token_address: from_hex(&hex::encode(
+                        token_address.to_bytes_le().expect("Valid bytes"),
+                    )),
+                },
+            );
+
+            let its_hub_message = aleo_outbound_hub_message::<CurrentNetwork>(aleo_value.into())
+                .expect("Successful conversion");
+            assert_eq!(
+                its_hub_message, expected,
+                "Expected HubMessage does not match the actual HubMessage."
+            );
         }
     }
 }
