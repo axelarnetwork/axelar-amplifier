@@ -6,19 +6,19 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-aleo-string-encoder = { workspace = true }
 aleo-gateway-types = { workspace = true }
+aleo-string-encoder = { workspace = true }
 axelar-wasm-std = { workspace = true }
 bytemuck = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 interchain-token-service-std = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
-router-api = { workspace = true }
-snarkvm-cosmwasm = { workspace = true }
 plaintext-trait = { workspace = true }
-thiserror = { workspace = true }
+router-api = { workspace = true }
 serde = { workspace = true }
+snarkvm-cosmwasm = { workspace = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true

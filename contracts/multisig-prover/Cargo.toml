@@ -22,12 +22,10 @@ library = []
 
 [dependencies]
 aleo-compatible-keccak = { workspace = true }
-aleo-gmp-types = { workspace = true }
 aleo-gateway-types = { workspace = true }
+aleo-gmp-types = { workspace = true }
 aleo-network-config = { workspace = true }
-plaintext-trait = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
-serde = { workspace = true }
 bcs = "0.1.5"
 client = { workspace = true }
 coordinator = { workspace = true }
@@ -48,9 +46,11 @@ k256 = { workspace = true }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 multisig-prover-api = { workspace = true }
+plaintext-trait = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true }
 service-registry-api = { workspace = true }
@@ -63,6 +63,7 @@ thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
+aleo-utils = { workspace = true }
 anyhow = "1.0"
 assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
@@ -73,8 +74,6 @@ prost = "0.12.4"
 rand = { workspace = true }
 snarkos-account = { workspace = true }
 snarkvm = { workspace = true }
-aleo-utils = { workspace = true }
-
 
 [lints]
 workspace = true

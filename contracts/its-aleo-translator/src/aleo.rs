@@ -63,6 +63,18 @@ pub fn aleo_inbound_hub_message<N: Network>(
             };
             Ok(Value::<N>::try_from(&deploy_interchain_token).unwrap())
         }
+        HubMessage::ReceiveFromHub {
+            source_chain,
+            message: Message::LinkToken(link_token),
+        } => {
+            let source_chain = SafeGmpChainName::try_from(source_chain).unwrap();
+            let link_token = link_token.to_leo().unwrap();
+            let link_token = aleo_gateway_types::WrappedReceivedLinkToken {
+                link_token,
+                source_chain: source_chain.aleo_chain_name(),
+            };
+            Ok(Value::<N>::try_from(&link_token).unwrap())
+        }
         _ => bail!(Error::TranslationFailed(format!(
             "Unsupported HubMessage type for inbound translation: {hub_message:?}"
         ))),
@@ -113,6 +125,10 @@ pub fn aleo_outbound_hub_message<N: Network>(
         aleo_gateway_types::RegisterTokenMetadata::try_from(&plaintext)
     {
         Ok(register_token_metadata.to_hub_message()?)
+    } else if let Ok(wrapped_send_linked_token) =
+        aleo_gateway_types::WrappedSendLinkToken::try_from(&plaintext)
+    {
+        Ok(wrapped_send_linked_token.to_hub_message()?)
     } else {
         bail!(Error::TranslationFailed(format!(
             "Failed to convert Plaintext to ItsOutboundInterchainTransfer or RemoteDeployInterchainToken. Received plaintext: {plaintext:?}"
@@ -124,6 +140,7 @@ pub fn aleo_outbound_hub_message<N: Network>(
 mod tests {
     use std::str::FromStr;
 
+    use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
     use aleo_gmp_types::{SafeGmpChainName, GMP_ADDRESS_LENGTH};
     use aleo_string_encoder::StringEncoder;
     use interchain_token_service_std::{InterchainTransfer, Message, TokenId};
@@ -131,7 +148,6 @@ mod tests {
     use snarkvm_cosmwasm::prelude::Address;
 
     use super::*;
-    use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
 
     type CurrentNetwork = snarkvm_cosmwasm::prelude::TestnetV0;
 

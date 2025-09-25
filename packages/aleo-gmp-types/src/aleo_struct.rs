@@ -4,13 +4,13 @@ use std::str::FromStr;
 
 use aleo_gateway_types::constants::{SIGNATURE_CHUNKS, SINGATURES_PER_CHUNK};
 use aleo_gateway_types::{
-    FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof, WeightedSigner,
-    WeightedSigners,
+    FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof, ReceivedLinkToken,
+    WeightedSigner, WeightedSigners,
 };
 use aleo_string_encoder::StringEncoder;
 use cosmwasm_std::Uint128;
 use snarkvm_cosmwasm::prelude::{
-    Address, ComputeKey, FromBytes, Group, Network, Plaintext, ProgramID, Scalar, Signature,
+    Address, ComputeKey, Field, FromBytes, Group, Network, Plaintext, ProgramID, Scalar, Signature,
     Zero as _,
 };
 
@@ -257,6 +257,39 @@ impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::DeployIntercha
             symbol: symbol[0],
             decimals: self.decimals,
             minter,
+        })
+    }
+}
+
+impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::LinkToken {
+    type LeoType = ReceivedLinkToken<N>;
+    type Error = Error;
+
+    fn to_leo(&self) -> Result<Self::LeoType, Self::Error> {
+        let its_token_id = ItsTokenIdNewType::from(self.token_id);
+
+        let source_token_address =
+            StringEncoder::encode_bytes(self.source_token_address.as_slice())?.to_array()?;
+
+        let destination_token_address: Field<N> =
+            Field::from_str(std::str::from_utf8(&self.destination_token_address)?)?;
+
+        let operator = match &self.params {
+            Some(hex) => Address::from_str(std::str::from_utf8(hex)?)
+                .map_err(|_| Error::InvalidOperatorAddress)?,
+            None => Address::zero(),
+        };
+
+        Ok(ReceivedLinkToken {
+            its_token_id: *its_token_id,
+            token_manager_type: self
+                .token_manager_type
+                .to_string()
+                .parse()
+                .map_err(|_| Error::InvalidTokenManagerType)?,
+            source_token_address,
+            destination_token_address,
+            operator,
         })
     }
 }

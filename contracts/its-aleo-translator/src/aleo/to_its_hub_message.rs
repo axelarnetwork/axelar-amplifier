@@ -1,6 +1,7 @@
 use aleo_compatible_keccak::AleoBitsToBytesExt;
 use aleo_gateway_types::{
     ItsOutgoingInterchainTransfer, RegisterTokenMetadata, RemoteDeployInterchainToken,
+    WrappedSendLinkToken,
 };
 use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
 use aleo_gmp_types::SafeGmpChainName;
@@ -8,7 +9,7 @@ use aleo_string_encoder::StringEncoder;
 use axelar_wasm_std::nonempty;
 use interchain_token_service_std::{
     DeployInterchainToken as ItsHubDeployInterchainToken, HubMessage,
-    InterchainTransfer as ItsHubInterchainTransfer, Message, TokenId,
+    InterchainTransfer as ItsHubInterchainTransfer, LinkToken, Message, TokenId,
 };
 use router_api::ChainNameRaw;
 use snarkvm_cosmwasm::prelude::Network;
@@ -20,6 +21,54 @@ pub trait ToItsHubMessage {
     type Error;
 
     fn to_hub_message(self) -> Result<HubMessage, Self::Error>;
+}
+
+impl<N: Network> ToItsHubMessage for WrappedSendLinkToken<N> {
+    type Error = Error;
+
+    fn to_hub_message(self) -> Result<HubMessage, Self::Error> {
+        let WrappedSendLinkToken {
+            link_token,
+            destination_chain,
+        } = self;
+
+        let destination_chain = SafeGmpChainName::new(destination_chain)
+            .map_err(|e| Error::InvalidChainName(e.to_string()))?;
+
+        let destination_token_address: nonempty::HexBinary = {
+            let destination_token_address =
+                StringEncoder::from_slice(&link_token.destination_token_address).decode()?;
+
+            let destination_token_address = destination_token_address
+                .strip_prefix("0x")
+                .unwrap_or(&destination_token_address);
+
+            nonempty::HexBinary::try_from(hex::decode(destination_token_address)?)?
+        };
+
+        let params = {
+            let operator = StringEncoder::from_slice(&link_token.operator).decode()?;
+
+            let oprator = operator.strip_prefix("0x").unwrap_or(&operator);
+
+            if oprator.is_empty() {
+                None
+            } else {
+                Some(nonempty::HexBinary::try_from(hex::decode(oprator)?)?)
+            }
+        };
+
+        Ok(HubMessage::SendToHub {
+            destination_chain: ChainNameRaw::try_from(destination_chain)?,
+            message: Message::LinkToken(LinkToken {
+                token_id: TokenId::from(ItsTokenIdNewType(link_token.token_id)),
+                token_manager_type: link_token.token_manager_type.into(),
+                source_token_address: link_token.aleo_token_id.to_bytes().try_into()?,
+                destination_token_address,
+                params,
+            }),
+        })
+    }
 }
 
 impl ToItsHubMessage for RemoteDeployInterchainToken {

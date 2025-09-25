@@ -23,4 +23,8 @@ pub enum Error {
     Utf8(#[from] std::str::Utf8Error),
     #[error("ConversionOverflowError: {0}")]
     ConversionOverflow(#[from] cosmwasm_std::ConversionOverflowError),
+    #[error("Invalid token manager type")]
+    InvalidTokenManagerType,
+    #[error("Invalid operator address")]
+    InvalidOperatorAddress,
 }

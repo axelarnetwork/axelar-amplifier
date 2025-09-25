@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr as _;
 
 use async_trait::async_trait;
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -25,7 +26,6 @@ use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::types::TMAddress;
-use axelar_wasm_std::hash::Hash;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(bound = "Address<N>: Serialize + for<'a> Deserialize<'a>")]
@@ -236,10 +236,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use hex::FromHex;
     use std::str::FromStr;
 
     use cosmrs::AccountId;
+    use hex::FromHex;
 
     use super::*;
     use crate::types::TMAddress;
