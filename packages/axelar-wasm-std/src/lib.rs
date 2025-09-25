@@ -8,6 +8,7 @@ pub mod chain;
 pub mod counter;
 pub mod error;
 pub mod event;
+pub mod fixed_size;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;
