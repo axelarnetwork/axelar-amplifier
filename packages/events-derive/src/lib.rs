@@ -72,7 +72,7 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
 
-        impl _internal_events::EventType for #event_struct {
+        impl #impl_generics _internal_events::EventType for #event_struct #ty_generics #where_clause {
             fn event_type() -> axelar_wasm_std::nonempty::String {
                 axelar_wasm_std::nonempty_str!(#event_type)
             }

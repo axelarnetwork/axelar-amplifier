@@ -8,7 +8,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::{try_from, Event};
+use events::{try_from, Event, EventType};
 use futures::stream::{self, StreamExt};
 use router_api::ChainName;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::aleo::http_client::ClientTrait as AleoClientTrait;
 use crate::aleo::{CallContractReceipt, Receipt, ReceiptBuilder};
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::types::TMAddress;
@@ -221,12 +222,22 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                PollStartedEvent::<N>::event_type(),
+                self.voting_verifier_contract.clone(),
+            )],
+            true,
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use hex::FromHex;
+    use std::str::FromStr;
 
     use cosmrs::AccountId;
 
