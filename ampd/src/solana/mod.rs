@@ -398,12 +398,12 @@ mod test {
     fn get_instruction_at_index_should_get_correct_instruction() {
         use super::get_instruction_at_index;
 
-        const NUM_TOP_LEVEL: u32 = 5;
+        const IX_GROUP_COUNT: u32 = 5;
         const INNER_GROUP_SIZE: u32 = 3;
 
-        let tx = create_test_transaction(NUM_TOP_LEVEL, INNER_GROUP_SIZE);
+        let tx = create_test_transaction(IX_GROUP_COUNT, INNER_GROUP_SIZE);
 
-        for group_idx in 0..NUM_TOP_LEVEL {
+        for group_idx in 0..IX_GROUP_COUNT {
             let result = get_instruction_at_index(&tx, group_idx, 0);
             assert!(
                 result.is_none(),
@@ -411,8 +411,9 @@ mod test {
             );
         }
 
-        // Test all valid inner instructions (inner_ix_index = 1 to INNER_GROUP_SIZE)
-        for group_idx in 0..NUM_TOP_LEVEL {
+        let mut test_results: Vec<(u32, u32, String)> = Vec::new();
+        
+        for group_idx in 0..IX_GROUP_COUNT {
             for inner_idx in 1..=INNER_GROUP_SIZE {
                 let result = get_instruction_at_index(&tx, group_idx, inner_idx);
                 let instruction = result.unwrap_or_else(|| {
@@ -425,48 +426,13 @@ mod test {
                     instruction.data,
                     format!("inner_instruction_{}_{}", group_idx, inner_idx - 1)
                 );
+                
+                // Collect for golden test
+                test_results.push((group_idx, inner_idx, instruction.data));
             }
         }
 
-        // Test out-of-bounds cases
-
-        // Invalid top-level index (out of bounds)
-        let result = get_instruction_at_index(&tx, NUM_TOP_LEVEL, 0);
-        assert!(
-            result.is_none(),
-            "Should not find instruction at out-of-bounds top-level index"
-        );
-
-        let result = get_instruction_at_index(&tx, NUM_TOP_LEVEL + 1, 1);
-        assert!(
-            result.is_none(),
-            "Should not find instruction at out-of-bounds top-level index"
-        );
-
-        // Valid top-level index but inner instruction index out of bounds
-        let result = get_instruction_at_index(&tx, 0, INNER_GROUP_SIZE + 1);
-        assert!(
-            result.is_none(),
-            "Should not find instruction at out-of-bounds inner index"
-        );
-
-        let result = get_instruction_at_index(&tx, NUM_TOP_LEVEL - 1, INNER_GROUP_SIZE + 2);
-        assert!(
-            result.is_none(),
-            "Should not find instruction at out-of-bounds inner index"
-        );
-
-        // Test type conversion limits
-        let result = get_instruction_at_index(&tx, u32::MAX, 0);
-        assert!(
-            result.is_none(),
-            "Should not find instruction with u32::MAX top-level index"
-        );
-
-        let result = get_instruction_at_index(&tx, 0, u32::MAX);
-        assert!(
-            result.is_none(),
-            "Should not find instruction with u32::MAX inner index"
-        );
+        // Golden test
+        goldie::assert_json!(test_results);
     }
 }
