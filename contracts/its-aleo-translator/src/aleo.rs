@@ -74,9 +74,30 @@ pub fn aleo_outbound_hub_message<N: Network>(
     payload: HexBinary,
 ) -> Result<HubMessage, Report<Error>> {
     let value_bytes = aleo_compatible_keccak::from_bytes(&payload);
-    // TODO: explain why we translate a Value to bytes and then
-    // from bytes we went directly to Plaintext
+    // The payload is serialized as bytes using AleoBitsToBytesExt::to_bytes()
+    // and is applied to a snarkvm Value.
+    //
+    // Here we are deserializing the bytes to a snarkvm Plaintext.
+    // The question is: Why is this acceptable?
+    //
+    // It is acceptable because the serialization of Value uses enum variant-specific
+    // serialization. In particular, when the Value is a Plaintext variant, its bytes
+    // are serialized using the Plaintext serialization format.
+    //
+    // For reference, Value is defined as follows:
+    // #[derive(Clone)]
+    // pub enum Value<N: Network> {
+    //     /// A plaintext value.
+    //     Plaintext(Plaintext<N>),
+    //     /// A record value.
+    //     Record(Record<N, Plaintext<N>>),
+    //     /// A future.
+    //     Future(Future<N>),
+    // }
+    //
+    // Value serialization is defined here:
     // https://github.com/ProvableHQ/snarkVM/blob/v4.1.0/console/program/src/data/value/to_bits.rs
+
     let plaintext =
         Plaintext::from_bits_le(&value_bytes).map_err(|e| report!(Error::SnarkVm(e)))?;
 
