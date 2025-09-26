@@ -1,12 +1,12 @@
 [workspace]
 members = [
-    "ampd",
-    "ampd-handlers",
-    "contracts/*",
-    "external-gateways/*",
-    "integration-tests",
-    "packages/*",
-    "tools/*",
+  "ampd",
+  "ampd-handlers",
+  "contracts/*",
+  "external-gateways/*",
+  "integration-tests",
+  "packages/*",
+  "tools/*",
 ]
 resolver = "2"
 
@@ -23,13 +23,13 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
-aleo-compatible-keccak = { path = "../ITS-custom-tokens/crates/aleo-compatible-keccak" }
-aleo-gateway-types = { path = "../ITS-custom-tokens/crates/aleo-gateway-types" }
-aleo-gmp-types = { path = "packages/aleo-gmp-types" }
-aleo-network-config = { path = "packages/aleo-network-config" }
-aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
+aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
+aleo-gateway-types = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
+aleo-gmp-types = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
+aleo-network-config = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
+aleo-signature-verifier = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-utils = { path = "/home/angelos/Documents/work/ITS-custom-tokens/crates/aleo-utils" }
+aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
 aleo-validate = { path = "packages/aleo-validate" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
@@ -98,7 +98,7 @@ aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
-plaintext-trait = { path = "../ITS-custom-tokens/crates/plaintext-trait" }
+plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
 rand = "0.8.5"
