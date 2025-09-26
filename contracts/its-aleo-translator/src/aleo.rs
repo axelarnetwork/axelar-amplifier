@@ -141,9 +141,9 @@ mod tests {
     use aleo_gmp_types::token_id_conversion::ItsTokenIdNewType;
     use aleo_gmp_types::{SafeGmpChainName, GMP_ADDRESS_LENGTH};
     use aleo_string_encoder::StringEncoder;
-    use interchain_token_service_std::{InterchainTransfer, Message, TokenId};
+    use interchain_token_service_std::{InterchainTransfer, LinkToken, Message, TokenId};
     use router_api::ChainNameRaw;
-    use snarkvm_cosmwasm::prelude::Address;
+    use snarkvm_cosmwasm::prelude::{Address, Field, ToBytes as _};
 
     use super::*;
 
@@ -437,6 +437,108 @@ mod tests {
         }
     }
 
+    const TOKEN_ID: &str = "3field";
+
+    struct TestLinkToken {
+        token_id: TokenId,
+        source_token_address: String,
+        destination_token_address: String,
+        token_manager_type: u8,
+        external_chain: ChainNameRaw,
+    }
+
+    impl TestLinkToken {
+        fn new(source_token_address: String, destination_token_address: String) -> Self {
+            Self {
+                token_id: random_token_id(),
+                source_token_address,
+                destination_token_address,
+                token_manager_type: rand::random::<u8>() % 4u8,
+                external_chain: eth_sepolia_chain(),
+            }
+        }
+
+        fn inbound_hub_message(&self) -> HubMessage {
+            HubMessage::ReceiveFromHub {
+                source_chain: self.external_chain.clone(),
+                message: Message::LinkToken(LinkToken {
+                    token_id: self.token_id,
+                    token_manager_type: self.token_manager_type.into(),
+                    source_token_address: to_hex(self.source_token_address.as_str()),
+                    destination_token_address: from_hex(&hex::encode(
+                        &self.destination_token_address,
+                    )),
+                    params: None,
+                }),
+            }
+        }
+
+        fn outbound_hub_message(&self) -> HubMessage {
+            let aleo_token_id = Field::<CurrentNetwork>::from_str(&self.source_token_address)
+                .expect("Valid field")
+                .to_bytes_le()
+                .expect("Valid bytes");
+
+            HubMessage::SendToHub {
+                destination_chain: self.external_chain.clone(),
+                message: Message::LinkToken(LinkToken {
+                    token_id: self.token_id,
+                    token_manager_type: self.token_manager_type.into(),
+                    source_token_address: aleo_token_id
+                        .try_into()
+                        .expect("Valid non-empty hex binary"),
+                    destination_token_address: from_hex(&self.destination_token_address),
+                    params: None,
+                }),
+            }
+        }
+
+        fn inbound_aleo_message(&self) -> String {
+            let its_token_id = format_its_token_id(self.token_id);
+            let source_chain = format_chain_name(&self.external_chain);
+            let source_token_address = format_address(EVM_DESTINATION_ADDRESS);
+            let destination_token_address = TOKEN_ID;
+            let token_manager_type = self.token_manager_type;
+            let operator = Address::<CurrentNetwork>::zero().to_string();
+
+            let aleo_message = format!(
+                "{{
+                    link_token: {{
+                        its_token_id: {its_token_id},
+                        token_manager_type: {token_manager_type}u8,
+                        source_token_address: {source_token_address},
+                        destination_token_address: {destination_token_address},
+                        operator: {operator}
+                    }},
+                    source_chain: {source_chain}
+                }}"
+            );
+            aleo_message
+        }
+
+        fn outbound_aleo_message(&self) -> String {
+            let its_token_id = format_its_token_id(self.token_id);
+            let token_manager_type = self.token_manager_type;
+            let destination_chain = format_chain_name(&self.external_chain);
+            let source_token_address = &self.source_token_address;
+            let destination_token_address = format_address(&self.destination_token_address);
+            let operator = format_aleo_array(&[0], GMP_ADDRESS_LENGTH);
+
+            format!(
+                "{{
+                    link_token: {{
+                        token_id: {its_token_id},
+                        token_manager_type: {token_manager_type}u8,
+                        aleo_token_id: {source_token_address},
+                        destination_token_address: {destination_token_address},
+                        operator: {operator}
+                    }},
+                    destination_chain: {destination_chain}
+                }}",
+            )
+        }
+    }
+
     mod inbound {
         use super::*;
 
@@ -483,6 +585,26 @@ mod tests {
                     "Expected Aleo value does not match the actual Aleo value."
                 );
             }
+        }
+
+        #[test]
+        fn translate_link_token() {
+            let test_data =
+                TestLinkToken::new(EVM_DESTINATION_ADDRESS.to_string(), TOKEN_ID.to_string());
+            let its_hub_message = test_data.inbound_hub_message();
+
+            let aleo_value_str = test_data.inbound_aleo_message();
+
+            let result = aleo_inbound_hub_message::<CurrentNetwork>(its_hub_message)
+                .expect("Successful conversion");
+
+            let expected_aleo_value =
+                Value::<CurrentNetwork>::from_str(&aleo_value_str).expect("Valid Aleo value");
+
+            assert_eq!(
+                result, expected_aleo_value,
+                "Expected Aleo value does not match the actual Aleo value.",
+            );
         }
     }
 
@@ -573,6 +695,27 @@ mod tests {
             assert_eq!(
                 its_hub_message, expected,
                 "Expected HubMessage does not match the actual HubMessage."
+            );
+        }
+
+        #[test]
+        fn translate_link_token() {
+            let test_data =
+                TestLinkToken::new(TOKEN_ID.to_string(), EVM_DESTINATION_ADDRESS.to_string());
+            let expected_message = test_data.outbound_hub_message();
+
+            let aleo_value_str = test_data.outbound_aleo_message();
+            let aleo_value = Value::<CurrentNetwork>::from_str(&aleo_value_str)
+                .expect("Valid Aleo value")
+                .to_bytes_le()
+                .expect("Valid bytes");
+
+            let result = aleo_outbound_hub_message::<CurrentNetwork>(aleo_value.into())
+                .expect("Successful conversion");
+
+            assert_eq!(
+                result, expected_message,
+                "Expected HubMessage does not match the actual HubMessage.",
             );
         }
     }
