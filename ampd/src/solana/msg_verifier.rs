@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn should_not_verify_msg_if_event_idx_is_invalid() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
-        msg.message_id.inner_ix_index = 100;
+        msg.message_id.inner_ix_index = 100.try_into().unwrap();
         assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
     }
 
@@ -223,7 +223,7 @@ mod tests {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
                 raw_signature: RAW_SIGNATURE,
                 inner_ix_group_index,
-                inner_ix_index,
+                inner_ix_index: inner_ix_index.try_into().unwrap(),
             },
             destination_address: event.destination_contract_address.clone(),
             destination_chain: event.destination_chain.clone().parse().unwrap(),

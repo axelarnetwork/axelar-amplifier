@@ -91,6 +91,7 @@ mod test {
     use crate::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
     use crate::msg_id::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
     use crate::msg_id::{verify_msg_id, MessageIdFormat};
+    use crate::nonempty;
 
     #[test]
     fn should_verify_hex_tx_hash_event_index_msg_id() {
@@ -114,7 +115,12 @@ mod test {
 
     #[test]
     fn should_verify_base_58_solana_tx_signature_and_event_index_msg_id() {
-        let msg_id = Base58SolanaTxSignatureAndEventIndex::new([1; 64], 0u32, 1u32).to_string();
+        let msg_id = Base58SolanaTxSignatureAndEventIndex::new(
+            [1; 64],
+            0u32,
+            nonempty::Uint32::try_from(1u32).unwrap(),
+        )
+        .to_string();
         assert!(verify_msg_id(
             &msg_id,
             &MessageIdFormat::Base58SolanaTxSignatureAndEventIndex

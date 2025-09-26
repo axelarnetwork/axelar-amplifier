@@ -4,6 +4,7 @@ use axelar_solana_gateway::events::{CallContractEvent, GatewayEvent, VerifierSet
 use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
+use axelar_wasm_std::nonempty;
 use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
 use event_cpi::Discriminator;
@@ -167,7 +168,8 @@ where
         None => {
             error!(
                 "Instruction not found at inner_ix_group_index: {}, inner_ix_index: {}",
-                message_id.inner_ix_group_index, message_id.inner_ix_index
+                message_id.inner_ix_group_index,
+                message_id.inner_ix_index.into_inner()
             );
             return Vote::NotFound;
         }
@@ -176,7 +178,7 @@ where
     if !is_instruction_from_gateway_program(&instruction, &tx.account_keys) {
         error!(
             "Instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
-            message_id.inner_ix_group_index, message_id.inner_ix_index
+            message_id.inner_ix_group_index, message_id.inner_ix_index.into_inner()
         );
         return Vote::NotFound;
     }
@@ -232,17 +234,11 @@ fn is_instruction_from_gateway_program(
 pub(crate) fn get_instruction_at_index(
     transaction: &SolanaTransaction,
     inner_ix_group_index: u32,
-    inner_ix_index: u32,
+    inner_ix_index: nonempty::Uint32,
 ) -> Option<UiCompiledInstruction> {
     // Safely convert u32 to usize
     let inner_ix_group_index = usize::try_from(inner_ix_group_index).ok()?;
-    let inner_ix_index = usize::try_from(inner_ix_index).ok()?;
-
-    // indexing starts at 1 to match the explorer, 0 is not allowed. We should never
-    // actually receive such a message id, since the regex disallows 0 here.
-    if inner_ix_index == 0 {
-        return None;
-    }
+    let inner_ix_index = usize::from(inner_ix_index);
 
     // Find the inner instruction group that corresponds to the group index
     let inner_group = transaction
@@ -404,19 +400,12 @@ mod test {
 
         let tx = create_test_transaction(IX_GROUP_COUNT, INNER_GROUP_SIZE);
 
-        for group_idx in 0..IX_GROUP_COUNT {
-            let result = get_instruction_at_index(&tx, group_idx, 0);
-            assert!(
-                result.is_none(),
-                "Should not find instruction at top-level (inner_ix_index = 0) since events are always inner instructions"
-            );
-        }
-
         let mut test_results: Vec<(u32, u32, String)> = Vec::new();
 
         for group_idx in 0..IX_GROUP_COUNT {
             for inner_idx in 1..=INNER_GROUP_SIZE {
-                let result = get_instruction_at_index(&tx, group_idx, inner_idx);
+                let result =
+                    get_instruction_at_index(&tx, group_idx, inner_idx.try_into().unwrap());
                 let instruction = result.unwrap_or_else(|| {
                     panic!(
                         "Should find inner instruction {} for group {}",

@@ -257,7 +257,7 @@ mod test {
                 Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: Keccak512::digest(id.as_bytes()).into(),
                     inner_ix_group_index: u32::try_from(index).expect("index should fit in u32"),
-                    inner_ix_index: 0,
+                    inner_ix_index: 1.try_into().unwrap(),
                 }
                 .to_string()
                 .parse()

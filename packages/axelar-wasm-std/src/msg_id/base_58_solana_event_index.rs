@@ -19,8 +19,8 @@ pub struct Base58SolanaTxSignatureAndEventIndex {
     // index of the inner instruction group in the transaction containing the event
     pub inner_ix_group_index: u32,
     // index of the inner instruction in the instruction group containing the event
-    // must be non-zero as events are always inner instructionsc
-    pub inner_ix_index: u32,
+    // must be non-zero as indexing starts at 1 to match the explorer
+    pub inner_ix_index: nonempty::Uint32,
 }
 
 impl Base58SolanaTxSignatureAndEventIndex {
@@ -34,12 +34,12 @@ impl Base58SolanaTxSignatureAndEventIndex {
     pub fn new(
         tx_id: impl Into<RawSignature>,
         inner_ix_group_index: impl Into<u32>,
-        inner_ix_index: impl Into<u32>,
+        inner_ix_index: nonempty::Uint32,
     ) -> Self {
         Self {
             raw_signature: tx_id.into(),
             inner_ix_group_index: inner_ix_group_index.into(),
-            inner_ix_index: inner_ix_index.into(),
+            inner_ix_index,
         }
     }
 }
@@ -79,8 +79,9 @@ impl FromStr for Base58SolanaTxSignatureAndEventIndex {
             inner_ix_group_index: inner_ix_group_index
                 .parse()
                 .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
-            inner_ix_index: inner_ix_index
-                .parse()
+            inner_ix_index: u32::from_str(inner_ix_index)
+                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?
+                .try_into()
                 .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
         })
     }
@@ -93,7 +94,7 @@ impl Display for Base58SolanaTxSignatureAndEventIndex {
             "{}-{}.{}",
             bs58::encode(self.raw_signature).into_string(),
             self.inner_ix_group_index,
-            self.inner_ix_index
+            self.inner_ix_index.into_inner()
         )
     }
 }
@@ -133,7 +134,7 @@ mod tests {
             let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
             assert_eq!(parsed.inner_ix_group_index, inner_ix_group_index);
-            assert_eq!(parsed.inner_ix_index, inner_ix_index);
+            assert_eq!(parsed.inner_ix_index.into_inner(), inner_ix_index);
             assert_eq!(parsed.signature_as_base58(), tx_digest.as_str());
             assert_eq!(parsed.to_string(), msg_id);
         }

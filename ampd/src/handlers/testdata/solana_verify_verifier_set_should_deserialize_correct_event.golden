@@ -68,7 +68,9 @@ PollStartedEvent {
                 8,
             ],
             inner_ix_group_index: 0,
-            inner_ix_index: 10,
+            inner_ix_index: Uint32(
+                10,
+            ),
         },
         verifier_set: VerifierSet {
             signers: {

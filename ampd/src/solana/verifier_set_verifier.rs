@@ -127,7 +127,7 @@ mod tests {
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
         );
-        event.message_id.inner_ix_index = 1001; // Another high index that won't exist
+        event.message_id.inner_ix_index = 1001.try_into().unwrap(); // Another high index that won't exist
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
@@ -139,7 +139,7 @@ mod tests {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
         event.message_id.inner_ix_group_index = u32::MAX; // Use max u32 value
-        event.message_id.inner_ix_index = u32::MAX;
+        event.message_id.inner_ix_index = u32::MAX.try_into().unwrap();
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
@@ -271,7 +271,7 @@ mod tests {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
                     inner_ix_group_index: 0, // Inner instruction group 0
-                    inner_ix_index: 1,       // First inner instruction (1-based)
+                    inner_ix_index: 1.try_into().unwrap(), // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
             },
@@ -295,7 +295,7 @@ mod tests {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
                     inner_ix_group_index: 0, // Inner instruction group 0
-                    inner_ix_index: 1,       // First inner instruction (1-based)
+                    inner_ix_index: 1.try_into().unwrap(), // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
             },
