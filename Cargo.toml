@@ -131,7 +131,7 @@ sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
-tofn = { path = "../tofn" }
+tofn = { version = "1.1" }
 tokio = "1.44.2"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
@@ -170,3 +170,4 @@ overflow-checks = true
 [patch.crates-io]
 # Use our fork of snarkVM so we use the same snarkVM code in axelar-aleo and axelar-amplifier.
 snarkvm = { git = "https://github.com/eigerco/snarkVM", branch = "cosmwasm-5" }
+tofn = { git = "https://github.com/eigerco/tofn.git", branch = "refactor-aleo-schnorr" }
