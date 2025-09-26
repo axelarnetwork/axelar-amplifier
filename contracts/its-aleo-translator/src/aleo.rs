@@ -143,7 +143,7 @@ mod tests {
     use aleo_string_encoder::StringEncoder;
     use interchain_token_service_std::{InterchainTransfer, LinkToken, Message, TokenId};
     use router_api::ChainNameRaw;
-    use snarkvm_cosmwasm::prelude::{Address, Field, ToBytes as _};
+    use snarkvm_cosmwasm::prelude::Address;
 
     use super::*;
 
@@ -163,7 +163,8 @@ mod tests {
         ChainNameRaw::from_str("eth-sepolia").unwrap()
     }
 
-    fn from_hex(hex: &str) -> nonempty::HexBinary {
+    // Convert cosmwasm_std::HexBinary to nonempty::HexBinary
+    fn from_hex_to_hex(hex: &str) -> nonempty::HexBinary {
         HexBinary::from_hex(hex)
             .expect("Valid hex string")
             .try_into()
@@ -171,7 +172,7 @@ mod tests {
     }
 
     fn to_hex(data: &str) -> nonempty::HexBinary {
-        from_hex(&hex::encode(data.as_bytes()))
+        from_hex_to_hex(&hex::encode(data.as_bytes()))
     }
 
     fn format_aleo_array(data: &[u128], len: usize) -> String {
@@ -231,7 +232,7 @@ mod tests {
                 message: Message::InterchainTransfer(InterchainTransfer {
                     token_id: self.token_id,
                     source_address: to_hex(&self.source_address),
-                    destination_address: from_hex(&hex::encode(&self.destination_address)),
+                    destination_address: to_hex(&self.destination_address),
                     amount: self.amount.try_into().expect("Valid amount"),
                     data: None,
                 }),
@@ -244,7 +245,7 @@ mod tests {
                 message: Message::InterchainTransfer(InterchainTransfer {
                     token_id: self.token_id,
                     source_address: to_hex(&self.source_address),
-                    destination_address: from_hex(&self.destination_address),
+                    destination_address: from_hex_to_hex(&self.destination_address),
                     amount: self.amount.try_into().expect("Valid amount"),
                     data: None,
                 }),
@@ -361,7 +362,7 @@ mod tests {
                             .try_into()
                             .expect("Valid token symbol"),
                         decimals: self.decimals,
-                        minter: self.minter.as_ref().map(|m| from_hex(m)),
+                        minter: self.minter.as_ref().map(|m| from_hex_to_hex(m)),
                     },
                 ),
             }
@@ -437,12 +438,12 @@ mod tests {
         }
     }
 
-    const TOKEN_ID: &str = "3field";
+    const ALEO_TOKEN_ID: &str = "3field";
 
     struct TestLinkToken {
         token_id: TokenId,
         source_token_address: String,
-        destination_token_address: String,
+        estination_token_address: String,
         token_manager_type: u8,
         external_chain: ChainNameRaw,
     }
@@ -465,29 +466,20 @@ mod tests {
                     token_id: self.token_id,
                     token_manager_type: self.token_manager_type.into(),
                     source_token_address: to_hex(self.source_token_address.as_str()),
-                    destination_token_address: from_hex(&hex::encode(
-                        &self.destination_token_address,
-                    )),
+                    destination_token_address: to_hex(&self.destination_token_address),
                     params: None,
                 }),
             }
         }
 
         fn outbound_hub_message(&self) -> HubMessage {
-            let aleo_token_id = Field::<CurrentNetwork>::from_str(&self.source_token_address)
-                .expect("Valid field")
-                .to_bytes_le()
-                .expect("Valid bytes");
-
             HubMessage::SendToHub {
                 destination_chain: self.external_chain.clone(),
                 message: Message::LinkToken(LinkToken {
                     token_id: self.token_id,
                     token_manager_type: self.token_manager_type.into(),
-                    source_token_address: aleo_token_id
-                        .try_into()
-                        .expect("Valid non-empty hex binary"),
-                    destination_token_address: from_hex(&self.destination_token_address),
+                    source_token_address: to_hex(&self.source_token_address),
+                    destination_token_address: from_hex_to_hex(&self.destination_token_address),
                     params: None,
                 }),
             }
@@ -497,7 +489,7 @@ mod tests {
             let its_token_id = format_its_token_id(self.token_id);
             let source_chain = format_chain_name(&self.external_chain);
             let source_token_address = format_address(EVM_DESTINATION_ADDRESS);
-            let destination_token_address = TOKEN_ID;
+            let destination_token_address = ALEO_TOKEN_ID;
             let token_manager_type = self.token_manager_type;
             let operator = Address::<CurrentNetwork>::zero().to_string();
 
@@ -589,15 +581,16 @@ mod tests {
 
         #[test]
         fn translate_link_token() {
-            let test_data =
-                TestLinkToken::new(EVM_DESTINATION_ADDRESS.to_string(), TOKEN_ID.to_string());
+            let test_data = TestLinkToken::new(
+                EVM_DESTINATION_ADDRESS.to_string(),
+                ALEO_TOKEN_ID.to_string(),
+            );
             let its_hub_message = test_data.inbound_hub_message();
-
-            let aleo_value_str = test_data.inbound_aleo_message();
 
             let result = aleo_inbound_hub_message::<CurrentNetwork>(its_hub_message)
                 .expect("Successful conversion");
 
+            let aleo_value_str = test_data.inbound_aleo_message();
             let expected_aleo_value =
                 Value::<CurrentNetwork>::from_str(&aleo_value_str).expect("Valid Aleo value");
 
@@ -684,9 +677,7 @@ mod tests {
             let expected = HubMessage::RegisterTokenMetadata(
                 interchain_token_service_std::RegisterTokenMetadata {
                     decimals,
-                    token_address: from_hex(&hex::encode(
-                        token_address.to_bytes_le().expect("Valid bytes"),
-                    )),
+                    token_address: to_hex(&token_address.to_string()),
                 },
             );
 
@@ -700,8 +691,10 @@ mod tests {
 
         #[test]
         fn translate_link_token() {
-            let test_data =
-                TestLinkToken::new(TOKEN_ID.to_string(), EVM_DESTINATION_ADDRESS.to_string());
+            let test_data = TestLinkToken::new(
+                ALEO_TOKEN_ID.to_string(),
+                EVM_DESTINATION_ADDRESS.to_string(),
+            );
             let expected_message = test_data.outbound_hub_message();
 
             let aleo_value_str = test_data.outbound_aleo_message();

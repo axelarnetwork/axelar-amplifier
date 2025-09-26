@@ -1,4 +1,3 @@
-use aleo_compatible_keccak::AleoBitsToBytesExt;
 use aleo_gateway_types::{
     ItsOutgoingInterchainTransfer, RegisterTokenMetadata, RemoteDeployInterchainToken,
     WrappedSendLinkToken,
@@ -12,7 +11,7 @@ use interchain_token_service_std::{
     InterchainTransfer as ItsHubInterchainTransfer, LinkToken, Message, TokenId,
 };
 use router_api::ChainNameRaw;
-use snarkvm_cosmwasm::prelude::{Network, ToBytes as _};
+use snarkvm_cosmwasm::prelude::Network;
 
 use crate::aleo::Error;
 
@@ -21,6 +20,18 @@ pub trait ToItsHubMessage {
     type Error;
 
     fn to_hub_message(self) -> Result<HubMessage, Self::Error>;
+}
+
+// Convert cosmwasm_std::HexBinary to nonempty::HexBinary
+fn from_hex_to_hex(hex: &str) -> nonempty::HexBinary {
+    cosmwasm_std::HexBinary::from_hex(hex)
+        .expect("Valid hex string")
+        .try_into()
+        .expect("Valid non-empty hex binary")
+}
+
+fn to_hex(data: &str) -> nonempty::HexBinary {
+    from_hex_to_hex(&hex::encode(data.as_bytes()))
 }
 
 impl<N: Network> ToItsHubMessage for WrappedSendLinkToken<N> {
@@ -58,12 +69,17 @@ impl<N: Network> ToItsHubMessage for WrappedSendLinkToken<N> {
             }
         };
 
+        let source_token_address = {
+            let s = link_token.aleo_token_id.to_string();
+            to_hex(&s)
+        };
+
         Ok(HubMessage::SendToHub {
             destination_chain: ChainNameRaw::try_from(destination_chain)?,
             message: Message::LinkToken(LinkToken {
                 token_id: TokenId::from(ItsTokenIdNewType(link_token.token_id)),
                 token_manager_type: link_token.token_manager_type.into(),
-                source_token_address: link_token.aleo_token_id.to_bytes().try_into()?,
+                source_token_address,
                 destination_token_address,
                 params,
             }),
@@ -177,7 +193,7 @@ impl<N: Network> ToItsHubMessage for RegisterTokenMetadata<N> {
     fn to_hub_message(self) -> Result<HubMessage, Self::Error> {
         let register_token_metadata = interchain_token_service_std::RegisterTokenMetadata {
             decimals: self.decimals,
-            token_address: self.token_address.to_bytes_le()?.try_into()?,
+            token_address: to_hex(&self.token_address.to_string()),
         };
 
         Ok(HubMessage::RegisterTokenMetadata(register_token_metadata))
