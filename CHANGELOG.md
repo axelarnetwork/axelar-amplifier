@@ -2,7 +2,13 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.1..HEAD)
+
+## [v1.12.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.1) (2025-09-25)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.0..ampd-v1.12.1)
+
+- add event filtering to event handlers [#1049](https://github.com/axelarnetwork/axelar-amplifier/pull/1049)
 
 ## [v1.12.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.0) (2025-09-19)
 

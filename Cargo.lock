@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.12.0"
+version = "1.12.1"
 dependencies = [
  "ampd-proto",
  "anchor-lang",
@@ -3846,6 +3846,7 @@ dependencies = [
 name = "events-derive"
 version = "1.0.0"
 dependencies = [
+ "axelar-wasm-std",
  "error-stack",
  "events",
  "quote 1.0.40",
