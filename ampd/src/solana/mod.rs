@@ -238,7 +238,8 @@ pub(crate) fn get_instruction_at_index(
     let inner_ix_group_index = usize::try_from(inner_ix_group_index).ok()?;
     let inner_ix_index = usize::try_from(inner_ix_index).ok()?;
 
-    // Events are always inner instructions (emitted via emit_cpi!), never top-level
+    // indexing starts at 1 to match the explorer, 0 is not allowed. We should never
+    // actually receive such a message id, since the regex disallows 0 here.
     if inner_ix_index == 0 {
         return None;
     }
@@ -412,7 +413,7 @@ mod test {
         }
 
         let mut test_results: Vec<(u32, u32, String)> = Vec::new();
-        
+
         for group_idx in 0..IX_GROUP_COUNT {
             for inner_idx in 1..=INNER_GROUP_SIZE {
                 let result = get_instruction_at_index(&tx, group_idx, inner_idx);
@@ -426,7 +427,7 @@ mod test {
                     instruction.data,
                     format!("inner_instruction_{}_{}", group_idx, inner_idx - 1)
                 );
-                
+
                 // Collect for golden test
                 test_results.push((group_idx, inner_idx, instruction.data));
             }
