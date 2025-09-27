@@ -23,13 +23,13 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
-aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-gateway-types = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-gmp-types = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-network-config = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-signature-verifier = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
-aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
+aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+aleo-gateway-types = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+aleo-gmp-types = { path = "packages/aleo-gmp-types" }
+aleo-network-config = { path = "packages/aleo-network-config" }
+aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
 aleo-validate = { path = "packages/aleo-validate" }
 alloy-primitives = { version = "0.7.6", default-features = false, features = [
   "std",
@@ -98,7 +98,8 @@ aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
-plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "update-to-snarkvm-4.1.0" }
+# plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+plaintext-trait = { path = "../reshape-crate/crates/plaintext-trait" }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
 rand = "0.8.5"
@@ -116,7 +117,7 @@ sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
 snarkos-account = "4.1.0"
 snarkvm = { version = "4.1.0", default-features = false }
-snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM.git", branch = "cosmwasm-5", package = "snarkvm-cosmwasm" }
+snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM.git", tag = "snarkvm-with-cosmwasm", package = "snarkvm-cosmwasm" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"
@@ -169,5 +170,5 @@ overflow-checks = true
 
 [patch.crates-io]
 # Use our fork of snarkVM so we use the same snarkVM code in axelar-aleo and axelar-amplifier.
-snarkvm = { git = "https://github.com/eigerco/snarkVM", branch = "cosmwasm-5" }
-tofn = { git = "https://github.com/eigerco/tofn.git", branch = "refactor-aleo-schnorr" }
+snarkvm = { git = "https://github.com/eigerco/snarkVM", tag = "snarkvm-with-cosmwasm" }
+tofn = { git = "https://github.com/eigerco/tofn.git", branch = "aleo-schnorr" }
