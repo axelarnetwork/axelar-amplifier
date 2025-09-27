@@ -98,8 +98,7 @@ aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
-# plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
-plaintext-trait = { path = "../reshape-crate/crates/plaintext-trait" }
+plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
 rand = "0.8.5"
