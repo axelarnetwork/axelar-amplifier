@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axelar_wasm_std::address::ContractAddr;
 use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
@@ -154,7 +152,7 @@ pub enum QueryMsg {
     ItsChain { chain: ChainNameRaw },
 
     /// Query all registered ITS contract addresses
-    #[returns(HashMap<ChainNameRaw, Address>)]
+    #[returns(std::collections::HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
 
     /// Query all chain configs with optional frozen filter

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
+use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt};
 use serde::Serialize;
@@ -184,6 +185,10 @@ impl TryFrom<ampd_proto::subscribe_response::Event> for Event {
             }),
         }
     }
+}
+
+pub trait EventType {
+    fn event_type() -> nonempty::String;
 }
 
 #[cfg(test)]

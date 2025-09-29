@@ -1,14 +1,16 @@
 use std::future::Future;
 use std::ops::Mul;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::tx::Fee;
 use cosmrs::{tendermint, Any, Coin, Denom, Gas};
 use error_stack::{ensure, report, Context, ResultExt};
 use num_traits::cast;
+use regex::Regex;
 use report::ResultCompatExt;
 use tokio::sync::{RwLock, RwLockWriteGuard};
+use tracing::info;
 use typed_builder::TypedBuilder;
 
 use super::{Error, Result};
@@ -16,6 +18,10 @@ use crate::broadcast::dec_coin::DecCoin;
 use crate::broadcast::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
+
+static SEQUENCE_ERROR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"account sequence mismatch, expected (\d+), got (\d+)").expect("Invalid regex")
+});
 
 /// `Broadcaster` provides transaction broadcasting functionality for Cosmos networks.
 ///
@@ -173,18 +179,6 @@ where
         BroadcasterBuilderParams::builder()
     }
 
-    // TODO: this is a temporary method to reset the sequence number because executing commands will cause
-    // the daemon's broadcaster sequence number to become out of sync. Remove this once the commands broadcast
-    // through the daemon's broadcaster.
-    pub async fn reset_sequence(&mut self) -> Result<()> {
-        reset_sequence(
-            &mut self.client,
-            &self.address,
-            self.acc_sequence.write().await,
-        )
-        .await
-    }
-
     /// Estimates the gas required for a transaction containing the given messages.
     ///
     /// This performs a simulated execution of the transaction without actually
@@ -202,11 +196,41 @@ where
     ///
     /// * `Error::EstimateGas` - If the gas estimation fails
     pub async fn estimate_gas(&mut self, msgs: Vec<Any>) -> Result<Gas> {
-        let acc_sequence = self.acc_sequence.read().await;
+        let mut acc_sequence = self.acc_sequence.write().await;
 
-        cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence)
-            .await
-            .change_context(Error::EstimateGas)
+        let res = match cosmos::estimate_gas(
+            &mut self.client,
+            msgs.clone(),
+            self.pub_key,
+            *acc_sequence,
+        )
+        .await
+        {
+            Ok(gas) => Ok(gas),
+            Err(e) => match parse_sequence_error(e.to_string()) {
+                // Retry with the expected sequence number in case of sequence mismatch. Reasons why this might happen:
+                // 1. The account sequence got unsynchronized when another instance of ampd broadcasted a transaction.
+                //    i.e. an ampd command was executed while the daemon was running.
+                // 2. The account sequence was incremented after a broadcast, but the transaction failed to be confirmed in the blockchain.
+                //    therefore expecting the previous sequence number.
+                // 3. The account sequence was reset, while there were still some transactions in the mempool.
+                Some(expected_seq) => {
+                    info!(
+                            "account sequence mismatch, expected {}, got {}, retrying with expected sequence number",
+                            expected_seq,
+                            *acc_sequence
+                        );
+
+                    *acc_sequence = expected_seq;
+
+                    cosmos::estimate_gas(&mut self.client, msgs, self.pub_key, *acc_sequence).await
+                }
+                // Return the error if not a sequence mismatch error
+                None => Err(e),
+            },
+        };
+
+        res.change_context(Error::EstimateGas)
     }
 
     /// Broadcasts a transaction to the Cosmos blockchain.
@@ -304,6 +328,13 @@ where
     *acc_sequence = account.sequence;
 
     Ok(())
+}
+
+fn parse_sequence_error(error_msg: String) -> Option<u64> {
+    SEQUENCE_ERROR_REGEX
+        .captures(&error_msg)
+        .and_then(|caps| caps.get(1))
+        .and_then(|m| m.as_str().parse::<u64>().ok())
 }
 
 #[cfg(test)]
@@ -628,6 +659,59 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), gas_used);
         assert_eq!(*broadcaster.acc_sequence.read().await, sequence);
+    }
+
+    #[tokio::test]
+    async fn estimate_gas_should_retry_with_expected_sequence_number() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let sequence = 10u64;
+        let expected_sequence = sequence + 1;
+        let gas_used = 100000u64;
+
+        let (mut mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
+            account_number,
+            sequence,
+            "1000000".to_string(),
+        );
+
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Err(error_stack::report!(cosmos::Error::GrpcRequest(
+                    tonic::Status::internal(format!(
+                        "account sequence mismatch, expected {}, got {}",
+                        expected_sequence, sequence
+                    ))
+                )))
+            });
+
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used,
+                    }),
+                    result: None,
+                })
+            });
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
+
+        let msgs = vec![dummy_msg()];
+        let result = broadcaster.estimate_gas(msgs).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), gas_used);
+        assert_eq!(*broadcaster.acc_sequence.read().await, expected_sequence);
     }
 
     #[tokio::test]
