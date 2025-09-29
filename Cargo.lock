@@ -2424,7 +2424,6 @@ name = "coordinator"
 version = "2.1.0"
 dependencies = [
  "axelar-wasm-std",
- "chain-codec-api",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",

@@ -3,8 +3,8 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, nonempty_str, Threshold, VerificationStatus};
 use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
-    ChainCodecMsg, ChainContractsResponse, ContractDeploymentInfo, DeploymentParams,
-    ManualDeploymentParams, ProverMsg, VerifierMsg,
+    ChainContractsResponse, ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams,
+    ProverMsg, VerifierMsg,
 };
 use cosmwasm_std::{Addr, Binary, HexBinary};
 use cw_multi_test::AppResponse;
@@ -81,12 +81,6 @@ fn instantiate_contracts(
                     msg: (),
                     contract_admin: protocol.governance_address.clone(),
                 },
-                chain_codec: ContractDeploymentInfo {
-                    code_id: chain.chain_codec.code_id,
-                    label: "ChainCodec1.0.0".to_string(),
-                    msg: ChainCodecMsg {}.into(),
-                    contract_admin: protocol.governance_address.clone(),
-                },
                 verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
                     label: "Verifier1.0.0".to_string(),
@@ -104,14 +98,10 @@ fn instantiate_contracts(
                         block_expiry: 10.try_into().unwrap(),
                         confirmation_height: 5,
                         source_chain: chain_name.parse().unwrap(),
-                        rewards_address: protocol
-                            .rewards
-                            .contract_addr
-                            .to_string()
-                            .try_into()
-                            .unwrap(),
+                        rewards_address: protocol.rewards.contract_addr.clone().into(),
                         msg_id_format:
                             axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                        chain_codec_address: chain.chain_codec.contract_addr.clone().into(),
                     },
                     contract_admin: protocol.governance_address.clone(),
                 },
@@ -141,6 +131,7 @@ fn instantiate_contracts(
                         )
                         .expect("expected non-empty address"),
                         domain_separator: [0; 32],
+                        chain_codec_address: chain.chain_codec.contract_addr.clone().into(),
                         notify_signing_session: false,
                         expect_full_message_payloads: false,
                     },

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
@@ -39,16 +38,7 @@ fn sig_verifier_called() {
 
     let sig_verifier = FailingSigVerifier::instantiate_contract(&mut protocol.app);
 
-    let prover_address = protocol.app.init_modules(|_, api, storage| {
-        protocol
-            .address_generator
-            // order is: chain codec, voting verifier, gateway, multisig prover, so 4 addresses ahead should be the prover address
-            .future_address(api, storage, NonZeroU64::new(4).unwrap())
-            .unwrap()
-    });
-
-    let chain_codec =
-        ChainCodecContract::instantiate_contract(&mut protocol, prover_address.clone());
+    let chain_codec = ChainCodecContract::instantiate_contract(&mut protocol);
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol,

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
@@ -8,7 +8,6 @@ use cosmwasm_std::{Addr, Binary};
 use msgs_derive::Permissions;
 use multisig::key::KeyType;
 use router_api::ChainName;
-use serde_json::Value;
 use service_registry_api::Verifier;
 
 pub use crate::contract::MigrateMsg;
@@ -75,7 +74,6 @@ pub struct ContractDeploymentInfo<T> {
 #[cw_serde]
 pub struct ManualDeploymentParams {
     pub gateway: ContractDeploymentInfo<()>,
-    pub chain_codec: ContractDeploymentInfo<Extended<ChainCodecMsg>>,
     pub verifier: ContractDeploymentInfo<VerifierMsg>,
     pub prover: ContractDeploymentInfo<ProverMsg>,
 }
@@ -103,6 +101,7 @@ pub struct ProverMsg {
     pub notify_signing_session: bool,
     pub expect_full_message_payloads: bool,
     pub sig_verifier_address: Option<String>,
+    pub chain_codec_address: nonempty::String,
 }
 
 #[cw_serde]
@@ -116,62 +115,7 @@ pub struct VerifierMsg {
     pub source_chain: ChainName,
     pub rewards_address: nonempty::String,
     pub msg_id_format: MessageIdFormat,
-}
-
-/// Allows adding additional fields to a message's JSON that are not known at compile time.
-///
-/// # Example
-///
-/// ```rust
-/// # use cosmwasm_schema::cw_serde;
-/// # use coordinator::msg::Extended;
-///
-/// #[cw_serde]
-/// struct Person {
-///     name: String,
-///     age: u8,
-/// }
-/// let data = r#"
-///     {
-///         "name": "John Doe",
-///         "age": 43,
-///         "phone": "+44 1234567"
-///     }"#;
-///
-/// // Parse the data into Extended<Person>.
-/// let v: Extended<Person> = serde_json::from_str(data)?;
-/// let json = serde_json::to_string(&v)?;
-///
-/// assert_eq!(v.inner.name, "John Doe");
-/// assert_eq!(v.inner.age, 43);
-/// assert_eq!(v.additional.get("phone").unwrap().as_str(), Some("+44 1234567"));
-///
-/// # Ok::<(), serde_json::Error>(())
-/// ```
-#[cw_serde]
-pub struct Extended<T> {
-    #[serde(flatten)]
-    pub inner: T,
-    /// Additional fields that are not known at compile time.
-    #[serde(flatten)]
-    pub additional: BTreeMap<String, Value>,
-}
-
-impl<T> Extended<T> {
-    pub fn new(inner: T, additional: BTreeMap<String, Value>) -> Self {
-        Extended { inner, additional }
-    }
-}
-
-impl<T> From<T> for Extended<T> {
-    fn from(inner: T) -> Self {
-        Extended::new(inner, BTreeMap::new())
-    }
-}
-
-#[cw_serde]
-pub struct ChainCodecMsg {
-    // no params needed for now
+    pub chain_codec_address: nonempty::String,
 }
 
 #[cw_serde]
@@ -225,62 +169,4 @@ pub struct ChainContractsResponse {
     pub prover_address: ProverAddress,
     pub gateway_address: GatewayAddress,
     pub verifier_address: VerifierAddress,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cw_serde]
-    struct Person {
-        name: String,
-        age: u8,
-    }
-
-    #[cw_serde]
-    struct ExtendedPerson {
-        #[serde(flatten)]
-        pub inner: Person,
-        /// additional field known at compile time
-        pub phone: String,
-    }
-
-    #[test]
-    fn test_extended() {
-        let inner = Person {
-            name: "John Doe".into(),
-            age: 43,
-        };
-        let mut additional = BTreeMap::new();
-        additional.insert("phone".into(), "+44 1234567".into());
-
-        let extended: Extended<Person> = Extended::new(inner, additional);
-
-        // make sure the JSON can be deserialized into Person
-        let json = serde_json::to_string(&extended).unwrap();
-        let deserialized: Person = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(deserialized.name, "John Doe");
-        assert_eq!(deserialized.age, 43);
-    }
-
-    #[test]
-    fn test_extended_to_custom() {
-        let original = Person {
-            name: "Jane Doe".into(),
-            age: 30,
-        };
-        let mut additional = BTreeMap::new();
-        additional.insert("phone".into(), "+44 1234567".into());
-
-        let extended: Extended<Person> = Extended::new(original, additional);
-
-        // make sure the JSON can be deserialized into ExtendedPerson
-        let json = serde_json::to_string(&extended).unwrap();
-        let deserialized: ExtendedPerson = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(deserialized.inner.name, "Jane Doe");
-        assert_eq!(deserialized.inner.age, 30);
-        assert_eq!(deserialized.phone, "+44 1234567");
-    }
 }

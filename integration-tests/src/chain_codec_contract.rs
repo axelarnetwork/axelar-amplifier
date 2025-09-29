@@ -13,7 +13,7 @@ pub struct ChainCodecContract {
 }
 
 impl ChainCodecContract {
-    pub fn instantiate_contract(protocol: &mut Protocol, multisig_prover: Addr) -> Self {
+    pub fn instantiate_contract(protocol: &mut Protocol) -> Self {
         let code = ContractWrapper::new_with_empty(
             |_, _, _, _: Empty| StdResult::Err(StdError::generic_err("no execute endpoint")),
             instantiate,
@@ -27,9 +27,7 @@ impl ChainCodecContract {
             .instantiate_contract(
                 code_id,
                 MockApi::default().addr_make("anyone"),
-                &chain_codec_api::msg::InstantiateMsg {
-                    multisig_prover: multisig_prover.to_string(),
-                },
+                &chain_codec_api::msg::InstantiateMsg {},
                 &[],
                 "coordinator",
                 None,

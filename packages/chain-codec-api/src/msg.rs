@@ -18,11 +18,7 @@ use multisig_prover_api::payload::Payload;
 ///    pub base: chain_codec_api::msg::InstantiateMsg,
 /// }
 #[cw_serde]
-pub struct InstantiateMsg {
-    /// The multisig prover contract address.
-    /// This is used for access control.
-    pub multisig_prover: String,
-}
+pub struct InstantiateMsg {}
 
 #[cw_serde]
 #[derive(QueryResponses)]
