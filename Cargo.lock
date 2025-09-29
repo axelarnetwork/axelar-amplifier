@@ -124,6 +124,15 @@ dependencies = [
 [[package]]
 name = "aleo-compatible-keccak"
 version = "0.1.0"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#ddde9051d471567f0fa7a0210d1d368d6788b5c2"
+dependencies = [
+ "snarkvm-cosmwasm",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "aleo-compatible-keccak"
+version = "0.1.0"
 source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#d674b9e957e263cf896706407f4c543329e3125c"
 dependencies = [
  "snarkvm-cosmwasm",
@@ -201,7 +210,7 @@ dependencies = [
 name = "aleo-signature-verifier"
 version = "0.1.0"
 dependencies = [
- "aleo-compatible-keccak",
+ "aleo-compatible-keccak 0.1.0 (git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main)",
  "aleo-network-config 0.1.0",
  "axelar-wasm-std 1.0.0",
  "cosmwasm-schema",
@@ -432,7 +441,7 @@ dependencies = [
 name = "ampd"
 version = "1.12.1"
 dependencies = [
- "aleo-compatible-keccak",
+ "aleo-compatible-keccak 0.1.0 (git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main)",
  "aleo-gateway-types",
  "aleo-gmp-types 0.1.0",
  "aleo-string-encoder",
@@ -5860,7 +5869,7 @@ dependencies = [
 name = "its-aleo-translator"
 version = "0.1.0"
 dependencies = [
- "aleo-compatible-keccak",
+ "aleo-compatible-keccak 0.1.0 (git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main)",
  "aleo-gateway-types",
  "aleo-gmp-types 0.1.0",
  "aleo-network-config 0.1.0",
@@ -7129,7 +7138,7 @@ dependencies = [
 name = "multisig-prover"
 version = "1.1.1"
 dependencies = [
- "aleo-compatible-keccak",
+ "aleo-compatible-keccak 0.1.0 (git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main)",
  "aleo-gateway-types",
  "aleo-gmp-types 0.1.0",
  "aleo-network-config 0.1.0",
@@ -7187,7 +7196,7 @@ name = "multisig-prover"
 version = "1.1.1"
 source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#a9a4a8ed6bce8a283de601ff6349d53c110e8a68"
 dependencies = [
- "aleo-compatible-keccak",
+ "aleo-compatible-keccak 0.1.0 (git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2)",
  "aleo-gateway-types",
  "aleo-gmp-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "aleo-network-config 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
