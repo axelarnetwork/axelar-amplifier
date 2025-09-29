@@ -122,9 +122,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "aleo-block-processor"
+version = "0.1.0"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#f41c0b0f1f59613a8dda49371b2915679801b561"
+dependencies = [
+ "aleo-gateway-types",
+ "serde",
+ "serde_json",
+ "snarkvm",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "aleo-compatible-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#ddde9051d471567f0fa7a0210d1d368d6788b5c2"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#f41c0b0f1f59613a8dda49371b2915679801b561"
 dependencies = [
  "snarkvm-cosmwasm",
  "thiserror 2.0.17",
@@ -142,7 +154,7 @@ dependencies = [
 [[package]]
 name = "aleo-gateway-types"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#22353e009e5b193727dec50dd7091ec872884ed1"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#f41c0b0f1f59613a8dda49371b2915679801b561"
 dependencies = [
  "anyhow",
  "indexmap 2.10.0",
@@ -294,7 +306,7 @@ checksum = "14edf4007a98323f763701688bcbe3bc6ecf33e20c3a81b3eb8d6661ff01b217"
 [[package]]
 name = "aleo-string-encoder"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#22353e009e5b193727dec50dd7091ec872884ed1"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#f41c0b0f1f59613a8dda49371b2915679801b561"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -441,11 +453,11 @@ dependencies = [
 name = "ampd"
 version = "1.12.1"
 dependencies = [
+ "aleo-block-processor",
  "aleo-compatible-keccak 0.1.0 (git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main)",
  "aleo-gateway-types",
  "aleo-gmp-types 0.1.0",
  "aleo-string-encoder",
- "aleo-utils",
  "ampd-proto",
  "assert_ok",
  "async-trait",
@@ -2391,7 +2403,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3288,7 +3300,7 @@ dependencies = [
 [[package]]
 name = "derive-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#22353e009e5b193727dec50dd7091ec872884ed1"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#f41c0b0f1f59613a8dda49371b2915679801b561"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8337,7 +8349,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "plaintext-trait"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#22353e009e5b193727dec50dd7091ec872884ed1"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#f41c0b0f1f59613a8dda49371b2915679801b561"
 dependencies = [
  "anyhow",
  "derive-macros",
@@ -10141,10 +10153,11 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.219"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
+ "serde_core",
  "serde_derive",
 ]
 
@@ -10229,10 +10242,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_derive"
-version = "1.0.219"
+name = "serde_core"
+version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
+checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -10252,15 +10274,16 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.140"
+version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
 dependencies = [
  "indexmap 2.10.0",
  "itoa",
  "memchr",
  "ryu",
  "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -15662,7 +15685,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

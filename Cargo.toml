@@ -28,8 +28,10 @@ snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM.git", tag = "snar
 aleo-gateway-types = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "aleo-gateway-types" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "aleo-string-encoder" }
 plaintext-trait = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "plaintext-trait" }
+# aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-compatible-keccak" }
 aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "aleo-compatible-keccak" }
 aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-utils" }
+aleo-block-processor = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "aleo-block-processor" }
 
 
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }

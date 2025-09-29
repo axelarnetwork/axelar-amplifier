@@ -12,7 +12,7 @@ pub trait ClientTrait<N: Network>: Send {
     async fn get_transaction(
         &self,
         transaction_id: &N::TransactionID,
-    ) -> Result<aleo_utils::block_processor::OwnedTransaction, Error>;
+    ) -> Result<aleo_block_processor::OwnedTransaction, Error>;
 
     async fn find_transaction(&self, transition_id: &N::TransitionID) -> Result<String, Error>;
 }
@@ -40,7 +40,7 @@ impl<N: Network> ClientTrait<N> for Client {
     async fn get_transaction(
         &self,
         transaction_id: &N::TransactionID,
-    ) -> Result<aleo_utils::block_processor::OwnedTransaction, Error> {
+    ) -> Result<aleo_block_processor::OwnedTransaction, Error> {
         const ENDPOINT: &str = "transaction";
         let url = format!(
             "{}{}/{ENDPOINT}/{}",
@@ -57,7 +57,7 @@ impl<N: Network> ClientTrait<N> for Client {
             .attach_printable_lazy(|| format!("target url: '{url:?}'"))?;
 
         let response_text = response.text().await.map_err(Error::from)?;
-        let transaction: aleo_utils::block_processor::Transaction =
+        let transaction: aleo_block_processor::Transaction =
             serde_json::from_str(&response_text).map_err(Error::from)?;
 
         Ok(transaction.into_owned())
@@ -105,10 +105,10 @@ pub mod tests {
 
         let mut expected_transitions: HashMap<
             N::TransactionID,
-            aleo_utils::block_processor::Transaction,
+            aleo_block_processor::Transaction,
         > = HashMap::new();
 
-        let snark_transaction: aleo_utils::block_processor::Transaction =
+        let snark_transaction: aleo_block_processor::Transaction =
             serde_json::from_str(transaction).expect("Failed to parse transaction");
         let snark_transaction = snark_transaction.into_owned();
         let transaction = N::TransactionID::from_str(transaction_id)

@@ -29,14 +29,14 @@ pub struct StateTransactionId<N: Network> {
 /// State after retrieving the transaction
 #[derive(Debug)]
 pub struct StateTransactionFound {
-    transaction: aleo_utils::block_processor::OwnedTransaction,
+    transaction: aleo_block_processor::OwnedTransaction,
 }
 
 /// State after finding the transition in the transaction
 #[derive(Debug)]
 pub struct StateTransitionFound {
-    transaction: aleo_utils::block_processor::OwnedTransaction,
-    transition: aleo_utils::block_processor::OwnedTransition,
+    transaction: aleo_block_processor::OwnedTransaction,
+    transition: aleo_block_processor::OwnedTransition,
 }
 
 /// Builder for verifying Aleo receipts using a type-state pattern
