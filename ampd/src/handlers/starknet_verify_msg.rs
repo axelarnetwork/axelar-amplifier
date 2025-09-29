@@ -501,9 +501,7 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (key, value)
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .unwrap()

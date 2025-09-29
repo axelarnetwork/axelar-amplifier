@@ -980,11 +980,12 @@ mod tests {
             .times(1)
             .returning(|height| {
                 let mut invalid_event = random_event();
-                invalid_event.attributes = vec![tendermint::abci::EventAttribute::V034(EventAttribute {
-                    key: vec![0xFF, 0xFE, 0xFA],
-                    value: vec![0xFF, 0xFE, 0xFA],
-                    index: false,
-                })]; // attributes are expected to be valid strings
+                invalid_event.attributes =
+                    vec![tendermint::abci::EventAttribute::V034(EventAttribute {
+                        key: vec![0xFF, 0xFE, 0xFA],
+                        value: vec![0xFF, 0xFE, 0xFA],
+                        index: false,
+                    })]; // attributes are expected to be valid strings
 
                 Ok(block_results_response(
                     height,

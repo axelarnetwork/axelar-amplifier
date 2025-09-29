@@ -247,9 +247,7 @@ mod test {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (key, value)
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         ))
         .unwrap()
     }
@@ -279,9 +277,7 @@ mod test {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (key, value)
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         ))
         .unwrap()
     }

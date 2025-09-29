@@ -112,8 +112,14 @@ fn try_into_kv_pair(attr: &EventAttribute) -> Result<(String, serde_json::Value)
 
 fn decode_event_attribute(attribute: &EventAttribute) -> Result<(String, String), DecodingError> {
     Ok((
-        attribute.key_str().map(String::from).map_err(DecodingError::Tendermint)?,
-        attribute.value_str().map(String::from).map_err(DecodingError::Tendermint)?,
+        attribute
+            .key_str()
+            .map(String::from)
+            .map_err(DecodingError::Tendermint)?,
+        attribute
+            .value_str()
+            .map(String::from)
+            .map_err(DecodingError::Tendermint)?,
     ))
 }
 
