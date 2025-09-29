@@ -67,9 +67,10 @@ pub enum ExecuteMsg {
     /// The contract can also still revert the transaction here by returning an error or panicking.
     ///
     /// This can only be called by the multisig-prover contract.
+    /// If you need this functionality, you should extend the [`InstantiateMsg`] to include the multisig-prover address.
+    /// In that case, you need to predict the multisig-prover address before instantiating it.
     ///
-    /// This field is only available if the multisig-prover contract was compiled with the `notify-signing-session` feature flag.
-    /// Therefore, it is also feature-gated in this crate.
+    /// This field is only available if the multisig-prover contract was instantiated with the `notify-signing-session` flag enabled.
     #[permission(Specific(multisig_prover))]
     NotifySigningSession {
         /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
