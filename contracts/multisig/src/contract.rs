@@ -97,7 +97,14 @@ pub fn execute(
             signed_sender_address,
         } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCallers { contracts } => {
-            let contracts = validate_contract_addresses(&deps, contracts)?;
+            let contracts = contracts
+                .into_iter()
+                .map(|(addr, chain_name)| {
+                    address::validate_cosmwasm_address(deps.api, &addr)
+                        .map(|validated_addr| (validated_addr, chain_name))
+                })
+                .collect::<Result<HashMap<Addr, ChainName>, _>>()?;
+
             execute::authorize_callers(deps, contracts)
         }
         ExecuteMsg::UnauthorizeCallers { contracts } => {
@@ -112,16 +119,11 @@ pub fn execute(
 
 fn validate_contract_addresses(
     deps: &DepsMut,
-    contracts: HashMap<String, ChainName>,
-) -> Result<HashMap<Addr, ChainName>, Report<address::Error>> {
+    contracts: Vec<String>,
+) -> Result<Vec<Addr>, Report<address::Error>> {
     contracts
         .into_iter()
-        .map(|(contract_address, chain_name)| {
-            Ok((
-                address::validate_cosmwasm_address(deps.api, &contract_address)?,
-                chain_name,
-            ))
-        })
+        .map(|contract_address| address::validate_cosmwasm_address(deps.api, &contract_address))
         .try_collect()
 }
 
@@ -131,10 +133,12 @@ fn can_start_signing_session(
     msg: &ExecuteMsg,
 ) -> error_stack::Result<bool, permission_control::Error> {
     match msg {
-        ExecuteMsg::StartSigningSession { chain_name, .. } => Ok(
-            execute::require_authorized_caller(storage, sender_addr, chain_name)
-                .change_context(permission_control::Error::Unauthorized)?,
-        ),
+        ExecuteMsg::StartSigningSession { chain_name, .. } => {
+            Ok(
+                query::caller_authorized(storage, sender_addr.clone(), chain_name.clone())
+                    .change_context(permission_control::Error::Unauthorized)?,
+            )
+        }
         _ => Err(report!(permission_control::Error::WrongVariant)),
     }
 }
@@ -169,10 +173,13 @@ pub fn query(
             contract_address,
             chain_name,
         } => to_json_binary(&query::caller_authorized(
-            deps,
+            deps.storage,
             address::validate_cosmwasm_address(deps.api, &contract_address)?,
             chain_name,
         )?)?,
+        QueryMsg::AuthorizedCaller { chain_name } => {
+            to_json_binary(&query::prover_for_chain(deps, chain_name)?)?
+        }
     }
     .then(Ok)
 }
@@ -338,7 +345,7 @@ mod tests {
         let msg = ExecuteMsg::UnauthorizeCallers {
             contracts: contracts
                 .into_iter()
-                .map(|(addr, chain_name)| (addr.to_string(), chain_name))
+                .map(|(addr, _)| addr.to_string())
                 .collect(),
         };
         execute(deps, env, info, msg.into())
@@ -1158,7 +1165,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::caller_authorized(deps.as_ref(), prover_address.clone(), chain_name.clone())
+            query::caller_authorized(&deps.storage, prover_address.clone(), chain_name.clone())
                 .unwrap();
         assert!(caller_authorization_status);
 
@@ -1185,7 +1192,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::caller_authorized(deps.as_ref(), prover_address, chain_name.clone()).unwrap();
+            query::caller_authorized(&deps.storage, prover_address, chain_name.clone()).unwrap();
         assert!(!caller_authorization_status);
     }
 
@@ -1202,7 +1209,7 @@ mod tests {
         assert!(contracts
             .iter()
             .all(|(addr, chain_name)| query::caller_authorized(
-                deps.as_ref(),
+                &deps.storage,
                 addr.clone(),
                 chain_name.clone()
             )
@@ -1212,7 +1219,7 @@ mod tests {
         assert!(unauthorized
             .iter()
             .all(|(addr, chain_name)| !query::caller_authorized(
-                deps.as_ref(),
+                &deps.storage,
                 addr.clone(),
                 chain_name.clone()
             )
@@ -1220,7 +1227,7 @@ mod tests {
         assert!(authorized
             .iter()
             .all(|(addr, chain_name)| query::caller_authorized(
-                deps.as_ref(),
+                &deps.storage,
                 addr.clone(),
                 chain_name.clone()
             )
@@ -1257,7 +1264,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
-            contracts: HashMap::from([(cosmos_addr!(PROVER).to_string(), chain_name!(MOCK_CHAIN))]),
+            contracts: vec![cosmos_addr!(PROVER).to_string()],
         };
         let res = execute(deps.as_mut(), env, info, msg.into());
 
@@ -1391,5 +1398,24 @@ mod tests {
                 .to_string()
             ));
         }
+    }
+
+    #[test]
+    fn query_authorized_callers_for_chains_succeeds() {
+        let (mut deps, _, _) = setup();
+
+        let contracts = vec![
+            (cosmos_addr!("addr1"), chain_name!("chain1")),
+            (cosmos_addr!("addr2"), chain_name!("chain2")),
+        ];
+        do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
+
+        let res = query::prover_for_chain(deps.as_ref(), chain_name!("chain1"));
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), cosmos_addr!("addr1"));
+
+        let res = query::prover_for_chain(deps.as_ref(), chain_name!("chain2"));
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), cosmos_addr!("addr2"));
     }
 }

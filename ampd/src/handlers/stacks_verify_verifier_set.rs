@@ -9,7 +9,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::{try_from, Event};
+use events::{try_from, Event, EventType};
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
@@ -19,6 +19,7 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::monitoring;
 use crate::monitoring::metrics;
@@ -181,6 +182,16 @@ impl EventHandler for Handler {
             .vote_msg(poll_id, vote)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                PollStartedEvent::event_type(),
+                self.voting_verifier_contract.clone(),
+            )],
+            true,
+        )
     }
 }
 
