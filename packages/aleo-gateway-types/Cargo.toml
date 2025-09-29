@@ -1,0 +1,10 @@
+[package]
+name = "aleo-gateway-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+indexmap = { workspace = true }
+snarkvm-cosmwasm = { workspace = true }
+serde = { workspace = true, default-features = false, features = ["derive"] }

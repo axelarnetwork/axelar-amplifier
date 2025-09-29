@@ -24,7 +24,7 @@ rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
 aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
-aleo-gateway-types = { path = "../aleo-gateway-types" }
+aleo-gateway-types = { path = "packages/aleo-gateway-types" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
 aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
@@ -85,6 +85,7 @@ integration-tests = { version = "^1.0.0", path = "integration-tests" }
 interchain-token-service = { version = "^1.3.0", path = "contracts/interchain-token-service" }
 interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain-token-service-std" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
+indexmap = "2.7.1"
 itertools = "0.14.0"
 its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
 its-aleo-translator = { path = "contracts/its-aleo-translator" }
