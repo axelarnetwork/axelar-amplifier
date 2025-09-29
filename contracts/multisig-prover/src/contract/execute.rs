@@ -5,6 +5,7 @@ use axelar_wasm_std::snapshot::{Participant, Snapshot};
 use axelar_wasm_std::{
     address, nonempty, permission_control, FnExt, MajorityThreshold, VerificationStatus,
 };
+use chain_codec_api::msg::FullMessagePayloads;
 use cosmwasm_std::{Addr, DepsMut, Env, QuerierWrapper, Response, Storage, SubMsg};
 use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
@@ -16,7 +17,7 @@ use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
-use crate::flags::{query_payload_digest, receive_full_payloads};
+use crate::flags::{query_payload_digest, check_and_store_full_payloads};
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
@@ -24,7 +25,7 @@ use crate::state::{
 pub fn construct_proof(
     mut deps: DepsMut,
     message_ids: Vec<CrossChainId>,
-    full_message_payloads: Vec<cosmwasm_std::HexBinary>, // this is empty if the `ConstructProofMsg::Messages` variant was received
+    full_message_payloads: Option<Vec<cosmwasm_std::HexBinary>>, // this is `None` if the `ConstructProofMsg::Messages` variant was received
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
@@ -65,13 +66,22 @@ pub fn construct_proof(
         .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
-    receive_full_payloads(
-        deps.branch(),
-        &config,
-        payload_id,
-        &full_message_payloads,
-        messages,
-    )?;
+    let full_message_payloads = match (full_message_payloads, config.expect_full_message_payloads) {
+        (Some(_), false) => return Err(report!(ContractError::UnexpectedFullMessagePayloads)),
+        (None, true) => return Err(report!(ContractError::MissingFullMessagePayloads)),
+        (Some(full_message_payloads), true) => {
+            check_and_store_full_payloads(
+                deps.branch(),
+                &config,
+                payload_id,
+                &full_message_payloads,
+                messages,
+            )?;
+
+            FullMessagePayloads::Payloads(full_message_payloads)
+        }
+        (None, false) => FullMessagePayloads::NotSupported
+    };
 
     let digest = query_payload_digest(
         deps.as_ref(),
@@ -286,7 +296,7 @@ pub fn update_verifier_set(
                 &config,
                 cur_verifier_set.clone(),
                 payload.clone(),
-                vec![], // empty because we don't have message payloads here and only fill this field for proof construction
+                FullMessagePayloads::VerifierSetUpdate,
             )?;
 
             let multisig: multisig::Client =

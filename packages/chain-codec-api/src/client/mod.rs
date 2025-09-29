@@ -6,7 +6,7 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
 
-use crate::msg::{ExecuteMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, FullMessagePayloads, QueryMsg};
 
 mod error;
 
@@ -26,7 +26,7 @@ impl Client<'_> {
         domain_separator: Hash,
         verifier_set: VerifierSet,
         payload: Payload,
-        full_message_payloads: Vec<HexBinary>,
+        full_message_payloads: FullMessagePayloads,
     ) -> Result<HexBinary, ClientError> {
         let msg = QueryMsg::PayloadDigest {
             domain_separator,
@@ -45,7 +45,7 @@ impl Client<'_> {
         multisig_session_id: cosmwasm_std::Uint64,
         verifier_set: VerifierSet,
         payload: Payload,
-        full_message_payloads: Vec<HexBinary>,
+        full_message_payloads: FullMessagePayloads,
     ) -> cosmwasm_std::CosmosMsg {
         self.client.execute(&ExecuteMsg::NotifySigningSession {
             domain_separator,

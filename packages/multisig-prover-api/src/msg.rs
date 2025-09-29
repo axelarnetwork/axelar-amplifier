@@ -77,13 +77,13 @@ pub enum ConstructProofMsg {
 }
 
 impl ConstructProofMsg {
-    pub fn ids_and_payloads(self) -> (Vec<CrossChainId>, Vec<HexBinary>) {
+    pub fn ids_and_payloads(self) -> (Vec<CrossChainId>, Option<Vec<HexBinary>>) {
         match self {
-            ConstructProofMsg::Messages(message_ids) => (message_ids, vec![]),
+            ConstructProofMsg::Messages(message_ids) => (message_ids, None),
             ConstructProofMsg::WithFullPayloads {
                 message_ids,
                 full_message_payloads,
-            } => (message_ids, full_message_payloads),
+            } => (message_ids, Some(full_message_payloads)),
         }
     }
 }

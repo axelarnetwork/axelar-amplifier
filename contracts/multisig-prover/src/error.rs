@@ -91,6 +91,10 @@ pub enum ContractError {
         full_message_payloads: usize,
         messages: usize,
     },
+    #[error("received full message payloads even though none were expected")]
+    UnexpectedFullMessagePayloads,
+    #[error("expected full message payloads, but none were provided")]
+    MissingFullMessagePayloads,
 
     #[error("failed to get outgoing messages from gateway")]
     FailedToGetMessages,

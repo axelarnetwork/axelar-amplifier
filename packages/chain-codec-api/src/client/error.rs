@@ -4,7 +4,7 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
 
-use crate::msg::QueryMsg;
+use crate::msg::{FullMessagePayloads, QueryMsg};
 
 #[derive(thiserror::Error)]
 #[cw_serde]
@@ -23,7 +23,7 @@ pub enum ClientError {
         domain_separator: Hash,
         signer: VerifierSet,
         payload: Payload,
-        full_message_payloads: Vec<cosmwasm_std::HexBinary>,
+        full_message_payloads: FullMessagePayloads,
     },
 }
 

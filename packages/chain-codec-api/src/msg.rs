@@ -48,11 +48,21 @@ pub enum QueryMsg {
         domain_separator: Hash,
         verifier_set: VerifierSet,
         payload: Payload,
-        /// This field is only available if the multisig-prover contract received the full message payloads and
-        /// if the digest is for proof construction. For a verifier set update or if the multisig-prover contract
-        /// did not receive the full message payloads, it is empty.
-        full_message_payloads: Vec<HexBinary>,
+        full_message_payloads: FullMessagePayloads,
     },
+}
+
+#[cw_serde]
+pub enum FullMessagePayloads {
+    /// Indicates that the multisig-prover contract does not have the
+    /// `expect_full_message_payloads` flag enabled and therefore no message payloads were sent.
+    /// 
+    /// If you receive this, but require the full message payload, that indicates a mistake during deployment.
+    NotSupported,
+    /// Indicates that there are no full message payloads because this is a verifier set update.
+    VerifierSetUpdate,
+    /// Provides the full message payloads
+    Payloads(Vec<HexBinary>),
 }
 
 #[cw_serde]
@@ -78,6 +88,6 @@ pub enum ExecuteMsg {
         payload: Payload,
         /// This field is only filled if the multisig-prover contract received the full message payloads and
         /// if the session is for proof construction. For a verifier set update, it is empty.
-        full_message_payloads: Vec<HexBinary>,
+        full_message_payloads: FullMessagePayloads,
     },
 }
