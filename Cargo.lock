@@ -133,6 +133,16 @@ dependencies = [
 [[package]]
 name = "aleo-gateway-types"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "indexmap 2.10.0",
+ "serde",
+ "snarkvm-cosmwasm",
+]
+
+[[package]]
+name = "aleo-gateway-types"
+version = "0.1.0"
 source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
 dependencies = [
  "anyhow",
@@ -145,7 +155,7 @@ dependencies = [
 name = "aleo-gmp-types"
 version = "0.1.0"
 dependencies = [
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0",
  "aleo-string-encoder",
  "axelar-wasm-std 1.0.0",
  "bytemuck",
@@ -165,7 +175,7 @@ name = "aleo-gmp-types"
 version = "0.1.0"
 source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#e8add2846491f3d728a60759b0876262eaa65c99"
 dependencies = [
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0 (git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2)",
  "aleo-string-encoder",
  "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "bytemuck",
@@ -298,7 +308,7 @@ name = "aleo-utils"
 version = "0.1.0"
 source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
 dependencies = [
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0 (git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2)",
  "aleo-gmp-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "multisig-prover 1.1.1 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
@@ -436,7 +446,7 @@ name = "ampd"
 version = "1.12.1"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0",
  "aleo-gmp-types 0.1.0",
  "aleo-string-encoder",
  "aleo-utils",
@@ -5864,7 +5874,7 @@ name = "its-aleo-translator"
 version = "0.1.0"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0",
  "aleo-gmp-types 0.1.0",
  "aleo-network-config 0.1.0",
  "aleo-string-encoder",
@@ -7133,7 +7143,7 @@ name = "multisig-prover"
 version = "1.1.1"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0",
  "aleo-gmp-types 0.1.0",
  "aleo-network-config 0.1.0",
  "aleo-utils",
@@ -7191,7 +7201,7 @@ version = "1.1.1"
 source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#e8add2846491f3d728a60759b0876262eaa65c99"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types",
+ "aleo-gateway-types 0.1.0 (git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2)",
  "aleo-gmp-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "aleo-network-config 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
