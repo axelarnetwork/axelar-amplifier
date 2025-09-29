@@ -124,7 +124,7 @@ dependencies = [
 [[package]]
 name = "aleo-compatible-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
+source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "snarkvm-cosmwasm",
  "thiserror 2.0.16",
@@ -144,17 +144,6 @@ dependencies = [
 name = "aleo-gateway-types"
 version = "0.1.0"
 source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "anyhow",
- "indexmap 2.10.0",
- "serde",
- "snarkvm-cosmwasm",
-]
-
-[[package]]
-name = "aleo-gateway-types"
-version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
 dependencies = [
  "anyhow",
  "indexmap 2.10.0",
@@ -308,7 +297,7 @@ checksum = "14edf4007a98323f763701688bcbe3bc6ecf33e20c3a81b3eb8d6661ff01b217"
 [[package]]
 name = "aleo-string-encoder"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
+source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "serde-aleo",
  "thiserror 2.0.16",
@@ -317,9 +306,9 @@ dependencies = [
 [[package]]
 name = "aleo-utils"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
+source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
- "aleo-gateway-types 0.1.0 (git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2)",
+ "aleo-gateway-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "aleo-gmp-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "multisig-prover 1.1.1 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
@@ -3303,7 +3292,7 @@ dependencies = [
 [[package]]
 name = "derive-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
+source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8361,7 +8350,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "plaintext-trait"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
+source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "anyhow",
  "derive-macros",
@@ -10175,7 +10164,7 @@ dependencies = [
 [[package]]
 name = "serde-aleo"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#750a762dc484ff2b324b355777dd018798a33c75"
+source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "nom 8.0.0",
  "serde",
