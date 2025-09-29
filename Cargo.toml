@@ -23,10 +23,24 @@ pattern = "amplifier-lints"
 rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
-aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
-aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
-aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
-aleo-gateway-types = { path = "packages/aleo-gateway-types" }
+snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM.git", tag = "snarkvm-with-cosmwasm", package = "snarkvm-cosmwasm" }
+
+# plaintext-trait = { path = "../aleo-program-rust-support/crates/plaintext-trait" }
+# aleo-gateway-types = { path = "../aleo-program-rust-support/crates/aleo-gateway-types" }
+aleo-gateway-types = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "aleo-gateway-types" }
+plaintext-trait = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "plaintext-trait" }
+
+aleo-compatible-keccak = { path = "../reshape-crate/crates/aleo-compatible-keccak", package = "aleo-compatible-keccak" }
+aleo-string-encoder = { path = "../reshape-crate/crates/aleo-string-encoder", package = "aleo-string-encoder" }
+aleo-utils = { path = "../reshape-crate/crates/aleo-utils", package = "aleo-utils" }
+
+# plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+
+# aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-compatible-keccak" }
+# aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-string-encoder" }
+# aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-utils" }
+
+
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
 aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
@@ -99,7 +113,6 @@ aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
-plaintext-trait = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
 rand = "0.8.5"
@@ -117,7 +130,6 @@ sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
 snarkos-account = "4.1.0"
 snarkvm = { version = "4.1.0", default-features = false }
-snarkvm-cosmwasm = { git = "https://github.com/eigerco/snarkVM.git", tag = "snarkvm-with-cosmwasm", package = "snarkvm-cosmwasm" }
 starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
 starknet-core = "0.12.0"
 starknet-providers = "0.12.0"

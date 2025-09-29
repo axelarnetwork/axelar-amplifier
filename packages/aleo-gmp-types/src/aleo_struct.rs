@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use aleo_gateway_types::constants::{SIGNATURE_CHUNKS, SINGATURES_PER_CHUNK};
 use aleo_gateway_types::{
-    FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof, ReceivedLinkToken,
+    FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof,
     WeightedSigner, WeightedSigners,
 };
 use aleo_string_encoder::StringEncoder;
@@ -262,7 +262,7 @@ impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::DeployIntercha
 }
 
 impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::LinkToken {
-    type LeoType = ReceivedLinkToken<N>;
+    type LeoType = aleo_gateway_types::ReceivedLinkToken<N>;
     type Error = Error;
 
     fn to_leo(&self) -> Result<Self::LeoType, Self::Error> {
@@ -280,7 +280,7 @@ impl<N: Network> AxelarToLeo<N> for interchain_token_service_std::LinkToken {
             None => Address::zero(),
         };
 
-        Ok(ReceivedLinkToken {
+        Ok(aleo_gateway_types::ReceivedLinkToken {
             its_token_id: *its_token_id,
             token_manager_type: self
                 .token_manager_type

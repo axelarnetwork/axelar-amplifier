@@ -124,7 +124,6 @@ dependencies = [
 [[package]]
 name = "aleo-compatible-keccak"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "snarkvm-cosmwasm",
  "thiserror 2.0.16",
@@ -133,17 +132,7 @@ dependencies = [
 [[package]]
 name = "aleo-gateway-types"
 version = "0.1.0"
-dependencies = [
- "anyhow",
- "indexmap 2.10.0",
- "serde",
- "snarkvm-cosmwasm",
-]
-
-[[package]]
-name = "aleo-gateway-types"
-version = "0.1.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#0754ff5bf6409e33947ac516ca449cb1a3697a10"
 dependencies = [
  "anyhow",
  "indexmap 2.10.0",
@@ -155,36 +144,15 @@ dependencies = [
 name = "aleo-gmp-types"
 version = "0.1.0"
 dependencies = [
- "aleo-gateway-types 0.1.0",
+ "aleo-gateway-types",
  "aleo-string-encoder",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "bytemuck",
  "cosmwasm-std",
  "error-stack",
- "interchain-token-service-std 1.0.0",
- "multisig 2.3.0",
- "plaintext-trait",
- "router-api 1.0.0",
- "serde",
- "snarkvm-cosmwasm",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "aleo-gmp-types"
-version = "0.1.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "aleo-gateway-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "aleo-string-encoder",
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "bytemuck",
- "cosmwasm-std",
- "error-stack",
- "interchain-token-service-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "plaintext-trait",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "interchain-token-service-std",
+ "multisig",
+ "router-api",
  "serde",
  "snarkvm-cosmwasm",
  "thiserror 1.0.69",
@@ -193,16 +161,6 @@ dependencies = [
 [[package]]
 name = "aleo-network-config"
 version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "snarkvm-cosmwasm",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "aleo-network-config"
-version = "0.1.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
 dependencies = [
  "cosmwasm-schema",
  "snarkvm-cosmwasm",
@@ -214,8 +172,8 @@ name = "aleo-signature-verifier"
 version = "0.1.0"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-network-config 0.1.0",
- "axelar-wasm-std 1.0.0",
+ "aleo-network-config",
+ "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -223,7 +181,7 @@ dependencies = [
  "error-stack",
  "hex",
  "rand 0.8.5",
- "signature-verifier-api 1.0.0",
+ "signature-verifier-api",
  "snarkos-account 4.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "snarkvm-cosmwasm",
  "thiserror 1.0.69",
@@ -297,7 +255,6 @@ checksum = "14edf4007a98323f763701688bcbe3bc6ecf33e20c3a81b3eb8d6661ff01b217"
 [[package]]
 name = "aleo-string-encoder"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "serde-aleo",
  "thiserror 2.0.16",
@@ -306,15 +263,14 @@ dependencies = [
 [[package]]
 name = "aleo-utils"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
- "aleo-gateway-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "aleo-gmp-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig-prover 1.1.1 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "aleo-gateway-types",
+ "aleo-gmp-types",
+ "multisig",
+ "multisig-prover",
  "plaintext-trait",
  "rand_chacha 0.3.1",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "router-api",
  "serde",
  "serde_json",
  "snarkvm",
@@ -446,8 +402,8 @@ name = "ampd"
 version = "1.12.1"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types 0.1.0",
- "aleo-gmp-types 0.1.0",
+ "aleo-gateway-types",
+ "aleo-gmp-types",
  "aleo-string-encoder",
  "aleo-utils",
  "ampd-proto",
@@ -455,7 +411,7 @@ dependencies = [
  "async-trait",
  "axelar-solana-encoding",
  "axelar-solana-gateway",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "axum 0.7.9",
  "axum-test",
  "base64 0.21.7",
@@ -477,7 +433,7 @@ dependencies = [
  "ethers-core",
  "ethers-providers",
  "events",
- "evm-gateway 1.0.0",
+ "evm-gateway",
  "faux",
  "futures",
  "gateway-event-stack",
@@ -490,7 +446,7 @@ dependencies = [
  "lazy_static",
  "mockall 0.11.4",
  "move-core-types",
- "multisig 2.3.0",
+ "multisig",
  "multiversx-sdk",
  "num-traits",
  "openssl",
@@ -501,28 +457,28 @@ dependencies = [
  "rand 0.8.5",
  "random-string",
  "regex",
- "report 1.0.0",
+ "report",
  "reqwest 0.11.27",
- "rewards 1.2.0",
- "router-api 1.0.0",
+ "rewards",
+ "router-api",
  "schemars",
  "serde",
  "serde_json",
  "serde_with",
- "service-registry-api 1.0.0",
+ "service-registry-api",
  "sha3",
  "snarkvm",
  "solana-client",
  "solana-sdk",
  "solana-transaction-status",
  "solana-zk-token-sdk",
- "starknet-checked-felt 1.0.0",
+ "starknet-checked-felt",
  "starknet-core",
  "starknet-providers",
- "stellar 1.0.0",
+ "stellar",
  "stellar-rpc-client",
  "stellar-xdr",
- "sui-gateway 1.0.0",
+ "sui-gateway",
  "sui-json-rpc-types",
  "sui-types 0.1.0",
  "sysinfo",
@@ -548,7 +504,7 @@ dependencies = [
  "url",
  "valuable",
  "valuable-serde",
- "voting-verifier 1.1.0",
+ "voting-verifier",
  "xrpl-types",
  "xrpl_http_client",
 ]
@@ -585,7 +541,7 @@ dependencies = [
  "ampd",
  "ampd-proto",
  "async-trait",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "config",
  "cosmrs",
  "error-stack",
@@ -594,7 +550,7 @@ dependencies = [
  "hex",
  "humantime-serde",
  "mockall 0.12.1",
- "report 1.0.0",
+ "report",
  "serde",
  "serde-aux",
  "serde_json",
@@ -1187,14 +1143,14 @@ name = "axelar-core-std"
 version = "1.0.0"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-std",
  "error-stack",
  "goldie",
  "hex",
  "rand 0.8.5",
- "router-api 1.0.0",
+ "router-api",
  "schemars",
  "serde",
  "serde_json",
@@ -1271,10 +1227,10 @@ dependencies = [
 name = "axelar-wasm-std"
 version = "1.0.0"
 dependencies = [
- "aleo-network-config 0.1.0",
+ "aleo-network-config",
  "alloy-primitives",
  "assert_ok",
- "axelar-wasm-std-derive 1.0.0",
+ "axelar-wasm-std-derive",
  "bech32 0.11.0",
  "bs58 0.5.1",
  "const-str",
@@ -1287,61 +1243,24 @@ dependencies = [
  "flagset",
  "goldie",
  "hex",
- "into-inner-derive 1.0.0",
+ "into-inner-derive",
  "itertools 0.14.0",
  "lazy_static",
  "num-traits",
  "rand 0.8.5",
  "regex",
- "report 1.0.0",
- "router-api 1.0.0",
+ "report",
+ "router-api",
  "schemars",
  "semver 1.0.26",
  "serde",
  "serde_json",
  "serde_with",
  "sha3",
- "starknet-checked-felt 1.0.0",
+ "starknet-checked-felt",
  "stellar-xdr",
  "strum 0.25.0",
  "sui-types 1.0.0",
- "thiserror 1.0.69",
- "valuable",
-]
-
-[[package]]
-name = "axelar-wasm-std"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "aleo-network-config 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "alloy-primitives",
- "axelar-wasm-std-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "bech32 0.11.0",
- "bs58 0.5.1",
- "const-str",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "flagset",
- "into-inner-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "itertools 0.14.0",
- "lazy_static",
- "num-traits",
- "regex",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "schemars",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "serde_with",
- "sha3",
- "starknet-checked-felt 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "stellar-xdr",
- "strum 0.25.0",
- "sui-types 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "thiserror 1.0.69",
  "valuable",
 ]
@@ -1351,7 +1270,7 @@ name = "axelar-wasm-std-derive"
 version = "1.0.0"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "cosmwasm-std",
  "cw2",
  "error-stack",
@@ -1359,27 +1278,10 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
- "report 1.0.0",
+ "report",
  "semver 1.0.26",
  "serde",
  "serde_json",
- "syn 2.0.101",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "axelar-wasm-std-derive"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "cosmwasm-std",
- "error-stack",
- "heck 0.5.0",
- "itertools 0.14.0",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "semver 1.0.26",
  "syn 2.0.101",
  "thiserror 1.0.69",
 ]
@@ -1390,8 +1292,8 @@ version = "1.0.0"
 dependencies = [
  "assert_ok",
  "axelar-core-std",
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1401,10 +1303,10 @@ dependencies = [
  "goldie",
  "hex",
  "itertools 0.14.0",
- "msgs-derive 1.0.0",
+ "msgs-derive",
  "rand 0.8.5",
- "report 1.0.0",
- "router-api 1.0.0",
+ "report",
+ "router-api",
  "semver 1.0.26",
  "serde",
  "serde_json",
@@ -2351,17 +2253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "client"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "cosmwasm-std",
- "error-stack",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "codespan"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2613,55 +2504,29 @@ dependencies = [
 name = "coordinator"
 version = "2.1.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus",
  "cw2",
  "error-stack",
- "gateway-api 1.0.0",
+ "gateway-api",
  "goldie",
  "integration-tests",
  "itertools 0.14.0",
- "msgs-derive 1.0.0",
- "multisig 2.3.0",
- "multisig-prover-api 1.0.0",
- "report 1.0.0",
- "router-api 1.0.0",
+ "msgs-derive",
+ "multisig",
+ "multisig-prover-api",
+ "report",
+ "router-api",
  "semver 1.0.26",
  "serde_json",
- "service-registry-api 1.0.0",
+ "service-registry-api",
  "thiserror 1.0.69",
  "tofn",
- "voting-verifier-api 1.0.0",
-]
-
-[[package]]
-name = "coordinator"
-version = "2.1.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "gateway-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "itertools 0.14.0",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig-prover-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "semver 1.0.26",
- "serde_json",
- "service-registry-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "thiserror 1.0.69",
- "voting-verifier-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "voting-verifier-api",
 ]
 
 [[package]]
@@ -3292,7 +3157,7 @@ dependencies = [
 [[package]]
 name = "derive-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#0754ff5bf6409e33947ac516ca449cb1a3697a10"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -4074,7 +3939,7 @@ name = "events"
 version = "1.0.0"
 dependencies = [
  "ampd-proto",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
@@ -4090,7 +3955,7 @@ dependencies = [
 name = "events-derive"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "error-stack",
  "events",
  "quote 1.0.40",
@@ -4103,31 +3968,14 @@ dependencies = [
 name = "evm-gateway"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "cosmwasm-std",
  "error-stack",
  "ethers-contract",
  "ethers-core",
  "k256",
- "multisig 2.3.0",
- "router-api 1.0.0",
- "sha3",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "evm-gateway"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-std",
- "error-stack",
- "ethers-contract",
- "ethers-core",
- "k256",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "multisig",
+ "router-api",
  "sha3",
  "thiserror 1.0.69",
 ]
@@ -4611,77 +4459,39 @@ name = "gateway"
 version = "1.1.1"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus",
  "cw2",
  "error-stack",
- "gateway-api 1.0.0",
+ "gateway-api",
  "goldie",
  "itertools 0.14.0",
  "rand 0.8.5",
- "report 1.0.0",
- "router-api 1.0.0",
+ "report",
+ "router-api",
  "semver 1.0.26",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
- "voting-verifier 1.1.0",
-]
-
-[[package]]
-name = "gateway"
-version = "1.1.1"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "gateway-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "itertools 0.14.0",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "voting-verifier 1.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "voting-verifier",
 ]
 
 [[package]]
 name = "gateway-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "goldie",
- "msgs-derive 1.0.0",
- "router-api 1.0.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "gateway-api"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "error-stack",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "msgs-derive",
+ "router-api",
  "thiserror 1.0.69",
 ]
 
@@ -5643,34 +5453,34 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "axelar-core-std",
- "axelar-wasm-std 1.0.0",
- "coordinator 2.1.0",
+ "axelar-wasm-std",
+ "coordinator",
  "cosmwasm-std",
  "cw-multi-test",
  "error-stack",
  "ethers-core",
  "events",
- "gateway 1.1.1",
- "gateway-api 1.0.0",
+ "gateway",
+ "gateway-api",
  "goldie",
  "interchain-token-service",
  "k256",
- "multisig 2.3.0",
- "multisig-prover 1.1.1",
- "multisig-prover-api 1.0.0",
+ "multisig",
+ "multisig-prover",
+ "multisig-prover-api",
  "rand 0.8.5",
- "report 1.0.0",
- "rewards 1.2.0",
+ "report",
+ "rewards",
  "router",
- "router-api 1.0.0",
+ "router-api",
  "schemars",
  "serde",
  "serde_json",
- "service-registry 1.2.0",
- "service-registry-api 1.0.0",
+ "service-registry",
+ "service-registry-api",
  "sha3",
  "tofn",
- "voting-verifier 1.1.0",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -5679,9 +5489,9 @@ version = "1.3.0"
 dependencies = [
  "assert_ok",
  "axelar-core-std",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "axelarnet-gateway",
- "client 1.0.0",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -5689,13 +5499,13 @@ dependencies = [
  "error-stack",
  "goldie",
  "hex",
- "interchain-token-service-std 1.0.0",
+ "interchain-token-service-std",
  "itertools 0.11.0",
  "its-abi-translator",
  "its-msg-translator-api",
- "msgs-derive 1.0.0",
- "report 1.0.0",
- "router-api 1.0.0",
+ "msgs-derive",
+ "report",
+ "router-api",
  "schemars",
  "semver 1.0.26",
  "serde",
@@ -5709,34 +5519,15 @@ dependencies = [
 name = "interchain-token-service-std"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
  "error-stack",
  "hex",
- "report 1.0.0",
- "router-api 1.0.0",
- "schemars",
- "strum 0.25.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "interchain-token-service-std"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "error-stack",
- "hex",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "report",
+ "router-api",
  "schemars",
  "strum 0.25.0",
  "thiserror 1.0.69",
@@ -5746,22 +5537,10 @@ dependencies = [
 name = "into-inner-derive"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "error-stack",
  "quote 1.0.40",
- "report 1.0.0",
- "syn 2.0.101",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "into-inner-derive"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "error-stack",
- "quote 1.0.40",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "report",
  "syn 2.0.101",
  "thiserror 1.0.69",
 ]
@@ -5857,15 +5636,15 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "assert_ok",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2",
  "error-stack",
  "goldie",
- "interchain-token-service-std 1.0.0",
+ "interchain-token-service-std",
  "its-msg-translator-api",
- "router-api 1.0.0",
+ "router-api",
  "thiserror 1.0.69",
 ]
 
@@ -5874,21 +5653,21 @@ name = "its-aleo-translator"
 version = "0.1.0"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types 0.1.0",
- "aleo-gmp-types 0.1.0",
- "aleo-network-config 0.1.0",
+ "aleo-gateway-types",
+ "aleo-gmp-types",
+ "aleo-network-config",
  "aleo-string-encoder",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
  "cw2",
  "error-stack",
  "hex",
- "interchain-token-service-std 1.0.0",
+ "interchain-token-service-std",
  "its-msg-translator-api",
  "rand 0.8.5",
- "router-api 1.0.0",
+ "router-api",
  "snarkvm-cosmwasm",
  "thiserror 1.0.69",
 ]
@@ -5897,11 +5676,11 @@ dependencies = [
 name = "its-msg-translator-api"
 version = "1.0.0"
 dependencies = [
- "client 1.0.0",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
- "interchain-token-service-std 1.0.0",
+ "interchain-token-service-std",
  "thiserror 1.0.69",
 ]
 
@@ -6532,7 +6311,7 @@ dependencies = [
 name = "migration-remover"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "clap",
  "cosmwasm-std",
  "cw2",
@@ -6959,8 +6738,8 @@ dependencies = [
 name = "msgs-derive"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
@@ -6968,25 +6747,7 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
- "router-api 1.0.0",
- "serde",
- "serde_json",
- "syn 2.0.101",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "msgs-derive"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "error-stack",
- "itertools 0.14.0",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
+ "router-api",
  "serde",
  "serde_json",
  "syn 2.0.101",
@@ -7069,12 +6830,12 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 name = "multisig"
 version = "2.3.1"
 dependencies = [
- "aleo-gmp-types 0.1.0",
- "aleo-network-config 0.1.0",
+ "aleo-gmp-types",
+ "aleo-network-config",
  "aleo-signature-verifier",
  "assert_ok",
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -7091,49 +6852,16 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "k256",
- "msgs-derive 1.0.0",
+ "msgs-derive",
  "rand_chacha 0.3.1",
- "report 1.0.0",
- "rewards 1.2.0",
- "router-api 1.0.0",
+ "report",
+ "rewards",
+ "router-api",
  "semver 1.0.26",
  "serde",
  "serde_json",
  "sha3",
- "signature-verifier-api 1.0.0",
- "snarkvm-cosmwasm",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "multisig"
-version = "2.3.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-crypto",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "ed25519-dalek 2.1.1",
- "enum-display-derive",
- "error-stack",
- "getrandom 0.2.16",
- "itertools 0.11.0",
- "k256",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "rand_chacha 0.3.1",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "rewards 1.2.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "sha3",
- "signature-verifier-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "signature-verifier-api",
  "snarkvm-cosmwasm",
  "thiserror 1.0.69",
 ]
@@ -7143,16 +6871,15 @@ name = "multisig-prover"
 version = "1.1.1"
 dependencies = [
  "aleo-compatible-keccak",
- "aleo-gateway-types 0.1.0",
- "aleo-gmp-types 0.1.0",
- "aleo-network-config 0.1.0",
- "aleo-utils",
+ "aleo-gateway-types",
+ "aleo-gmp-types",
+ "aleo-network-config",
  "anyhow",
  "assert_ok",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "bcs",
- "client 1.0.0",
- "coordinator 2.1.0",
+ "client",
+ "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -7163,104 +6890,46 @@ dependencies = [
  "error-stack",
  "ethers-contract",
  "ethers-core",
- "evm-gateway 1.0.0",
- "gateway 1.1.1",
- "gateway-api 1.0.0",
+ "evm-gateway",
+ "gateway",
+ "gateway-api",
  "generic-array",
  "goldie",
  "hex",
  "itertools 0.11.0",
  "k256",
- "msgs-derive 1.0.0",
- "multisig 2.3.0",
- "multisig-prover-api 1.0.0",
+ "msgs-derive",
+ "multisig",
+ "multisig-prover-api",
  "plaintext-trait",
  "prost 0.12.6",
  "rand 0.8.5",
- "report 1.0.0",
- "router-api 1.0.0",
+ "report",
+ "router-api",
  "semver 1.0.26",
  "serde",
  "serde_json",
- "service-registry 1.2.0",
- "service-registry-api 1.0.0",
+ "service-registry",
+ "service-registry-api",
  "sha3",
  "snarkos-account 4.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "snarkvm",
  "snarkvm-cosmwasm",
- "stellar 1.0.0",
+ "stellar",
  "stellar-xdr",
- "sui-gateway 1.0.0",
+ "sui-gateway",
  "thiserror 1.0.69",
- "voting-verifier 1.1.0",
-]
-
-[[package]]
-name = "multisig-prover"
-version = "1.1.1"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "aleo-compatible-keccak",
- "aleo-gateway-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "aleo-gmp-types 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "aleo-network-config 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "bcs",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "coordinator 2.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw-utils",
- "cw2",
- "error-stack",
- "ethers-contract",
- "ethers-core",
- "evm-gateway 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "gateway 1.1.1 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "gateway-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "hex",
- "itertools 0.11.0",
- "k256",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig-prover-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "plaintext-trait",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "service-registry 1.2.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "service-registry-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "sha3",
- "snarkvm-cosmwasm",
- "stellar 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "stellar-xdr",
- "sui-gateway 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "thiserror 1.0.69",
- "voting-verifier 1.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "voting-verifier",
 ]
 
 [[package]]
 name = "multisig-prover-api"
 version = "1.0.0"
 dependencies = [
- "aleo-network-config 0.1.0",
- "axelar-wasm-std 1.0.0",
+ "aleo-network-config",
+ "axelar-wasm-std",
  "cosmwasm-schema",
- "multisig 2.3.0",
-]
-
-[[package]]
-name = "multisig-prover-api"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "aleo-network-config 0.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "multisig",
 ]
 
 [[package]]
@@ -8350,7 +8019,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 [[package]]
 name = "plaintext-trait"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
+source = "git+ssh://git@github.com/eigerco/aleo-program-rust-support.git?branch=main#0754ff5bf6409e33947ac516ca449cb1a3697a10"
 dependencies = [
  "anyhow",
  "derive-macros",
@@ -9170,22 +8839,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "report"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "error-stack",
- "eyre",
- "itertools 0.14.0",
- "thiserror 1.0.69",
- "tracing",
- "tracing-core",
- "tracing-error",
- "tracing-subscriber",
- "valuable",
-]
-
-[[package]]
 name = "reqwest"
 version = "0.11.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9312,8 +8965,8 @@ name = "rewards"
 version = "1.2.0"
 dependencies = [
  "assert_ok",
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -9322,28 +8975,8 @@ dependencies = [
  "error-stack",
  "goldie",
  "itertools 0.11.0",
- "msgs-derive 1.0.0",
- "router-api 1.0.0",
- "semver 1.0.26",
- "serde_json",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "rewards"
-version = "1.2.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "itertools 0.11.0",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "msgs-derive",
+ "router-api",
  "semver 1.0.26",
  "serde_json",
  "thiserror 1.0.69",
@@ -9510,8 +9143,8 @@ version = "1.3.0"
 dependencies = [
  "assert_ok",
  "axelar-core-std",
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -9519,16 +9152,16 @@ dependencies = [
  "cw2",
  "error-stack",
  "flagset",
- "gateway-api 1.0.0",
+ "gateway-api",
  "goldie",
  "hex",
  "integration-tests",
  "itertools 0.14.0",
  "mockall 0.12.1",
- "msgs-derive 1.0.0",
+ "msgs-derive",
  "rand 0.8.5",
- "report 1.0.0",
- "router-api 1.0.0",
+ "report",
+ "router-api",
  "semver 1.0.26",
  "serde_json",
  "thiserror 1.0.69",
@@ -9538,8 +9171,8 @@ dependencies = [
 name = "router-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "const-str",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -9548,32 +9181,9 @@ dependencies = [
  "flagset",
  "goldie",
  "hex",
- "msgs-derive 1.0.0",
+ "msgs-derive",
  "rand 0.8.5",
- "report 1.0.0",
- "schemars",
- "serde",
- "serde_json",
- "sha3",
- "thiserror 1.0.69",
- "valuable",
-]
-
-[[package]]
-name = "router-api"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "const-str",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "error-stack",
- "flagset",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -10164,7 +9774,6 @@ dependencies = [
 [[package]]
 name = "serde-aleo"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/axelar-aleo.git?branch=reshape-crate-squashed-v2#43a4d1bd7f4b9e4e7576cf1734882181bb012bfd"
 dependencies = [
  "nom 8.0.0",
  "serde",
@@ -10394,9 +10003,9 @@ dependencies = [
 name = "service-registry"
 version = "1.2.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
- "coordinator 2.1.0",
+ "axelar-wasm-std",
+ "client",
+ "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -10406,40 +10015,14 @@ dependencies = [
  "goldie",
  "integration-tests",
  "itertools 0.14.0",
- "msgs-derive 1.0.0",
- "report 1.0.0",
- "router-api 1.0.0",
+ "msgs-derive",
+ "report",
+ "router-api",
  "schemars",
  "semver 1.0.26",
  "serde",
  "serde_json",
- "service-registry-api 1.0.0",
- "sha3",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "service-registry"
-version = "1.2.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "coordinator 2.1.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "itertools 0.14.0",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "schemars",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "service-registry-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "service-registry-api",
  "sha3",
  "thiserror 1.0.69",
 ]
@@ -10448,35 +10031,16 @@ dependencies = [
 name = "service-registry-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
  "error-stack",
  "goldie",
- "msgs-derive 1.0.0",
- "report 1.0.0",
- "router-api 1.0.0",
- "schemars",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "service-registry-api"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "error-stack",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "msgs-derive",
+ "report",
+ "router-api",
  "schemars",
  "serde",
  "thiserror 1.0.69",
@@ -10616,27 +10180,13 @@ dependencies = [
 name = "signature-verifier-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
- "client 1.0.0",
+ "axelar-wasm-std",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "error-stack",
  "goldie",
- "msgs-derive 1.0.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "signature-verifier-api"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "error-stack",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "msgs-derive",
  "thiserror 1.0.69",
 ]
 
@@ -13219,20 +12769,7 @@ name = "starknet-checked-felt"
 version = "1.0.0"
 dependencies = [
  "alloy-primitives",
- "axelar-wasm-std 1.0.0",
- "error-stack",
- "hex",
- "serde",
- "starknet-types-core",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "starknet-checked-felt"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "alloy-primitives",
+ "axelar-wasm-std",
  "error-stack",
  "hex",
  "serde",
@@ -13351,33 +12888,14 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 name = "stellar"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "cosmwasm-std",
  "error-stack",
  "goldie",
  "hex",
- "multisig 2.3.0",
+ "multisig",
  "rand 0.8.5",
- "router-api 1.0.0",
- "serde",
- "serde_json",
- "sha3",
- "stellar-strkey 0.0.10",
- "stellar-xdr",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "stellar"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-std",
- "error-stack",
- "hex",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "router-api",
  "serde",
  "serde_json",
  "sha3",
@@ -13578,31 +13096,13 @@ dependencies = [
  "cosmwasm-std",
  "error-stack",
  "hex",
- "multisig 2.3.0",
+ "multisig",
  "rand 0.8.5",
- "router-api 1.0.0",
+ "router-api",
  "serde",
  "serde_json",
  "sha3",
  "sui-types 1.0.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "sui-gateway"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "bcs",
- "cosmwasm-std",
- "error-stack",
- "hex",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "serde",
- "serde_json",
- "sha3",
- "sui-types 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
  "thiserror 1.0.69",
 ]
 
@@ -13858,17 +13358,6 @@ dependencies = [
  "error-stack",
  "hex",
  "rand 0.8.5",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "sui-types"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "error-stack",
- "hex",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -15383,12 +14872,12 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 name = "voting-verifier"
 version = "1.1.0"
 dependencies = [
- "aleo-network-config 0.1.0",
+ "aleo-network-config",
  "alloy-primitives",
  "assert_ok",
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "bech32 0.11.0",
- "client 1.0.0",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -15398,66 +14887,29 @@ dependencies = [
  "goldie",
  "integration-tests",
  "itertools 0.14.0",
- "msgs-derive 1.0.0",
- "multisig 2.3.0",
+ "msgs-derive",
+ "multisig",
  "rand 0.8.5",
- "report 1.0.0",
- "rewards 1.2.0",
- "router-api 1.0.0",
+ "report",
+ "rewards",
+ "router-api",
  "semver 1.0.26",
  "serde_json",
- "service-registry 1.2.0",
- "service-registry-api 1.0.0",
+ "service-registry",
+ "service-registry-api",
  "sha3",
- "starknet-checked-felt 1.0.0",
+ "starknet-checked-felt",
  "thiserror 1.0.69",
- "voting-verifier-api 1.0.0",
-]
-
-[[package]]
-name = "voting-verifier"
-version = "1.1.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "client 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "itertools 0.14.0",
- "msgs-derive 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "multisig 2.3.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "report 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "rewards 1.2.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "semver 1.0.26",
- "serde_json",
- "service-registry 1.2.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "service-registry-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "thiserror 1.0.69",
- "voting-verifier-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "voting-verifier-api",
 ]
 
 [[package]]
 name = "voting-verifier-api"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "cosmwasm-schema",
- "router-api 1.0.0",
- "serde_json",
-]
-
-[[package]]
-name = "voting-verifier-api"
-version = "1.0.0"
-source = "git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2#664966d3372d6480a7a832717b3ca9ffc2dfa9e9"
-dependencies = [
- "axelar-wasm-std 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
- "cosmwasm-schema",
- "router-api 1.0.0 (git+https://github.com/eigerco/axelar-amplifier?branch=aleo-all-changes-v2)",
+ "router-api",
  "serde_json",
 ]
 
@@ -16197,7 +15649,7 @@ dependencies = [
 name = "xrpl-types"
 version = "1.0.0"
 dependencies = [
- "axelar-wasm-std 1.0.0",
+ "axelar-wasm-std",
  "bs58 0.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -16206,10 +15658,10 @@ dependencies = [
  "interchain-token-service",
  "k256",
  "lazy_static",
- "multisig 2.3.0",
+ "multisig",
  "regex",
  "ripemd",
- "router-api 1.0.0",
+ "router-api",
  "serde",
  "serde_json",
  "sha2 0.10.9",

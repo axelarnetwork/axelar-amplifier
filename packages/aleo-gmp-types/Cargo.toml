@@ -14,7 +14,6 @@ cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
 interchain-token-service-std = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
-plaintext-trait = { workspace = true }
 router-api = { workspace = true }
 serde = { workspace = true }
 snarkvm-cosmwasm = { workspace = true }
