@@ -24,9 +24,9 @@ rev = "ee5e8764895207da8a28cf5c41c4e326948ad620"
 
 [workspace.dependencies]
 aleo-compatible-keccak = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
-aleo-gateway-types = { path = "packages/aleo-gateway-types" }
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
 aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2" }
+aleo-gateway-types = { path = "packages/aleo-gateway-types" }
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
 aleo-network-config = { path = "packages/aleo-network-config" }
 aleo-signature-verifier = { path = "contracts/aleo-signature-verifier" }
