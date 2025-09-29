@@ -248,7 +248,7 @@ mod test {
                 .attributes
                 .into_iter()
                 .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
+                    (key, value)
                 }),
         ))
         .unwrap()
@@ -280,7 +280,7 @@ mod test {
                 .attributes
                 .into_iter()
                 .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
+                    (key, value)
                 }),
         ))
         .unwrap()
@@ -349,6 +349,9 @@ mod test {
     fn should_deserialize_event() {
         let event: Result<SigningStartedEvent, events::Error> =
             (&signing_started_event()).try_into();
+
+        println!("{:?}", signing_started_event());
+        println!("{:?}", event);
 
         assert!(event.is_ok());
     }

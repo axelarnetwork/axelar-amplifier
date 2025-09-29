@@ -353,7 +353,7 @@ mod tests {
                 .attributes
                 .into_iter()
                 .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
+                    (key, value)
                 }),
         )
         .try_into()
