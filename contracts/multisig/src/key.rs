@@ -277,14 +277,27 @@ fn validate_and_normalize_public_key(
         .change_context(ContractError::InvalidPublicKey)?
         .to_bytes()
         .into()),
-        KeyType::AleoSchnorr => Ok(snarkvm_cosmwasm::prelude::Address::<
-            snarkvm_cosmwasm::prelude::TestnetV0, // NOTE: to avoid the TestnetV0, and switch to
-                                                  // generic Network, we need few changed in multisig, so maybe is better to communicate
-                                                  // this with Axelar first, and then switch to generics
-        >::from_bytes_le(&pub_key)
-        .and_then(|addr| addr.to_bytes_le())
-        .map_err(|_| report!(ContractError::InvalidPublicKey))?
-        .into()),
+        KeyType::AleoSchnorr => {
+            // NOTE: We should be able to know which network we expect to use here.
+            // To minimize the changes at multisig, we test all the possible networks
+            // and return the first one that works.
+            // This should be revisited in the future.
+            use snarkvm_cosmwasm::prelude::{Address, CanaryV0, MainnetV0, TestnetV0};
+
+            let try_testnet =
+                Address::<TestnetV0>::from_bytes_le(&pub_key).and_then(|addr| addr.to_bytes_le());
+            let try_mainnet =
+                Address::<MainnetV0>::from_bytes_le(&pub_key).and_then(|addr| addr.to_bytes_le());
+            let try_canary =
+                Address::<CanaryV0>::from_bytes_le(&pub_key).and_then(|addr| addr.to_bytes_le());
+
+            let addr_bytes = try_testnet
+                .or(try_mainnet)
+                .or(try_canary)
+                .map_err(|_| report!(ContractError::InvalidPublicKey))?;
+
+            Ok(addr_bytes.into())
+        }
     }
 }
 
