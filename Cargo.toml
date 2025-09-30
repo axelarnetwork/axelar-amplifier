@@ -31,7 +31,7 @@ aleo-gateway-types = { git = "ssh://git@github.com/eigerco/aleo-program-rust-sup
 aleo-string-encoder = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "aleo-string-encoder" }
 plaintext-trait = { git = "ssh://git@github.com/eigerco/aleo-program-rust-support.git", branch = "main", package = "plaintext-trait" }
 
-aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-utils" }
+# aleo-utils = { git = "ssh://git@github.com/eigerco/axelar-aleo.git", branch = "reshape-crate-squashed-v2", package = "aleo-utils" }
 
 aleo-gmp-types = { path = "packages/aleo-gmp-types" }
 aleo-network-config = { path = "packages/aleo-network-config" }

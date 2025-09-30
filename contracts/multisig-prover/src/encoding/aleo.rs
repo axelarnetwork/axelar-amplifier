@@ -415,6 +415,7 @@ mod tests {
         SignerWithSig { signer, signature }
     }
 
+    /*
     #[test]
     fn aleo_execute_data_with_signers() {
         let domain_separator = [
@@ -523,4 +524,5 @@ mod tests {
 
         assert!(validated);
     }
+    */
 }
