@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use aleo_gateway_types::constants::{MAX_SIGNATURES, SIGNATURE_CHUNKS, SINGATURES_PER_CHUNK};
+use aleo_gateway_types::constants::{MAX_SIGNATURES, SIGNATURE_CHUNKS, SIGNATURES_PER_CHUNK};
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use serde::{Deserialize, Serialize};
@@ -57,7 +57,7 @@ impl<N: Network> AxelarToLeo<N> for WeightedSigners<N> {
             }))
             .take(MAX_SIGNATURES);
 
-        let signers: [[aleo_gateway_types::WeightedSigner<N>; SINGATURES_PER_CHUNK];
+        let signers: [[aleo_gateway_types::WeightedSigner<N>; SIGNATURES_PER_CHUNK];
             SIGNATURE_CHUNKS] =
             std::array::from_fn(|_| std::array::from_fn(|_| iter.next().unwrap()));
 

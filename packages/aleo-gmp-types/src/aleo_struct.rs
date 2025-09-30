@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::mem::MaybeUninit;
 use std::str::FromStr;
 
-use aleo_gateway_types::constants::{SIGNATURE_CHUNKS, SINGATURES_PER_CHUNK};
+use aleo_gateway_types::constants::{SIGNATURE_CHUNKS, SIGNATURES_PER_CHUNK};
 use aleo_gateway_types::{
     FromRemoteDeployInterchainToken, IncomingInterchainTransfer, Message, Proof,
     WeightedSigner, WeightedSigners,
@@ -197,8 +197,8 @@ impl<N: Network> AxelarProof<N> {
 
         let signature = unsafe {
             std::mem::transmute::<
-                [[MaybeUninit<Box<Signature<N>>>; SINGATURES_PER_CHUNK]; SIGNATURE_CHUNKS],
-                [[std::boxed::Box<snarkvm_cosmwasm::prelude::Signature<N>>; SINGATURES_PER_CHUNK];
+                [[MaybeUninit<Box<Signature<N>>>; SIGNATURES_PER_CHUNK]; SIGNATURE_CHUNKS],
+                [[std::boxed::Box<snarkvm_cosmwasm::prelude::Signature<N>>; SIGNATURES_PER_CHUNK];
                     SIGNATURE_CHUNKS],
             >(signature)
         };
