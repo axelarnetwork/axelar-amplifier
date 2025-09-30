@@ -17,7 +17,7 @@ pub enum Error {
     #[error("SnarkVmError: {0}")]
     SnarkVm(#[from] snarkvm_cosmwasm::prelude::Error),
     #[error("StringEncoder: {0}")]
-    StringEncoder(#[from] aleo_string_encoder:::AleoStringEncoderError),
+    StringEncoder(#[from] aleo_string_encoder::AleoStringEncoderError),
     #[error("Utf8Error: {0}")]
     Utf8(#[from] std::str::Utf8Error),
     #[error("AleoGmpTypes: {0}")]

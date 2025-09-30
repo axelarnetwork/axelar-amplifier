@@ -31,5 +31,5 @@ pub enum Error {
     #[error("SnarkVM error: {0}")]
     SnarkVM(#[from] snarkvm::prelude::Error),
     #[error("Aleo string encoder error: {0}")]
-    AleoStringEncoder(#[from] aleo_string_encoder::Error),
+    AleoStringEncoder(#[from] aleo_string_encoder::AleoStringEncoderError),
 }
