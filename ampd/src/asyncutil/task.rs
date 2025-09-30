@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use axelar_wasm_std::error::extend_err;
-use error_stack::{Context, Result};
+use error_stack::{Context, Result, ResultExt};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -33,7 +33,7 @@ impl<T> CancellableTask<T> {
 
 pub struct TaskGroup<E>
 where
-    E: From<TaskError> + Context,
+    E: From<TaskError> + From<TaskGroupError> + Context,
 {
     name: String,
     tasks: Vec<(String, CancellableTask<Result<(), E>>)>,
@@ -41,7 +41,7 @@ where
 
 impl<E> TaskGroup<E>
 where
-    E: From<TaskError> + Context,
+    E: From<TaskError> + From<TaskGroupError> + Context,
 {
     pub fn new(name: impl Into<String>) -> Self {
         TaskGroup {
@@ -97,7 +97,7 @@ async fn wait_for_completion<E>(
     token: &CancellationToken,
 ) -> Result<(), E>
 where
-    E: From<TaskError> + Context,
+    E: From<TaskError> + From<TaskGroupError> + Context,
 {
     let mut final_result = Ok(());
     let total_task_count = running_tasks.len();
@@ -123,7 +123,7 @@ where
             }
             Err(join_error) => {
                 warn!(
-                    "shutting down {} sub-tasks ({}/{}) - task panicked: {}",
+                    "shutting down {} sub-tasks ({}/{}) - task aborted or panicked: {}",
                     group_name,
                     total_task_count.saturating_sub(running_tasks.len()),
                     total_task_count,
@@ -135,19 +135,29 @@ where
         }
     }
 
-    final_result
+    final_result.change_context(E::from(TaskGroupError {}))
 }
 
 #[derive(Error, Debug)]
 #[error("task failed")]
 pub struct TaskError;
 
+#[derive(Error, Debug)]
+#[error("task group execution failed")]
+pub struct TaskGroupError;
+
 #[cfg(test)]
 mod test {
     use error_stack::report;
     use tokio_util::sync::CancellationToken;
 
-    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
+    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup, TaskGroupError};
+
+    impl From<TaskGroupError> for TaskError {
+        fn from(_: TaskGroupError) -> Self {
+            TaskError {}
+        }
+    }
 
     #[tokio::test]
     async fn running_no_tasks_returns_no_error() {
@@ -214,7 +224,7 @@ mod test {
             );
         let result = tasks.run(CancellationToken::new()).await;
         let err = result.unwrap_err();
-        assert_eq!(err.current_frames().len(), 4);
+        assert_eq!(err.current_frames().len(), 1);
     }
 
     #[tokio::test]
@@ -242,6 +252,6 @@ mod test {
             );
         let result = tasks.run(CancellationToken::new()).await;
         let err = result.unwrap_err();
-        assert_eq!(err.current_frames().len(), 3);
+        assert_eq!(err.current_frames().len(), 1);
     }
 }

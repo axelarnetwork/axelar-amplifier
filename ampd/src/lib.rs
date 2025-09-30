@@ -944,6 +944,8 @@ pub enum Error {
     Connection,
     #[error("task execution failed")]
     Task(#[from] TaskError),
+    #[error("task group execution failed")]
+    TaskGroup(#[from] asyncutil::task::TaskGroupError),
     #[error("failed to return updated state")]
     ReturnState,
     #[error("failed to load config")]
