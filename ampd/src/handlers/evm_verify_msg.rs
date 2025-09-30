@@ -408,7 +408,7 @@ mod tests {
         ];
 
         let current_event = VotingVerifierEvent::MessagesPollStarted {
-            poll_id: poll_id,
+            poll_id,
             source_chain: chain_name!(ETHEREUM),
             source_gateway_address: source_gateway_address.clone(),
             confirmation_height,
@@ -463,7 +463,7 @@ mod tests {
                 },
             ],
             metadata: PollMetadata {
-                poll_id: poll_id,
+                poll_id,
                 source_chain: chain_name!(ETHEREUM),
                 source_gateway_address: source_gateway_address.clone(),
                 confirmation_height,
