@@ -9,7 +9,6 @@ pub enum Event {
         gateway: ContractInstantiation,
         voting_verifier: ContractInstantiation,
         multisig_prover: ContractInstantiation,
-        chain_codec: ContractInstantiation,
         chain_name: ChainName,
         deployment_name: nonempty::String,
     },

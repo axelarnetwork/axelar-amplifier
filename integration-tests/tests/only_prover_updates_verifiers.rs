@@ -1,5 +1,3 @@
-use std::num::NonZeroU64;
-
 use axelar_wasm_std::{permission_control, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::testing::MockApi;
@@ -18,17 +16,7 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
 
     let chain_name = chain_name!("ethereum");
 
-    // New chain configuration where the coordinator has the wrong prover address
-    let prover_address = protocol.app.init_modules(|_, api, storage| {
-        protocol
-            .address_generator
-            // order is: chain codec, voting verifier, gateway, multisig prover, so 4 addresses ahead should be the prover address
-            .future_address(api, storage, NonZeroU64::new(4).unwrap())
-            .unwrap()
-    });
-
-    let chain_codec =
-        ChainCodecContract::instantiate_contract(&mut protocol, [0; 32], prover_address.clone());
+    let chain_codec = ChainCodecContract::instantiate_contract(&mut protocol);
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol,
@@ -53,6 +41,9 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
         None,
+        [0; 32],
+        false,
+        false,
     );
 
     let response = protocol.coordinator.execute(

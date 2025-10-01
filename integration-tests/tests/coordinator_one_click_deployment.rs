@@ -3,8 +3,8 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, nonempty_str, Threshold, VerificationStatus};
 use coordinator::events::ContractInstantiation;
 use coordinator::msg::{
-    ChainCodecMsg, ChainContractsResponse, ContractDeploymentInfo, DeploymentParams,
-    ManualDeploymentParams, ProverMsg, VerifierMsg,
+    ChainContractsResponse, ContractDeploymentInfo, DeploymentParams, ManualDeploymentParams,
+    ProverMsg, VerifierMsg,
 };
 use cosmwasm_std::{Addr, Binary, HexBinary};
 use cw_multi_test::AppResponse;
@@ -16,6 +16,7 @@ use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
+use multisig_prover_api::msg::ConstructProofMsg;
 use router_api::{chain_name, cosmos_addr, ChainName, CrossChainId, Message};
 use serde::de::{DeserializeOwned, Error};
 use serde::{Deserialize, Deserializer};
@@ -80,15 +81,6 @@ fn instantiate_contracts(
                     msg: (),
                     contract_admin: protocol.governance_address.clone(),
                 },
-                chain_codec: ContractDeploymentInfo {
-                    code_id: chain.chain_codec.code_id,
-                    label: "ChainCodec1.0.0".to_string(),
-                    msg: ChainCodecMsg {
-                        domain_separator: [0; 32],
-                    }
-                    .into(),
-                    contract_admin: protocol.governance_address.clone(),
-                },
                 verifier: ContractDeploymentInfo {
                     code_id: chain.voting_verifier.code_id,
                     label: "Verifier1.0.0".to_string(),
@@ -106,14 +98,10 @@ fn instantiate_contracts(
                         block_expiry: 10.try_into().unwrap(),
                         confirmation_height: 5,
                         source_chain: chain_name.parse().unwrap(),
-                        rewards_address: protocol
-                            .rewards
-                            .contract_addr
-                            .to_string()
-                            .try_into()
-                            .unwrap(),
+                        rewards_address: protocol.rewards.contract_addr.clone().into(),
                         msg_id_format:
                             axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                        chain_codec_address: chain.chain_codec.contract_addr.clone().into(),
                     },
                     contract_admin: protocol.governance_address.clone(),
                 },
@@ -142,6 +130,10 @@ fn instantiate_contracts(
                             protocol.governance_address.to_string(),
                         )
                         .expect("expected non-empty address"),
+                        domain_separator: [0; 32],
+                        chain_codec_address: chain.chain_codec.contract_addr.clone().into(),
+                        notify_signing_session: false,
+                        expect_full_message_payloads: false,
                     },
                     contract_admin: protocol.governance_address.clone(),
                 },
@@ -527,11 +519,13 @@ fn coordinator_one_click_message_verification_and_routing_succeeds() {
         .execute(
             &mut protocol.app,
             protocol.governance_address.clone(),
-            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(vec![CrossChainId::new(
-                chain1.chain_name.clone(),
-                "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
-            )
-            .unwrap()])
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(
+                vec![CrossChainId::new(
+                    chain1.chain_name.clone(),
+                    "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
+                )
+                .unwrap()]
+            ))
         )
         .is_ok());
 }

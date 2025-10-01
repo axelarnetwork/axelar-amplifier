@@ -12,7 +12,6 @@ use cosmwasm_std::{
 use cw_multi_test::{App, AppResponse, BankKeeper, CosmosRouter, Module, WasmKeeper};
 use serde::de::DeserializeOwned;
 
-use crate::address_generator::AddressGenerator;
 use crate::coordinator_contract::CoordinatorContract;
 use crate::multisig_contract::MultisigContract;
 use crate::rewards_contract::RewardsContract;
@@ -30,7 +29,6 @@ pub struct Protocol {
     pub service_name: nonempty::String,
     pub rewards: RewardsContract,
     pub rewards_params: rewards::msg::Params,
-    pub address_generator: AddressGenerator,
     pub app: AxelarApp,
 }
 

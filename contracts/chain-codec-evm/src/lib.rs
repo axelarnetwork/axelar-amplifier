@@ -1,7 +1,5 @@
 pub mod contract;
-mod encoding;
-mod error;
-pub mod state;
+mod evm;
 
 pub use chain_codec_api::msg;
 

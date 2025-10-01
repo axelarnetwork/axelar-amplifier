@@ -46,7 +46,7 @@ pub enum ExecuteMsg {
     PayloadDigest {
         signer: VerifierSet,
         payload: Payload,
-        /// This field is only available if the multisig-prover contract was compiled with the `receive-payload` feature flag.
+        /// This field is only available if the multisig-prover contract was instantiated with the `receive-payload` flag enabled.
         /// Therefore, it is also feature-gated in this crate.
         /// This is only filled if the digest is for proof construction. For a verifier set update, it is empty.
         /// Please note that you should validate this in some way.

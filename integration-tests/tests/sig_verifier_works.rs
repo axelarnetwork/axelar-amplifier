@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
@@ -11,6 +10,7 @@ use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::PublicKey;
+use multisig_prover_api::msg::ConstructProofMsg;
 use rewards::PoolId;
 use router_api::{chain_name, cosmos_addr};
 
@@ -38,16 +38,7 @@ fn sig_verifier_called() {
 
     let sig_verifier = FailingSigVerifier::instantiate_contract(&mut protocol.app);
 
-    let prover_address = protocol.app.init_modules(|_, api, storage| {
-        protocol
-            .address_generator
-            // order is: chain codec, voting verifier, gateway, multisig prover, so 4 addresses ahead should be the prover address
-            .future_address(api, storage, NonZeroU64::new(4).unwrap())
-            .unwrap()
-    });
-
-    let chain_codec =
-        ChainCodecContract::instantiate_contract(&mut protocol, [0; 32], prover_address.clone());
+    let chain_codec = ChainCodecContract::instantiate_contract(&mut protocol);
 
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol,
@@ -74,6 +65,9 @@ fn sig_verifier_called() {
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
         Some(sig_verifier.contract_addr.clone()),
+        [0; 32],
+        false,
+        false,
     );
 
     let response = protocol.coordinator.execute(
@@ -174,7 +168,9 @@ fn sig_verifier_called() {
         .execute(
             &mut protocol.app,
             cosmos_addr!("anyone"),
-            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(vec![]),
+            &multisig_prover_api::msg::ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(
+                vec![],
+            )),
         )
         .unwrap();
 

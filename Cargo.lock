@@ -1972,18 +1972,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "chain-codec"
+name = "chain-codec-api"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "error-stack",
+ "goldie",
+ "msgs-derive",
+ "multisig",
+ "multisig-prover-api",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "chain-codec-evm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_ok",
  "axelar-wasm-std",
- "bcs",
  "chain-codec-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
- "cw-storage-plus",
  "cw2",
  "elliptic-curve",
  "error-stack",
@@ -2000,26 +2015,62 @@ dependencies = [
  "router-api",
  "service-registry-api",
  "sha3",
- "stellar",
- "stellar-xdr",
- "sui-gateway",
- "thiserror 1.0.69",
 ]
 
 [[package]]
-name = "chain-codec-api"
+name = "chain-codec-stellar"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "assert_ok",
  "axelar-wasm-std",
- "client",
+ "chain-codec-api",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
+ "cw-multi-test",
+ "cw2",
+ "elliptic-curve",
  "error-stack",
- "msgs-derive",
+ "generic-array",
+ "goldie",
+ "hex",
+ "itertools 0.14.0",
+ "k256",
  "multisig",
- "multisig-prover-api",
- "thiserror 1.0.69",
+ "prost 0.12.6",
+ "router-api",
+ "service-registry-api",
+ "sha3",
+ "stellar",
+ "stellar-xdr",
+]
+
+[[package]]
+name = "chain-codec-sui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_ok",
+ "axelar-wasm-std",
+ "bcs",
+ "chain-codec-api",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw2",
+ "elliptic-curve",
+ "error-stack",
+ "generic-array",
+ "goldie",
+ "hex",
+ "itertools 0.14.0",
+ "k256",
+ "multisig",
+ "prost 0.12.6",
+ "router-api",
+ "service-registry-api",
+ "sha3",
+ "sui-gateway",
 ]
 
 [[package]]
@@ -2373,7 +2424,6 @@ name = "coordinator"
 version = "2.1.0"
 dependencies = [
  "axelar-wasm-std",
- "chain-codec-api",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -5221,8 +5271,8 @@ dependencies = [
  "anyhow",
  "axelar-core-std",
  "axelar-wasm-std",
- "chain-codec",
  "chain-codec-api",
+ "chain-codec-evm",
  "coordinator",
  "cosmwasm-std",
  "cw-multi-test",

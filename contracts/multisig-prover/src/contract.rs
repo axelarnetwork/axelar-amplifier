@@ -47,6 +47,9 @@ pub fn instantiate(
         chain_name: msg.chain_name.parse()?,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         key_type: msg.key_type,
+        domain_separator: msg.domain_separator,
+        notify_signing_session: msg.notify_signing_session,
+        expect_full_message_payloads: msg.expect_full_message_payloads,
         sig_verifier_address: msg
             .sig_verifier_address
             .map(|addr| address::validate_cosmwasm_address(deps.api, &addr))
@@ -74,19 +77,14 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        #[cfg(not(feature = "receive-payload"))]
-        ExecuteMsg::ConstructProof(message_ids) => {
-            Ok(execute::construct_proof(deps, message_ids, Vec::new())?)
+        ExecuteMsg::ConstructProof(proof_msg) => {
+            let (message_ids, full_message_payloads) = proof_msg.ids_and_payloads();
+            Ok(execute::construct_proof(
+                deps,
+                message_ids,
+                full_message_payloads,
+            )?)
         }
-        #[cfg(feature = "receive-payload")]
-        ExecuteMsg::ConstructProof {
-            message_ids,
-            full_message_payloads,
-        } => Ok(execute::construct_proof(
-            deps,
-            message_ids,
-            full_message_payloads,
-        )?),
         ExecuteMsg::UpdateVerifierSet => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {
@@ -144,7 +142,9 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
+    use multisig_prover_api::msg::{
+        ConstructProofMsg, ProofResponse, ProofStatus, VerifierSetResponse,
+    };
     use prost::Message;
     use router_api::{cosmos_addr, CrossChainId};
 
@@ -186,6 +186,9 @@ mod tests {
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
                 key_type: multisig::key::KeyType::Ecdsa,
+                domain_separator: [0; 32],
+                notify_signing_session: false,
+                expect_full_message_payloads: false,
                 sig_verifier_address: None,
             },
         )
@@ -234,7 +237,6 @@ mod tests {
         execute(deps, mock_env(), message_info(&sender, &[]), msg)
     }
 
-    #[cfg(not(feature = "receive-payload"))]
     fn execute_construct_proof(
         deps: DepsMut,
         message_ids: Option<Vec<CrossChainId>>,
@@ -246,7 +248,7 @@ mod tests {
                 .collect::<Vec<CrossChainId>>()
         });
 
-        let msg = ExecuteMsg::ConstructProof(message_ids);
+        let msg = ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(message_ids));
         execute(
             deps,
             mock_env(),
@@ -369,6 +371,9 @@ mod tests {
             chain_name: "Ethereum".to_string(),
             verifier_set_diff_threshold: 0,
             key_type: multisig::key::KeyType::Ecdsa,
+            domain_separator: [0; 32],
+            notify_signing_session: false,
+            expect_full_message_payloads: false,
             sig_verifier_address: None,
         };
 
@@ -675,7 +680,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "receive-payload"))]
     fn test_construct_proof() {
         let mut deps = setup_test_case();
         execute_update_verifier_set(deps.as_mut()).unwrap();
@@ -702,7 +706,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "receive-payload"))]
     fn test_query_proof() {
         let mut deps = setup_test_case();
         execute_update_verifier_set(deps.as_mut()).unwrap();
@@ -726,7 +729,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "receive-payload"))]
     fn test_construct_proof_no_verifier_set() {
         let mut deps = setup_test_case();
         let res = execute_construct_proof(deps.as_mut(), None);

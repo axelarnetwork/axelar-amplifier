@@ -1,3 +1,4 @@
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
@@ -48,9 +49,43 @@ pub struct InstantiateMsg {
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
+    /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+    /// Value must be a String in hex format without `0x`, e.g. "598ba04d225cec385d1ce3cf3c9a076af803aa5c614bc0e0d176f04ac8d28f55".
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub domain_separator: Hash,
+    /// Whether to send the `NotifySigningSession` message to the chain-codec contract after a signing session is created.
+    /// Disabling this will save some gas.
+    pub notify_signing_session: bool,
+    /// Whether to expect the full message payloads during proof construction. Disable this if your relayer does not send the full message payloads.
+    pub expect_full_message_payloads: bool,
     /// Address of a contract responsible for signature verification.
     /// For detailed information, see [`multisig::msg::ExecuteMsg::StartSigningSession::sig_verifier`]
     pub sig_verifier_address: Option<String>,
+}
+
+#[cw_serde]
+#[serde(untagged)]
+pub enum ConstructProofMsg {
+    /// This variant is the default one and is used by most prover contracts.
+    Messages(Vec<CrossChainId>),
+    /// This variant was introduced for external integrations that need to receive the full message payloads in their chain-codec contract.
+    WithFullPayloads {
+        message_ids: Vec<CrossChainId>,
+        full_message_payloads: Vec<HexBinary>,
+    },
+}
+
+impl ConstructProofMsg {
+    pub fn ids_and_payloads(self) -> (Vec<CrossChainId>, Option<Vec<HexBinary>>) {
+        match self {
+            ConstructProofMsg::Messages(message_ids) => (message_ids, None),
+            ConstructProofMsg::WithFullPayloads {
+                message_ids,
+                full_message_payloads,
+            } => (message_ids, Some(full_message_payloads)),
+        }
+    }
 }
 
 #[cw_serde]
@@ -59,17 +94,7 @@ pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
     #[permission(Any)]
-    #[cfg(not(feature = "receive-payload"))]
-    ConstructProof(Vec<CrossChainId>),
-    #[permission(Any)]
-    #[cfg(feature = "receive-payload")]
-    ConstructProof {
-        message_ids: Vec<CrossChainId>,
-        /// This contains the full message payloads for each message in `message_ids`.
-        /// The order has to be the same as `message_ids`, i.e. `full_message_payloads[i]` corresponds to `message_ids[i]`.
-        /// The hash of each payload is checked to match the message payload.
-        full_message_payloads: Vec<HexBinary>,
-    },
+    ConstructProof(ConstructProofMsg),
 
     #[permission(Elevated)]
     UpdateVerifierSet,
@@ -127,5 +152,32 @@ impl From<multisig::verifier_set::VerifierSet> for VerifierSetResponse {
             id: set.id(),
             verifier_set: set,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_construct_proof_backwards_compatibility() {
+        // This is what the ConstructProof variant looked like in a previous version of the contract.
+        #[cw_serde]
+        enum OldExecMsg {
+            ConstructProof(Vec<CrossChainId>),
+        }
+
+        // serialize the old msg
+        let message_ids = vec![CrossChainId::new("test".to_string(), "test".to_string()).unwrap()];
+        let old_exec_msg_json =
+            cosmwasm_std::to_json_string(&OldExecMsg::ConstructProof(message_ids.clone())).unwrap();
+
+        // ExecuteMsg should be able to deserialize the old json
+        let construct_proof_msg = ConstructProofMsg::Messages(message_ids);
+        let new_exec_msg = cosmwasm_std::from_json::<ExecuteMsg>(&old_exec_msg_json).unwrap();
+        assert_eq!(
+            new_exec_msg,
+            ExecuteMsg::ConstructProof(construct_proof_msg)
+        );
     }
 }

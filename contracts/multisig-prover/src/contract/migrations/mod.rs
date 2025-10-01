@@ -1,4 +1,5 @@
 use axelar_wasm_std::address::validate_cosmwasm_address;
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::{migrate_from_version, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
@@ -40,8 +41,14 @@ pub fn migrate(
             chain_name: old_config.chain_name,
             verifier_set_diff_threshold: old_config.verifier_set_diff_threshold,
             key_type: old_config.key_type,
-
+            domain_separator: old_config.domain_separator,
             chain_codec: chain_codec_address,
+
+            // existing deployments with our own multisig-prover contract don't need to receive full message payloads, so we don't enable it here
+            expect_full_message_payloads: false,
+            // existing deployments with our own multisig-prover contract don't use notify signing session, so we don't enable it here
+            // we might have to enable it if we migrate other multisig-prover forks in the future
+            notify_signing_session: false,
             // existing deployments couldn't use a custom signature verifier, so we don't have to specify one here
             sig_verifier_address: None,
         },
@@ -65,7 +72,6 @@ pub struct OldConfig {
     // we are dropping this with the migration anyway and the type does not exist anymore,
     // so we just comment it out
     // pub encoder: Encoder,
-    // this is also dropped and causes a test failure, so we comment it out too
-    // pub domain_separator: Hash,
+    pub domain_separator: Hash,
     pub key_type: KeyType,
 }
