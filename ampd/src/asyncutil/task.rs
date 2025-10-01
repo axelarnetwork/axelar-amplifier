@@ -2,8 +2,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use axelar_wasm_std::error::extend_err;
-use error_stack::{Context, Result, ResultExt};
+use error_stack::{report, Context, Result, ResultExt};
 use thiserror::Error;
+use tokio::io::Error as IoError;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -33,7 +34,7 @@ impl<T> CancellableTask<T> {
 
 pub struct TaskGroup<E>
 where
-    E: From<TaskError> + From<TaskGroupError> + Context,
+    E: Context,
 {
     name: String,
     tasks: Vec<(String, CancellableTask<Result<(), E>>)>,
@@ -41,7 +42,7 @@ where
 
 impl<E> TaskGroup<E>
 where
-    E: From<TaskError> + From<TaskGroupError> + Context,
+    E: Context,
 {
     pub fn new(name: impl Into<String>) -> Self {
         TaskGroup {
@@ -62,7 +63,7 @@ where
 
     /// Runs all tasks concurrently. If one task fails, all others are cancelled and the collection of errors is returned.
     /// If a task panics, it still returns an error to the manager, so the parent process can shut down all tasks gracefully.
-    pub async fn run(self, token: CancellationToken) -> Result<(), E> {
+    pub async fn run(self, token: CancellationToken) -> Result<(), TaskGroupError> {
         // running tasks and waiting for them is tightly coupled, so they both share a cloned token
         let mut running_tasks = start_tasks(self.tasks, token.clone());
         wait_for_completion(self.name, &mut running_tasks, &token).await
@@ -95,9 +96,9 @@ async fn wait_for_completion<E>(
     group_name: String,
     running_tasks: &mut JoinSet<(String, Result<(), E>)>,
     token: &CancellationToken,
-) -> Result<(), E>
+) -> Result<(), TaskGroupError>
 where
-    E: From<TaskError> + From<TaskGroupError> + Context,
+    E: Context,
 {
     let mut final_result = Ok(());
     let total_task_count = running_tasks.len();
@@ -117,7 +118,7 @@ where
                 );
 
                 final_result = match task_result {
-                    Err(err) => extend_err(final_result, err),
+                    Err(err) => extend_err(final_result, err.change_context(TaskError {})),
                     Ok(()) => final_result,
                 };
             }
@@ -130,12 +131,15 @@ where
                     join_error
                 );
 
-                final_result = extend_err(final_result, E::from(TaskError {}).into());
+                final_result = extend_err(
+                    final_result,
+                    report!(IoError::from(join_error)).change_context(TaskError {}),
+                );
             }
         }
     }
 
-    final_result.change_context(E::from(TaskGroupError {}))
+    final_result.change_context(TaskGroupError {})
 }
 
 #[derive(Error, Debug)]
