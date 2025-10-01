@@ -21,6 +21,7 @@ use crate::monitoring;
 use crate::monitoring::metrics::Msg;
 use crate::tm_client::TmClient;
 
+pub mod event_filter;
 pub mod stream;
 
 #[derive(Error, Debug, Clone)]

@@ -53,6 +53,7 @@ use starknet_providers::jsonrpc::HttpTransport;
 use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use types::{CosmosPublicKey, TMAddress};
@@ -157,6 +158,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .service_registry(service_registry.cosmwasm_contract)
+        .latest_block_height(block_height_monitor.latest_block_height())
         .rewards(rewards.cosmwasm_contract)
         .monitoring_client(monitoring_client.clone())
         .build();
@@ -721,7 +723,14 @@ impl App {
         H: EventHandler + Send + Sync + 'static,
     {
         let label = label.as_ref().to_string();
-        let event_sub = self.event_subscriber.subscribe();
+        let filters = handler.event_filters();
+        let event_sub = self
+            .event_subscriber
+            .subscribe()
+            .filter(move |event| match event {
+                Ok(event) => filters.filter(event),
+                Err(_) => true,
+            });
         let msg_queue_client = self.msg_queue_client.clone();
 
         CancellableTask::create(|token| {

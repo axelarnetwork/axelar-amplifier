@@ -9,8 +9,8 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
-use events::try_from;
 use events::Error::EventTypeMismatch;
+use events::{try_from, EventType};
 use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
@@ -20,6 +20,7 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::evm::finalizer;
 use crate::evm::finalizer::Finalization;
 use crate::evm::json_rpc::EthereumClient;
@@ -232,6 +233,16 @@ where
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                PollStartedEvent::event_type(),
+                self.voting_verifier_contract.clone(),
+            )],
+            true,
+        )
     }
 }
 

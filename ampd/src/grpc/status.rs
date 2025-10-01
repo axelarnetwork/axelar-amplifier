@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn reqs_errors_to_status() {
-        let empty_filter = reqs::Error::EmptyFilter;
+        let empty_filter = reqs::Error::InvalidFilter;
         let invalid_contract_address =
             reqs::Error::InvalidContractAddress("invalid_contract_address".to_string());
         let invalid_query = reqs::Error::InvalidQuery;
