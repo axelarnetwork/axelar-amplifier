@@ -796,11 +796,15 @@ impl App {
             .add_task(CancellableTask::create(|token| {
                 grpc_server.run(token).change_context(Error::GrpcServer)
             }))
-            .add_task(CancellableTask::create(|_| {
-                tx_confirmer.run().change_context(Error::TxConfirmation)
+            .add_task(CancellableTask::create(|token| {
+                tx_confirmer
+                    .run(token)
+                    .change_context(Error::TxConfirmation)
             }))
-            .add_task(CancellableTask::create(|_| {
-                broadcaster_task.run().change_context(Error::Broadcaster)
+            .add_task(CancellableTask::create(|token| {
+                broadcaster_task
+                    .run(token)
+                    .change_context(Error::Broadcaster)
             }))
             .run(main_token)
             .await
