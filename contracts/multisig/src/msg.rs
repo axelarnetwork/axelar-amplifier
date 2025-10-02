@@ -8,7 +8,6 @@ use router_api::ChainName;
 
 pub use crate::contract::MigrateMsg;
 use crate::key::{KeyType, PublicKey, Signature};
-use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
@@ -62,9 +61,7 @@ pub enum ExecuteMsg {
     },
     /// Unauthorizes a set of contracts, so they can no longer call StartSigningSession.
     #[permission(Elevated)]
-    UnauthorizeCallers {
-        contracts: HashMap<String, ChainName>,
-    },
+    UnauthorizeCallers { contracts: Vec<String> },
 
     /// Emergency command to stop all amplifier signing
     #[permission(Elevated)]
@@ -78,7 +75,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Multisig)]
+    #[returns(crate::multisig::Multisig)]
     Multisig { session_id: Uint64 },
 
     #[returns(VerifierSet)]
@@ -95,6 +92,9 @@ pub enum QueryMsg {
         contract_address: String,
         chain_name: ChainName,
     },
+
+    #[returns(Addr)]
+    AuthorizedCaller { chain_name: ChainName },
 }
 
 #[cw_serde]

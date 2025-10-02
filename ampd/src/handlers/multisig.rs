@@ -7,7 +7,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
-use events::try_from;
+use events::{try_from, EventType};
 use hex::encode;
 use multisig::msg::ExecuteMsg;
 use multisig::types::MsgToSign;
@@ -18,6 +18,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::{self, Multisig};
 use crate::types::{PublicKey, TMAddress};
@@ -171,6 +172,16 @@ where
                 Ok(vec![])
             }
         }
+    }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                SigningStartedEvent::event_type(),
+                self.multisig.clone(),
+            )],
+            true,
+        )
     }
 }
 

@@ -10,6 +10,7 @@ edition = { workspace = true }
 proc-macro = true
 
 [dependencies]
+axelar-wasm-std = { workspace = true }
 error-stack = { workspace = true }
 quote = { workspace = true }
 serde = "1.0.183"
