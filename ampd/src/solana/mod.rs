@@ -16,7 +16,7 @@ use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::monitoring;
 use crate::monitoring::metrics::Msg;
@@ -70,6 +70,7 @@ impl SolanaRpcClientProxy for Client {
 
         res.ok().and_then(|tx_data| {
             let meta = tx_data.transaction.meta?;
+            println!("meta: {:?}", meta);
             let inner_instructions = match meta.inner_instructions.as_ref() {
                 OptionSerializer::Some(inner) => inner.clone(),
                 _ => vec![],
@@ -106,7 +107,8 @@ impl SolanaRpcClientProxy for Client {
     }
 
     async fn domain_separator(&self) -> Option<[u8; 32]> {
-        let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
+        // Use the helper function from axelar-amplifier-solana to derive the gateway root config PDA
+        let (gateway_root_pda, _) = axelar_solana_gateway::get_gateway_root_config_pda();
 
         let res = self.client.get_account(&gateway_root_pda).await;
 
@@ -150,12 +152,12 @@ where
     F: Fn(&GatewayEvent) -> bool,
 {
     if tx.signature.as_ref() != message_id.raw_signature {
-        error!("signatures don't match");
+        debug!("signatures don't match");
         return Vote::NotFound;
     }
 
     if tx.err.is_some() {
-        error!("Transaction failed");
+        debug!("Transaction failed");
         return Vote::FailedOnChain;
     }
 
@@ -166,9 +168,9 @@ where
     ) {
         Some(inst) => inst,
         None => {
-            error!(
+            debug!(
                 "Instruction not found at inner_ix_group_index: {}, inner_ix_index: {}",
-                message_id.inner_ix_group_index,
+                message_id.inner_ix_group_index.into_inner(),
                 message_id.inner_ix_index.into_inner()
             );
             return Vote::NotFound;
@@ -176,9 +178,9 @@ where
     };
 
     if !is_instruction_from_gateway_program(&instruction, &tx.account_keys) {
-        error!(
+        debug!(
             "Instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
-            message_id.inner_ix_group_index, message_id.inner_ix_index.into_inner()
+            message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
         );
         return Vote::NotFound;
     }
@@ -186,7 +188,7 @@ where
     let event = match parse_gateway_event_from_instruction(&instruction) {
         Ok(ev) => ev,
         Err(err) => {
-            error!("Cannot parse gateway event from instruction: {}", err);
+            debug!("Cannot parse gateway event from instruction: {}", err);
             return Vote::NotFound;
         }
     };
@@ -194,7 +196,7 @@ where
     if events_are_equal(&event) {
         Vote::SucceededOnChain
     } else {
-        warn!(?event, "event was found, but contents were not equal");
+        debug!(?event, "event was found, but contents were not equal");
         Vote::NotFound
     }
 }
@@ -233,21 +235,18 @@ fn is_instruction_from_gateway_program(
 
 pub(crate) fn get_instruction_at_index(
     transaction: &SolanaTransaction,
-    inner_ix_group_index: u32,
+    inner_ix_group_index: nonempty::Uint32,
     inner_ix_index: nonempty::Uint32,
 ) -> Option<UiCompiledInstruction> {
-    // Safely convert u32 to usize
-    let inner_ix_group_index = usize::try_from(inner_ix_group_index).ok()?;
-    let inner_ix_index = usize::from(inner_ix_index);
+    let inner_ix_group_index = usize::try_from(inner_ix_group_index.into_inner()).ok()?;
+    let inner_ix_index = usize::try_from(inner_ix_index.into_inner()).ok()?;
 
-    // Find the inner instruction group that corresponds to the group index
     let inner_group = transaction
         .inner_instructions
         .iter()
-        .find(|group| usize::from(group.index) == inner_ix_group_index)?;
+        .find(|group| usize::from(group.index) == inner_ix_group_index.saturating_sub(1))?;
 
-    // Get the inner instruction at the specified index (1-based, so subtract 1)
-    let inner_instruction_index = inner_ix_index.checked_sub(1)?;
+    let inner_instruction_index = inner_ix_index.saturating_sub(1);
     let inner_instruction = inner_group.instructions.get(inner_instruction_index)?;
 
     if let UiInstruction::Compiled(ci) = inner_instruction {
@@ -276,7 +275,7 @@ fn parse_gateway_event_from_instruction(
         .into());
     }
 
-    let event_data = &bytes[16..];
+    let event_data = bytes.get(16..).ok_or("Missing event data")?;
     match bytes.get(8..16) {
         Some(disc) if disc == CallContractEvent::DISCRIMINATOR => {
             let call_contract_event = CallContractEvent::try_from_slice(event_data)
@@ -402,10 +401,13 @@ mod test {
 
         let mut test_results: Vec<(u32, u32, String)> = Vec::new();
 
-        for group_idx in 0..IX_GROUP_COUNT {
+        for group_idx in 1..=IX_GROUP_COUNT {
             for inner_idx in 1..=INNER_GROUP_SIZE {
-                let result =
-                    get_instruction_at_index(&tx, group_idx, inner_idx.try_into().unwrap());
+                let result = get_instruction_at_index(
+                    &tx,
+                    group_idx.try_into().unwrap(),
+                    inner_idx.try_into().unwrap(),
+                );
                 let instruction = result.unwrap_or_else(|| {
                     panic!(
                         "Should find inner instruction {} for group {}",
@@ -414,7 +416,7 @@ mod test {
                 });
                 assert_eq!(
                     instruction.data,
-                    format!("inner_instruction_{}_{}", group_idx, inner_idx - 1)
+                    format!("inner_instruction_{}_{}", group_idx - 1, inner_idx - 1)
                 );
 
                 // Collect for golden test

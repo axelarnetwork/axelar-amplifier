@@ -67,7 +67,9 @@ PollStartedEvent {
                 188,
                 8,
             ],
-            inner_ix_group_index: 0,
+            inner_ix_group_index: Uint32(
+                1,
+            ),
             inner_ix_index: Uint32(
                 10,
             ),

@@ -122,7 +122,7 @@ mod tests {
     fn should_not_verify_verifier_set_if_log_index_does_not_match() {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.inner_ix_group_index = 999; // Use a high index that won't exist
+        event.message_id.inner_ix_group_index = 999.try_into().unwrap(); // Use a high index that won't exist
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
             Vote::NotFound
@@ -138,7 +138,7 @@ mod tests {
     fn should_not_verify_verifier_set_if_log_index_greater_than_u32_max() {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
-        event.message_id.inner_ix_group_index = u32::MAX; // Use max u32 value
+        event.message_id.inner_ix_group_index = u32::MAX.try_into().unwrap(); // Use max u32 value
         event.message_id.inner_ix_index = u32::MAX.try_into().unwrap();
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
@@ -270,7 +270,7 @@ mod tests {
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    inner_ix_group_index: 0, // Inner instruction group 0
+                    inner_ix_group_index: 1.try_into().unwrap(), // Inner instruction group 1 (1-based)
                     inner_ix_index: 1.try_into().unwrap(), // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,
@@ -294,7 +294,7 @@ mod tests {
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: RAW_SIGNATURE,
-                    inner_ix_group_index: 0, // Inner instruction group 0
+                    inner_ix_group_index: 1.try_into().unwrap(), // Inner instruction group 1 (1-based)
                     inner_ix_index: 1.try_into().unwrap(), // First inner instruction (1-based)
                 },
                 verifier_set: actual_verifier_set,

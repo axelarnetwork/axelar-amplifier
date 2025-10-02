@@ -6,7 +6,7 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
-use error_stack::ResultExt;
+use error_stack::{report, ResultExt};
 use events::Error::EventTypeMismatch;
 use events::{try_from, EventType};
 use multisig::verifier_set::VerifierSet;
@@ -62,13 +62,13 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         rpc_client: C,
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
-    ) -> Self {
+    ) -> Result<Self> {
         let domain_separator = rpc_client
             .domain_separator()
             .await
-            .expect("cannot start handler without fetching domain separator for Solana");
+            .ok_or_else(|| report!(Error::FetchSolanaAccount))?;
 
-        Self {
+        Ok(Self {
             chain_name,
             verifier,
             solana_gateway_domain_separator: domain_separator,
@@ -76,7 +76,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
             rpc_client,
             latest_block_height,
             monitoring_client,
-        }
+        })
     }
 
     fn vote_msg(&self, poll_id: PollId, vote: Vote) -> MsgExecuteContract {
@@ -266,7 +266,8 @@ mod tests {
             watch::channel(0).1,
             monitoring_client,
         )
-        .await;
+        .await
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -288,7 +289,8 @@ mod tests {
             watch::channel(0).1,
             monitoring_client,
         )
-        .await;
+        .await
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -311,7 +313,8 @@ mod tests {
             watch::channel(0).1,
             monitoring_client,
         )
-        .await;
+        .await
+        .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
@@ -341,7 +344,8 @@ mod tests {
             rx,
             monitoring_client,
         )
-        .await;
+        .await
+        .unwrap();
 
         // poll is not expired yet, should hit proxy
         let actual = handler.handle(&event).await.unwrap();
@@ -373,7 +377,8 @@ mod tests {
             watch::channel(0).1,
             monitoring_client,
         )
-        .await;
+        .await
+        .unwrap();
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -400,7 +405,8 @@ mod tests {
             watch::channel(0).1,
             monitoring_client,
         )
-        .await;
+        .await
+        .unwrap();
 
         let _ = handler.handle(&event).await.unwrap();
 
@@ -421,7 +427,7 @@ mod tests {
         expires_at: u64,
     ) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-        let inner_ix_group_index_1 = 0_u32;
+        let inner_ix_group_index_1 = 1_u32;
         let inner_ix_index_1 = 10_u32;
         let message_id_1 = format!("{signature_1}-{inner_ix_group_index_1}.{inner_ix_index_1}");
         PollStarted::VerifierSet {

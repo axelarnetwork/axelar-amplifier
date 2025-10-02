@@ -178,7 +178,7 @@ mod tests {
             instructions: vec![instruction1, instruction2],
         }];
 
-        let msg = create_msg_counterpart(&event, 0, 2); // Look for the second instruction in group 0 (inner_ix_index 2 = 1-based index)
+        let msg = create_msg_counterpart(&event, 1, 2); // Look for the second instruction in group 1 (1-based indexing)
         let signature = msg.message_id.raw_signature.into();
 
         let solana_tx = crate::solana::SolanaTransaction {
@@ -222,7 +222,7 @@ mod tests {
         Message {
             message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
                 raw_signature: RAW_SIGNATURE,
-                inner_ix_group_index,
+                inner_ix_group_index: inner_ix_group_index.try_into().unwrap(),
                 inner_ix_index: inner_ix_index.try_into().unwrap(),
             },
             destination_address: event.destination_contract_address.clone(),
@@ -242,7 +242,7 @@ mod tests {
             format!("Program {} success", axelar_solana_gateway::ID), // Invocation 1 succeeds
         ];
 
-        let msg = create_msg_counterpart(&event, 0, 1); // Use inner_ix_index 1 (first inner instruction in group 0)
+        let msg = create_msg_counterpart(&event, 1, 1); // Use 1-based indexing for both indices
         let signature = msg.message_id.raw_signature.into();
         let tx_meta = tx_meta(logs);
 

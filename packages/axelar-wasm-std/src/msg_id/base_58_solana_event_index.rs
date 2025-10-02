@@ -17,7 +17,8 @@ pub struct Base58SolanaTxSignatureAndEventIndex {
     // Base58 decoded bytes of the Solana signature.
     pub raw_signature: RawSignature,
     // index of the inner instruction group in the transaction containing the event
-    pub inner_ix_group_index: u32,
+    // must be non-zero as indexing starts at 1 to match the explorer
+    pub inner_ix_group_index: nonempty::Uint32,
     // index of the inner instruction in the instruction group containing the event
     // must be non-zero as indexing starts at 1 to match the explorer
     pub inner_ix_index: nonempty::Uint32,
@@ -33,12 +34,12 @@ impl Base58SolanaTxSignatureAndEventIndex {
 
     pub fn new(
         tx_id: impl Into<RawSignature>,
-        inner_ix_group_index: impl Into<u32>,
+        inner_ix_group_index: nonempty::Uint32,
         inner_ix_index: nonempty::Uint32,
     ) -> Self {
         Self {
             raw_signature: tx_id.into(),
-            inner_ix_group_index: inner_ix_group_index.into(),
+            inner_ix_group_index,
             inner_ix_index,
         }
     }
@@ -53,7 +54,7 @@ fn decode_b58_signature(signature: &str) -> Result<RawSignature, Report<Error>> 
         .map_err(|_| Error::InvalidTxDigest(signature.to_owned()))?)
 }
 
-const PATTERN: &str = "^([1-9A-HJ-NP-Za-km-z]{64,88})-(0|[1-9][0-9]*)\\.([1-9][0-9]*)$";
+const PATTERN: &str = "^([1-9A-HJ-NP-Za-km-z]{64,88})-([1-9][0-9]*)\\.([1-9][0-9]*)$";
 lazy_static! {
     static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
 }
@@ -76,8 +77,9 @@ impl FromStr for Base58SolanaTxSignatureAndEventIndex {
 
         Ok(Base58SolanaTxSignatureAndEventIndex {
             raw_signature: decode_b58_signature(signature)?,
-            inner_ix_group_index: inner_ix_group_index
-                .parse()
+            inner_ix_group_index: u32::from_str(inner_ix_group_index)
+                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?
+                .try_into()
                 .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
             inner_ix_index: u32::from_str(inner_ix_index)
                 .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?
@@ -93,7 +95,7 @@ impl Display for Base58SolanaTxSignatureAndEventIndex {
             f,
             "{}-{}.{}",
             bs58::encode(self.raw_signature).into_string(),
-            self.inner_ix_group_index,
+            self.inner_ix_group_index.into_inner(),
             self.inner_ix_index.into_inner()
         )
     }
@@ -121,19 +123,22 @@ mod tests {
     #[test]
     fn should_parse_msg_id() {
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(
-            "4hHzKKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYWtf5-0.1",
+            "4hHzKKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYWtf5-1.1",
         );
         assert!(res.is_ok());
 
         for _ in 0..1000 {
             let tx_digest = random_tx_digest();
-            let inner_ix_group_index = rand::random::<u32>() % 1000;
+            let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
             let inner_ix_index = rand::random::<u32>() % 1000 + 1;
             let msg_id = format!("{}-{}.{}", tx_digest, inner_ix_group_index, inner_ix_index);
 
             let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
-            assert_eq!(parsed.inner_ix_group_index, inner_ix_group_index);
+            assert_eq!(
+                parsed.inner_ix_group_index.into_inner(),
+                inner_ix_group_index
+            );
             assert_eq!(parsed.inner_ix_index.into_inner(), inner_ix_index);
             assert_eq!(parsed.signature_as_base58(), tx_digest.as_str());
             assert_eq!(parsed.to_string(), msg_id);
@@ -356,13 +361,28 @@ mod tests {
         let tx_digest = random_tx_digest();
 
         // inner_ix_index cannot be 0 as events are always inner instructions
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.0", tx_digest));
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-1.0", tx_digest));
         assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-5.0", tx_digest));
         assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-999.0", tx_digest));
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_with_zero_inner_ix_group_index() {
+        let tx_digest = random_tx_digest();
+
+        // inner_ix_group_index cannot be 0 as indexing starts at 1 to match the explorer
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.1", tx_digest));
+        assert!(res.is_err());
+
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.5", tx_digest));
+        assert!(res.is_err());
+
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.999", tx_digest));
         assert!(res.is_err());
     }
 

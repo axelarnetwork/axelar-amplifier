@@ -620,7 +620,7 @@ impl App {
                     cosmwasm_contract.clone(),
                     solana::Client::new(
                         RpcClient::new_with_timeout_and_commitment(
-                            rpc_url.to_string(),
+                            rpc_url.as_str().to_string(),
                             rpc_timeout.unwrap_or(default_rpc_timeout),
                             CommitmentConfig::finalized(),
                         ),
@@ -638,28 +638,34 @@ impl App {
                 cosmwasm_contract,
                 rpc_url,
                 rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "solana-verifier-set-verifier",
-                handlers::solana_verify_verifier_set::Handler::new(
-                    chain_name.clone(),
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    solana::Client::new(
-                        RpcClient::new_with_timeout_and_commitment(
-                            rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(default_rpc_timeout),
-                            CommitmentConfig::finalized(),
-                        ),
-                        self.monitoring_client.clone(),
+            } => {
+                println!("rpc_url: {:?}", rpc_url);
+                println!("rpc_url.to_string(): {:?}", rpc_url.to_string());
+                println!("rpc_url.as_str(): {:?}", rpc_url.as_str());
+                Ok(self.create_handler_task(
+                    "solana-verifier-set-verifier",
+                    handlers::solana_verify_verifier_set::Handler::new(
                         chain_name.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
+                        verifier.clone(),
+                        cosmwasm_contract.clone(),
+                        solana::Client::new(
+                            RpcClient::new_with_timeout_and_commitment(
+                                rpc_url.as_str().to_string(),
+                                rpc_timeout.unwrap_or(default_rpc_timeout),
+                                CommitmentConfig::finalized(),
+                            ),
+                            self.monitoring_client.clone(),
+                            chain_name.clone(),
+                        ),
+                        self.block_height_monitor.latest_block_height(),
+                        self.monitoring_client.clone(),
+                    )
+                    .await
+                    .change_context(Error::Connection)?,
+                    event_processor_config.clone(),
                     self.monitoring_client.clone(),
-                )
-                .await,
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
+                ))
+            }
             handlers::config::Config::StacksMsgVerifier {
                 chain_name,
                 cosmwasm_contract,

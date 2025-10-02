@@ -419,12 +419,12 @@ mod test {
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
-        let inner_ix_group_index_1 = 0_u32;
+        let inner_ix_group_index_1 = 1_u32;
         let inner_ix_index_1 = 10_u32;
         let message_id_1 = format!("{signature_1}-{inner_ix_group_index_1}.{inner_ix_index_1}");
 
         let signature_2 = "41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT";
-        let inner_ix_group_index_2 = 1_u32;
+        let inner_ix_group_index_2 = 2_u32;
         let inner_ix_index_2 = 88_u32;
         let message_id_2 = format!("{signature_2}-{inner_ix_group_index_2}.{inner_ix_index_2}");
 
