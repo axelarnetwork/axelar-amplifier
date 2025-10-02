@@ -20,8 +20,6 @@ use crate::state::{
 enum MigrationError {
     #[error("contract config before migration not found")]
     OldConfigNotFound,
-    #[error("missing contracts to register for chain {0}")]
-    MissingContracts(ChainName),
     #[error("extra or duplicate chains provided in message")]
     ExtraChainProvided,
     #[error("chain contracts provided for chain {0} do not match with current state")]
@@ -115,7 +113,7 @@ fn migrate_chain_contracts(
     mut deps: DepsMut,
     chain_contracts: Vec<ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
-    let provers_by_chain: Vec<_> = OLD_CHAIN_PROVER_INDEXED_MAP
+    let provers_by_chain: HashMap<_, _> = OLD_CHAIN_PROVER_INDEXED_MAP
         .range(deps.storage, None, None, Order::Ascending)
         .try_collect()?;
 
@@ -131,60 +129,31 @@ fn migrate_chain_contracts(
         })
         .collect::<Result<HashMap<ChainName, ChainContracts>, MigrationError>>()?;
 
-    migrate_registered_provers(&mut deps, provers_by_chain, &mut contracts_map)?;
-
-    migrate_remaining_chains(&mut deps, &mut contracts_map)
+    migrate_all_provers(&mut deps, provers_by_chain, &mut contracts_map)
 }
 
-fn migrate_registered_provers(
+fn migrate_all_provers(
     deps: &mut DepsMut,
-    provers_by_chain: Vec<(ChainName, Addr)>,
+    provers_by_chain: HashMap<ChainName, Addr>,
     contracts_map: &mut HashMap<ChainName, ChainContracts>,
 ) -> Result<(), axelar_wasm_std::error::ContractError> {
-    for (chain_name, prover_addr) in provers_by_chain {
-        // If the migration script is used, a chain will be missing only if
-        // that prover does not have a corresponding gateway and verifier.
-        // Consequently, we can safely ignore missing chain contracts.
-        let contracts: ChainContracts = match contracts_for_chain(chain_name.clone(), contracts_map)
-        {
-            Err(..) => continue,
-            Ok(c) => c,
-        };
+    for contracts in contracts_map.values() {
+        let prover_address = contracts
+            .prover_address
+            .as_ref()
+            .map(|addr| {
+                address::validate_cosmwasm_address(deps.api, addr)
+                    .change_context(MigrationError::InvalidChainContracts)
+            })
+            .transpose()?
+            .or_else(|| provers_by_chain.get(&contracts.chain_name).cloned());
 
-        save_contracts_to_state(
-            deps.storage,
-            ChainContractsRecord {
-                chain_name: contracts.chain_name.clone(),
-                prover_address: prover_addr,
-                verifier_address: address::validate_cosmwasm_address(
-                    deps.api,
-                    &contracts.verifier_address,
-                )
-                .change_context(MigrationError::InvalidChainContracts)?,
-                gateway_address: address::validate_cosmwasm_address(
-                    deps.api,
-                    &contracts.gateway_address,
-                )
-                .change_context(MigrationError::InvalidChainContracts)?,
-            },
-        )?;
-    }
-
-    Ok(())
-}
-
-fn migrate_remaining_chains(
-    deps: &mut DepsMut,
-    contracts_map: &mut HashMap<ChainName, ChainContracts>,
-) -> Result<(), axelar_wasm_std::error::ContractError> {
-    for contracts in contracts_map.values_mut() {
-        if let Some(prover_address) = &contracts.prover_address {
+        if let Some(pa) = prover_address {
             save_contracts_to_state(
                 deps.storage,
                 ChainContractsRecord {
                     chain_name: contracts.chain_name.clone(),
-                    prover_address: address::validate_cosmwasm_address(deps.api, prover_address)
-                        .change_context(MigrationError::InvalidChainContracts)?,
+                    prover_address: pa,
                     verifier_address: address::validate_cosmwasm_address(
                         deps.api,
                         &contracts.verifier_address,
@@ -201,17 +170,6 @@ fn migrate_remaining_chains(
     }
 
     Ok(())
-}
-
-fn contracts_for_chain(
-    chain_name: ChainName,
-    contracts_map: &mut HashMap<ChainName, ChainContracts>,
-) -> Result<ChainContracts, axelar_wasm_std::error::ContractError> {
-    let contracts = contracts_map
-        .remove(&chain_name)
-        .ok_or_else(|| MigrationError::MissingContracts(chain_name.clone()))?;
-
-    Ok(contracts)
 }
 
 fn save_contracts_to_state(
@@ -696,5 +654,69 @@ mod tests {
         );
 
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn migrate_uses_provided_prover_address_over_state_prover() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = message_info(&cosmos_addr!(SENDER), &[]);
+
+        assert!(old_instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info,
+            OldInstantiateMsg {
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                service_registry: cosmos_addr!(SERVICE_REGISTRY).to_string(),
+            },
+        )
+        .is_ok());
+
+        let chain_name = chain_name!(CHAIN_1);
+        let state_prover_addr = cosmos_addr!(PROVER_1);
+        let provided_prover_addr = cosmos_addr!(PROVER_2);
+        let gateway_addr = cosmos_addr!(GATEWAY_1);
+        let verifier_addr = cosmos_addr!(VERIFIER_1);
+
+        assert!(add_old_prover_registration(
+            deps.as_mut(),
+            vec![(chain_name.clone(), state_prover_addr.clone())]
+        )
+        .is_ok());
+
+        let res = migrate(
+            deps.as_mut(),
+            env,
+            MigrateMsg {
+                router: cosmos_addr!(ROUTER).to_string(),
+                multisig: cosmos_addr!(MULTISIG).to_string(),
+                chain_contracts: vec![ChainContracts {
+                    chain_name: chain_name.clone(),
+                    prover_address: Some(
+                        nonempty::String::try_from(provided_prover_addr.to_string()).unwrap(),
+                    ),
+                    gateway_address: nonempty::String::try_from(gateway_addr.to_string()).unwrap(),
+                    verifier_address: nonempty::String::try_from(verifier_addr.to_string())
+                        .unwrap(),
+                }],
+            },
+        );
+
+        assert!(res.is_ok());
+
+        let contracts = state::contracts_by_chain(&deps.storage, chain_name.clone());
+        assert!(contracts.is_ok());
+        let contracts = contracts.unwrap();
+
+        assert_eq!(contracts.chain_name, chain_name);
+        assert_eq!(contracts.prover_address, provided_prover_addr);
+        assert_eq!(contracts.gateway_address, gateway_addr);
+        assert_eq!(contracts.verifier_address, verifier_addr);
+
+        let contracts_by_prover =
+            state::contracts_by_prover(&deps.storage, provided_prover_addr.clone());
+        assert!(contracts_by_prover.is_ok());
+        assert_eq!(contracts_by_prover.unwrap().chain_name, chain_name);
     }
 }
