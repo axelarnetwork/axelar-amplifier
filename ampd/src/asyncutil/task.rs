@@ -154,6 +154,7 @@ pub struct TaskGroupError;
 mod test {
     use error_stack::report;
     use strip_ansi_escapes::strip;
+    use temp_env::async_with_vars;
     use tokio_util::sync::CancellationToken;
 
     use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
@@ -184,77 +185,83 @@ mod test {
 
     #[tokio::test]
     async fn collect_all_errors_on_completion() {
-        let tasks = TaskGroup::new("test")
-            .add_task(
-                "error_task_1",
-                CancellableTask::create(|token| async move {
-                    token.cancelled().await;
-                    Err(report!(TaskError {}))
-                }),
-            )
-            .add_task(
-                "error_task_2",
-                CancellableTask::create(|token| async move {
-                    token.cancelled().await;
-                    Err(report!(TaskError {}))
-                }),
-            )
-            .add_task(
-                "success_task_1",
-                CancellableTask::create(|_| async { Ok(()) }),
-            )
-            .add_task(
-                "error_task_3",
-                CancellableTask::create(|token| async move {
-                    token.cancelled().await;
-                    Err(report!(TaskError {}))
-                }),
-            )
-            .add_task(
-                "success_task_2",
-                CancellableTask::create(|_| async { Ok(()) }),
-            )
-            .add_task(
-                "error_task_4",
-                CancellableTask::create(|token| async move {
-                    token.cancelled().await;
-                    Err(report!(TaskError {}))
-                }),
-            );
-        let result = tasks.run(CancellationToken::new()).await;
-        let err = result.unwrap_err();
+        async_with_vars([("RUST_BACKTRACE", Some("0"))], async {
+            let tasks = TaskGroup::new("test")
+                .add_task(
+                    "error_task_1",
+                    CancellableTask::create(|token| async move {
+                        token.cancelled().await;
+                        Err(report!(TaskError {}))
+                    }),
+                )
+                .add_task(
+                    "error_task_2",
+                    CancellableTask::create(|token| async move {
+                        token.cancelled().await;
+                        Err(report!(TaskError {}))
+                    }),
+                )
+                .add_task(
+                    "success_task_1",
+                    CancellableTask::create(|_| async { Ok(()) }),
+                )
+                .add_task(
+                    "error_task_3",
+                    CancellableTask::create(|token| async move {
+                        token.cancelled().await;
+                        Err(report!(TaskError {}))
+                    }),
+                )
+                .add_task(
+                    "success_task_2",
+                    CancellableTask::create(|_| async { Ok(()) }),
+                )
+                .add_task(
+                    "error_task_4",
+                    CancellableTask::create(|token| async move {
+                        token.cancelled().await;
+                        Err(report!(TaskError {}))
+                    }),
+                );
+            let result = tasks.run(CancellationToken::new()).await;
+            let err = result.unwrap_err();
 
-        let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
-        goldie::assert!(error_output);
+            let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
+            goldie::assert!(error_output);
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn shutdown_gracefully_on_task_panic() {
-        let tasks = TaskGroup::new("test")
-            .add_task(
-                "success_task_1",
-                CancellableTask::create(|_| async { Ok(()) }),
-            )
-            .add_task(
-                "panic_task",
-                CancellableTask::create(|_| async { panic!("panic") }),
-            )
-            .add_task(
-                "error_task",
-                CancellableTask::create(|_| async { Err(report!(TaskError {})) }),
-            )
-            .add_task(
-                "success_task_2",
-                CancellableTask::create(|_| async { Ok(()) }),
-            )
-            .add_task(
-                "error_task_2",
-                CancellableTask::create(|_| async { Err(report!(TaskError {})) }),
-            );
-        let result = tasks.run(CancellationToken::new()).await;
-        let err = result.unwrap_err();
+        async_with_vars([("RUST_BACKTRACE", Some("0"))], async {
+            let tasks = TaskGroup::new("test")
+                .add_task(
+                    "success_task_1",
+                    CancellableTask::create(|_| async { Ok(()) }),
+                )
+                .add_task(
+                    "panic_task",
+                    CancellableTask::create(|_| async { panic!("panic") }),
+                )
+                .add_task(
+                    "error_task",
+                    CancellableTask::create(|_| async { Err(report!(TaskError {})) }),
+                )
+                .add_task(
+                    "success_task_2",
+                    CancellableTask::create(|_| async { Ok(()) }),
+                )
+                .add_task(
+                    "error_task_2",
+                    CancellableTask::create(|_| async { Err(report!(TaskError {})) }),
+                );
+            let result = tasks.run(CancellationToken::new()).await;
+            let err = result.unwrap_err();
 
-        let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
-        goldie::assert!(error_output);
+            let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
+            goldie::assert!(error_output);
+        })
+        .await;
     }
 }

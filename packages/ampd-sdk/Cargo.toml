@@ -34,7 +34,7 @@ valuable = { workspace = true }
 [build-dependencies]
 
 [dev-dependencies]
-temp-env = "0.3.6"
+temp-env = { workspace = true }
 tempfile = "3.21.0"
 tokio = { workspace = true, features = ["test-util"] }
 

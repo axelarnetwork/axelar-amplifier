@@ -11,10 +11,10 @@ task group execution failed
  │  ├╴at ampd/src/asyncutil/task.rs:121:62
  │  │
  │  ╰─▶ task failed
- │      ╰╴at ampd/src/asyncutil/task.rs:244:57
+ │      ╰╴at ampd/src/asyncutil/task.rs:249:61
  │
  ╰▶ task failed
     ├╴at ampd/src/asyncutil/task.rs:121:62
     │
     ╰─▶ task failed
-        ╰╴at ampd/src/asyncutil/task.rs:252:57
+        ╰╴at ampd/src/asyncutil/task.rs:257:61
