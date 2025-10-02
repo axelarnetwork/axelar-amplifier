@@ -17,11 +17,11 @@ aleo-mainnet = []
 aleo-canary = []
 
 [dependencies]
+aleo-block-processor = { workspace = true }
 aleo-compatible-keccak = { workspace = true }
 aleo-gateway-types = { workspace = true }
 aleo-gmp-types = { workspace = true }
 aleo-string-encoder = { workspace = true }
-aleo-block-processor = { workspace = true }
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
 axelar-solana-encoding = { workspace = true }

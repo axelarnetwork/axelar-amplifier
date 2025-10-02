@@ -443,7 +443,7 @@ mod tests {
     struct TestLinkToken {
         token_id: TokenId,
         source_token_address: String,
-        estination_token_address: String,
+        destination_token_address: String,
         token_manager_type: u8,
         external_chain: ChainNameRaw,
     }

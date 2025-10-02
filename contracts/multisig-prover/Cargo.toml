@@ -63,8 +63,7 @@ thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
-# aleo-utils = { workspace = true }
-anyhow = "1.0"
+aleo-utils = { workspace = true }
 assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 elliptic-curve = "0.13.5"
