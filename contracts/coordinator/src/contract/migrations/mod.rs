@@ -148,12 +148,12 @@ fn migrate_all_provers(
             .transpose()?
             .or_else(|| provers_by_chain.get(&contracts.chain_name).cloned());
 
-        if let Some(pa) = prover_address {
+        if let Some(addr) = prover_address {
             save_contracts_to_state(
                 deps.storage,
                 ChainContractsRecord {
                     chain_name: contracts.chain_name.clone(),
-                    prover_address: pa,
+                    prover_address: addr,
                     verifier_address: address::validate_cosmwasm_address(
                         deps.api,
                         &contracts.verifier_address,
