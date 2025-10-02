@@ -945,7 +945,7 @@ pub enum Error {
     Connection,
     #[error("task execution failed")]
     Task(#[from] TaskError),
-    #[error("App (task group) execution failed")]
+    #[error("app failed")]
     AppFailure,
     #[error("failed to return updated state")]
     ReturnState,

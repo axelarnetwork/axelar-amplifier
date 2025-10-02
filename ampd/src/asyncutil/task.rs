@@ -153,15 +153,10 @@ pub struct TaskGroupError;
 #[cfg(test)]
 mod test {
     use error_stack::report;
+    use strip_ansi_escapes::strip;
     use tokio_util::sync::CancellationToken;
 
-    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup, TaskGroupError};
-
-    impl From<TaskGroupError> for TaskError {
-        fn from(_: TaskGroupError) -> Self {
-            TaskError {}
-        }
-    }
+    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 
     #[tokio::test]
     async fn running_no_tasks_returns_no_error() {
@@ -228,7 +223,9 @@ mod test {
             );
         let result = tasks.run(CancellationToken::new()).await;
         let err = result.unwrap_err();
-        assert_eq!(err.current_frames().len(), 1);
+
+        let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
+        goldie::assert!(error_output);
     }
 
     #[tokio::test]
@@ -256,6 +253,8 @@ mod test {
             );
         let result = tasks.run(CancellationToken::new()).await;
         let err = result.unwrap_err();
-        assert_eq!(err.current_frames().len(), 1);
+
+        let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
+        goldie::assert!(error_output);
     }
 }

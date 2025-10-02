@@ -1,0 +1,26 @@
+task group execution failed
+├╴at ampd/src/asyncutil/task.rs:142:18
+│
+╰┬▶ task failed
+ │  ├╴at ampd/src/asyncutil/task.rs:121:62
+ │  │
+ │  ╰─▶ task failed
+ │      ╰╴at ampd/src/asyncutil/task.rs:210:25
+ │
+ ├▶ task failed
+ │  ├╴at ampd/src/asyncutil/task.rs:121:62
+ │  │
+ │  ╰─▶ task failed
+ │      ╰╴at ampd/src/asyncutil/task.rs:221:25
+ │
+ ├▶ task failed
+ │  ├╴at ampd/src/asyncutil/task.rs:121:62
+ │  │
+ │  ╰─▶ task failed
+ │      ╰╴at ampd/src/asyncutil/task.rs:199:25
+ │
+ ╰▶ task failed
+    ├╴at ampd/src/asyncutil/task.rs:121:62
+    │
+    ╰─▶ task failed
+        ╰╴at ampd/src/asyncutil/task.rs:192:25
