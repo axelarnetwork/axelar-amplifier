@@ -175,7 +175,7 @@ mod tests {
     fn test_to_array() {
         let data = [1u8; 20];
         let hex = HexBinary::<20>::try_from(data).unwrap();
-        let result: [u8; 20] = hex.try_into().unwrap();
+        let result: [u8; 20] = hex.into();
         assert_eq!(result, data);
     }
 
