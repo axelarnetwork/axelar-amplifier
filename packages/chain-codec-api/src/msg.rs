@@ -1,6 +1,6 @@
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Empty, HexBinary};
+use cosmwasm_std::HexBinary;
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::payload::Payload;
@@ -36,7 +36,7 @@ pub enum QueryMsg {
     },
     /// This query must error if the address is malformed for the chain.
     /// Not erroring is interpreted as a successful validation.
-    #[returns(Empty)]
+    #[returns(cosmwasm_std::Empty)]
     ValidateAddress { address: String },
     /// This query returns a digest for identifying the payload. This is what gets signed by the verifiers.
     /// It's called by the multisig-prover contract during proof construction.
