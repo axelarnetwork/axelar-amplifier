@@ -152,8 +152,8 @@ pub struct TaskGroupError;
 
 #[cfg(test)]
 mod test {
-    use error_stack::report;
-    use strip_ansi_escapes::strip;
+    use error_stack::fmt::ColorMode;
+    use error_stack::{report, Report};
     use temp_env::async_with_vars;
     use tokio_util::sync::CancellationToken;
 
@@ -225,9 +225,8 @@ mod test {
                 );
             let result = tasks.run(CancellationToken::new()).await;
             let err = result.unwrap_err();
-
-            let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
-            goldie::assert!(error_output);
+            Report::set_color_mode(ColorMode::None);
+            goldie::assert_debug!(err);
         })
         .await;
     }
@@ -258,9 +257,8 @@ mod test {
                 );
             let result = tasks.run(CancellationToken::new()).await;
             let err = result.unwrap_err();
-
-            let error_output = String::from_utf8(strip(format!("{:?}", err))).unwrap();
-            goldie::assert!(error_output);
+            Report::set_color_mode(ColorMode::None);
+            goldie::assert_debug!(err);
         })
         .await;
     }
