@@ -29,6 +29,34 @@
       ],
       "type": "object"
     },
+    "EvmEvent": {
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/definitions/Event"
+          },
+          "type": "array"
+        },
+        "transaction_details": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TransactionDetails"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transaction_hash": {
+          "$ref": "#/definitions/HexBinary"
+        }
+      },
+      "required": [
+        "events",
+        "transaction_hash"
+      ],
+      "type": "object"
+    },
     "HexBinary": {
       "description": "This is a wrapper around Vec<u8> to add hex de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is similar to `cosmwasm_std::Binary` but uses hex. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
       "type": "string"
@@ -105,37 +133,13 @@
       }
     }
   ],
+  "generated_at": "2025-10-02T20:44:47.940556+00:00",
   "oneOf": [
     {
       "additionalProperties": false,
       "properties": {
         "evm": {
-          "properties": {
-            "events": {
-              "items": {
-                "$ref": "#/definitions/Event"
-              },
-              "type": "array"
-            },
-            "transaction_details": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/TransactionDetails"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "transaction_hash": {
-              "$ref": "#/definitions/HexBinary"
-            }
-          },
-          "required": [
-            "events",
-            "transaction_hash"
-          ],
-          "type": "object"
+          "$ref": "#/definitions/EvmEvent"
         }
       },
       "required": [
@@ -144,5 +148,6 @@
       "type": "object"
     }
   ],
-  "title": "EventData Schema"
+  "title": "EventData Schema",
+  "version": "1.0.0"
 }

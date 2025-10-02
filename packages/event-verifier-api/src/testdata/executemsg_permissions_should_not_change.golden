@@ -1,11 +1,4 @@
 {
-  "UpdateFee": {
-    "external": [],
-    "general": [
-      "Admin"
-    ],
-    "specific": []
-  },
   "UpdateVotingThreshold": {
     "external": [],
     "general": [
@@ -22,16 +15,9 @@
   },
   "Vote": {
     "external": [],
-    "general": [
-      "Any"
-    ],
-    "specific": []
-  },
-  "Withdraw": {
-    "external": [],
-    "general": [
-      "Admin"
-    ],
-    "specific": []
+    "general": [],
+    "specific": [
+      "participants"
+    ]
   }
 }

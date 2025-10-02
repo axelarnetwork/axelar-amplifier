@@ -67,12 +67,12 @@ impl<const N: usize> From<HexBinary<N>> for Vec<u8> {
     }
 }
 
-impl<const N: usize> TryFrom<HexBinary<N>> for [u8; N] {
-    type Error = std::array::TryFromSliceError;
-
-    fn try_from(value: HexBinary<N>) -> Result<Self, Self::Error> {
+impl<const N: usize> From<HexBinary<N>> for [u8; N] {
+    fn from(value: HexBinary<N>) -> Self {
         let vec: Vec<u8> = value.into();
-        vec.as_slice().try_into()
+        vec.as_slice()
+            .try_into()
+            .expect("HexBinary<N> is guaranteed to contain exactly N bytes")
     }
 }
 
@@ -81,6 +81,12 @@ impl<const N: usize> Deref for HexBinary<N> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<const N: usize> AsRef<[u8]> for HexBinary<N> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
     }
 }
 
@@ -200,5 +206,16 @@ mod tests {
         } else {
             panic!("Expected GenericErr");
         }
+    }
+
+    #[test]
+    fn test_as_ref() {
+        let data = [1u8, 2, 3, 4, 5];
+        let hex = HexBinary::<5>::try_from(data).unwrap();
+
+        // Test AsRef<[u8]>
+        let slice: &[u8] = hex.as_ref();
+        assert_eq!(slice, &data);
+        assert_eq!(slice.len(), 5);
     }
 }

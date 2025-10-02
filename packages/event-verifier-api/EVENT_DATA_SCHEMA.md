@@ -56,7 +56,7 @@ if (!isValid) {
 To regenerate the schema after making changes to the EventData structure:
 
 ```bash
-cargo run --bin schema_generator
+cargo run --bin event-data-schema
 ```
 
 This will update the `event_data_schema.json` file with the latest structure.

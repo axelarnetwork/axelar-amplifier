@@ -1,11 +1,10 @@
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, MajorityThreshold, VerificationStatus};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Coin;
 use msgs_derive::Permissions;
-use router_api::ChainName;
 
-use crate::EvmEvent;
+use crate::evm::EvmEvent;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -23,19 +22,16 @@ pub struct InstantiateMsg {
     pub voting_threshold: MajorityThreshold,
     /// The number of blocks after which a poll expires
     pub block_expiry: nonempty::Uint64,
-    /// Fee required to call verify_events
-    pub fee: Coin,
 }
 
 #[cw_serde]
 #[derive(Permissions)]
 pub enum ExecuteMsg {
     // Casts votes for specified poll
-    #[permission(Any)]
+    #[permission(Specific(participants))]
     Vote { poll_id: PollId, votes: Vec<Vote> },
 
-    // starts a poll for any not yet verified events
-    // requires a fee to be attached
+    // Starts a poll for any not yet verified events
     #[permission(Any)]
     VerifyEvents(Vec<EventToVerify>),
 
@@ -44,14 +40,6 @@ pub enum ExecuteMsg {
     UpdateVotingThreshold {
         new_voting_threshold: MajorityThreshold,
     },
-
-    // Admin-only: update the required fee for verify_events
-    #[permission(Admin)]
-    UpdateFee { new_fee: Coin },
-
-    // Admin-only: withdraw accumulated fee balance to a receiver
-    #[permission(Admin)]
-    Withdraw { receiver: nonempty::String },
 }
 
 #[cw_serde]
@@ -67,8 +55,8 @@ pub enum EventData {
 }
 
 #[cw_serde]
-pub enum PollData {
-    Events(Vec<EventToVerify>),
+pub struct PollData {
+    pub events: Vec<EventToVerify>,
 }
 
 #[cw_serde]
@@ -89,9 +77,6 @@ pub enum QueryMsg {
 
     #[returns(MajorityThreshold)]
     CurrentThreshold,
-
-    #[returns(Coin)]
-    CurrentFee,
 }
 
 #[cw_serde]
