@@ -32,7 +32,6 @@ pub mod url;
 mod url;
 mod xrpl;
 
-use std::pin::Pin;
 use std::time::Duration;
 
 use asyncutil::future::RetryPolicy;
@@ -227,7 +226,7 @@ struct App {
     monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
     broadcaster_task:
-        broadcast::BroadcasterTask<cosmos::CosmosGrpcClient, Pin<Box<MsgQueue>>, MultisigClient>,
+        broadcast::BroadcasterTask<cosmos::CosmosGrpcClient, MsgQueue, MultisigClient>,
     msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
     tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
     monitoring_client: monitoring::Client,
@@ -244,7 +243,7 @@ impl App {
         grpc_server: grpc::Server,
         broadcaster_task: broadcast::BroadcasterTask<
             cosmos::CosmosGrpcClient,
-            Pin<Box<MsgQueue>>,
+            MsgQueue,
             MultisigClient,
         >,
         msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
@@ -913,14 +912,18 @@ impl App {
             )
             .add_task(
                 "tx-confirmer",
-                CancellableTask::create(|_| {
-                    tx_confirmer.run().change_context(Error::TxConfirmation)
+                CancellableTask::create(|token| {
+                    tx_confirmer
+                        .run(token)
+                        .change_context(Error::TxConfirmation)
                 }),
             )
             .add_task(
                 "broadcaster-task",
-                CancellableTask::create(|_| {
-                    broadcaster_task.run().change_context(Error::Broadcaster)
+                CancellableTask::create(|token| {
+                    broadcaster_task
+                        .run(token)
+                        .change_context(Error::Broadcaster)
                 }),
             )
             .run(main_token)
