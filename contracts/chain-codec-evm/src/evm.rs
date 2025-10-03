@@ -1,4 +1,7 @@
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
+use chain_codec_api::error::Error;
+use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use ethers_contract::contract::EthCall;
@@ -13,17 +16,17 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
 
-use crate::error::ContractError;
-use crate::Payload;
-
 const PREFIX: &str = "\x19Ethereum Signed Message:\n96";
 
-impl From<&Payload> for CommandType {
-    fn from(payload: &Payload) -> Self {
-        match payload {
-            Payload::Messages(_) => CommandType::ApproveMessages,
-            Payload::VerifierSet(_) => CommandType::RotateSigners,
-        }
+#[inline]
+pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {
+    axelar_wasm_std::address::validate_address(address, &AddressFormat::Eip55)
+}
+
+fn command_type_from_payload(payload: &Payload) -> CommandType {
+    match payload {
+        Payload::Messages(_) => CommandType::ApproveMessages,
+        Payload::VerifierSet(_) => CommandType::RotateSigners,
     }
 }
 
@@ -31,10 +34,10 @@ pub fn payload_digest(
     domain_separator: &Hash,
     signer: &VerifierSet,
     payload: &Payload,
-) -> Result<Hash, ContractError> {
+) -> Result<Hash, Error> {
     let signer_hash = WeightedSigners::try_from(signer)
         .map(|signers| signers.hash())
-        .change_context(ContractError::InvalidVerifierSet)?;
+        .change_context(Error::InvalidVerifierSet)?;
 
     let data_hash = Keccak256::digest(encode_payload(payload)?);
 
@@ -50,8 +53,8 @@ pub fn payload_digest(
     Ok(Keccak256::digest(unsigned).into())
 }
 
-pub fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
-    let command_type = CommandType::from(payload).into();
+pub fn encode_payload(payload: &Payload) -> Result<Vec<u8>, Error> {
+    let command_type = command_type_from_payload(payload).into();
 
     match payload {
         Payload::Messages(messages) => {
@@ -60,7 +63,7 @@ pub fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
                 .map(Message::try_from)
                 .map_ok(|m| Token::Tuple(m.into_tokens()))
                 .collect::<Result<Vec<_>, _>>()
-                .change_context(ContractError::InvalidMessage)?;
+                .change_context(Error::InvalidMessage)?;
 
             Ok(abi_encode(&[command_type, Token::Array(messages)]))
         }
@@ -68,7 +71,7 @@ pub fn encode_payload(payload: &Payload) -> Result<Vec<u8>, ContractError> {
             command_type,
             Token::Tuple(
                 WeightedSigners::try_from(verifier_set)
-                    .change_context(ContractError::InvalidVerifierSet)?
+                    .change_context(Error::InvalidVerifierSet)?
                     .into_tokens(),
             ),
         ])),
@@ -80,13 +83,13 @@ pub fn encode_execute_data(
     verifier_set: &VerifierSet,
     signers: Vec<SignerWithSig>,
     payload: &Payload,
-) -> error_stack::Result<HexBinary, ContractError> {
+) -> error_stack::Result<HexBinary, Error> {
     let signers = to_recoverable(
         payload_digest(domain_separator, verifier_set, payload)?,
         signers,
     );
 
-    let proof = Proof::new(verifier_set, signers).change_context(ContractError::Proof)?;
+    let proof = Proof::new(verifier_set, signers).change_context(Error::Proof)?;
 
     let (selector, encoded) = match payload {
         Payload::Messages(messages) => {
@@ -94,7 +97,7 @@ pub fn encode_execute_data(
                 .iter()
                 .map(Message::try_from)
                 .collect::<Result<_, _>>()
-                .change_context(ContractError::InvalidMessage)?;
+                .change_context(Error::InvalidMessage)?;
 
             (
                 ApproveMessagesCall::selector(),
@@ -103,7 +106,7 @@ pub fn encode_execute_data(
         }
         Payload::VerifierSet(new_verifier_set) => {
             let new_signers = WeightedSigners::try_from(new_verifier_set)
-                .change_context(ContractError::InvalidVerifierSet)?;
+                .change_context(Error::InvalidVerifierSet)?;
 
             (
                 RotateSignersCall::selector(),
@@ -151,6 +154,7 @@ mod tests {
     use std::str::FromStr;
 
     use assert_ok::assert_ok;
+    use chain_codec_api::Payload;
     use cosmwasm_std::HexBinary;
     use elliptic_curve::consts::U32;
     use ethers_core::types::Signature as EthersSignature;
@@ -162,19 +166,24 @@ mod tests {
     use multisig::key::{KeyType, KeyTyped, Signature};
     use multisig::msg::{Signer, SignerWithSig};
 
-    use crate::encoding::abi::{encode_execute_data, payload_digest, CommandType};
+    use super::{command_type_from_payload, encode_execute_data, payload_digest, CommandType};
     use crate::test::test_data::{
         curr_verifier_set, domain_separator, messages, new_verifier_set, verifier_set_from_pub_keys,
     };
-    use crate::Payload;
 
     #[test]
-    fn command_type_from_payload() {
+    fn command_type_from_payload_works() {
         let payload = Payload::Messages(vec![]);
-        assert_eq!(CommandType::from(&payload), CommandType::ApproveMessages);
+        assert_eq!(
+            command_type_from_payload(&payload),
+            CommandType::ApproveMessages
+        );
 
         let payload = Payload::VerifierSet(new_verifier_set());
-        assert_eq!(CommandType::from(&payload), CommandType::RotateSigners);
+        assert_eq!(
+            command_type_from_payload(&payload),
+            CommandType::RotateSigners
+        );
     }
 
     #[test]

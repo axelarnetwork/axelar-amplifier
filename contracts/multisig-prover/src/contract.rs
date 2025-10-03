@@ -3,9 +3,9 @@ use axelar_wasm_std::{address, permission_control};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
+use multisig_prover_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 
 mod execute;
@@ -41,13 +41,19 @@ pub fn instantiate(
             deps.api,
             &msg.voting_verifier_address,
         )?,
+        chain_codec: address::validate_cosmwasm_address(deps.api, &msg.chain_codec_address)?,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg.chain_name.parse()?,
         verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
-        encoder: msg.encoder,
         key_type: msg.key_type,
         domain_separator: msg.domain_separator,
+        notify_signing_session: msg.notify_signing_session,
+        expect_full_message_payloads: msg.expect_full_message_payloads,
+        sig_verifier_address: msg
+            .sig_verifier_address
+            .map(|addr| address::validate_cosmwasm_address(deps.api, &addr))
+            .transpose()?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -71,7 +77,14 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
     match msg.ensure_permissions(deps.storage, &info.sender)? {
-        ExecuteMsg::ConstructProof(message_ids) => Ok(execute::construct_proof(deps, message_ids)?),
+        ExecuteMsg::ConstructProof(proof_msg) => {
+            let (message_ids, full_message_payloads) = proof_msg.ids_and_payloads();
+            Ok(execute::construct_proof(
+                deps,
+                message_ids,
+                full_message_payloads,
+            )?)
+        }
         ExecuteMsg::UpdateVerifierSet => Ok(execute::update_verifier_set(deps, env)?),
         ExecuteMsg::ConfirmVerifierSet => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {
@@ -124,21 +137,24 @@ mod tests {
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        from_json, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
+        from_json, Addr, Empty, Fraction, HexBinary, OwnedDeps, SubMsgResponse, SubMsgResult,
+        Uint128, Uint64,
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use multisig_prover_api::encoding::Encoder;
+    use multisig_prover_api::msg::{
+        ConstructProofMsg, ProofResponse, ProofStatus, VerifierSetResponse,
+    };
     use prost::Message;
     use router_api::{cosmos_addr, CrossChainId};
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;
-    use crate::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
     use crate::test::test_data::{self, TestOperator};
     use crate::test::test_utils::{
-        mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
-        MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
+        mock_querier_handler, ADMIN, CHAIN_CODEC_ADDRESS, COORDINATOR_ADDRESS, GATEWAY_ADDRESS,
+        GOVERNANCE, MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS,
+        VOTING_VERIFIER_ADDRESS,
     };
 
     const RELAYER: &str = "relayer";
@@ -164,13 +180,16 @@ mod tests {
                 coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
                 service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS).to_string(),
                 voting_verifier_address: cosmos_addr!(VOTING_VERIFIER_ADDRESS).to_string(),
+                chain_codec_address: cosmos_addr!(CHAIN_CODEC_ADDRESS).to_string(),
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
                 verifier_set_diff_threshold: 0,
-                encoder: Encoder::Abi,
                 key_type: multisig::key::KeyType::Ecdsa,
                 domain_separator: [0; 32],
+                notify_signing_session: false,
+                expect_full_message_payloads: false,
+                sig_verifier_address: None,
             },
         )
         .unwrap();
@@ -229,7 +248,7 @@ mod tests {
                 .collect::<Vec<CrossChainId>>()
         });
 
-        let msg = ExecuteMsg::ConstructProof(message_ids);
+        let msg = ExecuteMsg::ConstructProof(ConstructProofMsg::Messages(message_ids));
         execute(
             deps,
             mock_env(),
@@ -297,7 +316,16 @@ mod tests {
     fn migrate_sets_contract_version() {
         let mut deps = setup_test_case();
 
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+        let chain_codec_address = deps.api.addr_make("chain_codec_address").to_string();
+
+        migrate(
+            deps.as_mut(),
+            mock_env(),
+            MigrateMsg {
+                chain_codec_address,
+            },
+        )
+        .unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, CONTRACT_NAME);
@@ -315,6 +343,7 @@ mod tests {
         let coordinator_address = cosmos_addr!("coordinator_address");
         let service_registry_address = cosmos_addr!("service_registry_address");
         let voting_verifier_address = cosmos_addr!(VOTING_VERIFIER_ADDRESS);
+        let chain_codec_address = cosmos_addr!("chain_codec_address");
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -323,53 +352,55 @@ mod tests {
         .try_into()
         .unwrap();
         let service_name = "service_name";
-        for encoding in [Encoder::Abi, Encoder::Bcs] {
-            let mut deps = mock_dependencies();
-            let info = message_info(&instantiator, &[]);
-            let env = mock_env();
 
-            let msg = InstantiateMsg {
-                admin_address: admin.to_string(),
-                governance_address: governance.to_string(),
-                gateway_address: gateway_address.to_string(),
-                multisig_address: multisig_address.to_string(),
-                coordinator_address: coordinator_address.to_string(),
-                voting_verifier_address: voting_verifier_address.to_string(),
-                service_registry_address: service_registry_address.to_string(),
-                signing_threshold,
-                service_name: service_name.to_string(),
-                chain_name: "Ethereum".to_string(),
-                verifier_set_diff_threshold: 0,
-                encoder: encoding,
-                key_type: multisig::key::KeyType::Ecdsa,
-                domain_separator: [0; 32],
-            };
+        let mut deps = mock_dependencies();
+        let info = message_info(&instantiator, &[]);
+        let env = mock_env();
 
-            let res = instantiate(deps.as_mut(), env, info, msg);
+        let msg = InstantiateMsg {
+            admin_address: admin.to_string(),
+            governance_address: governance.to_string(),
+            gateway_address: gateway_address.to_string(),
+            multisig_address: multisig_address.to_string(),
+            coordinator_address: coordinator_address.to_string(),
+            voting_verifier_address: voting_verifier_address.to_string(),
+            service_registry_address: service_registry_address.to_string(),
+            chain_codec_address: chain_codec_address.to_string(),
+            signing_threshold,
+            service_name: service_name.to_string(),
+            chain_name: "Ethereum".to_string(),
+            verifier_set_diff_threshold: 0,
+            key_type: multisig::key::KeyType::Ecdsa,
+            domain_separator: [0; 32],
+            notify_signing_session: false,
+            expect_full_message_payloads: false,
+            sig_verifier_address: None,
+        };
 
-            assert!(res.is_ok());
-            let res = res.unwrap();
+        let res = instantiate(deps.as_mut(), env, info, msg);
 
-            assert_eq!(res.messages.len(), 0);
+        assert!(res.is_ok());
+        let res = res.unwrap();
 
-            let config = CONFIG.load(deps.as_ref().storage).unwrap();
-            assert_eq!(config.gateway, gateway_address);
-            assert_eq!(config.multisig, multisig_address);
-            assert_eq!(config.service_registry, service_registry_address);
-            assert_eq!(config.signing_threshold, signing_threshold);
-            assert_eq!(config.service_name, service_name);
-            assert_eq!(config.encoder, encoding);
+        assert_eq!(res.messages.len(), 0);
 
-            assert_eq!(
-                permission_control::sender_role(deps.as_ref().storage, &admin).unwrap(),
-                Permission::Admin.into()
-            );
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        assert_eq!(config.gateway, gateway_address);
+        assert_eq!(config.multisig, multisig_address);
+        assert_eq!(config.service_registry, service_registry_address);
+        assert_eq!(config.chain_codec, chain_codec_address);
+        assert_eq!(config.signing_threshold, signing_threshold);
+        assert_eq!(config.service_name, service_name);
 
-            assert_eq!(
-                permission_control::sender_role(deps.as_ref().storage, &governance).unwrap(),
-                Permission::Governance.into()
-            );
-        }
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &admin).unwrap(),
+            Permission::Admin.into()
+        );
+
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &governance).unwrap(),
+            Permission::Governance.into()
+        );
     }
 
     #[allow(clippy::arithmetic_side_effects)]
@@ -687,7 +718,11 @@ mod tests {
         assert_eq!(res.message_ids.len(), 1);
         match res.status {
             ProofStatus::Completed { execute_data } => {
-                assert_eq!(execute_data, test_data::approve_messages_calldata());
+                // the mock querier gives us mocked data:
+                assert_eq!(
+                    execute_data,
+                    HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap()
+                );
             }
             _ => panic!("Expected proof status to be completed"), // multisig mock will always return completed multisig
         }
