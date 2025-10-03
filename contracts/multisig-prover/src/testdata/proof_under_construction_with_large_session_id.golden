@@ -1,0 +1,21 @@
+{
+  "type": "proof_under_construction",
+  "attributes": [
+    {
+      "key": "destination_chain",
+      "value": "\"binance\""
+    },
+    {
+      "key": "payload_id",
+      "value": "\"63d244d31a582efcc648fa2e8fbc33d688d9e9b29369af7ed3600f7ecb9fa762\""
+    },
+    {
+      "key": "multisig_session_id",
+      "value": "\"18446744073709551615\""
+    },
+    {
+      "key": "msg_ids",
+      "value": "[{\"source_chain\":\"ethereum\",\"message_id\":\"large-session\"}]"
+    }
+  ]
+}

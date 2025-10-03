@@ -1,0 +1,21 @@
+{
+  "type": "proof_under_construction",
+  "attributes": [
+    {
+      "key": "destination_chain",
+      "value": "\"binance\""
+    },
+    {
+      "key": "payload_id",
+      "value": "\"e9376bddfcaaa0c8017324084393143c9027f8612560c29cfc5b6ded4b550ffb\""
+    },
+    {
+      "key": "multisig_session_id",
+      "value": "\"42\""
+    },
+    {
+      "key": "msg_ids",
+      "value": "[{\"source_chain\":\"polygon\",\"message_id\":\"single-msg-id\"}]"
+    }
+  ]
+}
