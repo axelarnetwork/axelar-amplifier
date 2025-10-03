@@ -90,7 +90,7 @@ pub enum Error {
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Debug,
     S: tofnd::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
@@ -105,7 +105,7 @@ where
 impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient + Debug,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Debug,
     S: tofnd::Multisig + Debug,
 {
     /// Runs the broadcaster task until the message queue is exhausted
