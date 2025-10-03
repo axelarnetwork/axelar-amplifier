@@ -35,6 +35,8 @@ pub enum Error {
     EventStream,
     #[error("handler stopped prematurely")]
     Tasks(#[from] TaskError),
+    #[error("task group execution failed")]
+    TaskGroup(#[from] crate::asyncutil::task::TaskGroupError),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
