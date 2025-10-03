@@ -8449,6 +8449,7 @@ dependencies = [
  "error-stack",
  "eyre",
  "itertools 0.14.0",
+ "temp-env",
  "thiserror 1.0.69",
  "tracing",
  "tracing-core",
