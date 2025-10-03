@@ -186,8 +186,7 @@ fn parse_message_id(
 
             Ok((
                 id.signature_as_base58(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+                0, // this ignores the event index, but this whole function has been deprecated for some time
             ))
         }
         MessageIdFormat::HexTxHash => {
