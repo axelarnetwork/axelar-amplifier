@@ -1,4 +1,7 @@
 use cosmwasm_std::Event;
+pub trait EventAttributes {
+    fn add_event_attributes(&self, event: &mut Event);
+}
 
 pub trait EventExt {
     fn add_attribute_if_some<K, V>(self, key: K, value: Option<V>) -> Self
