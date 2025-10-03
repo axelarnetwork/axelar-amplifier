@@ -1,0 +1,23 @@
+{
+  "UpdateVotingThreshold": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "VerifyEvents": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Vote": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "participants"
+    ]
+  }
+}
