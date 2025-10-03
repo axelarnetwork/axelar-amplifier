@@ -144,12 +144,13 @@ fn migrate_all_provers(
             .prover_address
             .as_ref()
             .map(|addr| {
-                provers_by_chain.remove(&contracts.chain_name);
                 address::validate_cosmwasm_address(deps.api, addr)
                     .change_context(MigrationError::InvalidChainContracts)
             })
             .transpose()?
-            .or_else(|| provers_by_chain.remove(&contracts.chain_name));
+            .or_else(|| provers_by_chain.get(&contracts.chain_name).cloned());
+
+        provers_by_chain.remove(&contracts.chain_name);
 
         if let Some(addr) = prover_address {
             save_contracts_to_state(
