@@ -193,7 +193,7 @@ mod tests {
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, VerifierSetConfirmation};
 
     use super::{PollStartedEvent, SUI_CHAIN_NAME};
     use crate::event_processor::EventHandler;
@@ -294,10 +294,9 @@ mod tests {
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
+    ) -> VotingVerifierEvent {
         let msg_id = Base58TxDigestAndEventIndex::new([5; 32], 0u64);
-        PollStarted::VerifierSet {
-            metadata: PollMetadata {
+        VotingVerifierEvent::VerifierSetPollStarted {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!("sui"),
                 source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
@@ -310,8 +309,7 @@ mod tests {
                 participants: participants
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+                .collect(),
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 tx_id: msg_id.tx_digest_as_base58(),
