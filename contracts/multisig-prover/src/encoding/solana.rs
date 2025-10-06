@@ -10,9 +10,15 @@ use multisig::key::{PublicKey, Recoverable, Signature};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
+use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
 use crate::payload::Payload;
+
+// Solana offchain signature prefix (matches gateway implementation)
+// This prefix is prepended to hashes before signing to prevent cross-context attacks
+// Pattern: keccak256(PREFIX + unprefixed_hash)
+const PREFIX: &[u8] = b"\xffsolana offchain";
 
 pub fn encode_execute_data(
     signers_with_sigs: Vec<SignerWithSig>,
@@ -20,32 +26,39 @@ pub fn encode_execute_data(
     payload: &Payload,
     domain_separator: &Hash,
 ) -> error_stack::Result<HexBinary, ContractError> {
-    // construct the base types
-    let verifier_set = to_verifier_set(verifier_set)?;
-    let payload = to_payload(payload)?;
-    let payload_hash =
-        axelar_solana_encoding::hash_payload(domain_separator, &verifier_set, payload.clone())
-            .map_err(|err| ContractError::SolanaEncoding {
-                reason: err.to_string(),
-            })?;
+    // Convert to encoding types for transmission (UNPREFIXED data structures)
+    let verifier_set_encoded = to_verifier_set(verifier_set)?;
+    let payload_encoded = to_payload(payload)?;
 
-    // encode the signers & their signatures
+    // Separately, compute a PREFIXED hash for signature generation only
+    // This adds the prefix: keccak256(PREFIX + unprefixed_hash)
+    // Gateway will add the same prefix during verification
+    let prefixed_payload_hash = payload_digest(domain_separator, verifier_set, payload)?;
+
+    // Encode the signers & their signatures
+    // Note: Signatures were generated over the prefixed hash
     let mut signers_with_signatures = BTreeMap::<
         axelar_solana_encoding::types::pubkey::PublicKey,
         axelar_solana_encoding::types::pubkey::Signature,
     >::new();
     for signer in signers_with_sigs {
         let pubkey = to_pub_key(&signer.signer.pub_key)?;
-        let signature = to_signature(&signer.signature, &signer.signer.pub_key, &payload_hash)?;
+        let signature = to_signature(
+            &signer.signature,
+            &signer.signer.pub_key,
+            &prefixed_payload_hash,
+        )?;
         signers_with_signatures.insert(pubkey, signature);
     }
 
-    // encode all the data
+    // Encode all the data
+    // Note: This sends UNPREFIXED execute data (verifier_set_encoded, payload_encoded)
+    // The gateway will add the prefix during verification to match our prefixed_payload_hash
     let bytes = axelar_solana_encoding::encode(
-        &verifier_set,
+        &verifier_set_encoded,
         &signers_with_signatures,
         *domain_separator,
-        payload,
+        payload_encoded,
     )
     .map_err(|e| ContractError::SolanaEncoding {
         reason: e.to_string(),
@@ -54,6 +67,10 @@ pub fn encode_execute_data(
     Ok(HexBinary::from(bytes))
 }
 
+/// Computes the prefixed payload digest for signature generation.
+///
+/// Returns: keccak256(PREFIX + unprefixed_hash)
+/// Note: This prefixed hash is used ONLY for signing. The unprefixed hash is transmitted.
 pub fn payload_digest(
     domain_separator: &Hash,
     verifier_set: &VerifierSet,
@@ -65,7 +82,11 @@ pub fn payload_digest(
         .map_err(|err| ContractError::SolanaEncoding {
             reason: err.to_string(),
         })?;
-    Ok(hash)
+
+    // Add prefix for Solana offchain signing (matches gateway implementation)
+    let prefixed_message = [PREFIX, hash.as_slice()].concat();
+
+    Ok(Keccak256::digest(prefixed_message).into())
 }
 
 /// Transform from Axelar VerifierSet to axelar_solana_encoding VerifierSet
@@ -142,13 +163,13 @@ fn to_msg(msg: &Message) -> axelar_solana_encoding::types::messages::Message {
 fn to_signature(
     sig: &Signature,
     pub_key: &PublicKey,
-    payload_hash: &[u8; 32],
+    prefixed_payload_hash: &[u8; 32],
 ) -> error_stack::Result<axelar_solana_encoding::types::pubkey::Signature, ContractError> {
     let recovery_transform = |recovery_byte: RecoveryId| -> u8 { recovery_byte.to_byte() };
     match sig {
         Signature::Ecdsa(nonrec) => {
             let recov = nonrec
-                .to_recoverable(payload_hash, pub_key, recovery_transform)
+                .to_recoverable(prefixed_payload_hash, pub_key, recovery_transform)
                 .map_err(|e| ContractError::SolanaEncoding {
                     reason: e.to_string(),
                 })?;
@@ -196,8 +217,9 @@ mod tests {
     use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
+    use sha3::{Digest, Keccak256};
 
-    use super::{encode_execute_data, payload_digest};
+    use super::{encode_execute_data, payload_digest, to_payload, to_verifier_set, PREFIX};
     use crate::payload::Payload;
 
     #[test]
@@ -452,5 +474,75 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>()
+    }
+
+    #[test]
+    fn test_payload_digest_uses_prefix() {
+        // 1. Setup test data
+        let signers_data = vec![(
+            "addr_1",
+            "508bcac3df50837e0b093aebc549211ba72bd1e7c1830a288b816b677d62a046",
+            9u128,
+        )];
+        let verifier_set = gen_verifier_set(signers_data, 22, 2024);
+
+        let payload = Payload::Messages(vec![Message {
+            cc_id: CrossChainId {
+                source_chain: "evm".parse().unwrap(),
+                message_id: "test".parse().unwrap(),
+            },
+            source_address: "0x4b20993bC481177ec7E8f571ceCaE8A9e22C02db"
+                .parse()
+                .unwrap(),
+            destination_chain: "solana".parse().unwrap(),
+            destination_address: "G7Vc8J6F4eZ3iA9LpKx2YwbM7TQh1NVR5BDFXUYmQH6E"
+                .parse()
+                .unwrap(),
+            payload_hash: HexBinary::from_hex(
+                "65ad329dc342a82bd1daedc42e183e6e2c272b8e2e3fd7c8f81d089736d0bc3c",
+            )
+            .unwrap()
+            .to_array()
+            .unwrap(),
+        }]);
+
+        let domain_separator: [u8; 32] =
+            HexBinary::from_hex("2a15376c1277252b1bcce5a6ecd781bfbc2697dfd969ff58d8e2e116018b501e")
+                .unwrap()
+                .to_array()
+                .unwrap();
+
+        // 2. Get unprefixed hash directly from encoding library
+        let verifier_set_encoded = to_verifier_set(&verifier_set).unwrap();
+        let payload_encoded = to_payload(&payload).unwrap();
+        let unprefixed_hash = axelar_solana_encoding::hash_payload(
+            &domain_separator,
+            &verifier_set_encoded,
+            payload_encoded,
+        )
+        .unwrap();
+
+        // 3. Get prefixed hash from our function
+        let prefixed_hash = payload_digest(&domain_separator, &verifier_set, &payload).unwrap();
+
+        // 4. Manually compute expected prefixed hash
+        let expected_prefixed_hash = {
+            let prefixed_message = [PREFIX, unprefixed_hash.as_slice()].concat();
+            Keccak256::digest(prefixed_message)
+        };
+
+        // 5. Verify they match
+        assert_eq!(
+            prefixed_hash.as_slice(),
+            expected_prefixed_hash.as_slice(),
+            "payload_digest should return keccak256(PREFIX + unprefixed_hash)"
+        );
+
+        // 6. Verify they are NOT the same (prefix actually changes the hash)
+        assert_ne!(
+            prefixed_hash.as_slice(),
+            unprefixed_hash.as_slice(),
+            "prefixed hash should be different from unprefixed hash"
+        );
     }
 }
