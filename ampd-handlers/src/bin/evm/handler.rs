@@ -8,7 +8,6 @@ use ampd::monitoring;
 use ampd::monitoring::metrics;
 use ampd::types::{EVMAddress, Hash};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
-
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
