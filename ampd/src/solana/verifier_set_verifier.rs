@@ -6,6 +6,7 @@ use axelar_solana_gateway::events::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
+use solana_sdk::pubkey::Pubkey;
 use tracing::error;
 
 use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
@@ -15,8 +16,9 @@ pub fn verify_verifier_set(
     tx: &crate::solana::SolanaTransaction,
     message: &VerifierSetConfirmation,
     domain_separator: &[u8; 32],
+    gateway_address: &Pubkey,
 ) -> Vote {
-    verify(tx, &message.message_id, |gateway_event| {
+    verify(tx, &message.message_id, gateway_address, |gateway_event| {
         let GatewayEvent::VerifierSetRotated(verifier_set_rotated) = gateway_event else {
             error!("found gateway event but it's not VerifierSetRotated event");
             return false;
@@ -92,7 +94,7 @@ mod tests {
 
         event.message_id.raw_signature = [0; 64];
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::NotFound
         );
     }
@@ -103,7 +105,7 @@ mod tests {
 
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::FailedOnChain
         );
     }
@@ -113,7 +115,7 @@ mod tests {
         let (tx, event) = fixture_bad_gateway_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::NotFound
         );
     }
@@ -124,12 +126,12 @@ mod tests {
 
         event.message_id.inner_ix_group_index = 999.try_into().unwrap(); // Use a high index that won't exist
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::NotFound
         );
         event.message_id.inner_ix_index = 1001.try_into().unwrap(); // Another high index that won't exist
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::NotFound
         );
     }
@@ -141,7 +143,7 @@ mod tests {
         event.message_id.inner_ix_group_index = u32::MAX.try_into().unwrap(); // Use max u32 value
         event.message_id.inner_ix_index = u32::MAX.try_into().unwrap();
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::NotFound
         );
     }
@@ -152,7 +154,7 @@ mod tests {
 
         event.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::NotFound
         );
     }
@@ -162,7 +164,7 @@ mod tests {
         let (tx, event) = fixture_success_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
             Vote::SucceededOnChain
         );
     }

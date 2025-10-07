@@ -98,6 +98,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+        gateway_address: String,
         rpc_timeout: Option<Duration>,
     },
     SolanaVerifierSetVerifier {
@@ -105,6 +106,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+        gateway_address: String,
         rpc_timeout: Option<Duration>,
     },
     StacksMsgVerifier {
@@ -397,6 +399,7 @@ mod tests {
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
+            gateway_address: "11111111111111111111111111111112".to_string(),
         };
 
         let configs = vec![sample_config.clone(), sample_config];
@@ -412,6 +415,7 @@ mod tests {
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
+            gateway_address: "11111111111111111111111111111112".to_string(),
         };
 
         let configs = vec![sample_config.clone(), sample_config];

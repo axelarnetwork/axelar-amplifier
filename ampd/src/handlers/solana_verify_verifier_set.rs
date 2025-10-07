@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
@@ -12,6 +13,7 @@ use events::{try_from, EventType};
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use serde::Deserialize;
+use solana_sdk::pubkey::Pubkey;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
@@ -40,6 +42,7 @@ struct PollStartedEvent {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
     source_chain: ChainName,
+    source_gateway_address: String,
     expires_at: u64,
     participants: Vec<TMAddress>,
 }
@@ -52,6 +55,7 @@ pub struct Handler<C: SolanaRpcClientProxy> {
     solana_gateway_domain_separator: [u8; 32],
     latest_block_height: Receiver<u64>,
     monitoring_client: monitoring::Client,
+    gateway_address: Pubkey,
 }
 
 impl<C: SolanaRpcClientProxy> Handler<C> {
@@ -62,9 +66,12 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
         rpc_client: C,
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
+        gateway_address: &str,
     ) -> Result<Self> {
+        let gateway_address = solana_sdk::pubkey::Pubkey::from_str(gateway_address)
+            .change_context(Error::PublicKey)?;
         let domain_separator = rpc_client
-            .domain_separator()
+            .domain_separator(&gateway_address)
             .await
             .ok_or_else(|| report!(Error::FetchSolanaAccount))?;
 
@@ -76,6 +83,7 @@ impl<C: SolanaRpcClientProxy> Handler<C> {
             rpc_client,
             latest_block_height,
             monitoring_client,
+            gateway_address,
         })
     }
 
@@ -110,6 +118,7 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         let PollStartedEvent {
             poll_id,
             source_chain,
+            source_gateway_address,
             expires_at,
             participants,
             verifier_set,
@@ -121,6 +130,17 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
         };
 
         if source_chain != self.chain_name {
+            return Ok(vec![]);
+        }
+
+        // Validate that the source gateway address matches the configured gateway address
+        if source_gateway_address != self.gateway_address.to_string() {
+            info!(
+                poll_id = poll_id.to_string(),
+                expected_gateway = %self.gateway_address,
+                actual_gateway = %source_gateway_address,
+                "skipping poll due to gateway address mismatch"
+            );
             return Ok(vec![]);
         }
 
@@ -145,7 +165,12 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
             info!("ready to verify a new verifier set in poll");
 
             let vote = tx_receipt.map_or(Vote::NotFound, |tx| {
-                verify_verifier_set(&tx, &verifier_set, &self.solana_gateway_domain_separator)
+                verify_verifier_set(
+                    &tx,
+                    &verifier_set,
+                    &self.solana_gateway_domain_separator,
+                    &self.gateway_address,
+                )
             });
 
             self.monitoring_client
@@ -215,7 +240,7 @@ mod tests {
             None
         }
 
-        async fn domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self, _gateway_address: &Pubkey) -> Option<[u8; 32]> {
             Some([42; 32])
         }
     }
@@ -232,7 +257,7 @@ mod tests {
             })
         }
 
-        async fn domain_separator(&self) -> Option<[u8; 32]> {
+        async fn domain_separator(&self, _gateway_address: &Pubkey) -> Option<[u8; 32]> {
             Some([42; 32])
         }
     }
@@ -265,6 +290,7 @@ mod tests {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -288,6 +314,7 @@ mod tests {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -312,11 +339,50 @@ mod tests {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
         )
         .await
         .unwrap();
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+    }
+
+    // Should not handle event if source gateway address doesn't match configured gateway
+    #[async_test]
+    async fn should_skip_poll_with_mismatched_gateway_address() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+
+        // Create an event with a different gateway address
+        let mut event_data =
+            verifier_set_poll_started_event(participants(Some(worker.clone())), 100);
+        if let PollStarted::VerifierSet {
+            ref mut metadata, ..
+        } = event_data
+        {
+            // Use a different gateway address
+            metadata.source_gateway_address = "DifferentGatewayAddress123456789".parse().unwrap();
+        }
+
+        let event = into_structured_event(event_data, &voting_verifier);
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = super::Handler::new(
+            chain_name!(SOLANA),
+            worker,
+            voting_verifier,
+            ValidResponseSolanaRpc,
+            watch::channel(0).1,
+            monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
+        )
+        .await
+        .unwrap();
+
+        // Should return empty vec due to gateway address mismatch
+        let result = handler.handle(&event).await.unwrap();
+        assert_eq!(result, vec![]);
     }
 
     #[async_test]
@@ -343,6 +409,7 @@ mod tests {
             ValidResponseSolanaRpc,
             rx,
             monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -376,6 +443,7 @@ mod tests {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -404,6 +472,7 @@ mod tests {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
+            &axelar_solana_gateway::ID.to_string(),
         )
         .await
         .unwrap();

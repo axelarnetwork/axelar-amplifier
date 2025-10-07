@@ -47,7 +47,7 @@ impl Client {
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
     async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction>;
-    async fn domain_separator(&self) -> Option<[u8; 32]>;
+    async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]>;
 }
 
 #[async_trait::async_trait]
@@ -105,9 +105,12 @@ impl SolanaRpcClientProxy for Client {
         })
     }
 
-    async fn domain_separator(&self) -> Option<[u8; 32]> {
-        // Use the helper function from axelar-amplifier-solana to derive the gateway root config PDA
-        let (gateway_root_pda, _) = axelar_solana_gateway::get_gateway_root_config_pda();
+    async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]> {
+        // Use the same pattern as the axelar-solana-gateway crate to derive the gateway root config PDA
+        let (gateway_root_pda, _) = Pubkey::find_program_address(
+            &[axelar_solana_gateway::seed_prefixes::GATEWAY_SEED],
+            gateway_address,
+        );
 
         let res = self.client.get_account(&gateway_root_pda).await;
 
@@ -145,6 +148,7 @@ pub struct SolanaTransaction {
 pub fn verify<F>(
     tx: &SolanaTransaction,
     message_id: &Base58SolanaTxSignatureAndEventIndex,
+    gateway_address: &Pubkey,
     events_are_equal: F,
 ) -> Vote
 where
@@ -176,7 +180,7 @@ where
         }
     };
 
-    if !is_instruction_from_gateway_program(&instruction, &tx.account_keys) {
+    if !is_instruction_from_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
             "Instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
             message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
@@ -203,6 +207,7 @@ where
 fn is_instruction_from_gateway_program(
     instruction: &UiCompiledInstruction,
     account_keys: &[Pubkey],
+    gateway_address: &Pubkey,
 ) -> bool {
     if account_keys.is_empty() {
         error!("No account keys found in transaction");
@@ -220,11 +225,10 @@ fn is_instruction_from_gateway_program(
     }
 
     let program_id = account_keys[program_id_index];
-    if program_id != axelar_solana_gateway::ID {
+    if program_id != *gateway_address {
         debug!(
             "Instruction not from gateway program. Expected: {}, got: {}",
-            axelar_solana_gateway::ID,
-            program_id
+            gateway_address, program_id
         );
         return false;
     }
@@ -325,7 +329,7 @@ mod test {
             }
         );
 
-        let result = client.domain_separator().await;
+        let result = client.domain_separator(&axelar_solana_gateway::ID).await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();

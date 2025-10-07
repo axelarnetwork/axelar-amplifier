@@ -3,14 +3,15 @@ use std::str::FromStr;
 use axelar_solana_gateway::events::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use router_api::ChainName;
+use solana_sdk::pubkey::Pubkey;
 use tracing::error;
 
 use super::verify;
 use crate::handlers::solana_verify_msg::Message;
 use crate::solana::SolanaTransaction;
 
-pub fn verify_message(tx: &SolanaTransaction, message: &Message) -> Vote {
-    verify(tx, &message.message_id, |gateway_event| {
+pub fn verify_message(tx: &SolanaTransaction, message: &Message, gateway_address: &Pubkey) -> Vote {
+    verify(tx, &message.message_id, gateway_address, |gateway_event| {
         let (sender, payload_hash, destination_chain, destination_contract_address) =
             match gateway_event {
                 // This event is emitted when a contract call is initiated to an external chain.
@@ -54,42 +55,60 @@ mod tests {
     fn should_verify_msg_if_correct() {
         let (tx, _event, msg) = fixture_success_call_contract_tx_data();
         dbg!(&tx);
-        assert_eq!(Vote::SucceededOnChain, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::SucceededOnChain,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
     fn should_not_verify_msg_if_event_idx_is_invalid() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.message_id.inner_ix_index = 100.try_into().unwrap();
-        assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.destination_chain = chain_name!("badchain");
-        assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
     fn should_not_verify_msg_if_source_address_does_not_match() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.source_address = Pubkey::from([13; 32]);
-        assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
     fn should_not_verify_msg_if_destination_address_does_not_match() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.destination_address = "bad_address".to_string();
-        assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
     fn should_not_verify_msg_if_payload_hash_does_not_match() {
         let (tx, _event, mut msg) = fixture_success_call_contract_tx_data();
         msg.payload_hash = [1; 32].into();
-        assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
@@ -97,7 +116,10 @@ mod tests {
         let (mut tx, _event, msg) = fixture_success_call_contract_tx_data();
         // Replace the gateway program with a different program ID
         tx.account_keys = vec![Pubkey::new_unique()];
-        assert_eq!(Vote::NotFound, verify_message(&tx, &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
@@ -111,7 +133,10 @@ mod tests {
             solana_sdk::instruction::InstructionError::Custom(1),
         ));
 
-        assert_eq!(Vote::FailedOnChain, verify_message(&failed_tx, &msg));
+        assert_eq!(
+            Vote::FailedOnChain,
+            verify_message(&failed_tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     #[test]
@@ -188,7 +213,10 @@ mod tests {
             account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
         };
 
-        assert_eq!(Vote::SucceededOnChain, verify_message(&solana_tx, &msg));
+        assert_eq!(
+            Vote::SucceededOnChain,
+            verify_message(&solana_tx, &msg, &axelar_solana_gateway::ID)
+        );
     }
 
     const RAW_SIGNATURE: [u8; 64] = [42; 64];

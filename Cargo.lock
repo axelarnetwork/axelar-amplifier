@@ -514,7 +514,7 @@ dependencies = [
 [[package]]
 name = "anchor-discriminators"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "borsh 1.5.7",
  "bs58 0.5.1",
@@ -526,7 +526,7 @@ dependencies = [
 [[package]]
 name = "anchor-discriminators-macros"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "anchor-discriminators",
  "borsh 1.5.7",
@@ -1195,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -1209,7 +1209,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-encoding"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "arrayref",
  "borsh 1.5.7",
@@ -1225,7 +1225,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gas-service-events"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "event-utils",
  "solana-program",
@@ -1234,7 +1234,7 @@ dependencies = [
 [[package]]
 name = "axelar-solana-gateway"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "alloy-sol-types",
  "anchor-discriminators",
@@ -3791,7 +3791,7 @@ checksum = "0939f82868b77ef93ce3c3c3daf2b3c526b456741da5a1a4559e590965b6026b"
 [[package]]
 name = "event-cpi"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "anchor-discriminators",
  "borsh 1.5.7",
@@ -3800,7 +3800,7 @@ dependencies = [
 [[package]]
 name = "event-cpi-macros"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "anchor-discriminators",
  "event-cpi",
@@ -3839,7 +3839,7 @@ dependencies = [
 [[package]]
 name = "event-macros"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "keccak-const",
  "quote 1.0.40",
@@ -3849,7 +3849,7 @@ dependencies = [
 [[package]]
 name = "event-utils"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "axelar-message-primitives",
  "base64 0.21.7",
@@ -4434,13 +4434,11 @@ dependencies = [
 [[package]]
 name = "gateway-event-stack"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "axelar-solana-gas-service-events",
- "axelar-solana-gateway",
  "base64 0.21.7",
  "event-utils",
- "solana-sdk",
  "tracing",
 ]
 
@@ -8107,7 +8105,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "borsh 1.5.7",
  "bytemuck",
@@ -8933,7 +8931,7 @@ dependencies = [
 [[package]]
 name = "role-management"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=refactor%2Fupdate-gateway-event-cpi#5ea7a4bf764d707f077b5e138d6097a1282c28be"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "bincode",
  "bitflags 2.9.0",
