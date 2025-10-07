@@ -70,7 +70,6 @@ impl SolanaRpcClientProxy for Client {
 
         res.ok().and_then(|tx_data| {
             let meta = tx_data.transaction.meta?;
-            println!("meta: {:?}", meta);
             let inner_instructions = match meta.inner_instructions.as_ref() {
                 OptionSerializer::Some(inner) => inner.clone(),
                 _ => vec![],

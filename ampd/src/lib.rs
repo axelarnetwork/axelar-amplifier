@@ -639,9 +639,6 @@ impl App {
                 rpc_url,
                 rpc_timeout,
             } => {
-                println!("rpc_url: {:?}", rpc_url);
-                println!("rpc_url.to_string(): {:?}", rpc_url.to_string());
-                println!("rpc_url.as_str(): {:?}", rpc_url.as_str());
                 Ok(self.create_handler_task(
                     "solana-verifier-set-verifier",
                     handlers::solana_verify_verifier_set::Handler::new(
