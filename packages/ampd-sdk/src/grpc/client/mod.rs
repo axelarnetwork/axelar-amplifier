@@ -45,7 +45,7 @@ fn is_transport_error(status: &Status) -> bool {
 
 #[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
-pub trait Client {
+pub trait TaskClient {
     type Stream: Stream<Item = Result<Event, Error>>;
 
     async fn subscribe(
@@ -57,7 +57,11 @@ pub trait Client {
     async fn address(&mut self) -> Result<AccountId, Error>;
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
+}
 
+#[automock]
+#[async_trait]
+pub trait HandlerClient {
     async fn contract_state<T: DeserializeOwned + 'static>(
         &mut self,
         contract: nonempty::String,
@@ -76,6 +80,12 @@ pub trait Client {
 
     async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error>;
 }
+
+/// Combined client trait for backward compatibility
+#[async_trait]
+pub trait Client: TaskClient + HandlerClient {}
+
+impl<T: TaskClient + HandlerClient> Client for T {}
 
 #[derive(Clone)]
 pub struct GrpcClient {
@@ -114,7 +124,7 @@ impl GrpcClient {
 }
 
 #[async_trait]
-impl Client for GrpcClient {
+impl TaskClient for GrpcClient {
     type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
 
     async fn subscribe(
@@ -170,21 +180,6 @@ impl Client for GrpcClient {
         Ok(ampd_broadcaster_address)
     }
 
-    async fn latest_block_height(&mut self) -> Result<u64, Error> {
-        let channel = self.channel().await?;
-        let mut blockchain_client = BlockchainServiceClient::new(channel);
-
-        let height = blockchain_client
-            .latest_block_height(Request::new(LatestBlockHeightRequest {}))
-            .await
-            .inspect_err(|status| self.ensure_healthy_connection(status))
-            .into_report()?
-            .into_inner()
-            .height;
-
-        Ok(height)
-    }
-
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error> {
         let channel = self.channel().await?;
         let mut blockchain_client = BlockchainServiceClient::new(channel);
@@ -199,7 +194,10 @@ impl Client for GrpcClient {
 
         Ok(broadcast_response.into())
     }
+}
 
+#[async_trait]
+impl HandlerClient for GrpcClient {
     async fn contract_state<T: DeserializeOwned + 'static>(
         &mut self,
         contract: nonempty::String,
@@ -240,6 +238,21 @@ impl Client for GrpcClient {
         ContractsAddresses::try_from(&contracts_response)
             .change_context(AppError::InvalidContractsResponse.into())
             .attach_printable(format!("{contracts_response:?}"))
+    }
+
+    async fn latest_block_height(&mut self) -> Result<u64, Error> {
+        let channel = self.channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
+
+        let height = blockchain_client
+            .latest_block_height(Request::new(LatestBlockHeightRequest {}))
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()?
+            .into_inner()
+            .height;
+
+        Ok(height)
     }
 
     async fn sign(
