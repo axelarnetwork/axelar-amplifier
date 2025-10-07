@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy_primitives::Address;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Api};
+use cosmwasm_std::{ensure, Addr, Api};
 use error_stack::{bail, Result, ResultExt};
 use starknet_checked_felt::CheckedFelt;
 use stellar_xdr::curr::ScAddress;
@@ -46,16 +46,22 @@ pub fn validate_address(address: &str, format: &AddressFormat) -> Result<(), Err
         }
         AddressFormat::Solana => {
             const SOLANA_PUBKEY_LEN: usize = 32;
-            const MAX_BASE58_LEN: usize = 44;
-            if address.len() > MAX_BASE58_LEN {
-                bail!(Error::InvalidAddress(address.to_string()));
-            }
-            let pubkey_vec = bs58::decode(address)
+            const MAX_ADDRESS_LEN: usize = 44;
+            const MIN_ADDRESS_LEN: usize = 32;
+
+            ensure!(
+                (MIN_ADDRESS_LEN..=MAX_ADDRESS_LEN).contains(&address.len()),
+                Error::InvalidAddress(address.to_string())
+            );
+
+            let pubkey = bs58::decode(address)
                 .into_vec()
                 .change_context(Error::InvalidAddress(address.to_string()))?;
-            if pubkey_vec.len() != SOLANA_PUBKEY_LEN {
-                bail!(Error::InvalidAddress(address.to_string()))
-            }
+
+            ensure!(
+                pubkey.len() == SOLANA_PUBKEY_LEN,
+                Error::InvalidAddress(address.to_string())
+            );
         }
         AddressFormat::Starknet => {
             CheckedFelt::from_str(address)
