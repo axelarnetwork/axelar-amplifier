@@ -55,6 +55,9 @@ pub enum ExecuteMsg {
         signed_sender_address: HexBinary,
     },
     /// Authorizes a set of contracts to call StartSigningSession.
+    /// WARNING: This message should only be executed by governance when
+    /// rescuing the protocol from a faulty prover. Do not use when
+    /// registering new chains.
     #[permission(Governance, Proxy(coordinator))]
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,

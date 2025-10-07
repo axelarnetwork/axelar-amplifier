@@ -10,6 +10,7 @@ edition = { workspace = true }
 error-stack = { workspace = true }
 eyre = "0.6.8"
 itertools = { workspace = true }
+temp-env = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-core = { workspace = true }

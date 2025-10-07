@@ -46,7 +46,7 @@ bs58 = "0.5.1"
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
 const-str = "0.6.2"
-coordinator = { version = "^2.1.0", path = "contracts/coordinator" }
+coordinator = { version = "^2.1.1", path = "contracts/coordinator" }
 cosmrs = "0.22.0"
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
@@ -82,7 +82,7 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^2.3.0", path = "contracts/multisig" }
+multisig = { version = "^2.3.1", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
@@ -113,6 +113,7 @@ strum = { version = "0.25", default-features = false, features = ["derive"] }
 sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
+temp-env = "0.3.6"
 tendermint = "0.35.0"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
