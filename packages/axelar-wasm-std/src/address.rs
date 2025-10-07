@@ -252,6 +252,14 @@ mod tests {
             addr,
             &address::AddressFormat::Solana
         ));
+
+        // Valid Solana address (all 32 bytes equal to 0)
+        let addr = "11111111111111111111111111111111";
+        assert_ok!(address::validate_address(
+            addr,
+            &address::AddressFormat::Solana
+        ));
+
         // Invalid address: contains invalid character '0' (zero)
         let invalid_char_addr = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8D0";
         assert_err_contains!(
@@ -259,6 +267,7 @@ mod tests {
             address::Error,
             address::Error::InvalidAddress(..)
         );
+
         // Invalid address: contains invalid character 'O'
         let invalid_char_addr2 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8DO";
         assert_err_contains!(
@@ -266,6 +275,7 @@ mod tests {
             address::Error,
             address::Error::InvalidAddress(..)
         );
+
         // Invalid address: incorrect length (too short)
         let short_addr = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh";
         assert_err_contains!(
@@ -273,6 +283,7 @@ mod tests {
             address::Error,
             address::Error::InvalidAddress(..)
         );
+
         // Invalid address: incorrect length (too long)
         let long_addr = format!("{}A", addr);
         assert_err_contains!(
@@ -280,6 +291,7 @@ mod tests {
             address::Error,
             address::Error::InvalidAddress(..)
         );
+
         // Invalid address: contains invalid character 'I'
         let invalid_char_addr3 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8DI";
         assert_err_contains!(
@@ -287,6 +299,7 @@ mod tests {
             address::Error,
             address::Error::InvalidAddress(..)
         );
+
         // Invalid address: contains invalid character 'l'
         let invalid_char_addr4 = "4f3J7t1HgX1t36k6rph2pYJrWxk9uT1RrB2K3nVHDh8Dl";
         assert_err_contains!(
