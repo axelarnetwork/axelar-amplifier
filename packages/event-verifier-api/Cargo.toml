@@ -12,6 +12,7 @@ path = "src/bin/event-data-schema.rs"
 
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
+chrono = "0.4"
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -20,7 +21,6 @@ goldie = { workspace = true }
 msgs-derive = { workspace = true }
 schemars = "0.8"
 serde_json = { workspace = true }
-chrono = "0.4"
 thiserror = { workspace = true }
 
 [lints]
