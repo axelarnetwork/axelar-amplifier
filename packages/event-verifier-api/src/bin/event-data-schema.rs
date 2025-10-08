@@ -19,20 +19,20 @@ enum SchemaGeneratorError {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     // Check for help flag
     if args.len() > 1 && (args[1] == "--help" || args[1] == "-h") {
         print_usage(&args[0]);
         return;
     }
-    
+
     // Parse optional output filename argument
     let output_file = if args.len() > 1 {
         PathBuf::from(&args[1])
     } else {
         PathBuf::from("event_data_schema.json")
     };
-    
+
     if let Err(e) = run(&output_file) {
         eprintln!("Error: {}", e);
         std::process::exit(1);
@@ -45,8 +45,14 @@ fn print_usage(program: &str) {
     println!("Arguments:");
     println!("  OUTPUT_FILE    Optional output file path (default: event_data_schema.json)\n");
     println!("Examples:");
-    println!("  {}                        # Generate event_data_schema.json", program);
-    println!("  {} my_schema.json         # Generate my_schema.json", program);
+    println!(
+        "  {}                        # Generate event_data_schema.json",
+        program
+    );
+    println!(
+        "  {} my_schema.json         # Generate my_schema.json",
+        program
+    );
 }
 
 fn run(output_path: &Path) -> Result<(), SchemaGeneratorError> {
