@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_wrong_length_base58_tx_digest() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
 
         // too long
@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn leading_ones_should_not_be_ignored() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
@@ -194,7 +194,7 @@ mod tests {
         // this is 88 chars and valid base58, but will decode to 66 bytes
         // the leading 1s are encoded as 00 in hex and thus result in too many bytes
         let tx_digest = "1111KKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYWtf5";
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
         let msg_id = format!("{}-{}.{}", tx_digest, inner_ix_group_index, inner_ix_index);
 
@@ -219,7 +219,7 @@ mod tests {
         let tx_digest =
             "1111KKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYW";
         assert!(tx_digest.len() < 88);
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_invalid_base58() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
 
         // 0, O and I are invalid base58 chars
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_hex_tx_digest() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
         let tx_digest_hex = bs58::decode(tx_digest)
             .into_vec()
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_wrong_separator() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000;
+        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
         let inner_ix_index = rand::random::<u32>() % 1000 + 1;
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(

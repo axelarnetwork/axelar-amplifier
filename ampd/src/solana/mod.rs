@@ -164,7 +164,7 @@ where
         return Vote::FailedOnChain;
     }
 
-    let instruction = match get_instruction_at_index(
+    let instruction = match instruction_at_index(
         tx,
         message_id.inner_ix_group_index,
         message_id.inner_ix_index,
@@ -236,7 +236,7 @@ fn is_instruction_from_gateway_program(
     true
 }
 
-pub(crate) fn get_instruction_at_index(
+pub(crate) fn instruction_at_index(
     transaction: &SolanaTransaction,
     inner_ix_group_index: nonempty::Uint32,
     inner_ix_index: nonempty::Uint32,
@@ -395,7 +395,7 @@ mod test {
 
     #[test]
     fn get_instruction_at_index_should_get_correct_instruction() {
-        use super::get_instruction_at_index;
+        use super::instruction_at_index;
 
         const IX_GROUP_COUNT: u32 = 5;
         const INNER_GROUP_SIZE: u32 = 3;
@@ -406,7 +406,7 @@ mod test {
 
         for group_idx in 1..=IX_GROUP_COUNT {
             for inner_idx in 1..=INNER_GROUP_SIZE {
-                let result = get_instruction_at_index(
+                let result = instruction_at_index(
                     &tx,
                     group_idx.try_into().unwrap(),
                     inner_idx.try_into().unwrap(),
