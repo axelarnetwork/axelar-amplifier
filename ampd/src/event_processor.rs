@@ -15,6 +15,7 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{with_retry, RetryPolicy};
 use crate::asyncutil::task::TaskError;
+use crate::event_sub::event_filter::EventFilters;
 use crate::monitoring::metrics;
 use crate::monitoring::metrics::{Msg, Stage};
 use crate::{broadcast, cosmos, event_sub, monitoring};
@@ -24,6 +25,8 @@ pub trait EventHandler {
     type Err: Context;
 
     async fn handle(&self, event: &Event) -> Result<Vec<Any>, Self::Err>;
+
+    fn event_filters(&self) -> EventFilters;
 }
 
 #[derive(Error, Debug)]
@@ -32,6 +35,8 @@ pub enum Error {
     EventStream,
     #[error("handler stopped prematurely")]
     Tasks(#[from] TaskError),
+    #[error("task group execution failed")]
+    TaskGroup(#[from] crate::asyncutil::task::TaskGroupError),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -273,6 +278,7 @@ mod tests {
     use crate::broadcast::test_utils::create_base_account;
     use crate::broadcast::DecCoin;
     use crate::event_processor::{consume_events, Config, Error, EventHandler};
+    use crate::event_sub::event_filter::EventFilters;
     use crate::types::{random_cosmos_public_key, TMAddress};
     use crate::{broadcast, cosmos, event_sub, monitoring, PREFIX};
 
@@ -290,6 +296,8 @@ mod tests {
                 type Err = EventHandlerError;
 
                 async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
+
+                fn event_filters(&self) -> EventFilters;
             }
     }
 

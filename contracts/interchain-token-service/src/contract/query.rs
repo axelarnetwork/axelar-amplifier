@@ -133,4 +133,28 @@ mod tests {
         let metadata: Option<msg::CustomTokenMetadata> = from_json(result).unwrap();
         assert_eq!(metadata.unwrap().decimals, 18);
     }
+
+    #[test]
+    fn query_token_config() {
+        let mut deps = mock_dependencies();
+        let token_id = TokenId::new([1; 32]);
+
+        let result = token_config(deps.as_ref(), token_id).unwrap();
+        let config: Option<state::TokenConfig> = from_json(result).unwrap();
+        assert_eq!(config, None);
+
+        let origin_chain: ChainNameRaw = "ethereum".try_into().unwrap();
+        state::save_token_config(
+            deps.as_mut().storage,
+            token_id,
+            &state::TokenConfig {
+                origin_chain: origin_chain.clone(),
+            },
+        )
+        .unwrap();
+
+        let result = token_config(deps.as_ref(), token_id).unwrap();
+        let config: Option<state::TokenConfig> = from_json(result).unwrap();
+        assert_eq!(config.unwrap().origin_chain, origin_chain);
+    }
 }

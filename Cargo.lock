@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.12.0"
+version = "1.12.2"
 dependencies = [
  "ampd-proto",
  "assert_ok",
@@ -319,6 +319,7 @@ dependencies = [
  "sui-json-rpc-types",
  "sui-types 0.1.0",
  "sysinfo",
+ "temp-env",
  "tendermint 0.35.0",
  "tendermint-proto 0.40.4",
  "tendermint-rpc",
@@ -2319,7 +2320,7 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -2852,7 +2853,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -3672,6 +3673,7 @@ dependencies = [
 name = "events-derive"
 version = "1.0.0"
 dependencies = [
+ "axelar-wasm-std",
  "error-stack",
  "events",
  "quote 1.0.40",
@@ -6497,7 +6499,7 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "multisig"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "assert_ok",
  "axelar-wasm-std",
@@ -8447,6 +8449,7 @@ dependencies = [
  "error-stack",
  "eyre",
  "itertools 0.14.0",
+ "temp-env",
  "thiserror 1.0.69",
  "tracing",
  "tracing-core",
@@ -12286,6 +12289,7 @@ version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
 dependencies = [
+ "futures",
  "parking_lot",
 ]
 

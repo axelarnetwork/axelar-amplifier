@@ -9,8 +9,8 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use events::try_from;
 use events::Error::EventTypeMismatch;
+use events::{try_from, EventType};
 use futures::future::join_all;
 use lazy_static::lazy_static;
 use router_api::{chain_name, ChainName};
@@ -24,6 +24,7 @@ use xrpl_types::msg::XRPLMessage;
 use xrpl_types::types::{xrpl_account_id_string, XRPLAccountId};
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::monitoring;
 use crate::monitoring::metrics;
@@ -202,5 +203,15 @@ where
             .vote_msg(poll_id, votes)
             .into_any()
             .expect("vote msg should serialize")])
+    }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::EventTypeAndContract(
+                PollStartedEvent::event_type(),
+                self.voting_verifier_contract.clone(),
+            )],
+            true,
+        )
     }
 }

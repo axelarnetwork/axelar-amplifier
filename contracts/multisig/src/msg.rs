@@ -8,7 +8,6 @@ use router_api::ChainName;
 
 pub use crate::contract::MigrateMsg;
 use crate::key::{KeyType, PublicKey, Signature};
-use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
@@ -56,6 +55,9 @@ pub enum ExecuteMsg {
         signed_sender_address: HexBinary,
     },
     /// Authorizes a set of contracts to call StartSigningSession.
+    /// WARNING: This message should only be executed by governance when
+    /// rescuing the protocol from a faulty prover. Do not use when
+    /// registering new chains.
     #[permission(Governance, Proxy(coordinator))]
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,
@@ -76,7 +78,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Multisig)]
+    #[returns(crate::multisig::Multisig)]
     Multisig { session_id: Uint64 },
 
     #[returns(VerifierSet)]
