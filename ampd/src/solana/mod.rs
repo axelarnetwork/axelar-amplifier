@@ -172,7 +172,7 @@ where
         Some(inst) => inst,
         None => {
             debug!(
-                "Instruction not found at inner_ix_group_index: {}, inner_ix_index: {}",
+                "Solana tx instruction not found at inner_ix_group_index: {}, inner_ix_index: {}",
                 message_id.inner_ix_group_index.into_inner(),
                 message_id.inner_ix_index.into_inner()
             );
@@ -182,7 +182,7 @@ where
 
     if !is_instruction_from_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
-            "Instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            "Solana tx instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
             message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
         );
         return Vote::NotFound;
@@ -191,7 +191,10 @@ where
     let event = match parse_gateway_event_from_instruction(&instruction) {
         Ok(ev) => ev,
         Err(err) => {
-            debug!("Cannot parse gateway event from instruction: {}", err);
+            debug!(
+                "Cannot parse gateway event from Solana tx instruction: {}",
+                err
+            );
             return Vote::NotFound;
         }
     };
@@ -199,7 +202,10 @@ where
     if events_are_equal(&event) {
         Vote::SucceededOnChain
     } else {
-        debug!(?event, "event was found, but contents were not equal");
+        debug!(
+            ?event,
+            "Solana tx event was found, but contents were not equal"
+        );
         Vote::NotFound
     }
 }
@@ -210,14 +216,14 @@ fn is_instruction_from_gateway_program(
     gateway_address: &Pubkey,
 ) -> bool {
     if account_keys.is_empty() {
-        error!("No account keys found in transaction");
+        error!("No account keys found in Solana tx");
         return false;
     }
 
     let program_id_index = instruction.program_id_index as usize;
     if program_id_index >= account_keys.len() {
         debug!(
-            "Invalid program_id_index: {} >= {}",
+            "Invalid Solana tx program_id_index: {} >= {}",
             program_id_index,
             account_keys.len()
         );
@@ -227,7 +233,7 @@ fn is_instruction_from_gateway_program(
     let program_id = account_keys[program_id_index];
     if program_id != *gateway_address {
         debug!(
-            "Instruction not from gateway program. Expected: {}, got: {}",
+            "Solana tx instruction not from gateway program. Expected: {}, got: {}",
             gateway_address, program_id
         );
         return false;
@@ -302,6 +308,7 @@ mod test {
     use router_api::ChainName;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::signature::Signature;
+    use solana_transaction_status::{UiInnerInstructions, UiInstruction};
 
     use super::{Client, SolanaRpcClientProxy};
     use crate::monitoring::metrics::Msg;
@@ -364,7 +371,6 @@ mod test {
         group_index: u32,
         num_inner_instructions: u32,
     ) -> solana_transaction_status::UiInnerInstructions {
-        use solana_transaction_status::{UiInnerInstructions, UiInstruction};
         let instructions = (0..num_inner_instructions)
             .map(|i| UiInstruction::Compiled(create_inner_instruction(group_index, i, 1)))
             .collect();

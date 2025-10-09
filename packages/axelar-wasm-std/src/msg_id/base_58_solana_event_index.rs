@@ -77,14 +77,12 @@ impl FromStr for Base58SolanaTxSignatureAndEventIndex {
 
         Ok(Base58SolanaTxSignatureAndEventIndex {
             raw_signature: decode_b58_signature(signature)?,
-            inner_ix_group_index: u32::from_str(inner_ix_group_index)
-                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?
-                .try_into()
-                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
-            inner_ix_index: u32::from_str(inner_ix_index)
-                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?
-                .try_into()
-                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
+            inner_ix_group_index: inner_ix_group_index
+                .parse::<nonempty::Uint32>()
+                .change_context(Error::EventIndexOverflow(message_id.to_string()))?,
+            inner_ix_index: inner_ix_index
+                .parse::<nonempty::Uint32>()
+                .change_context(Error::EventIndexOverflow(message_id.to_string()))?,
         })
     }
 }
@@ -104,9 +102,11 @@ impl Display for Base58SolanaTxSignatureAndEventIndex {
 #[cfg(test)]
 mod tests {
 
+    use assert_ok::assert_ok;
     use hex::ToHex;
 
     use super::*;
+    use crate::assert_err_contains;
 
     fn random_bytes() -> RawSignature {
         let mut bytes = [0; 64];
@@ -157,7 +157,7 @@ mod tests {
             tx_digest, tx_digest, inner_ix_group_index, inner_ix_index
         );
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         // too short
         let msg_id = format!(
@@ -167,7 +167,7 @@ mod tests {
             inner_ix_index
         );
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -180,13 +180,13 @@ mod tests {
             "1{}-{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "11{}-{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -200,7 +200,7 @@ mod tests {
 
         assert!(REGEX.captures(&msg_id).is_some());
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidTxDigest { .. });
 
         // this is 88 chars and valid base 58, but will encode to 65 bytes
         // (z is the largest base58 digit, and so this will overflow 2^512)
@@ -210,7 +210,7 @@ mod tests {
 
         assert!(REGEX.captures(&msg_id).is_some());
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidTxDigest { .. });
     }
 
     #[test]
@@ -226,7 +226,7 @@ mod tests {
             "{}-{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_ok());
+        assert_ok!(res);
     }
 
     #[test]
@@ -242,7 +242,7 @@ mod tests {
             inner_ix_group_index,
             inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "I{}-{}.{}",
@@ -250,7 +250,7 @@ mod tests {
             inner_ix_group_index,
             inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "O{}-{}.{}",
@@ -258,7 +258,7 @@ mod tests {
             inner_ix_group_index,
             inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -274,24 +274,24 @@ mod tests {
             "{}-{}.{}",
             tx_digest_hex, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "0x{}-{}.{}",
             tx_digest_hex, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
     fn should_not_parse_msg_id_with_missing_instruction_indices() {
         let msg_id = random_tx_digest();
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let msg_id = format!("{}-", random_tx_digest());
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -304,43 +304,43 @@ mod tests {
             "{}:{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "{}_{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "{}+{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "{}-{}:{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "{}-{}_{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "{}{}{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "{}-{}",
             tx_digest, inner_ix_group_index
         ));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -362,13 +362,13 @@ mod tests {
 
         // inner_ix_index cannot be 0 as events are always inner instructions
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-1.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-5.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-999.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -377,13 +377,13 @@ mod tests {
 
         // inner_ix_group_index cannot be 0 as indexing starts at 1 to match the explorer
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.1", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.5", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.999", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
@@ -391,39 +391,39 @@ mod tests {
         let tx_digest = random_tx_digest();
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-1.5.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0x00.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res =
             Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-foobar.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-true.0", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.1.5", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.0x00", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res =
             Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.foobar", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.true", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-.", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-", tx_digest));
-        assert!(res.is_err());
+        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]

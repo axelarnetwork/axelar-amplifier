@@ -87,6 +87,8 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
 
 #[cfg(test)]
 mod test {
+    use assert_ok::assert_ok;
+
     use super::tx_hash_event_index::HexTxHashAndEventIndex;
     use crate::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
     use crate::msg_id::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
@@ -100,7 +102,10 @@ mod test {
             event_index: 0,
         }
         .to_string();
-        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_ok());
+        assert_ok!(verify_msg_id(
+            &msg_id,
+            &MessageIdFormat::HexTxHashAndEventIndex
+        ));
     }
 
     #[test]
@@ -110,7 +115,10 @@ mod test {
             event_index: 0,
         }
         .to_string();
-        assert!(verify_msg_id(&msg_id, &MessageIdFormat::Base58TxDigestAndEventIndex).is_ok());
+        assert_ok!(verify_msg_id(
+            &msg_id,
+            &MessageIdFormat::Base58TxDigestAndEventIndex
+        ));
     }
 
     #[test]
@@ -121,11 +129,10 @@ mod test {
             nonempty::Uint32::try_from(1u32).unwrap(),
         )
         .to_string();
-        assert!(verify_msg_id(
+        assert_ok!(verify_msg_id(
             &msg_id,
             &MessageIdFormat::Base58SolanaTxSignatureAndEventIndex
-        )
-        .is_ok());
+        ));
     }
 
     #[test]
@@ -154,14 +161,13 @@ mod test {
     #[test]
     fn should_verify_bech32m() {
         let message_id = "at1hs0xk375g4kvw53rcem9nyjsdw5lsv94fl065n77cpt0774nsyysdecaju";
-        assert!(verify_msg_id(
+        assert_ok!(verify_msg_id(
             message_id,
             &MessageIdFormat::Bech32m {
                 prefix: "at".to_string().to_string().try_into().unwrap(),
                 length: 61
             }
-        )
-        .is_ok());
+        ));
     }
 
     #[test]
