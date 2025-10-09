@@ -444,8 +444,6 @@ mod tests {
             },
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
-                tx_id: msg_id.tx_digest_as_base58(),
-                event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
                     .unwrap()
