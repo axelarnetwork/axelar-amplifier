@@ -18,7 +18,7 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::future::{with_retry, RetryPolicy};
-use crate::grpc::client::Client;
+use crate::grpc::client::HandlerTaskClient;
 
 #[automock(
     type Err = Error;
@@ -76,46 +76,47 @@ pub enum Error {
 }
 
 #[derive(Debug, TypedBuilder)]
-pub struct HandlerTask<H, C>
+pub struct HandlerTask<H>
 where
     H: EventHandler,
-    C: Client,
     <H::Event as TryFrom<Event>>::Error: Context,
     H::Event: Display,
 {
     handler: H,
-    client: C,
     config: Config,
     #[builder(default = RetryPolicy::NoRetry)]
     handler_retry_policy: RetryPolicy,
 }
 
-impl<H, C> HandlerTask<H, C>
+impl<H> HandlerTask<H>
 where
     H: EventHandler + Debug,
-    C: Client + Debug,
     <H::Event as TryFrom<Event>>::Error: Context,
     H::Event: Display + Debug,
 {
-    pub async fn run(mut self, token: CancellationToken) -> error_stack::Result<(), Error> {
-        let stream = self.subscribe_to_stream(token.clone()).await?;
+    pub async fn run(
+        self,
+        client: &mut impl HandlerTaskClient,
+        token: CancellationToken,
+    ) -> error_stack::Result<(), Error> {
+        let stream = self.subscribe_to_stream(client, token.clone()).await?;
 
         pin_mut!(stream);
         while let Some(element) = stream.next().await {
-            self.process_stream(element, token.clone()).await;
+            self.process_stream(element, client, token.clone()).await;
         }
 
         Ok(())
     }
 
     async fn subscribe_to_stream(
-        &mut self,
+        &self,
+        client: &mut impl HandlerTaskClient,
         token: CancellationToken,
     ) -> error_stack::Result<impl Stream<Item = error_stack::Result<Event, Error>>, Error> {
         let subscription_params = self.handler.subscription_params();
 
-        let stream = self
-            .client
+        let stream = client
             .subscribe(
                 subscription_params.event_filters,
                 subscription_params.include_block_begin_end,
@@ -134,17 +135,18 @@ where
     }
 
     async fn process_stream(
-        &mut self,
+        &self,
         element: error_stack::Result<Event, Error>,
+        client: &mut impl HandlerTaskClient,
         token: CancellationToken,
     ) {
         if let Some(msgs) = self.process_event(element, token.clone()).await {
-            Self::broadcast_msgs(&mut self.client, msgs, token.clone()).await;
+            Self::broadcast_msgs(client, msgs, token.clone()).await;
         }
     }
 
     async fn process_event(
-        &mut self,
+        &self,
         element: error_stack::Result<Event, Error>,
         token: CancellationToken,
     ) -> Option<Vec<Any>> {
@@ -181,11 +183,7 @@ where
     }
 
     #[instrument]
-    async fn handle_event(
-        &mut self,
-        event: H::Event,
-        token: CancellationToken,
-    ) -> Option<Vec<Any>> {
+    async fn handle_event(&self, event: H::Event, token: CancellationToken) -> Option<Vec<Any>> {
         with_retry(
             || self.handler.handle(&event, token.clone()),
             self.handler_retry_policy,
@@ -194,7 +192,11 @@ where
         .ok()
     }
 
-    async fn broadcast_msgs(client: &mut impl Client, msgs: Vec<Any>, token: CancellationToken) {
+    async fn broadcast_msgs(
+        client: &mut impl HandlerTaskClient,
+        msgs: Vec<Any>,
+        token: CancellationToken,
+    ) {
         for msg in msgs {
             if token.is_cancelled() {
                 return;
@@ -218,8 +220,8 @@ mod tests {
     use error_stack::report;
 
     use super::*;
+    use crate::grpc::client::tests::MockHandlerTaskClient;
     use crate::grpc::client::types::BroadcastClientResponse;
-    use crate::grpc::client::MockClient;
     use crate::grpc::error::{AppError, Error as ClientError};
 
     fn setup_handler() -> MockEventHandler {
@@ -235,16 +237,13 @@ mod tests {
         handler
     }
 
-    fn mock_client_subscribe_with_events(events: Vec<Event>) -> MockClient {
-        let mut mock_client = MockClient::new();
-        mock_client
-            .expect_subscribe()
-            .times(1)
-            .returning(move |_, _| {
-                let result_events: Vec<error_stack::Result<Event, ClientError>> =
-                    events.clone().into_iter().map(Ok).collect();
-                Ok(tokio_stream::iter(result_events))
-            });
+    fn mock_client_subscribe_with_events(events: Vec<Event>) -> MockHandlerTaskClient {
+        let mut mock_client = MockHandlerTaskClient::new();
+        mock_client.expect_subscribe().returning(move |_, _| {
+            let result_events: Vec<error_stack::Result<Event, ClientError>> =
+                events.clone().into_iter().map(Ok).collect();
+            Ok(tokio_stream::iter(result_events))
+        });
         mock_client
     }
 
@@ -258,11 +257,10 @@ mod tests {
             .returning(|_, _| Ok(vec![]));
 
         let events = vec![Event::BlockBegin(1u32.into()), Event::BlockEnd(1u32.into())];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
@@ -270,7 +268,7 @@ mod tests {
             .build();
 
         let result =
-            tokio::time::timeout(Duration::from_secs(1), task.run(CancellationToken::new())).await;
+            tokio::time::timeout(Duration::from_secs(1), task.run(&mut client, CancellationToken::new())).await;
 
         assert!(result.is_ok());
         let task_result = result.unwrap();
@@ -287,17 +285,16 @@ mod tests {
             .returning(|_, _| Err(report!(Error::HandlerFailed)));
 
         let events = vec![Event::BlockBegin(1u32.into())];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
         assert!(result.is_ok());
     }
 
@@ -322,17 +319,16 @@ mod tests {
             Event::BlockBegin(1u32.into()),
             Event::BlockBegin(2u32.into()),
         ];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
         assert!(result.is_ok());
     }
 
@@ -355,11 +351,10 @@ mod tests {
         });
 
         let events = vec![Event::BlockBegin(1u32.into())];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
@@ -369,7 +364,7 @@ mod tests {
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
 
         assert!(result.is_ok());
         assert_eq!(*call_count.lock().unwrap(), 3);
@@ -380,8 +375,8 @@ mod tests {
         let mut handler = setup_handler();
         handler.expect_handle().times(0);
 
-        let mut client = MockClient::new();
-        client.expect_subscribe().times(1).returning(|_, _| {
+        let mut client = MockHandlerTaskClient::new();
+        client.expect_subscribe().returning(|_, _| {
             Ok(tokio_stream::iter(vec![Err(report!(ClientError::from(
                 AppError::InvalidResponse
             )))]))
@@ -389,13 +384,12 @@ mod tests {
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
         assert!(result.is_ok());
     }
 
@@ -403,15 +397,14 @@ mod tests {
     async fn test_stream_timeout_cancellation() {
         let handler = setup_handler();
 
-        let mut client = MockClient::new();
-        client.expect_subscribe().times(1).returning(move |_, _| {
+        let mut client = MockHandlerTaskClient::new();
+        client.expect_subscribe().returning(move |_, _| {
             let result_events: Vec<error_stack::Result<Event, ClientError>> = vec![];
             Ok(tokio_stream::iter(result_events))
         });
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(50),
             })
@@ -425,7 +418,7 @@ mod tests {
             token_clone.cancel();
         });
 
-        let result = task.run(token).await;
+        let result = task.run(&mut client, token).await;
         assert!(result.is_ok());
     }
 
@@ -449,17 +442,16 @@ mod tests {
             Event::BlockEnd(2u32.into()),
             Event::BlockBegin(3u32.into()),
         ];
-        let client = mock_client_subscribe_with_events(events);
+        let mut client = mock_client_subscribe_with_events(events);
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
 
         assert!(result.is_ok());
         assert_eq!(*event_count.lock().unwrap(), 5);
@@ -488,7 +480,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        client.expect_broadcast().times(2).returning(|_| {
+        client.expect_broadcast().returning(|_| {
             Ok(BroadcastClientResponse {
                 tx_hash: "test_hash".to_string(),
                 index: 0,
@@ -497,13 +489,12 @@ mod tests {
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
         assert!(result.is_ok());
     }
 
@@ -524,7 +515,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        client.expect_broadcast().times(1).returning(|_| {
+        client.expect_broadcast().returning(|_| {
             Err(report!(crate::grpc::error::Error::from(
                 AppError::InvalidResponse
             )))
@@ -532,13 +523,12 @@ mod tests {
 
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
         assert!(result.is_ok());
     }
 
@@ -554,17 +544,14 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        client.expect_broadcast().times(0);
-
         let task = HandlerTask::builder()
             .handler(handler)
-            .client(client)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
             })
             .build();
 
-        let result = task.run(CancellationToken::new()).await;
+        let result = task.run(&mut client, CancellationToken::new()).await;
         assert!(result.is_ok());
     }
 }
