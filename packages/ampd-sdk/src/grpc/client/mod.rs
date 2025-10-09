@@ -305,10 +305,10 @@ pub mod tests {
 
     mock! {
         #[derive(Debug)]
-        pub MockHandlerTaskClient {}
+        pub HandlerTaskClient {}
 
         #[async_trait]
-        impl EventHandlerClient for MockHandlerTaskClient {
+        impl EventHandlerClient for HandlerTaskClient {
             async fn contract_state<T: DeserializeOwned + 'static>(
                 &mut self,
                 contract: nonempty::String,
@@ -329,7 +329,7 @@ pub mod tests {
         }
 
         #[async_trait]
-        impl HandlerTaskClient for MockHandlerTaskClient {
+        impl HandlerTaskClient for HandlerTaskClient {
             type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;
 
             async fn subscribe(
@@ -349,7 +349,6 @@ pub mod tests {
     use tokio::time::{sleep, Duration};
     use tokio_util::sync::CancellationToken;
     use tonic::{Request, Response, Status};
-    pub use MockMockHandlerTaskClient as MockHandlerTaskClient;
 
     use super::*;
     use crate::grpc::client::types::KeyAlgorithm;
