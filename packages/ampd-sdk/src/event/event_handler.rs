@@ -267,8 +267,11 @@ mod tests {
             .handler_retry_policy(RetryPolicy::NoRetry)
             .build();
 
-        let result =
-            tokio::time::timeout(Duration::from_secs(1), task.run(&mut client, CancellationToken::new())).await;
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            task.run(&mut client, CancellationToken::new()),
+        )
+        .await;
 
         assert!(result.is_ok());
         let task_result = result.unwrap();
