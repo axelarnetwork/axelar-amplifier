@@ -172,7 +172,8 @@ where
         Some(inst) => inst,
         None => {
             debug!(
-                "Solana tx instruction not found at inner_ix_group_index: {}, inner_ix_index: {}",
+                "Solana tx instruction with tx signature {} not found at inner_ix_group_index: {}, inner_ix_index: {}",
+                tx.signature,
                 message_id.inner_ix_group_index.into_inner(),
                 message_id.inner_ix_index.into_inner()
             );
@@ -182,7 +183,8 @@ where
 
     if !is_instruction_from_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
-            "Solana tx instruction at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            tx.signature,
             message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
         );
         return Vote::NotFound;
@@ -192,8 +194,8 @@ where
         Ok(ev) => ev,
         Err(err) => {
             debug!(
-                "Cannot parse gateway event from Solana tx instruction: {}",
-                err
+                "Cannot parse gateway event from Solana tx instruction with tx signature {}: {}",
+                tx.signature, err
             );
             return Vote::NotFound;
         }
@@ -204,7 +206,8 @@ where
     } else {
         debug!(
             ?event,
-            "Solana tx event was found, but contents were not equal"
+            "Solana tx with tx signature {} event was found, but contents were not equal",
+            tx.signature,
         );
         Vote::NotFound
     }
