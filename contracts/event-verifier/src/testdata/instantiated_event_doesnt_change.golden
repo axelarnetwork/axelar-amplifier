@@ -1,0 +1,21 @@
+{
+  "type": "instantiated",
+  "attributes": [
+    {
+      "key": "service_name",
+      "value": "\"validators\""
+    },
+    {
+      "key": "service_registry_contract",
+      "value": "\"cosmwasm1s0nkxfh7p67f6kj8gkf7mfsxlzvwau9xlf7q8akgmnn708u4kvlsjfqm0p\""
+    },
+    {
+      "key": "voting_threshold",
+      "value": "[\"2\",\"3\"]"
+    },
+    {
+      "key": "block_expiry",
+      "value": "100"
+    }
+  ]
+}
