@@ -687,6 +687,7 @@ impl App {
                 cosmwasm_contract,
                 rpc_url,
                 rpc_timeout,
+                gateway_address,
             } => {
                 let task_name = "solana-msg-verifier".to_string();
                 Ok((
@@ -699,7 +700,7 @@ impl App {
                             cosmwasm_contract.clone(),
                             solana::Client::new(
                                 RpcClient::new_with_timeout_and_commitment(
-                                    rpc_url.to_string(),
+                                    rpc_url.as_str().to_string(),
                                     rpc_timeout.unwrap_or(default_rpc_timeout),
                                     CommitmentConfig::finalized(),
                                 ),
@@ -708,7 +709,9 @@ impl App {
                             ),
                             self.block_height_monitor.latest_block_height(),
                             self.monitoring_client.clone(),
-                        ),
+                            gateway_address,
+                        )
+                        .change_context(Error::Connection)?,
                         event_processor_config.clone(),
                         self.monitoring_client.clone(),
                     ),
@@ -719,6 +722,7 @@ impl App {
                 cosmwasm_contract,
                 rpc_url,
                 rpc_timeout,
+                gateway_address,
             } => {
                 let task_name = "solana-verifier-set-verifier".to_string();
                 Ok((
@@ -731,7 +735,7 @@ impl App {
                             cosmwasm_contract.clone(),
                             solana::Client::new(
                                 RpcClient::new_with_timeout_and_commitment(
-                                    rpc_url.to_string(),
+                                    rpc_url.as_str().to_string(),
                                     rpc_timeout.unwrap_or(default_rpc_timeout),
                                     CommitmentConfig::finalized(),
                                 ),
@@ -740,8 +744,10 @@ impl App {
                             ),
                             self.block_height_monitor.latest_block_height(),
                             self.monitoring_client.clone(),
+                            gateway_address,
                         )
-                        .await,
+                        .await
+                        .change_context(Error::Connection)?,
                         event_processor_config.clone(),
                         self.monitoring_client.clone(),
                     ),
