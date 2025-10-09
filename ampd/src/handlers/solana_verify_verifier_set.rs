@@ -513,10 +513,6 @@ mod tests {
             },
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
-                tx_id: signature_1
-                    .parse()
-                    .unwrap(),
-                event_index: inner_ix_index_1,
                 message_id: message_id_1
                     .to_string()
                     .try_into()

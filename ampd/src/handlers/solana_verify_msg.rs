@@ -515,8 +515,6 @@ mod test {
             #[allow(deprecated)]
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: signature_1.parse().unwrap(),
-                    event_index: inner_ix_index_1,
                     source_address: Pubkey::from_str(
                         "9Tp4XJZLQKdM82BHYfNAG6V3RWpLC7Y5mXo1UqKZFTJ3",
                     )
@@ -530,8 +528,6 @@ mod test {
                     payload_hash: Hash::from_slice(&[1; 32]).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: signature_2.parse().unwrap(),
-                    event_index: inner_ix_index_2,
                     source_address: Pubkey::from_str(
                         "H1QLZVpX7B4WMNY5UqKZG3RFTJ9M82BXoLQF26TJCY5N",
                     )
