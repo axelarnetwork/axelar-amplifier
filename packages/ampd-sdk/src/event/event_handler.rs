@@ -483,7 +483,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        client.expect_broadcast().returning(|_| {
+        client.expect_broadcast().times(2).returning(|_| {
             Ok(BroadcastClientResponse {
                 tx_hash: "test_hash".to_string(),
                 index: 0,
@@ -546,6 +546,8 @@ mod tests {
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
+
+        client.expect_broadcast().times(0);
 
         let task = HandlerTask::builder()
             .handler(handler)
