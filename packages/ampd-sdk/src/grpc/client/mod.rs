@@ -71,6 +71,7 @@ pub trait HandlerTaskClient: EventHandlerClient {
         filters: Vec<AbciEventTypeFilter>,
         include_block_begin_end: bool,
     ) -> Result<Self::Stream, Error>;
+    
     async fn address(&mut self) -> Result<AccountId, Error>;
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
