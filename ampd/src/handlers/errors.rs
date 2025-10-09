@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum Error {
     #[error("failed to deserialize the event")]
     DeserializeEvent,
+    #[error("failed to fetch Solana account")]
+    FetchSolanaAccount,
     #[error("failed to get the latest finalized block")]
     Finalizer,
     #[error("failed to prepare message for signing")]

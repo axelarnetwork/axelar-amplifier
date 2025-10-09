@@ -1,5 +1,6 @@
 use std::fmt;
 use std::ops::Deref;
+use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use into_inner_derive::IntoInner;
@@ -210,6 +211,15 @@ impl From<Uint32> for u32 {
 impl From<Uint32> for usize {
     fn from(value: Uint32) -> Self {
         value.0 as usize
+    }
+}
+
+impl FromStr for Uint32 {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let v: u32 = s.parse().map_err(|_| Error::InvalidValue(s.to_string()))?;
+        v.try_into()
     }
 }
 
