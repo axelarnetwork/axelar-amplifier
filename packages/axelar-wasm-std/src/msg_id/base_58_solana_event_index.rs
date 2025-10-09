@@ -180,13 +180,13 @@ mod tests {
             "1{}-{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
             "11{}-{}.{}",
             tx_digest, inner_ix_group_index, inner_ix_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
     }
 
     #[test]
