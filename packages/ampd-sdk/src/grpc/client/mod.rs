@@ -307,6 +307,10 @@ pub mod tests {
         #[derive(Debug)]
         pub HandlerTaskClient {}
 
+        impl Clone for HandlerTaskClient {
+            fn clone(&self) -> Self;
+        }
+
         #[async_trait]
         impl EventHandlerClient for HandlerTaskClient {
             async fn contract_state<T: DeserializeOwned + 'static>(
