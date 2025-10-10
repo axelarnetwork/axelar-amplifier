@@ -1,6 +1,7 @@
 use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
-use ethers_core::types::{Log, TransactionReceipt, H256};
+use ethers_core::types::{Log, Transaction, TransactionReceipt, H160, H256};
+use event_verifier_api::evm::{Event, EvmEvent, TransactionDetails};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use router_api::ChainName;
 use tracing::debug;
@@ -129,6 +130,98 @@ pub fn verify_verifier_set(
         confirmation.message_id.tx_hash.into(),
         confirmation.message_id.event_index,
     )
+}
+
+pub fn verify_events(
+    tx_receipt: &TransactionReceipt,
+    tx: Option<&Transaction>,
+    event_data: &EvmEvent,
+) -> Vote {
+    if has_failed(tx_receipt) {
+        return Vote::FailedOnChain;
+    }
+
+    let expected_tx_hash: H256 = event_data.transaction_hash.to_array().into();
+
+    if tx_receipt.transaction_hash != expected_tx_hash {
+        return Vote::NotFound;
+    }
+
+    // Verify transaction details if provided
+    if let Some(expected_details) = &event_data.transaction_details {
+        if !tx.is_some_and(|tx| verify_transaction_details(tx, expected_details)) {
+            return Vote::NotFound;
+        }
+    }
+
+    // Verify events match the logs in the transaction receipt
+    if !verify_events_match_logs(&tx_receipt.logs, &event_data.events) {
+        return Vote::NotFound;
+    }
+
+    Vote::SucceededOnChain
+}
+
+fn verify_transaction_details(
+    actual_tx: &Transaction,
+    expected_details: &TransactionDetails,
+) -> bool {
+    let expected_from: H160 = expected_details.from.to_array().into();
+    let expected_to: H160 = expected_details.to.to_array().into();
+
+    let expected_value =
+        ethers_core::types::U256::from_big_endian(&expected_details.value.to_be_bytes());
+
+    // Compare transaction fields
+    actual_tx.from == expected_from
+        && actual_tx.to == Some(expected_to)
+        && actual_tx.value == expected_value
+        && actual_tx.input.as_ref() == expected_details.calldata.as_ref()
+}
+
+fn verify_events_match_logs(logs: &[Log], expected_events: &[Event]) -> bool {
+    // For each expected event, find the corresponding log and verify it
+    for expected_event in expected_events {
+        // Find the log that matches this event's index
+        let log_index = match usize::try_from(expected_event.event_index) {
+            Ok(idx) => idx,
+            Err(_) => return false,
+        };
+        if log_index >= logs.len() {
+            return false;
+        }
+
+        let log = &logs[log_index];
+        if !verify_event_matches_log(log, expected_event) {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn verify_event_matches_log(log: &Log, expected_event: &Event) -> bool {
+    let expected_contract_address: H160 = expected_event.contract_address.to_array().into();
+
+    if log.address != expected_contract_address {
+        return false;
+    }
+
+    if log.topics.len() != expected_event.topics.len() {
+        return false;
+    }
+
+    for (actual_topic, expected_topic) in log.topics.iter().zip(expected_event.topics.iter()) {
+        if *actual_topic != expected_topic.to_array().into() {
+            return false;
+        }
+    }
+
+    if log.data.as_ref() != expected_event.data.as_ref() {
+        return false;
+    }
+
+    true
 }
 
 #[cfg(test)]
