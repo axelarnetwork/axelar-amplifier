@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 // Import the actual types from the API
 use axelar_wasm_std::fixed_size;
@@ -30,14 +30,15 @@ enum SchemaGeneratorError {
 fn main() {
     let args = Args::parse();
 
-    let output_file = args.output_file.unwrap_or_else(|| PathBuf::from("event_data_schema.json"));
+    let output_file = args
+        .output_file
+        .unwrap_or_else(|| PathBuf::from("event_data_schema.json"));
 
     if let Err(e) = run(&output_file) {
         eprintln!("Error: {}", e);
         std::process::exit(1);
     }
 }
-
 
 fn run(output_path: &Path) -> Result<(), SchemaGeneratorError> {
     // Generate the JSON schema for EventData using schemars
