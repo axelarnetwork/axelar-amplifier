@@ -180,48 +180,26 @@ fn verify_transaction_details(
 }
 
 fn verify_events_match_logs(logs: &[Log], expected_events: &[Event]) -> bool {
-    // For each expected event, find the corresponding log and verify it
-    for expected_event in expected_events {
-        // Find the log that matches this event's index
-        let log_index = match usize::try_from(expected_event.event_index) {
-            Ok(idx) => idx,
-            Err(_) => return false,
-        };
-        if log_index >= logs.len() {
-            return false;
-        }
-
-        let log = &logs[log_index];
-        if !verify_event_matches_log(log, expected_event) {
-            return false;
-        }
-    }
-
-    true
+    // event logs are expected to be ordered by event index
+    expected_events.iter().all(|expected_event| {
+        usize::try_from(expected_event.event_index)
+            .ok()
+            .and_then(|idx| logs.get(idx))
+            .map_or(false, |log| verify_event_matches_log(log, expected_event))
+    })
 }
 
 fn verify_event_matches_log(log: &Log, expected_event: &Event) -> bool {
     let expected_contract_address: H160 = expected_event.contract_address.to_array().into();
 
-    if log.address != expected_contract_address {
-        return false;
-    }
-
-    if log.topics.len() != expected_event.topics.len() {
-        return false;
-    }
-
-    for (actual_topic, expected_topic) in log.topics.iter().zip(expected_event.topics.iter()) {
-        if *actual_topic != expected_topic.to_array().into() {
-            return false;
-        }
-    }
-
-    if log.data.as_ref() != expected_event.data.as_ref() {
-        return false;
-    }
-
-    true
+        log.address == expected_contract_address
+        && log.topics.len() == expected_event.topics.len()
+        && log
+            .topics
+            .iter()
+            .zip(expected_event.topics.iter())
+            .all(|(actual_topic, expected_topic)| actual_topic.as_ref() == expected_topic.as_ref())
+        && log.data.as_ref() == expected_event.data.as_ref()
 }
 
 #[cfg(test)]
