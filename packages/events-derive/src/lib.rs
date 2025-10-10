@@ -35,6 +35,7 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
 
     let event_struct = input.ident.clone();
     let event_struct_name = event_struct.to_string();
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     TokenStream::from(quote! {
         #input
@@ -43,7 +44,7 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
         use events as _internal_events;
         use core::convert::TryFrom as _internal_TryFrom;
 
-        impl _internal_TryFrom<&_internal_events::Event> for #event_struct {
+        impl #impl_generics _internal_TryFrom<&_internal_events::Event> for #event_struct #ty_generics #where_clause {
             type Error = error_stack::Report<_internal_events::Error>;
 
             fn try_from(event: &_internal_events::Event) -> core::result::Result<Self, Self::Error> {
@@ -63,7 +64,7 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
 
-        impl _internal_TryFrom<_internal_events::Event> for #event_struct {
+        impl #impl_generics _internal_TryFrom<_internal_events::Event> for #event_struct #ty_generics #where_clause {
             type Error = error_stack::Report<_internal_events::Error>;
 
             fn try_from(event: _internal_events::Event) -> core::result::Result<Self, Self::Error> {
@@ -71,7 +72,7 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
 
-        impl _internal_events::EventType for #event_struct {
+        impl #impl_generics _internal_events::EventType for #event_struct #ty_generics #where_clause {
             fn event_type() -> axelar_wasm_std::nonempty::String {
                 axelar_wasm_std::nonempty_str!(#event_type)
             }
