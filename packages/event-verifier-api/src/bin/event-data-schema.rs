@@ -1,13 +1,23 @@
 use std::path::{Path, PathBuf};
-use std::{env, fs};
+use std::fs;
 
 // Import the actual types from the API
 use axelar_wasm_std::fixed_size;
 use chrono::Utc;
+use clap::Parser;
 use cosmwasm_std::{HexBinary, Uint256};
 use event_verifier_api::evm::{Event, EvmEvent, TransactionDetails};
 use event_verifier_api::EventData;
 use schemars::schema_for;
+
+/// EventData JSON Schema Generator
+#[derive(Parser, Debug)]
+#[command(author, version, about = "Generate JSON schema for EventData structure", long_about = None)]
+struct Args {
+    /// Optional output file path
+    #[arg(help = "Output file path (default: event_data_schema.json)")]
+    output_file: Option<PathBuf>,
+}
 
 #[derive(Debug, thiserror::Error)]
 enum SchemaGeneratorError {
@@ -18,20 +28,9 @@ enum SchemaGeneratorError {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    // Check for help flag
-    if args.len() > 1 && (args[1] == "--help" || args[1] == "-h") {
-        print_usage(&args[0]);
-        return;
-    }
-
-    // Parse optional output filename argument
-    let output_file = if args.len() > 1 {
-        PathBuf::from(&args[1])
-    } else {
-        PathBuf::from("event_data_schema.json")
-    };
+    let output_file = args.output_file.unwrap_or_else(|| PathBuf::from("event_data_schema.json"));
 
     if let Err(e) = run(&output_file) {
         eprintln!("Error: {}", e);
@@ -39,21 +38,6 @@ fn main() {
     }
 }
 
-fn print_usage(program: &str) {
-    println!("EventData JSON Schema Generator\n");
-    println!("Usage: {} [OUTPUT_FILE]\n", program);
-    println!("Arguments:");
-    println!("  OUTPUT_FILE    Optional output file path (default: event_data_schema.json)\n");
-    println!("Examples:");
-    println!(
-        "  {}                        # Generate event_data_schema.json",
-        program
-    );
-    println!(
-        "  {} my_schema.json         # Generate my_schema.json",
-        program
-    );
-}
 
 fn run(output_path: &Path) -> Result<(), SchemaGeneratorError> {
     // Generate the JSON schema for EventData using schemars

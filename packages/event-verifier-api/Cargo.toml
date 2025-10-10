@@ -13,6 +13,7 @@ path = "src/bin/event-data-schema.rs"
 [dependencies]
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 chrono = "0.4"
+clap = { version = "4.0", features = ["derive"] }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }

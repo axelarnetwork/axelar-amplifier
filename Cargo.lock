@@ -3657,6 +3657,7 @@ version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
  "chrono",
+ "clap",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
