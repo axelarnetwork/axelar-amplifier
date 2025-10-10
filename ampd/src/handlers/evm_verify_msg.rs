@@ -297,8 +297,6 @@ mod tests {
             #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: msg_ids[0].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -306,8 +304,6 @@ mod tests {
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[1].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[1].event_index).unwrap(),
                     message_id: msg_ids[1].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -315,8 +311,6 @@ mod tests {
                     payload_hash: H256::repeat_byte(5).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[2].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[2].event_index).unwrap(),
                     message_id: msg_ids[2].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
