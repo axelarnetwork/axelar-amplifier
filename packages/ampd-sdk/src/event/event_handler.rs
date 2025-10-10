@@ -18,7 +18,7 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::future::{with_retry, RetryPolicy};
-use crate::grpc::client;
+use crate::grpc::client::HandlerTaskClient;
 
 #[automock(
     type Err = Error;
@@ -107,7 +107,7 @@ where
 {
     pub async fn run(
         self,
-        client: &mut impl client::Client,
+        client: &mut impl HandlerTaskClient,
         token: CancellationToken,
     ) -> Result<(), Error> {
         let stream = self.subscribe_to_stream(client, token.clone()).await?;
@@ -122,7 +122,7 @@ where
 
     async fn subscribe_to_stream(
         &self,
-        client: &mut impl client::Client,
+        client: &mut impl HandlerTaskClient,
         token: CancellationToken,
     ) -> Result<impl Stream<Item = Result<Event, Error>>, Error> {
         let subscription_params = self.handler.subscription_params();
@@ -147,8 +147,8 @@ where
 
     async fn process_stream(
         &self,
-        element: Result<Event, Error>,
-        client: &mut impl client::Client,
+        element: error_stack::Result<Event, Error>,
+        client: &mut impl HandlerTaskClient,
         token: CancellationToken,
     ) {
         if let Some(msgs) = self.process_event(element, token.clone()).await {
@@ -209,7 +209,7 @@ where
     }
 
     async fn broadcast_msgs(
-        client: &mut impl client::Client,
+        client: &mut impl HandlerTaskClient,
         msgs: Vec<Any>,
         token: CancellationToken,
     ) {
@@ -236,8 +236,8 @@ mod tests {
     use error_stack::report;
 
     use super::*;
+    use crate::grpc::client::tests::MockHandlerTaskClient;
     use crate::grpc::client::types::BroadcastClientResponse;
-    use crate::grpc::client::MockClient;
     use crate::grpc::error::{AppError, Error as ClientError};
 
     fn setup_handler() -> MockEventHandler {
@@ -253,16 +253,13 @@ mod tests {
         handler
     }
 
-    fn mock_client_subscribe_with_events(events: Vec<Event>) -> MockClient {
-        let mut mock_client = MockClient::new();
-        mock_client
-            .expect_subscribe()
-            .times(1)
-            .returning(move |_, _| {
-                let result_events: Vec<Result<Event, ClientError>> =
-                    events.clone().into_iter().map(Ok).collect();
-                Ok(tokio_stream::iter(result_events))
-            });
+    fn mock_client_subscribe_with_events(events: Vec<Event>) -> MockHandlerTaskClient {
+        let mut mock_client = MockHandlerTaskClient::new();
+        mock_client.expect_subscribe().returning(move |_, _| {
+            let result_events: Vec<error_stack::Result<Event, ClientError>> =
+                events.clone().into_iter().map(Ok).collect();
+            Ok(tokio_stream::iter(result_events))
+        });
         mock_client
     }
 
@@ -397,8 +394,8 @@ mod tests {
         let mut handler = setup_handler();
         handler.expect_handle().times(0);
 
-        let mut client = MockClient::new();
-        client.expect_subscribe().times(1).returning(|_, _| {
+        let mut client = MockHandlerTaskClient::new();
+        client.expect_subscribe().returning(|_, _| {
             Ok(tokio_stream::iter(vec![Err(report!(ClientError::from(
                 AppError::InvalidResponse
             )))]))
@@ -419,9 +416,9 @@ mod tests {
     async fn test_stream_timeout_cancellation() {
         let handler = setup_handler();
 
-        let mut client = MockClient::new();
-        client.expect_subscribe().times(1).returning(move |_, _| {
-            let result_events: Vec<Result<Event, ClientError>> = vec![];
+        let mut client = MockHandlerTaskClient::new();
+        client.expect_subscribe().returning(move |_, _| {
+            let result_events: Vec<error_stack::Result<Event, ClientError>> = vec![];
             Ok(tokio_stream::iter(result_events))
         });
 
@@ -537,7 +534,7 @@ mod tests {
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
-        client.expect_broadcast().times(1).returning(|_| {
+        client.expect_broadcast().returning(|_| {
             Err(report!(crate::grpc::error::Error::from(
                 AppError::InvalidResponse
             )))

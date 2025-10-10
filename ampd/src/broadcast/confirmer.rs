@@ -5,6 +5,7 @@ use report::LoggableError;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn};
 use valuable::Valuable;
 
@@ -87,7 +88,7 @@ where
     ///
     /// # Returns
     /// A Result indicating whether the confirmer completed successfully
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(self, token: CancellationToken) -> Result<()> {
         let Self {
             rx,
             client,
@@ -95,7 +96,8 @@ where
             monitoring_client,
             buffer_size,
         } = self;
-        let mut stream = ReceiverStream::new(rx)
+        let stream = ReceiverStream::new(rx)
+            .take_until(token.cancelled())
             .inspect(|tx_hash| info!(tx_hash, "received tx hash to confirm"))
             .map(|tx_hash| async {
                 let (res, elapsed) =
@@ -112,9 +114,12 @@ where
             })
             .buffer_unordered(buffer_size);
 
+        tokio::pin!(stream);
         while let Some(result) = stream.next().await {
             log_confirm_tx_result(result);
         }
+
+        info!("tx confirmer exited");
 
         Ok(())
     }
@@ -183,6 +188,7 @@ mod tests {
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxRequest, GetTxResponse};
     use mockall::predicate;
     use report::ErrorExt;
+    use tokio_util::sync::CancellationToken;
     use tonic::Status;
     use tracing_test::traced_test;
 
@@ -190,6 +196,57 @@ mod tests {
     use crate::cosmos;
     use crate::monitoring::metrics::{Msg, Stage};
     use crate::monitoring::test_utils;
+
+    #[tokio::test(start_paused = true)]
+    async fn tx_confirmer_should_exit_when_token_is_cancelled() {
+        let tx_hash = "tx_hash";
+        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(500), 3);
+        let buffer_size = 10;
+        let queue_cap = 1000;
+
+        let mut client = cosmos::MockCosmosClient::default();
+        client.expect_clone().return_once(|| {
+            let mut client = cosmos::MockCosmosClient::default();
+            client
+                .expect_tx()
+                .with(predicate::eq(GetTxRequest {
+                    hash: tx_hash.to_string(),
+                }))
+                .return_once(|req| {
+                    Ok(GetTxResponse {
+                        tx_response: Some(TxResponse {
+                            code: 0,
+                            txhash: req.hash,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    })
+                });
+
+            client
+        });
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let (confirmer, confirmer_client) = super::TxConfirmer::new_confirmer_and_client(
+            client,
+            retry_policy,
+            buffer_size,
+            queue_cap,
+            monitoring_client,
+        );
+
+        let token = CancellationToken::new();
+        let handle = tokio::spawn(confirmer.run(token.child_token()));
+        confirmer_client.send(tx_hash.to_string()).await.unwrap();
+        token.cancel();
+
+        let result = tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("Task timed out")
+            .unwrap();
+        assert!(result.is_ok());
+    }
 
     #[tokio::test(start_paused = true)]
     #[traced_test]
@@ -232,7 +289,7 @@ mod tests {
         );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
-        confirmer.run().await.unwrap();
+        confirmer.run(CancellationToken::new()).await.unwrap();
 
         assert!(logs_contain("tx succeeded on chain"));
 
@@ -289,7 +346,7 @@ mod tests {
         );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
-        confirmer.run().await.unwrap();
+        confirmer.run(CancellationToken::new()).await.unwrap();
 
         assert!(logs_contain("tx failed on chain"));
 
@@ -337,7 +394,7 @@ mod tests {
         );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
-        confirmer.run().await.unwrap();
+        confirmer.run(CancellationToken::new()).await.unwrap();
 
         assert!(logs_contain("tx not found on chain"));
 
@@ -385,7 +442,7 @@ mod tests {
         );
         confirmer_client.send(tx_hash.to_string()).await.unwrap();
         drop(confirmer_client);
-        confirmer.run().await.unwrap();
+        confirmer.run(CancellationToken::new()).await.unwrap();
 
         assert!(logs_contain("failed to query for tx"));
 
