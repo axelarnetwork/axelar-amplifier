@@ -347,7 +347,7 @@ mod tests {
         TransactionDetails {
             calldata: cosmwasm_std::HexBinary::from(calldata),
             from: fixed_size::HexBinary::<20>::try_from(from.as_bytes()).unwrap(),
-            to: fixed_size::HexBinary::<20>::try_from(to.as_bytes()).unwrap(),
+            to: Some(fixed_size::HexBinary::<20>::try_from(to.as_bytes()).unwrap()),
             value,
         }
     }
