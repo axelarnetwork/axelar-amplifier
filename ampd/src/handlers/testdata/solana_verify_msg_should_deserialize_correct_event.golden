@@ -7,6 +7,7 @@ PollStartedEvent {
     source_chain: ChainName(
         "solana",
     ),
+    source_gateway_address: "gtwi5T9x6rTWPtuuz6DA7ia1VmH8bdazm9QfDdi6DVp",
     expires_at: 100,
     messages: [
         Message {
@@ -77,7 +78,12 @@ PollStartedEvent {
                     188,
                     8,
                 ],
-                event_index: 10,
+                inner_ix_group_index: Uint32(
+                    1,
+                ),
+                inner_ix_index: Uint32(
+                    10,
+                ),
             },
             destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1",
             destination_chain: ChainName(
@@ -154,7 +160,12 @@ PollStartedEvent {
                     129,
                     12,
                 ],
-                event_index: 88,
+                inner_ix_group_index: Uint32(
+                    2,
+                ),
+                inner_ix_index: Uint32(
+                    88,
+                ),
             },
             destination_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2",
             destination_chain: ChainName(

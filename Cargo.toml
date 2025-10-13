@@ -35,8 +35,8 @@ anyhow = "1.0.89"
 assert_ok = "1.0"
 async-trait = "0.1.59"
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
-axelar-solana-encoding = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
-axelar-solana-gateway = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
+axelar-solana-encoding = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
+axelar-solana-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
@@ -67,7 +67,7 @@ evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
 futures = "0.3.25"
 gateway = { version = "^1.1.1", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
-gateway-event-stack = { git = "https://github.com/eigerco/solana-axelar.git", rev = "f167d2b" }
+gateway-event-stack = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 goldie = { version = "0.5" }
 heck = "0.5.0"
 hex = "0.4.3"
@@ -91,7 +91,7 @@ quote = "1.0.38"
 rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
-router = { version = "^1.3.0", path = "contracts/router" }
+router = { version = "^1.4.0", path = "contracts/router" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
 schemars = "0.8.10"
 semver = "1.0"

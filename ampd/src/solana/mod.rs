@@ -1,18 +1,22 @@
 use std::str::FromStr;
 
-use axelar_solana_gateway::processor::GatewayEvent;
+use axelar_solana_gateway::events::{CallContractEvent, GatewayEvent, VerifierSetRotatedEvent};
 use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
+use axelar_wasm_std::nonempty;
 use axelar_wasm_std::voting::Vote;
+use borsh::BorshDeserialize;
+use event_cpi::Discriminator;
 use router_api::ChainName;
-use serde::{Deserialize, Deserializer};
+use serde::Deserializer;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
+use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::option_serializer::OptionSerializer;
-use solana_transaction_status::UiTransactionStatusMeta;
-use tracing::{error, warn};
+use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
+use tracing::{debug, error};
 
 use crate::monitoring;
 use crate::monitoring::metrics::Msg;
@@ -42,18 +46,18 @@ impl Client {
 
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
-    async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta>;
-    async fn domain_separator(&self) -> Option<[u8; 32]>;
+    async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction>;
+    async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]>;
 }
 
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for Client {
-    async fn tx(&self, signature: &Signature) -> Option<UiTransactionStatusMeta> {
+    async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
         let res = self
             .client
             .get_transaction(
                 signature,
-                solana_transaction_status::UiTransactionEncoding::Base58,
+                solana_transaction_status::UiTransactionEncoding::Json,
             )
             .await;
 
@@ -64,11 +68,49 @@ impl SolanaRpcClientProxy for Client {
                 success: res.is_ok(),
             });
 
-        res.map(|tx_data| tx_data.transaction.meta).ok().flatten()
+        res.ok().and_then(|tx_data| {
+            let meta = tx_data.transaction.meta?;
+            let inner_instructions = match meta.inner_instructions.as_ref() {
+                OptionSerializer::Some(inner) => inner.clone(),
+                _ => vec![],
+            };
+
+            // Extract account keys from the transaction
+            let account_keys = match &tx_data.transaction.transaction {
+                solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
+                    match &ui_transaction.message {
+                        solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
+                            .account_keys
+                            .iter()
+                            .filter_map(|key_str| Pubkey::from_str(key_str).ok())
+                            .collect(),
+                        _ => {
+                            error!("RPC returned Parsed message, but we requested Raw message");
+                            vec![]
+                        }
+                    }
+                }
+                _ => {
+                    error!("RPC returned non-JSON encoded transaction, but we requested JSON");
+                    vec![]
+                }
+            };
+
+            Some(SolanaTransaction {
+                signature: *signature,
+                inner_instructions,
+                err: meta.err.clone(),
+                account_keys,
+            })
+        })
     }
 
-    async fn domain_separator(&self) -> Option<[u8; 32]> {
-        let (gateway_root_pda, ..) = axelar_solana_gateway::get_gateway_root_config_pda();
+    async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]> {
+        // Use the same pattern as the axelar-solana-gateway crate to derive the gateway root config PDA
+        let (gateway_root_pda, _) = Pubkey::find_program_address(
+            &[axelar_solana_gateway::seed_prefixes::GATEWAY_SEED],
+            gateway_address,
+        );
 
         let res = self.client.get_account(&gateway_root_pda).await;
 
@@ -91,64 +133,70 @@ pub fn deserialize_pubkey<'de, D>(deserializer: D) -> Result<Pubkey, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s = String::deserialize(deserializer)?;
+    let s = <String as serde::Deserialize>::deserialize(deserializer)?;
     Pubkey::from_str(&s).map_err(serde::de::Error::custom)
 }
 
+#[derive(Clone, Debug)]
+pub struct SolanaTransaction {
+    pub signature: Signature,
+    pub inner_instructions: Vec<UiInnerInstructions>,
+    pub err: Option<TransactionError>,
+    pub account_keys: Vec<Pubkey>,
+}
+
 pub fn verify<F>(
-    tx: (&Signature, &UiTransactionStatusMeta),
+    tx: &SolanaTransaction,
     message_id: &Base58SolanaTxSignatureAndEventIndex,
+    gateway_address: &Pubkey,
     events_are_equal: F,
 ) -> Vote
 where
     F: Fn(&GatewayEvent) -> bool,
 {
-    // message id signatures must match
-    let (signature, tx) = tx;
-    if signature.as_ref() != message_id.raw_signature {
-        error!("signatures don't match");
+    if tx.signature.as_ref() != message_id.raw_signature {
+        debug!("signatures don't match");
         return Vote::NotFound;
     }
 
-    // the tx must be successful
     if tx.err.is_some() {
-        error!("Transaction failed");
+        debug!("Transaction failed");
         return Vote::FailedOnChain;
     }
 
-    // the event idx cannot be larger than usize. However, a valid event will never have an index larger than usize,
-    // as the native arch will be 64 bit, and the event index is a u64.
-    let desired_event_idx: usize = match message_id.event_index.try_into() {
-        Ok(idx) => idx,
-        Err(_) => {
-            error!("Cannot fit event index into system usize. Index was: {}, but current system usize is: {}", message_id.event_index, usize::MAX);
+    let instruction = match instruction_at_index(
+        tx,
+        message_id.inner_ix_group_index,
+        message_id.inner_ix_index,
+    ) {
+        Some(inst) => inst,
+        None => {
+            debug!(
+                "Solana tx instruction with tx signature {} not found at inner_ix_group_index: {}, inner_ix_index: {}",
+                tx.signature,
+                message_id.inner_ix_group_index.into_inner(),
+                message_id.inner_ix_index.into_inner()
+            );
             return Vote::NotFound;
         }
     };
 
-    // logs must be attached to the TX
-    let logs = match tx.log_messages.as_ref() {
-        OptionSerializer::Some(logs) => logs,
-        _ => {
-            error!("Logs not attached to the transaction object");
-            return Vote::NotFound;
-        }
-    };
+    if !is_instruction_from_gateway_program(&instruction, &tx.account_keys, gateway_address) {
+        debug!(
+            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            tx.signature,
+            message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
+        );
+        return Vote::NotFound;
+    }
 
-    // Check in the logs in a backward way the invocation comes from the gateway
-    let log = match event_comes_from_gateway(logs, desired_event_idx) {
-        Ok(log) => log,
-        Err(err) => {
-            error!("Cannot find the gateway log: {}", err);
-            return Vote::NotFound;
-        }
-    };
-
-    // Second ensure we can parse the event
-    let event = match gateway_event_stack::parse_gateway_logs(&log) {
+    let event = match parse_gateway_event_from_instruction(&instruction) {
         Ok(ev) => ev,
         Err(err) => {
-            error!("Cannot parse the gateway log: {}", err);
+            debug!(
+                "Cannot parse gateway event from Solana tx instruction with tx signature {}: {}",
+                tx.signature, err
+            );
             return Vote::NotFound;
         }
     };
@@ -156,66 +204,104 @@ where
     if events_are_equal(&event) {
         Vote::SucceededOnChain
     } else {
-        warn!(?event, "event was found, but contents were not equal");
+        debug!(
+            ?event,
+            "Solana tx with tx signature {} event was found, but contents were not equal",
+            tx.signature,
+        );
         Vote::NotFound
     }
 }
 
-// Check backward in the logs if the invocation comes from the gateway program,
-// skipping native program invocations and returning the data log if the event comes from the gateway.
-//
-// Example logs input (indexes are just for reference):
-//
-// 1. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe invoke [1]
-// 2. Program log: Instruction: Call Contract",
-// 3. Program data: Y2FsbCBjb250cmFjdF9fXw== 6NGe5cm7PkXHz/g8V2VdRg0nU0l7R48x8lll4s0Clz0= xtlu5J3pLn7c4BhqnNSrP1wDZK/pQOJVCYbk6sroJhY= ZXRoZXJldW0= MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2YzIwNjAzYzdiODc2NjgyYzEyMTczYmRlZjlhMWRjYTUyOGYxNGZk 8J+QqvCfkKrwn5Cq8J+Qqg==",
-// 4. Program gtwLjHAsfKAR6GWB4hzTUAA1w4SDdFMKamtGA5ttMEe success"
-//
-// In the above log example, this function would return the data log at 3, if and only if the event comes from the gateway,
-// which is determined by scanning log lines backwards till we find the pattern "Program <gateway_id> invoke" at 1 for the first time.
-// It will fail if it finds any other invocation before the gateway invocation, except for the system program. In that case it will omit it and
-// continue scanning.
-fn event_comes_from_gateway(
-    logs: &[String],
-    desired_event_idx: usize,
-) -> Result<&str, Box<dyn std::error::Error>> {
-    let solana_gateway_id = axelar_solana_gateway::id().to_string();
-    let system_program_id = solana_sdk::system_program::id().to_string();
-
-    // From the logs, we take only the logs from the desired event index to the first log
-    let mut logs = logs
-        .iter()
-        .take(
-            desired_event_idx
-                .checked_add(1)
-                .expect("To add 1 to index count to get elem take"),
-        )
-        .rev(); // +1 because take() gets n elements, not index based.
-
-    // This is the log that, if the event comes from the gateway, will contain the target data log
-    // It will be returned if the event comes from the gateway.
-    let data_log = logs.next().ok_or("Cannot find the first log")?;
-
-    for log in logs {
-        let mut parts = log.split(' ');
-
-        let program = parts.next().ok_or("Cannot find program log part")?;
-        let program_id = parts.next().ok_or("Cannot find program_id log part")?;
-        let action = parts.next().ok_or("Cannot find action log part")?;
-
-        if program == "Program" && action == "invoke" {
-            if program_id == system_program_id {
-                continue;
-            }
-            if program_id == solana_gateway_id {
-                // We return the data log to be processed by further functions if we confirm the log comes from the gateway
-                return Ok(data_log);
-            }
-
-            break;
-        }
+fn is_instruction_from_gateway_program(
+    instruction: &UiCompiledInstruction,
+    account_keys: &[Pubkey],
+    gateway_address: &Pubkey,
+) -> bool {
+    if account_keys.is_empty() {
+        error!("No account keys found in Solana tx");
+        return false;
     }
-    Err("Log does not belong to the gateway program".into())
+
+    let program_id_index = instruction.program_id_index as usize;
+    if program_id_index >= account_keys.len() {
+        debug!(
+            "Invalid Solana tx program_id_index: {} >= {}",
+            program_id_index,
+            account_keys.len()
+        );
+        return false;
+    }
+
+    let program_id = account_keys[program_id_index];
+    if program_id != *gateway_address {
+        debug!(
+            "Solana tx instruction not from gateway program. Expected: {}, got: {}",
+            gateway_address, program_id
+        );
+        return false;
+    }
+
+    true
+}
+
+pub(crate) fn instruction_at_index(
+    transaction: &SolanaTransaction,
+    inner_ix_group_index: nonempty::Uint32,
+    inner_ix_index: nonempty::Uint32,
+) -> Option<UiCompiledInstruction> {
+    let inner_ix_group_index = usize::try_from(inner_ix_group_index.into_inner()).ok()?;
+    let inner_ix_index = usize::try_from(inner_ix_index.into_inner()).ok()?;
+
+    let inner_group = transaction
+        .inner_instructions
+        .iter()
+        .find(|group| usize::from(group.index) == inner_ix_group_index.saturating_sub(1))?;
+
+    let inner_instruction_index = inner_ix_index.saturating_sub(1);
+    let inner_instruction = inner_group.instructions.get(inner_instruction_index)?;
+
+    if let UiInstruction::Compiled(ci) = inner_instruction {
+        Some(ci.clone())
+    } else {
+        None
+    }
+}
+
+fn parse_gateway_event_from_instruction(
+    instruction: &UiCompiledInstruction,
+) -> Result<GatewayEvent, Box<dyn std::error::Error>> {
+    let bytes = bs58::decode(&instruction.data)
+        .into_vec()
+        .map_err(|e| format!("Failed to decode instruction data: {:?}", e))?;
+
+    if bytes.len() < 16 {
+        return Err("Instruction data too short for CPI event".into());
+    }
+
+    if bytes.get(0..8) != Some(event_cpi::EVENT_IX_TAG_LE) {
+        return Err(format!(
+            "Expected CPI event discriminator, got {:?}",
+            bytes.get(0..8)
+        )
+        .into());
+    }
+
+    let event_data = bytes.get(16..).ok_or("Missing event data")?;
+    match bytes.get(8..16) {
+        Some(disc) if disc == CallContractEvent::DISCRIMINATOR => {
+            let call_contract_event = CallContractEvent::try_from_slice(event_data)
+                .map_err(|e| format!("Failed to deserialize CallContract event: {:?}", e))?;
+            Ok(GatewayEvent::CallContract(call_contract_event))
+        }
+        Some(disc) if disc == VerifierSetRotatedEvent::DISCRIMINATOR => {
+            let verifier_set_rotated_event = VerifierSetRotatedEvent::try_from_slice(event_data)
+                .map_err(|e| format!("Failed to deserialize VerifierSetRotated event: {:?}", e))?;
+            Ok(GatewayEvent::VerifierSetRotated(verifier_set_rotated_event))
+        }
+        Some(disc) => Err(format!("Unknown event discriminator: {:?}", disc).into()),
+        None => Err("Missing event discriminator".into()),
+    }
 }
 
 #[cfg(test)]
@@ -225,6 +311,7 @@ mod test {
     use router_api::ChainName;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::signature::Signature;
+    use solana_transaction_status::{UiInnerInstructions, UiInstruction};
 
     use super::{Client, SolanaRpcClientProxy};
     use crate::monitoring::metrics::Msg;
@@ -252,7 +339,7 @@ mod test {
             }
         );
 
-        let result = client.domain_separator().await;
+        let result = client.domain_separator(&axelar_solana_gateway::ID).await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();
@@ -265,5 +352,91 @@ mod test {
         );
 
         assert!(receiver.try_recv().is_err());
+    }
+
+    /// Helper function to create an inner instruction
+    fn create_inner_instruction(
+        group_index: u32,
+        inner_index: u32,
+        program_id_index: u8,
+    ) -> solana_transaction_status::UiCompiledInstruction {
+        use solana_transaction_status::UiCompiledInstruction;
+        UiCompiledInstruction {
+            program_id_index,
+            accounts: vec![0, 1],
+            data: format!("inner_instruction_{}_{}", group_index, inner_index),
+            stack_height: Some(2),
+        }
+    }
+
+    /// Helper function to create an inner instruction group with specified number of instructions
+    fn create_inner_instruction_group(
+        group_index: u32,
+        num_inner_instructions: u32,
+    ) -> solana_transaction_status::UiInnerInstructions {
+        let instructions = (0..num_inner_instructions)
+            .map(|i| UiInstruction::Compiled(create_inner_instruction(group_index, i, 1)))
+            .collect();
+
+        UiInnerInstructions {
+            index: u8::try_from(group_index).expect("group_index should fit in u8 for test"),
+            instructions,
+        }
+    }
+
+    /// Helper function to create a transaction with specified number of top-level instructions and inner instruction groups
+    fn create_test_transaction(
+        num_top_level: u32,
+        inner_group_size: u32,
+    ) -> crate::solana::SolanaTransaction {
+        // Create inner instruction groups for all top-level instructions
+        let inner_instructions = (0..num_top_level)
+            .map(|i| create_inner_instruction_group(i, inner_group_size))
+            .collect();
+
+        crate::solana::SolanaTransaction {
+            signature: [42; 64].into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![],
+        }
+    }
+
+    #[test]
+    fn get_instruction_at_index_should_get_correct_instruction() {
+        use super::instruction_at_index;
+
+        const IX_GROUP_COUNT: u32 = 5;
+        const INNER_GROUP_SIZE: u32 = 3;
+
+        let tx = create_test_transaction(IX_GROUP_COUNT, INNER_GROUP_SIZE);
+
+        let mut test_results: Vec<(u32, u32, String)> = Vec::new();
+
+        for group_idx in 1..=IX_GROUP_COUNT {
+            for inner_idx in 1..=INNER_GROUP_SIZE {
+                let result = instruction_at_index(
+                    &tx,
+                    group_idx.try_into().unwrap(),
+                    inner_idx.try_into().unwrap(),
+                );
+                let instruction = result.unwrap_or_else(|| {
+                    panic!(
+                        "Should find inner instruction {} for group {}",
+                        inner_idx, group_idx
+                    )
+                });
+                assert_eq!(
+                    instruction.data,
+                    format!("inner_instruction_{}_{}", group_idx - 1, inner_idx - 1)
+                );
+
+                // Collect for golden test
+                test_results.push((group_idx, inner_idx, instruction.data));
+            }
+        }
+
+        // Golden test
+        goldie::assert_json!(test_results);
     }
 }
