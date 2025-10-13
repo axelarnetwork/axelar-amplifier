@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::mock_env;
 use cosmwasm_std::{from_json, Deps};
 use interchain_token_service::contract::query;
@@ -96,4 +97,18 @@ pub fn assert_configs_equal(actual: &[ChainConfigResponse], expected: &[ChainCon
     for (a, e) in actual.iter().zip(expected.iter()) {
         assert_eq!(a, e, "Config mismatch for chain {}", e.chain);
     }
+}
+
+pub fn query_custom_token_metadata(
+    deps: Deps,
+    chain: ChainNameRaw,
+    token_address: nonempty::HexBinary,
+) -> Result<Option<msg::CustomTokenMetadata>, ContractError> {
+    let query_msg = QueryMsg::CustomTokenMetadata {
+        chain,
+        token_address,
+    };
+
+    let result = query(deps, mock_env(), query_msg)?;
+    from_json(result).map_err(ContractError::from)
 }
