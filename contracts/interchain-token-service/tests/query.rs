@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use assert_ok::assert_ok;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{from_json, Empty, OwnedDeps};
+use cosmwasm_std::{from_json, Empty, HexBinary, OwnedDeps};
 use interchain_token_service::msg::{
     ChainConfigResponse, ChainFilter, ChainStatusFilter, QueryMsg, TruncationConfig,
     DEFAULT_PAGINATION_LIMIT,
 };
-use interchain_token_service_std::TokenId;
-use router_api::{address, chain_name_raw, cosmos_addr};
+use interchain_token_service_std::{HubMessage, RegisterTokenMetadata, TokenId};
+use router_api::{address, chain_name_raw, cosmos_addr, CrossChainId};
 
 use crate::utils::params;
 
@@ -391,4 +392,93 @@ fn test_empty_its_chains_query_deserialization() {
         }
         _ => panic!("Expected ItsChains variant"),
     }
+}
+
+#[test]
+fn query_custom_token_metadata() {
+    let mut deps = utils::make_deps();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain = chain_name_raw!(params::ETHEREUM);
+    let its_contract = address!("0x1234567890123456789012345678901234567890");
+    let token_address = nonempty::HexBinary::try_from(HexBinary::from([1; 32])).unwrap();
+
+    assert_ok!(utils::register_chain(
+        deps.as_mut(),
+        chain.clone(),
+        its_contract.clone(),
+        256.try_into().unwrap(),
+        18,
+    ));
+
+    let register_metadata = RegisterTokenMetadata {
+        decimals: 18,
+        token_address: token_address.clone(),
+    };
+    let hub_message = HubMessage::RegisterTokenMetadata(register_metadata);
+    let cc_id = CrossChainId {
+        source_chain: chain.clone(),
+        message_id: "test_message_id".try_into().unwrap(),
+    };
+
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        its_contract,
+        hub_message,
+    ));
+
+    let result = utils::query_custom_token_metadata(deps.as_ref(), chain, token_address).unwrap();
+    assert!(result.is_some());
+
+    let metadata = result.unwrap();
+    assert_eq!(metadata.decimals, 18);
+}
+
+#[test]
+fn query_custom_token_metadata_returns_none() {
+    let mut deps = utils::make_deps();
+    utils::instantiate_contract(deps.as_mut()).unwrap();
+
+    let chain = chain_name_raw!(params::ETHEREUM);
+    let its_contract = address!("0x1234567890123456789012345678901234567890");
+    let token_address = nonempty::HexBinary::try_from(HexBinary::from([1; 32])).unwrap();
+
+    assert_ok!(utils::register_chain(
+        deps.as_mut(),
+        chain.clone(),
+        its_contract.clone(),
+        256.try_into().unwrap(),
+        18,
+    ));
+
+    // Query for non-existent token should return None
+    let result =
+        utils::query_custom_token_metadata(deps.as_ref(), chain.clone(), token_address.clone())
+            .unwrap();
+    assert_eq!(result, None);
+
+    // Register metadata for one token
+    let register_metadata = RegisterTokenMetadata {
+        decimals: 18,
+        token_address: token_address.clone(),
+    };
+    let hub_message = HubMessage::RegisterTokenMetadata(register_metadata);
+    let cc_id = CrossChainId {
+        source_chain: chain.clone(),
+        message_id: "test_message_id".try_into().unwrap(),
+    };
+
+    assert_ok!(utils::execute_hub_message(
+        deps.as_mut(),
+        cc_id,
+        its_contract,
+        hub_message,
+    ));
+
+    // Query for different token address should return None
+    let different_token_address = nonempty::HexBinary::try_from(HexBinary::from([2; 32])).unwrap();
+    let result =
+        utils::query_custom_token_metadata(deps.as_ref(), chain, different_token_address).unwrap();
+    assert_eq!(result, None);
 }
