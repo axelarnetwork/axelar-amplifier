@@ -109,12 +109,15 @@ where
     where
         HC: HandlerTaskClient + Clone + Debug + Send + 'static,
     {
-        let stream = self.subscribe_to_stream(client, token.clone()).await?;
+        let stream = self.subscribe_to_stream(client).await?;
+        let stream = futures::StreamExt::take_until(stream, token.cancelled());
 
         pin_mut!(stream);
         while let Some(element) = stream.next().await {
             self.process_stream(element, client, token.clone()).await;
         }
+
+        info!("handler task stopped");
 
         Ok(())
     }
@@ -122,7 +125,6 @@ where
     async fn subscribe_to_stream(
         &self,
         client: &mut impl HandlerTaskClient,
-        token: CancellationToken,
     ) -> Result<impl Stream<Item = Result<Event, Error>>, Error> {
         let subscription_params = self.handler.subscription_params();
 
@@ -133,7 +135,6 @@ where
             )
             .await
             .change_context(Error::EventStream)?
-            .take_while(move |_| !token.is_cancelled())
             .timeout_repeating(interval(self.config.stream_timeout))
             .map(|event| match event {
                 Ok(Ok(event)) => Ok(event),
