@@ -5,6 +5,10 @@ rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
+[[bin]]
+name = "evm-handler"
+path = "src/bin/evm/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
@@ -23,6 +27,7 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 typed-builder = { workspace = true }
 valuable = { version = "0.1.0", features = ["derive"] }
 voting-verifier = { workspace = true }

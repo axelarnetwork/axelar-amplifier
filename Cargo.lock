@@ -364,6 +364,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "tracing-subscriber",
  "typed-builder",
  "valuable",
  "voting-verifier",

@@ -15,7 +15,7 @@ use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, Level};
 
 use crate::error::Error;
 use crate::handler::Handler;
@@ -38,10 +38,18 @@ fn default_rpc_url() -> Url {
 async fn main() -> Result<(), Error> {
     let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
     let handler_config = config::Config::builder()
-        .add_file_source("evm_handler_config.toml")
+        .add_file_source("evm-handler-config.toml")
         .add_env_source("EVM_HANDLER")
         .build::<EvmHandlerConfig>()
         .change_context(Error::HandlerStart)?;
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(Level::INFO)
+            .finish(),
+    )
+    .expect("failed to set global default tracing subscriber");
+
     let token = CancellationToken::new();
 
     let (pool, handle) = ConnectionPool::new(base_config.ampd_url);
