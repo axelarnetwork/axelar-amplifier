@@ -77,7 +77,7 @@ pub trait HandlerTaskClient: EventHandlerClient {
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GrpcClient {
     connection_handle: ConnectionHandle,
 }

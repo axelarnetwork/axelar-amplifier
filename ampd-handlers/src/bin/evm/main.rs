@@ -9,7 +9,7 @@ use ampd::{json_rpc, monitoring};
 use ampd_sdk::config::Config;
 use ampd_sdk::event::event_handler::HandlerTask;
 use ampd_sdk::future::RetryPolicy;
-use ampd_sdk::grpc::client::{Client, GrpcClient};
+use ampd_sdk::grpc::client::{EventHandlerClient, GrpcClient, HandlerTaskClient};
 use ampd_sdk::grpc::connection_pool::ConnectionPool;
 use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};

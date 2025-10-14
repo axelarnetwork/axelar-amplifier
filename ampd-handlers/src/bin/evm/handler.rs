@@ -8,6 +8,7 @@ use ampd::monitoring;
 use ampd::monitoring::metrics;
 use ampd::types::{EVMAddress, Hash};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
+use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -19,7 +20,6 @@ use ethers_core::types::{TransactionReceipt, U64};
 use events::{try_from, AbciEventTypeFilter};
 use futures::future::join_all;
 use serde::Deserialize;
-use tokio_util::sync::CancellationToken;
 use tracing::{info, info_span};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
@@ -115,10 +115,10 @@ where
     type Err = Error;
     type Event = PollStartedEvent;
 
-    async fn handle(
+    async fn handle<HC: EventHandlerClient + Send + 'static>(
         &self,
         event: &PollStartedEvent,
-        _token: CancellationToken,
+        client: &mut HC,
     ) -> Result<Vec<Any>> {
         let event = event.clone();
         let PollStartedEvent {
@@ -144,7 +144,14 @@ where
             return Ok(vec![]);
         }
 
-        // TODO: skip expired poll
+        let latest_block_height = client
+            .latest_block_height()
+            .await
+            .change_context(Error::EventHandling)?;
+        if latest_block_height >= expires_at {
+            info!(poll_id = poll_id.to_string(), "skipping expired poll");
+            return Ok(vec![]);
+        }
 
         let tx_hashes: HashSet<Hash> = messages
             .iter()
