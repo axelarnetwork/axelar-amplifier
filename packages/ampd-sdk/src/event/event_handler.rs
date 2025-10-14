@@ -5,13 +5,12 @@ use async_trait::async_trait;
 use cosmrs::Any;
 use error_stack::{Context, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
-use futures::{pin_mut, Stream};
+use futures::{pin_mut, Stream, StreamExt};
 use mockall::automock;
-use report::ErrorExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::interval;
-use tokio_stream::{Elapsed, StreamExt};
+use tokio_stream::Elapsed;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
@@ -109,8 +108,10 @@ where
     where
         HC: HandlerTaskClient + Clone + Debug + Send + 'static,
     {
-        let stream = self.subscribe_to_stream(client).await?;
-        let stream = futures::StreamExt::take_until(stream, token.cancelled());
+        let stream = self
+            .subscribe_to_stream(client)
+            .await?
+            .take_until(token.cancelled());
 
         pin_mut!(stream);
         while let Some(element) = stream.next().await {
@@ -134,13 +135,22 @@ where
                 subscription_params.include_block_begin_end,
             )
             .await
-            .change_context(Error::EventStream)?
-            .timeout_repeating(interval(self.config.stream_timeout))
-            .map(|event| match event {
-                Ok(Ok(event)) => Ok(event),
-                Ok(Err(err)) => Err(err.change_context(Error::EventStream)),
-                Err(elapsed) => Err(Error::StreamTimeout(elapsed).into_report()),
-            });
+            .change_context(Error::EventStream)?;
+
+        let stream = tokio_stream::StreamExt::timeout_repeating(
+            stream,
+            interval(self.config.stream_timeout),
+        )
+        .filter_map(|event| async move {
+            match event {
+                Ok(Ok(event)) => Some(Ok(event)),
+                Ok(Err(err)) => Some(Err(err.change_context(Error::EventStream))),
+                Err(_) => {
+                    info!("stream timed out, waiting for next event");
+                    None
+                }
+            }
+        });
 
         Ok(stream)
     }
