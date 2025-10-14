@@ -6,7 +6,7 @@ use std::time::Duration;
 use ampd::evm::finalizer::Finalization;
 use ampd::url::Url;
 use ampd::{json_rpc, monitoring};
-use ampd_sdk::config::Config;
+use ampd_sdk::config;
 use ampd_sdk::event::event_handler::HandlerTask;
 use ampd_sdk::future::RetryPolicy;
 use ampd_sdk::grpc::client::{EventHandlerClient, GrpcClient, HandlerTaskClient};
@@ -24,11 +24,10 @@ const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Deserialize, Serialize)]
 struct EvmHandlerConfig {
-    #[serde(flatten)]
-    base_config: Config,
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     #[serde(default = "default_rpc_url")]
     rpc_url: Url,
+    // TODO: move chain name from config::Config to this config? so that base config can be shared for all handlers
 }
 
 fn default_rpc_url() -> Url {
@@ -37,14 +36,15 @@ fn default_rpc_url() -> Url {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let config = Config::builder()
-        .add_file_source("config.toml")
-        .add_env_source("AMPD_HANDLERS")
-        .build_generic::<EvmHandlerConfig>()
+    let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
+    let handler_config = config::Config::builder()
+        .add_file_source("evm_handler_config.toml")
+        .add_env_source("EVM_HANDLER")
+        .build::<EvmHandlerConfig>()
         .change_context(Error::HandlerStart)?;
     let token = CancellationToken::new();
 
-    let (pool, handle) = ConnectionPool::new(config.base_config.ampd_url);
+    let (pool, handle) = ConnectionPool::new(base_config.ampd_url);
     let pool_token = token.clone();
     tokio::spawn(async move {
         let _ = pool.run(pool_token).await;
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Error> {
 
     let mut client = GrpcClient::new(handle);
     let contracts = client
-        .contracts(config.base_config.chain_name.clone())
+        .contracts(base_config.chain_name.clone())
         .await
         .change_context(Error::HandlerStart)?;
     let verifier = client.address().await.change_context(Error::HandlerStart)?;
@@ -66,20 +66,20 @@ async fn main() -> Result<(), Error> {
     });
 
     let rpc_client = json_rpc::Client::new_http(
-        config.rpc_url,
+        handler_config.rpc_url,
         reqwest::ClientBuilder::new()
             .connect_timeout(DEFAULT_RPC_TIMEOUT) // TODO: make this configurable
             .timeout(DEFAULT_RPC_TIMEOUT)
             .build()
             .change_context(Error::HandlerStart)?,
         monitoring_client.clone(),
-        config.base_config.chain_name.clone(),
+        base_config.chain_name.clone(),
     );
 
     let handler = Handler::builder()
         .verifier(verifier)
         .voting_verifier_contract(contracts.voting_verifier)
-        .chain(config.base_config.chain_name)
+        .chain(base_config.chain_name)
         .finalizer_type(Finalization::RPCFinalizedBlock) // TODO: make this configurable
         .rpc_client(rpc_client)
         .monitoring_client(monitoring_client)
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Error> {
 
     let task = HandlerTask::builder()
         .handler(handler)
-        .config(config.base_config.event_handler)
+        .config(base_config.event_handler)
         .handler_retry_policy(RetryPolicy::RepeatConstant {
             sleep: Duration::from_secs(1),
             max_attempts: 3,

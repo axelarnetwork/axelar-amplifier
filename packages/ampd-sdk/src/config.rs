@@ -134,14 +134,7 @@ impl ConfigBuilder {
     /// Builds the config from the sources.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
-    pub fn build(self) -> Result<Config, Error> {
-        self.build_generic()
-    }
-
-    /// Builds the config from the sources with a generic type.
-    ///
-    /// The config is deserialized from the sources into the specified type.
-    pub fn build_generic<T>(self) -> Result<T, Error>
+    pub fn build<T>(self) -> Result<T, Error>
     where
         T: serde::de::DeserializeOwned,
     {
