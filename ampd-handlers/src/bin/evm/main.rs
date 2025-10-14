@@ -41,7 +41,7 @@ async fn main() -> Result<(), Error> {
         .add_file_source("config.toml")
         .add_env_source("AMPD_HANDLERS")
         .build_generic::<EvmHandlerConfig>()
-        .change_context(Error::Config)?;
+        .change_context(Error::HandlerStart)?;
     let token = CancellationToken::new();
 
     let (pool, handle) = ConnectionPool::new(config.base_config.ampd_url);
@@ -54,8 +54,8 @@ async fn main() -> Result<(), Error> {
     let contracts = client
         .contracts(config.base_config.chain_name.clone())
         .await
-        .change_context(Error::Grpc)?;
-    let verifier = client.address().await.change_context(Error::Grpc)?;
+        .change_context(Error::HandlerStart)?;
+    let verifier = client.address().await.change_context(Error::HandlerStart)?;
 
     let (monitoring_server, monitoring_client) =
         monitoring::Server::new(monitoring::Config::Disabled)
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Error> {
             .connect_timeout(DEFAULT_RPC_TIMEOUT) // TODO: make this configurable
             .timeout(DEFAULT_RPC_TIMEOUT)
             .build()
-            .change_context(Error::RpcConnection)?,
+            .change_context(Error::HandlerStart)?,
         monitoring_client.clone(),
         config.base_config.chain_name.clone(),
     );
