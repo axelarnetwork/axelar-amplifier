@@ -130,7 +130,7 @@ tracing-subscriber = { version = "0.3.20", features = [
 ] }
 typed-builder = "0.18.2"
 valuable = "0.1.1"
-voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
+voting-verifier = { version = "^1.2.0", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 
