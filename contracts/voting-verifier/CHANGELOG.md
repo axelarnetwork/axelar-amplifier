@@ -2,7 +2,7 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/service-registry-v1.2.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/voting-verifier-v1.2.0..HEAD)
 
 ## [v1.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/voting-verifier-v1.2.0)
 
