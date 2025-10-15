@@ -1,4 +1,4 @@
-# `ampd` Release Process (**For maintainers only**)
+# Contract Release Process (**For maintainers only**)
 
 This document outlines the step-by-step process for releasing a new version of a contract. This guide is intended for team members who are responsible for managing releases.
 
