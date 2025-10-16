@@ -66,7 +66,11 @@ In general, the Changelog should be kept up-to-date in every PR that makes chang
 
 1. Merge these changes into the `main` branch.
 
-### 3. Update and Tag Release Version (Release)
+### 3. Create a release document
+
+1. If necessary, create and merge a PR to publish a release document on [axelar-contract-deployments](https://github.com/axelarnetwork/axelar-contract-deployments) repository. You can use the provided [template](https://github.com/axelarnetwork/axelar-contract-deployments/blob/main/releases/TEMPLATE.md). Make sure your document is added to `releases/cosmwasm` directory of the contract deployments repository.
+
+### 4. Update and Tag Release Version (Release)
 
 1. Again, run the [Update and tag release version](https://github.com/axelarnetwork/axelar-amplifier/actions/workflows/release.yaml) GitHub Action with the contract name as package and `main` as branch. For this round, disable the "Dry run" option to create the actual release tag.
 
