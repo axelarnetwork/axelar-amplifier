@@ -3,6 +3,7 @@ use cw_utils::{parse_execute_response_data, MsgExecuteContractResponse, ParseRep
 
 use crate::error::ContractError;
 use crate::events::Event;
+use crate::flags::notify_signing_session;
 use crate::state::{CONFIG, MULTISIG_SESSION_PAYLOAD, PAYLOAD, REPLY_TRACKER};
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -27,17 +28,25 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             MULTISIG_SESSION_PAYLOAD.save(deps.storage, multisig_session_id.u64(), &payload_id)?;
 
-            let msg_ids = PAYLOAD
-                .load(deps.storage, &payload_id)?
-                .message_ids()
-                .unwrap_or_default();
+            let payload = PAYLOAD.load(deps.storage, &payload_id)?;
+            let msg_ids = payload.message_ids().unwrap_or_default();
 
-            Ok(Response::new().add_event(Event::ProofUnderConstruction {
+            let response = notify_signing_session(
+                deps,
+                &config,
+                Response::new(),
+                &payload_id,
+                payload,
+                multisig_session_id,
+            )?
+            .add_event(Event::ProofUnderConstruction {
                 destination_chain: config.chain_name,
                 msg_ids,
                 payload_id,
                 multisig_session_id,
-            }))
+            });
+
+            Ok(response)
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),

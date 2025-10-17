@@ -1,7 +1,9 @@
 #![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outside_tests))]
 
+pub mod chain_codec_contract;
 pub mod contract;
 pub mod coordinator_contract;
+pub mod failing_sig_verifier;
 pub mod gateway_contract;
 pub mod multisig_contract;
 pub mod multisig_prover_contract;
