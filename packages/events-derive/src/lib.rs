@@ -35,43 +35,42 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
 
     let event_struct = input.ident.clone();
     let event_struct_name = event_struct.to_string();
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     TokenStream::from(quote! {
         #input
 
-        use error_stack::{ResultExt as _};
-        use events as _internal_events;
-        use core::convert::TryFrom as _internal_TryFrom;
+        impl #impl_generics ::core::convert::TryFrom<&::events::Event> for #event_struct #ty_generics #where_clause {
+            type Error = ::error_stack::Report<::events::Error>;
 
-        impl _internal_TryFrom<&_internal_events::Event> for #event_struct {
-            type Error = error_stack::Report<_internal_events::Error>;
+            fn try_from(event: &::events::Event) -> core::result::Result<Self, Self::Error> {
+                use ::error_stack::ResultExt as _;
 
-            fn try_from(event: &_internal_events::Event) -> core::result::Result<Self, Self::Error> {
                 match event {
-                    _internal_events::Event::Abci { event_type, attributes } if event_type == #event_type => {
+                    ::events::Event::Abci { event_type, attributes } if event_type == #event_type => {
                         let event =
-                            #event_struct::deserialize(serde::de::value::MapDeserializer::new(attributes.clone().into_iter()))
-                                .change_context(_internal_events::Error::DeserializationFailed(
+                            Self::deserialize(serde::de::value::MapDeserializer::new(attributes.clone().into_iter()))
+                                .change_context(::events::Error::DeserializationFailed(
                                     #event_type.to_string(),
                                     #event_struct_name.to_string()),
                                 )?;
                         Ok(event)
                     }
-                    event => Err(_internal_events::Error::EventTypeMismatch(#event_type.to_string()))
+                    event => Err(::events::Error::EventTypeMismatch(#event_type.to_string()))
                         .attach_printable(format!("{{ event = {event:?} }}")),
                 }
             }
         }
 
-        impl _internal_TryFrom<_internal_events::Event> for #event_struct {
-            type Error = error_stack::Report<_internal_events::Error>;
+        impl #impl_generics ::core::convert::TryFrom<::events::Event> for #event_struct #ty_generics #where_clause {
+            type Error = ::error_stack::Report<::events::Error>;
 
-            fn try_from(event: _internal_events::Event) -> core::result::Result<Self, Self::Error> {
+            fn try_from(event: ::events::Event) -> core::result::Result<Self, Self::Error> {
                 Self::try_from(&event)
             }
         }
 
-        impl _internal_events::EventType for #event_struct {
+        impl #impl_generics ::events::EventType for #event_struct #ty_generics #where_clause {
             fn event_type() -> axelar_wasm_std::nonempty::String {
                 axelar_wasm_std::nonempty_str!(#event_type)
             }
