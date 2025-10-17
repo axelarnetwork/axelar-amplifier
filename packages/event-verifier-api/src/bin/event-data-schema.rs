@@ -132,7 +132,7 @@ fn build_evm_examples() -> Vec<EventData> {
                 "a9059cbb000000000000000000000000e233862be9e5ff645e25ce6a001cf1fec28097c800000000000000000000000000000000000000000000000000000000aa910f88c4",
             ),
             from: hex20("6aa9f4fe1ce6fa00f06f2fe4bb6365180bc3a621"),
-            to: hex20("5425890298aed601595a70ab815c96711a31bc65"),
+            to: Some(hex20("5425890298aed601595a70ab815c96711a31bc65")),
             value: Uint256::from(0u128),
         }),
         events: vec![Event {
