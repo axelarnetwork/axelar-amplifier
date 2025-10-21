@@ -90,8 +90,8 @@ jobs:
           # Determine tag based on the ref being built from
           build_ref="${{ github.event.inputs.ref || github.ref }}"
           
-          # Check if the ref is a tag by trying to fetch it
-          if git show-ref --verify --quiet "refs/tags/$build_ref" 2>/dev/null; then
+          # Check if the ref is a tag by using git describe
+          if git describe --exact-match --tags "$build_ref" >/dev/null 2>&1; then
             # It's a tag, use the tag name
             tag="$build_ref"
             echo "Building from tag: $tag"
