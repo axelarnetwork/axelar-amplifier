@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.12.2"
+version = "1.13.0"
 dependencies = [
  "ampd-proto",
  "anchor-lang",
@@ -14084,7 +14084,7 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "voting-verifier"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "alloy-primitives",
  "assert_ok",

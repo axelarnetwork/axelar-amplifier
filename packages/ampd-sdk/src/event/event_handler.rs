@@ -18,7 +18,7 @@ use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::future::{with_retry, RetryPolicy};
-use crate::grpc::client::HandlerTaskClient;
+use crate::grpc::client::{EventHandlerClient, HandlerTaskClient};
 
 #[automock(
     type Err = Error;
@@ -29,10 +29,10 @@ pub trait EventHandler: Send + Sync {
     type Err: Context;
     type Event: TryFrom<Event>;
 
-    async fn handle(
+    async fn handle<HC: EventHandlerClient + Send + 'static>(
         &self,
         event: &Self::Event,
-        token: CancellationToken,
+        client: &mut HC,
     ) -> error_stack::Result<Vec<Any>, Self::Err>;
 
     fn subscription_params(&self) -> SubscriptionParams;
@@ -92,13 +92,16 @@ impl<H> HandlerTask<H>
 where
     H: EventHandler + Debug,
     <H::Event as TryFrom<Event>>::Error: Context,
-    H::Event: Display + Debug,
+    H::Event: Display + Debug + Clone,
 {
-    pub async fn run(
+    pub async fn run<HC>(
         self,
-        client: &mut impl HandlerTaskClient,
+        client: &mut HC,
         token: CancellationToken,
-    ) -> error_stack::Result<(), Error> {
+    ) -> error_stack::Result<(), Error>
+    where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
         let stream = self.subscribe_to_stream(client, token.clone()).await?;
 
         pin_mut!(stream);
@@ -134,22 +137,27 @@ where
         Ok(stream)
     }
 
-    async fn process_stream(
+    async fn process_stream<HC>(
         &self,
         element: error_stack::Result<Event, Error>,
-        client: &mut impl HandlerTaskClient,
+        client: &mut HC,
         token: CancellationToken,
-    ) {
-        if let Some(msgs) = self.process_event(element, token.clone()).await {
+    ) where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
+        if let Some(msgs) = self.process_event(element, client).await {
             Self::broadcast_msgs(client, msgs, token.clone()).await;
         }
     }
 
-    async fn process_event(
+    async fn process_event<HC>(
         &self,
         element: error_stack::Result<Event, Error>,
-        token: CancellationToken,
-    ) -> Option<Vec<Any>> {
+        client: &HC,
+    ) -> Option<Vec<Any>>
+    where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
         let event = element
             .inspect(Self::log_block_boundary)
             .inspect_err(|err| {
@@ -160,7 +168,7 @@ where
             })
             .ok()?;
         let parsed = Self::parse_event(event)?;
-        self.handle_event(parsed, token).await
+        self.handle_event(parsed, client).await
     }
 
     #[instrument]
@@ -183,9 +191,16 @@ where
     }
 
     #[instrument]
-    async fn handle_event(&self, event: H::Event, token: CancellationToken) -> Option<Vec<Any>> {
+    async fn handle_event<HC>(&self, event: H::Event, client: &HC) -> Option<Vec<Any>>
+    where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
         with_retry(
-            || self.handler.handle(&event, token.clone()),
+            || {
+                let mut client_clone = client.clone();
+                let event_clone = event.clone();
+                async move { self.handler.handle(&event_clone, &mut client_clone).await }
+            },
             self.handler_retry_policy,
         )
         .await
@@ -245,6 +260,9 @@ mod tests {
             Ok(tokio_stream::iter(result_events))
         });
         mock_client
+            .expect_clone()
+            .returning(MockHandlerTaskClient::new);
+        mock_client
     }
 
     #[tokio::test]
@@ -254,7 +272,7 @@ mod tests {
         handler
             .expect_handle()
             .times(2)
-            .returning(|_, _| Ok(vec![]));
+            .returning(|_, _: &mut MockHandlerTaskClient| Ok(vec![]));
 
         let events = vec![Event::BlockBegin(1u32.into()), Event::BlockEnd(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -285,7 +303,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(|_, _| Err(report!(Error::HandlerFailed)));
+            .returning(|_, _: &mut MockHandlerTaskClient| Err(report!(Error::HandlerFailed)));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -305,18 +323,21 @@ mod tests {
     async fn test_handler_error_with_continue() {
         let mut handler = setup_handler();
 
-        handler.expect_handle().times(2).returning(|event, _| {
-            let height = match event {
-                Event::BlockBegin(h) => h.value(),
-                _ => 0,
-            };
+        handler
+            .expect_handle()
+            .times(2)
+            .returning(|event, _: &mut MockHandlerTaskClient| {
+                let height = match event {
+                    Event::BlockBegin(h) => h.value(),
+                    _ => 0,
+                };
 
-            if height == 1 {
-                Err(report!(Error::HandlerFailed))
-            } else {
-                Ok(vec![])
-            }
-        });
+                if height == 1 {
+                    Err(report!(Error::HandlerFailed))
+                } else {
+                    Ok(vec![])
+                }
+            });
 
         let events = vec![
             Event::BlockBegin(1u32.into()),
@@ -342,16 +363,19 @@ mod tests {
         let call_count = Arc::new(Mutex::new(0));
         let call_count_clone = call_count.clone();
 
-        handler.expect_handle().times(3).returning(move |_, _| {
-            let mut count = call_count_clone.lock().unwrap();
-            *count += 1;
+        handler
+            .expect_handle()
+            .times(3)
+            .returning(move |_, _: &mut MockHandlerTaskClient| {
+                let mut count = call_count_clone.lock().unwrap();
+                *count += 1;
 
-            if *count <= 2 {
-                Err(report!(Error::HandlerFailed))
-            } else {
-                Ok(vec![])
-            }
-        });
+                if *count <= 2 {
+                    Err(report!(Error::HandlerFailed))
+                } else {
+                    Ok(vec![])
+                }
+            });
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -376,7 +400,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_error_continues_processing() {
         let mut handler = setup_handler();
-        handler.expect_handle().times(0);
+        handler.expect_handle::<MockHandlerTaskClient>().times(0);
 
         let mut client = MockHandlerTaskClient::new();
         client.expect_subscribe().returning(|_, _| {
@@ -384,6 +408,7 @@ mod tests {
                 AppError::InvalidResponse
             )))]))
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
@@ -405,6 +430,7 @@ mod tests {
             let result_events: Vec<error_stack::Result<Event, ClientError>> = vec![];
             Ok(tokio_stream::iter(result_events))
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
@@ -432,11 +458,14 @@ mod tests {
         let event_count = Arc::new(Mutex::new(0));
         let event_count_clone = event_count.clone();
 
-        handler.expect_handle().times(5).returning(move |_, _| {
-            let mut count = event_count_clone.lock().unwrap();
-            *count += 1;
-            Ok(vec![])
-        });
+        handler
+            .expect_handle()
+            .times(5)
+            .returning(move |_, _: &mut MockHandlerTaskClient| {
+                let mut count = event_count_clone.lock().unwrap();
+                *count += 1;
+                Ok(vec![])
+            });
 
         let events = vec![
             Event::BlockBegin(1u32.into()),
@@ -478,7 +507,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(move |_, _| Ok(test_msgs.clone()));
+            .returning(move |_, _: &mut MockHandlerTaskClient| Ok(test_msgs.clone()));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -489,6 +518,7 @@ mod tests {
                 index: 0,
             })
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
@@ -513,7 +543,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(move |_, _| Ok(vec![test_msg.clone()]));
+            .returning(move |_, _: &mut MockHandlerTaskClient| Ok(vec![test_msg.clone()]));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -523,6 +553,7 @@ mod tests {
                 AppError::InvalidResponse
             )))
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
@@ -542,12 +573,13 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(|_, _| Ok(vec![]));
+            .returning(|_, _: &mut MockHandlerTaskClient| Ok(vec![]));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
         client.expect_broadcast().times(0);
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
