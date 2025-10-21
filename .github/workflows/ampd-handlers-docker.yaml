@@ -22,10 +22,11 @@ on:
         description: 'Git ref (branch/commit/tag) to build from'
         required: false
         default: 'main'
-      tag:
-        description: 'Custom tag (leave empty to use git sha or tag name)'
-        required: false
-        default: ''
+      dry-run:
+        description: 'Run in dry-run mode (set to false to actually build and push)'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   setup:
@@ -47,9 +48,14 @@ jobs:
           if [ -d "ampd-handlers/src/bin" ]; then
             handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))')
             echo "Available handlers: $handlers"
-            echo "should-build=true" >> $GITHUB_OUTPUT
+            if [ "$handlers" = "[]" ]; then
+              echo "No handlers found in bin directory"
+              echo "should-build=false" >> $GITHUB_OUTPUT
+            else
+              echo "should-build=true" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "No handlers found"
+            echo "No bin directory found"
             echo "should-build=false" >> $GITHUB_OUTPUT
             handlers='[]'
           fi
@@ -59,11 +65,18 @@ jobs:
         id: set-handlers
         run: |
           if [ "${{ github.event_name }}" == "push" ]; then
-            # On push to main, build all handlers
             handlers='${{ steps.check-handlers.outputs.available-handlers }}'
           elif [ -n "${{ github.event.inputs.handler }}" ]; then
-            # Manual trigger with specific handler
-            handlers='["${{ github.event.inputs.handler }}"]'
+            available_handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+            input_handler="${{ github.event.inputs.handler }}"
+            if echo "$available_handlers" | jq -e --arg handler "$input_handler" 'contains([$handler])' > /dev/null; then
+              handlers="[\"$input_handler\"]"
+              echo "Valid handler specified: $input_handler"
+            else
+              echo "Error: Handler '$input_handler' not found in available handlers: $available_handlers"
+              echo "Available handlers: $available_handlers"
+              exit 1
+            fi
           else
             # Manual trigger without handler specified - build all
             handlers='${{ steps.check-handlers.outputs.available-handlers }}'
@@ -74,18 +87,21 @@ jobs:
       - name: Set image tag
         id: set-tag
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            # Use custom tag if provided
-            tag="${{ github.event.inputs.tag }}"
-          elif [ "${{ github.ref_type }}" == "tag" ]; then
-            # If triggered by a tag, use the tag name
-            tag="${{ github.ref_name }}"
+          # Determine tag based on the ref being built from
+          build_ref="${{ github.event.inputs.ref || github.ref }}"
+          
+          # Check if the ref is a tag by trying to fetch it
+          if git show-ref --verify --quiet "refs/tags/$build_ref" 2>/dev/null; then
+            # It's a tag, use the tag name
+            tag="$build_ref"
+            echo "Building from tag: $tag"
           else
-            # Otherwise use commit SHA
+            # It's a branch or commit, use the commit SHA
             tag="${{ github.sha }}"
+            echo "Building from ref '$build_ref', using commit SHA: $tag"
           fi
+          
           echo "tag=$tag" >> $GITHUB_OUTPUT
-          echo "Using tag: $tag"
 
   build-and-push:
     needs: setup
@@ -115,6 +131,7 @@ jobs:
 
       # Configure AWS credentials
       - name: Configure AWS credentials
+        if: github.event.inputs.dry-run != 'true'
         uses: aws-actions/configure-aws-credentials@67fbcbb121271f7775d2e7715933280b06314838 # v1
         with:
           aws-region: us-east-2
@@ -122,11 +139,13 @@ jobs:
 
       # Login to Amazon ECR
       - name: Login to Amazon ECR
+        if: github.event.inputs.dry-run != 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
 
       # Check if image already exists in ECR
       - name: Check if image already exists in ECR
+        if: github.event.inputs.dry-run != 'true'
         id: image-tag-check
         run: |
           image_tag_exists=$(aws ecr batch-get-image --repository-name ${REPOSITORY} --image-ids "imageTag=${IMAGE_TAG}" 2>/dev/null | jq '.images | length' || echo "0")
@@ -134,11 +153,11 @@ jobs:
           echo "Image exists: ${image_tag_exists}"
 
       - name: Set up Docker Buildx
-        if: steps.image-tag-check.outputs.image_tag_exists == '0'
+        if: github.event.inputs.dry-run != 'true' && steps.image-tag-check.outputs.image_tag_exists == '0'
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
 
       - name: Build and push Docker image
-        if: steps.image-tag-check.outputs.image_tag_exists == '0'
+        if: github.event.inputs.dry-run != 'true' && steps.image-tag-check.outputs.image_tag_exists == '0'
         uses: useblacksmith/build-push-action@574eb0ee0b59c6a687ace24192f0727dfb65d6d7 # v1
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -152,8 +171,26 @@ jobs:
           build-args: |
             HANDLER=${{ env.HANDLER }}
 
+      - name: Dry-run summary
+        if: github.event.inputs.dry-run == 'true'
+        run: |
+          echo "## DRY RUN MODE" >> $GITHUB_STEP_SUMMARY
+          echo "**Handler:** ${{ env.HANDLER }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Would build image with tag:** ${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Would push to:** ECR Repository \`${{ env.REPOSITORY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags that would be created:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.HANDLER }}-latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Full image name that would be created:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "ECR_REGISTRY/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **No actual build or push was performed**" >> $GITHUB_STEP_SUMMARY
+
       - name: Image build summary
-        if: steps.image-tag-check.outputs.image_tag_exists == '0'
+        if: github.event.inputs.dry-run != 'true' && steps.image-tag-check.outputs.image_tag_exists == '0'
         run: |
           echo "**Handler:** ${{ env.HANDLER }}" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** ECR" >> $GITHUB_STEP_SUMMARY
