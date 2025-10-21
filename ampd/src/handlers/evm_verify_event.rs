@@ -94,30 +94,31 @@ where
                 .await
                 .change_context(Error::Finalizer)?;
 
-        let tx_hashes = events_data
-            .iter()
-            .filter_map(|event_data| {
-                event_data.as_ref().map(|event_data| {
-                    (
-                        H256::from_slice(event_data.transaction_hash.as_slice()),
-                        event_data.transaction_details.is_some(),
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
+        let tx_hashes_with_details_needed = events_data.iter().filter_map(|e| e.as_ref()).fold(
+            HashMap::new(),
+            |mut acc, event_data| {
+                let tx_hash = H256::from_slice(event_data.transaction_hash.as_slice());
+                let needs_details = event_data.transaction_details.is_some();
+
+                acc.entry(tx_hash)
+                    .and_modify(|existing| *existing |= needs_details)
+                    .or_insert(needs_details);
+                acc
+            },
+        );
 
         // we need to fetch both tx receipts and possibly full transactions. Create the futures for each first, but don't await them yet,
         // so they can be executed in parallel
         let tx_receipts_fut = join_all(
-            tx_hashes
-                .iter()
-                .map(|(tx_hash, _)| self.rpc_client.transaction_receipt(*tx_hash)),
+            tx_hashes_with_details_needed
+                .keys()
+                .map(|tx_hash| self.rpc_client.transaction_receipt(*tx_hash)),
         );
 
         let full_transactions_fut = join_all(
-            tx_hashes
+            tx_hashes_with_details_needed
                 .iter()
-                .filter(|(_, needs_transaction)| *needs_transaction)
+                .filter(|(_, needs_transaction)| **needs_transaction)
                 .map(|(tx_hash, _)| self.rpc_client.transaction_by_hash(*tx_hash)),
         );
 
