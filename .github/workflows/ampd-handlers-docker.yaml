@@ -11,13 +11,17 @@ on:
   workflow_dispatch:
     inputs:
       handler:
-        description: 'Handler to build (leave empty for all)'
+        description: 'Handler to build (select "all" to build all handlers)'
         required: false
         type: choice
         options:
-          - '' # All handlers
-          - evm # List to be updated with all handlers
-        default: ''
+          - all
+          - evm
+          - solana
+          - stellar
+          - sui
+          - xrpl
+        default: all
       ref:
         description: 'Git ref (branch/commit/tag) to build from'
         required: false
@@ -66,6 +70,9 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "push" ]; then
             handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+          elif [ "${{ github.event.inputs.handler }}" == "all" ]; then
+            handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+            echo "Building all available handlers"
           elif [ -n "${{ github.event.inputs.handler }}" ]; then
             available_handlers='${{ steps.check-handlers.outputs.available-handlers }}'
             input_handler="${{ github.event.inputs.handler }}"
@@ -78,8 +85,8 @@ jobs:
               exit 1
             fi
           else
-            # Manual trigger without handler specified - build all
             handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+            echo "No handler specified, building all available handlers"
           fi
           echo "handlers=$handlers" >> $GITHUB_OUTPUT
           echo "Building handlers: $handlers"
