@@ -87,16 +87,12 @@ jobs:
       - name: Set image tag
         id: set-tag
         run: |
-          # Determine tag based on the ref being built from
           build_ref="${{ github.event.inputs.ref || github.ref }}"
           
-          # Check if the ref is a tag by using git describe
           if git describe --exact-match --tags "$build_ref" >/dev/null 2>&1; then
-            # It's a tag, use the tag name
             tag="$build_ref"
             echo "Building from tag: $tag"
           else
-            # It's a branch or commit, use the commit SHA
             tag="${{ github.sha }}"
             echo "Building from ref '$build_ref', using commit SHA: $tag"
           fi
@@ -144,21 +140,19 @@ jobs:
 
       # Configure AWS credentials
       - name: Configure AWS credentials
-        if: github.event.inputs.dry-run != 'true'
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
         uses: aws-actions/configure-aws-credentials@67fbcbb121271f7775d2e7715933280b06314838 # v1
         with:
           aws-region: us-east-2
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ghwf-${{ github.event.repository.name }}
 
-      # Login to Amazon ECR
       - name: Login to Amazon ECR
-        if: github.event.inputs.dry-run != 'true'
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
 
-      # Check if image already exists in ECR
       - name: Check if image already exists in ECR
-        if: github.event.inputs.dry-run != 'true'
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
         id: image-tag-check
         run: |
           image_tag_exists=$(aws ecr batch-get-image --repository-name ${REPOSITORY} --image-ids "imageTag=${IMAGE_TAG}" 2>/dev/null | jq '.images | length' || echo "0")
@@ -166,11 +160,11 @@ jobs:
           echo "Image exists: ${image_tag_exists}"
 
       - name: Set up Docker Buildx
-        if: github.event.inputs.dry-run != 'true' && steps.image-tag-check.outputs.image_tag_exists == '0'
+        if: (github.event_name == 'push' || github.event.inputs.dry-run != 'true') && steps.image-tag-check.outputs.image_tag_exists == '0'
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
 
       - name: Build and push Docker image
-        if: github.event.inputs.dry-run != 'true' && steps.image-tag-check.outputs.image_tag_exists == '0'
+        if: (github.event_name == 'push' || github.event.inputs.dry-run != 'true') && steps.image-tag-check.outputs.image_tag_exists == '0'
         uses: useblacksmith/build-push-action@574eb0ee0b59c6a687ace24192f0727dfb65d6d7 # v1
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -203,7 +197,7 @@ jobs:
           echo "⚠️ **No actual build or push was performed**" >> $GITHUB_STEP_SUMMARY
 
       - name: Image build summary
-        if: github.event.inputs.dry-run != 'true' && steps.image-tag-check.outputs.image_tag_exists == '0'
+        if: (github.event_name == 'push' || github.event.inputs.dry-run != 'true') && steps.image-tag-check.outputs.image_tag_exists == '0'
         run: |
           echo "**Handler:** ${{ env.HANDLER }}" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** ECR" >> $GITHUB_STEP_SUMMARY
