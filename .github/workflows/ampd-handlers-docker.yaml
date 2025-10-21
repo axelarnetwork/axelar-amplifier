@@ -129,6 +129,19 @@ jobs:
         run: |
           git fetch --unshallow || true
 
+      - name: Determine build mode
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "AUTOMATIC BUILD MODE (push to main)"
+            echo "This will build and push images to ECR"
+          elif [ "${{ github.event.inputs.dry-run }}" == "true" ]; then
+            echo "DRY RUN MODE (manual trigger)"
+            echo "This will NOT build or push images"
+          else
+            echo "MANUAL BUILD MODE (manual trigger with dry-run=false)"
+            echo "This will build and push images to ECR"
+          fi
+
       # Configure AWS credentials
       - name: Configure AWS credentials
         if: github.event.inputs.dry-run != 'true'
