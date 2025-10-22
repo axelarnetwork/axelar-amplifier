@@ -16,7 +16,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{info, info_span, warn};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -205,11 +205,20 @@ where
         let events_data: Vec<Option<EvmEvent>> = events_to_verify
             .iter()
             .map(|event_to_verify| {
-                serde_json::from_str::<EventData>(&event_to_verify.event_data)
+                let event_data = serde_json::from_str::<EventData>(&event_to_verify.event_data)
                     .ok()
                     .map(|data| match data {
                         EventData::Evm(evm_event) => evm_event,
-                    })
+                    });
+
+                if event_data.is_none() {
+                    warn!(
+                        "event data did not deserialize correctly. event: {:?}",
+                        event_to_verify
+                    );
+                }
+
+                event_data
             })
             .collect();
 
