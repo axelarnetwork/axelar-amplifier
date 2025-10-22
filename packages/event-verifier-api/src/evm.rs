@@ -9,7 +9,7 @@ type Topic = fixed_size::HexBinary<32>;
 pub struct TransactionDetails {
     pub calldata: HexBinary,
     pub from: Address,
-    pub to: Address,
+    pub to: Option<Address>,
     pub value: Uint256,
 }
 

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use ethers_core::types::{Block, BlockNumber, TransactionReceipt, H256, U64};
+use ethers_core::types::{Block, BlockNumber, Transaction, TransactionReceipt, H256, U64};
 use ethers_core::utils::serialize;
 use ethers_providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
@@ -15,6 +15,7 @@ pub trait EthereumClient {
     async fn finalized_block(&self) -> Result<Block<Hash>>;
     async fn block_number(&self) -> Result<U64>;
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>>;
+    async fn transaction_by_hash(&self, hash: H256) -> Result<Option<Transaction>>;
 }
 
 #[async_trait]
@@ -36,5 +37,9 @@ where
 
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>> {
         self.request("eth_getTransactionReceipt", [hash]).await
+    }
+
+    async fn transaction_by_hash(&self, hash: H256) -> Result<Option<Transaction>> {
+        self.request("eth_getTransactionByHash", [hash]).await
     }
 }
