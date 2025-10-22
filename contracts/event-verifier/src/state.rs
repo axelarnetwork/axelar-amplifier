@@ -16,7 +16,7 @@ pub struct Config {
 
 #[cw_serde]
 pub struct EventInPoll {
-    pub event: EventToVerify, // content is stored for migration purposes in case the hash changes
+    pub event: EventToVerify,
     pub poll_id: PollId,
     pub index_in_poll: u32,
 }

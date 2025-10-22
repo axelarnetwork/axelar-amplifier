@@ -119,6 +119,10 @@ mod test {
         Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
     }
 
+    fn new_voting_threshold() -> MajorityThreshold {
+        Threshold::try_from((3, 5)).unwrap().try_into().unwrap()
+    }
+
     fn verifiers(num_verifiers: usize) -> Vec<Verifier> {
         let mut verifiers = vec![];
         for i in 0..num_verifiers {
@@ -325,7 +329,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make("not-gov"), &[]),
             ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold: initial_voting_threshold(),
+                new_voting_threshold: new_voting_threshold(),
             },
         );
         assert!(res.is_err());
@@ -336,7 +340,7 @@ mod test {
             mock_env(),
             message_info(&api.addr_make(GOVERNANCE), &[]),
             ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold: initial_voting_threshold(),
+                new_voting_threshold: new_voting_threshold(),
             },
         );
         assert!(res.is_ok());
@@ -344,7 +348,7 @@ mod test {
         // Query the current voting threshold and assert it matches the initial value
         let res = assert_ok!(query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold));
         let threshold: MajorityThreshold = assert_ok!(from_json(res));
-        assert_eq!(threshold, initial_voting_threshold());
+        assert_eq!(threshold, new_voting_threshold());
     }
 
     fn make_event() -> EventToVerify {

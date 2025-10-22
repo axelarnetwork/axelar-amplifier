@@ -79,7 +79,6 @@ pub fn verify_events(
         return Err(report!(ContractError::DuplicateEvents));
     }
 
-    // Get source chain from the first event - all events in a batch should have the same source chain
     let snapshot = take_snapshot(deps.as_ref(), source_chain)?;
     let participants = snapshot.participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry.into())?;
