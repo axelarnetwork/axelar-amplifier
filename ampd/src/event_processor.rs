@@ -139,7 +139,9 @@ where
 fn is_xrpl_evm_handler(handler_label: &str) -> bool {
     let xrpl_handlers = ["xrpl-msg-verifier", "xrpl-verifier-set-verifier"];
 
-    xrpl_handlers.iter().any(|handler| handler_label == *handler)
+    xrpl_handlers
+        .iter()
+        .any(|handler| handler_label == *handler)
 }
 
 #[instrument(fields(event = %event), skip_all)]
