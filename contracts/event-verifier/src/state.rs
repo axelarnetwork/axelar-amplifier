@@ -26,7 +26,9 @@ impl EventInPoll {
         Self {
             event,
             poll_id,
-            index_in_poll: index_in_poll.try_into().unwrap(),
+            index_in_poll: index_in_poll
+                .try_into()
+                .expect("usize should convert to u32 successfully"),
         }
     }
 }
