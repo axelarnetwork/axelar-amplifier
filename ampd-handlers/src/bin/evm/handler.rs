@@ -17,7 +17,7 @@ use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
-use events::{try_from, AbciEventTypeFilter};
+use events::{try_from, AbciEventTypeFilter, EventType};
 use futures::future::join_all;
 use serde::Deserialize;
 use tracing::{info, info_span};
@@ -205,7 +205,7 @@ where
     fn subscription_params(&self) -> SubscriptionParams {
         SubscriptionParams::new(
             vec![AbciEventTypeFilter {
-                event_type: "wasm-messages_poll_started".to_string(),
+                event_type: PollStartedEvent::event_type(),
                 contract: self.voting_verifier_contract.clone(),
             }], // TODO: Add verifier set poll started event filter?
             false,
