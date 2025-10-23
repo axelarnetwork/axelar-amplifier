@@ -1,1 +1,0 @@
-failed to query voting verifier for verifier set status. verifier_set: VerifierSet { signers: {}, threshold: Uint128(1), created_at: 0 }
