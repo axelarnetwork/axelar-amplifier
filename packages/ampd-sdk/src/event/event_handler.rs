@@ -30,7 +30,7 @@ pub trait EventHandler: Send + Sync {
 
     async fn handle<HC: EventHandlerClient + Send + 'static>(
         &self,
-        event: &Self::Event,
+        event: Self::Event,
         client: &mut HC,
     ) -> Result<Vec<Any>, Self::Err>;
 
@@ -222,7 +222,7 @@ where
             || {
                 let mut client_clone = client.clone();
                 let event_clone = event.clone();
-                async move { self.handler.handle(&event_clone, &mut client_clone).await }
+                async move { self.handler.handle(event_clone, &mut client_clone).await }
             },
             self.handler_retry_policy,
         )

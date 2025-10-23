@@ -115,10 +115,9 @@ where
 
     async fn handle<HC: EventHandlerClient + Send + 'static>(
         &self,
-        event: &PollStartedEvent,
+        event: PollStartedEvent,
         client: &mut HC,
     ) -> Result<Vec<Any>> {
-        let event = event.clone();
         let PollStartedEvent {
             poll_id,
             source_chain,
