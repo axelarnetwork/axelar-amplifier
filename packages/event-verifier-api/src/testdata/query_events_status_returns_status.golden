@@ -1,0 +1,9 @@
+[
+  {
+    "event": {
+      "source_chain": "ethereum",
+      "event_data": "{}"
+    },
+    "status": "succeeded_on_source_chain"
+  }
+]

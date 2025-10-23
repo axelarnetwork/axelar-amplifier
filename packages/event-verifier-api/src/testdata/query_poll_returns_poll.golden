@@ -1,0 +1,31 @@
+{
+  "poll": {
+    "poll_id": "100",
+    "quorum": "1",
+    "expires_at": 1000,
+    "poll_size": 1,
+    "tallies": [
+      {
+        "FailedOnChain": "0",
+        "NotFound": "0",
+        "SucceededOnChain": "0"
+      }
+    ],
+    "finished": false,
+    "participation": {
+      "cosmwasm1crx7qul8uh7pepev87ycvprxxe7n5rdrrf7yhpvgyat6dd7afw3s82vksq": {
+        "weight": "1",
+        "voted": false
+      }
+    }
+  },
+  "data": {
+    "events": [
+      {
+        "source_chain": "ethereum",
+        "event_data": "{}"
+      }
+    ]
+  },
+  "status": "in_progress"
+}
