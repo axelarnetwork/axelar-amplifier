@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Addr;
 use into_inner_derive::IntoInner;
 use valuable::Valuable;
 
@@ -48,6 +49,13 @@ impl TryFrom<&str> for String {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         String::try_from(value.to_string())
+    }
+}
+
+impl From<Addr> for String {
+    fn from(value: Addr) -> Self {
+        // valid address can never be empty
+        Self(value.into_string())
     }
 }
 
