@@ -255,6 +255,7 @@ where
 mod tests {
     use std::sync::{Arc, Mutex};
 
+    use cosmrs::AccountId;
     use error_stack::report;
 
     use super::*;
@@ -269,6 +270,10 @@ mod tests {
             .returning(|| SubscriptionParams {
                 event_filters: vec![AbciEventTypeFilter {
                     event_type: "test_event".to_string(),
+                    contract: AccountId::from_str(
+                        "axelar1252ahkw208d08ls64atp2pql4cnl9naxy7ahhq3lrthvq3spseys26l8xj",
+                    )
+                    .unwrap(),
                 }],
                 include_block_begin_end: true,
             });

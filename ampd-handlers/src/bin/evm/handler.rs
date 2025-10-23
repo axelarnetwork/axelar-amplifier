@@ -29,11 +29,9 @@ use crate::Error;
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
 pub struct PollStartedEvent {
-    #[serde(rename(deserialize = "_contract_address"))]
-    contract_address: AccountId,
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: EVMAddress,
@@ -122,7 +120,6 @@ where
     ) -> Result<Vec<Any>> {
         let event = event.clone();
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_chain,
             source_gateway_address,
@@ -131,10 +128,6 @@ where
             confirmation_height,
             participants,
         } = event;
-
-        if contract_address != self.voting_verifier_contract {
-            return Ok(vec![]);
-        }
 
         if source_chain != self.chain {
             return Ok(vec![]);
@@ -214,6 +207,7 @@ where
         SubscriptionParams::new(
             vec![AbciEventTypeFilter {
                 event_type: "wasm-messages_poll_started".to_string(),
+                contract: self.voting_verifier_contract.clone(),
             }], // TODO: Add verifier set poll started event filter?
             false,
         )

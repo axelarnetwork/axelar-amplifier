@@ -229,7 +229,7 @@ impl HandlerTaskClient for GrpcClient {
                 .into_iter()
                 .map(|filter| ampd_proto::EventFilter {
                     r#type: filter.event_type,
-                    contract: Default::default(),
+                    contract: filter.contract.to_string(),
                 })
                 .collect(),
             include_block_begin_end,
