@@ -12,8 +12,6 @@ exclude = ["contract.wasm", "hash.txt"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-
-
 [features]
 # use library feature to disable all instantiate/execute/query exports
 library = []
