@@ -69,7 +69,7 @@ mod tests {
                 event_verifier_api::EventToVerify {
                     source_chain: "sourceChain".try_into().unwrap(),
                     event_data: serde_json::to_string(&event_verifier_api::EventData::Evm(
-                        event_verifier_api::EvmEvent {
+                        event_verifier_api::evm::EvmEvent {
                             transaction_hash:
                                 axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(vec![
                                     0u8;
@@ -77,7 +77,7 @@ mod tests {
                                 ])
                                 .unwrap(),
                             transaction_details: None,
-                            events: vec![event_verifier_api::Event {
+                            events: vec![event_verifier_api::evm::Event {
                                 contract_address:
                                     axelar_wasm_std::fixed_size::HexBinary::<20>::try_from(vec![
                                         0u8;
@@ -102,7 +102,7 @@ mod tests {
                 event_verifier_api::EventToVerify {
                     source_chain: "sourceChain".try_into().unwrap(),
                     event_data: serde_json::to_string(&event_verifier_api::EventData::Evm(
-                        event_verifier_api::EvmEvent {
+                        event_verifier_api::evm::EvmEvent {
                             transaction_hash:
                                 axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(vec![
                                     0u8;
@@ -110,7 +110,7 @@ mod tests {
                                 ])
                                 .unwrap(),
                             transaction_details: None,
-                            events: vec![event_verifier_api::Event {
+                            events: vec![event_verifier_api::evm::Event {
                                 contract_address:
                                     axelar_wasm_std::fixed_size::HexBinary::<20>::try_from(vec![
                                         0u8;
@@ -167,13 +167,13 @@ mod tests {
         let content = event_verifier_api::EventToVerify {
             source_chain: "sourceChain".try_into().unwrap(),
             event_data: serde_json::to_string(&event_verifier_api::EventData::Evm(
-                event_verifier_api::EvmEvent {
+                event_verifier_api::evm::EvmEvent {
                     transaction_hash: axelar_wasm_std::fixed_size::HexBinary::<32>::try_from(
                         vec![0u8; 32],
                     )
                     .unwrap(),
                     transaction_details: None,
-                    events: vec![event_verifier_api::Event {
+                    events: vec![event_verifier_api::evm::Event {
                         contract_address: axelar_wasm_std::fixed_size::HexBinary::<20>::try_from(
                             vec![0u8; 20],
                         )

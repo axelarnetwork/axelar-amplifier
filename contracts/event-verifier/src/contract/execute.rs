@@ -241,8 +241,8 @@ mod tests {
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{coin, to_json_binary, Empty, HexBinary, OwnedDeps, Uint128, WasmQuery};
-    use event_verifier_api::{Event, EventData, EventToVerify, EvmEvent, InstantiateMsg};
+    use cosmwasm_std::{to_json_binary, Empty, HexBinary, OwnedDeps, Uint128, WasmQuery};
+    use event_verifier_api::{EventToVerify, InstantiateMsg};
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
     use super::*;
@@ -286,7 +286,6 @@ mod tests {
                 admin_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
-                fee: coin(0, "uaxl"),
             },
         )
         .unwrap();
@@ -936,18 +935,18 @@ mod tests {
 
         let tx_hash = fixed_size::HexBinary::<32>::try_from(tx_hash_bytes).unwrap();
         let addr = fixed_size::HexBinary::<20>::try_from(vec![0u8; 20]).unwrap();
-        let ev = Event {
+        let ev = event_verifier_api::evm::Event {
             contract_address: addr,
             event_index: 0,
             topics: vec![],
             data: HexBinary::from(Vec::<u8>::new()),
         };
-        let evm = EvmEvent {
+        let evm = event_verifier_api::evm::EvmEvent {
             transaction_hash: tx_hash,
             transaction_details: None,
             events: vec![ev],
         };
-        serde_json::to_string(&EventData::Evm(evm)).unwrap()
+        serde_json::to_string(&event_verifier_api::EventData::Evm(evm)).unwrap()
     }
 
     /// Helper function to create a poll for an event and return the poll ID

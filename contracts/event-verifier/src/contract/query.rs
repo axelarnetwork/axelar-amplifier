@@ -67,7 +67,7 @@ pub fn poll_response(
         poll.poll_id
     );
 
-    let data = PollData::Events(events);
+    let data = PollData { events };
     let status = poll.status(current_block_height);
 
     Ok(PollResponse { poll, data, status })
@@ -122,7 +122,8 @@ mod tests {
     use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
     use cosmwasm_std::testing::{mock_dependencies, MockApi};
     use cosmwasm_std::{Fraction, HexBinary, Storage, Uint128};
-    use event_verifier_api::{Event, EventData, EvmEvent};
+    use event_verifier_api::evm::{Event, EvmEvent};
+    use event_verifier_api::{EventData, EventToVerify};
 
     use super::*;
     use crate::state::{Config, CONFIG, POLLS, POLL_ID};
@@ -305,13 +306,10 @@ mod tests {
         let res = poll_response(deps.as_ref(), 0, poll_id).unwrap();
         assert_eq!(res.poll.poll_id, poll_id);
         assert!(matches!(res.status, PollStatus::InProgress));
-        match res.data {
-            PollData::Events(evts) => {
-                assert_eq!(evts.len(), 2);
-                assert_eq!(evts[0], event1);
-                assert_eq!(evts[1], event2);
-            }
-        }
+        let PollData { events: evts } = res.data;
+        assert_eq!(evts.len(), 2);
+        assert_eq!(evts[0], event1);
+        assert_eq!(evts[1], event2);
     }
 
     #[test]

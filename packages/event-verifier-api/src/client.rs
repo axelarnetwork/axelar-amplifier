@@ -69,12 +69,11 @@ impl Client<'_> {
 mod test {
     use axelar_wasm_std::snapshot::{Participant, Snapshot};
     use axelar_wasm_std::voting::{PollId, PollStatus, WeightedPoll};
-    use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold, VerificationStatus};
+    use axelar_wasm_std::{chain_name, nonempty, MajorityThreshold, Threshold, VerificationStatus};
     use cosmwasm_std::testing::{MockApi, MockQuerier};
     use cosmwasm_std::{
         from_json, to_json_binary, Addr, QuerierWrapper, SystemError, Uint128, WasmQuery,
     };
-    use router_api::{chain_name, cosmos_addr};
 
     use crate::client::Client;
     use crate::msg::{EventStatus, EventToVerify, PollData, PollResponse, QueryMsg};
@@ -158,7 +157,7 @@ mod test {
     }
 
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
-        let addr = cosmos_addr!("event-verifier");
+        let addr = MockApi::default().addr_make("event-verifier");
         let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
@@ -192,16 +191,18 @@ mod test {
 
         PollResponse {
             poll,
-            data: PollData::Events(vec![EventToVerify {
-                source_chain: chain_name!(ETHEREUM),
-                event_data: "{}".to_string(),
-            }]),
+            data: PollData {
+                events: vec![EventToVerify {
+                    source_chain: chain_name!(ETHEREUM),
+                    event_data: "{}".to_string(),
+                }],
+            },
             status: PollStatus::InProgress,
         }
     }
 
     fn setup_queries_to_succeed() -> (MockQuerier, Addr) {
-        let addr = cosmos_addr!("event-verifier");
+        let addr = MockApi::default().addr_make("event-verifier");
         let addr_clone = addr.clone();
 
         let mut querier = MockQuerier::default();
@@ -228,9 +229,6 @@ mod test {
                             .try_into()
                             .unwrap();
                         Ok(to_json_binary(&threshold).into()).into()
-                    }
-                    QueryMsg::CurrentFee => {
-                        panic!("CurrentFee query should not be called")
                     }
                 }
             }

@@ -1,10 +1,13 @@
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Storage,
+};
+use error_stack::{bail, Report, ResultExt};
 use event_verifier_api::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, POLLS};
 
 mod execute;
 mod migrations;
@@ -55,7 +58,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    match msg.ensure_permissions(deps.storage, &info.sender)? {
+    match msg.ensure_permissions(deps.storage, &info.sender, match_participant)? {
         ExecuteMsg::VerifyEvents(events) => Ok(execute::verify_events(deps, env, events)?),
         ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
         ExecuteMsg::UpdateVotingThreshold {
@@ -64,8 +67,6 @@ pub fn execute(
             deps,
             new_voting_threshold,
         )?),
-        ExecuteMsg::UpdateFee { .. } => unimplemented!("update fee not implemented"),
-        ExecuteMsg::Withdraw { .. } => unimplemented!("withdraw not implemented"),
     }
 }
 
@@ -83,9 +84,31 @@ pub fn query(
             to_json_binary(&query::events_status(deps, &events, env.block.height)?)
         }
         QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
-        QueryMsg::CurrentFee => unimplemented!("current fee not implemented"),
     }?
     .then(Ok)
+}
+
+fn match_participant(
+    storage: &dyn Storage,
+    sender_addr: &Addr,
+    msg: &ExecuteMsg,
+) -> Result<bool, Report<permission_control::Error>> {
+    let poll_id = match msg {
+        ExecuteMsg::Vote { poll_id, .. } => poll_id,
+        _ => bail!(permission_control::Error::WrongVariant),
+    };
+
+    let poll = POLLS
+        .may_load(storage, *poll_id)
+        .change_context(permission_control::Error::Unauthorized)?;
+
+    // If poll doesn't exist, return true to allow the vote execution logic
+    // to handle it and return the more specific PollNotFound error
+    let Some(poll) = poll else {
+        return Ok(true);
+    };
+
+    Ok(poll.participation.contains_key(sender_addr.as_str()))
 }
 
 #[cfg(test)]
@@ -97,7 +120,8 @@ mod test {
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{from_json, Empty, Fraction, HexBinary, OwnedDeps, Uint128, WasmQuery};
-    use event_verifier_api::{Event, EventData, EventToVerify, EvmEvent, PollData, PollResponse};
+    use event_verifier_api::evm::{Event, EvmEvent};
+    use event_verifier_api::{EventData, EventToVerify, PollData, PollResponse};
     use router_api::ChainName;
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
@@ -172,7 +196,6 @@ mod test {
                 admin_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(), // ignored
                 voting_threshold: initial_voting_threshold(),
                 block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
-                fee: cosmwasm_std::coin(0, "uaxl"), // ignored
             },
         ));
 
@@ -312,9 +335,8 @@ mod test {
 
         assert_eq!(poll_res.poll.poll_id, 1u64.into());
         assert!(matches!(poll_res.status, PollStatus::InProgress));
-        match poll_res.data {
-            PollData::Events(evts) => assert_eq!(evts.len(), 1),
-        }
+        let PollData { events: evts } = poll_res.data;
+        assert_eq!(evts.len(), 1);
     }
 
     #[test]
