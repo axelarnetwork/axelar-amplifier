@@ -1,6 +1,6 @@
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::MajorityThreshold;
-use cosmwasm_std::{Coin, CosmosMsg};
+use cosmwasm_std::CosmosMsg;
 use error_stack::ResultExt;
 
 use crate::msg::{EventStatus, EventToVerify, ExecuteMsg, PollResponse, QueryMsg};
@@ -34,9 +34,8 @@ impl Client<'_> {
         self.client.execute(&ExecuteMsg::Vote { poll_id, votes })
     }
 
-    pub fn verify_events(&self, events: Vec<EventToVerify>, fee: Coin) -> CosmosMsg {
-        self.client
-            .execute_with_funds(&ExecuteMsg::VerifyEvents(events), fee)
+    pub fn verify_events(&self, events: Vec<EventToVerify>) -> CosmosMsg {
+        self.client.execute(&ExecuteMsg::VerifyEvents(events))
     }
 
     pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> CosmosMsg {
