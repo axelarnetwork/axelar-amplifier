@@ -1,9 +1,6 @@
-name: ampd-handlers (push to main) - Build and push image to ECR
+name: ampd-handlers - Build and push image to ECR
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:

@@ -44,6 +44,7 @@ ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
 event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
+event-verifier-api = { workspace = true }
 events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
 futures = { workspace = true }
