@@ -1,3 +1,4 @@
+use ampd::monitoring;
 use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
 use error_stack::{Report, Result, ResultExt};
@@ -56,7 +57,7 @@ pub enum Error {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     #[serde(default = "default_ampd_url")]
@@ -66,6 +67,8 @@ pub struct Config {
     // Using `serde_aux` to be able to use `default` together with `flatten`. See https://github.com/serde-rs/serde/issues/1626
     #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
     pub event_handler: event::event_handler::Config,
+
+    pub monitoring_server: monitoring::Config,
 }
 
 fn default_ampd_url() -> Url {

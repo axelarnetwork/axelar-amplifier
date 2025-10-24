@@ -28,6 +28,7 @@ tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 tonic = "0.13.0"
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 typed-builder = { workspace = true }
 valuable = { workspace = true }
 

@@ -4,18 +4,17 @@ mod handler;
 use std::time::Duration;
 
 use ampd::evm::finalizer::Finalization;
+use ampd::json_rpc;
 use ampd::url::Url;
-use ampd::{json_rpc, monitoring};
 use ampd_sdk::config;
 use ampd_sdk::event::event_handler::HandlerTask;
 use ampd_sdk::future::RetryPolicy;
-use ampd_sdk::grpc::client::{EventHandlerClient, GrpcClient, HandlerTaskClient};
-use ampd_sdk::grpc::connection_pool::ConnectionPool;
+use ampd_sdk::runtime::HandlerRuntime;
+use axelar_wasm_std::chain::ChainName;
 use error_stack::{Result, ResultExt};
+use ethers_providers::Http;
 use serde::{Deserialize, Serialize};
-use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, Level};
 
 use crate::error::Error;
 use crate::handler::Handler;
@@ -27,7 +26,6 @@ struct EvmHandlerConfig {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     #[serde(default = "default_rpc_url")]
     rpc_url: Url,
-    // TODO: move chain name from config::Config to this config? so that base config can be shared for all handlers
 }
 
 fn default_rpc_url() -> Url {
@@ -43,55 +41,13 @@ async fn main() -> Result<(), Error> {
         .build::<EvmHandlerConfig>()
         .change_context(Error::HandlerStart)?;
 
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(Level::INFO)
-            .finish(),
-    )
-    .expect("failed to set global default tracing subscriber");
-
     let token = CancellationToken::new();
 
-    let (pool, handle) = ConnectionPool::new(base_config.ampd_url);
-    let pool_token = token.clone();
-    tokio::spawn(async move {
-        let _ = pool.run(pool_token).await;
-    });
-
-    let mut client = GrpcClient::new(handle);
-    let contracts = client
-        .contracts(base_config.chain_name.clone())
+    let mut runtime = HandlerRuntime::start(base_config.clone(), token.clone())
         .await
         .change_context(Error::HandlerStart)?;
-    let verifier = client.address().await.change_context(Error::HandlerStart)?;
 
-    let (monitoring_server, monitoring_client) =
-        monitoring::Server::new(monitoring::Config::Disabled)
-            .expect("failed to create monitoring server"); // TODO: make this configurable
-    let monitoring_token = token.clone();
-    tokio::spawn(async move {
-        let _ = monitoring_server.run(monitoring_token).await;
-    });
-
-    let rpc_client = json_rpc::Client::new_http(
-        handler_config.rpc_url,
-        reqwest::ClientBuilder::new()
-            .connect_timeout(DEFAULT_RPC_TIMEOUT) // TODO: make this configurable
-            .timeout(DEFAULT_RPC_TIMEOUT)
-            .build()
-            .change_context(Error::HandlerStart)?,
-        monitoring_client.clone(),
-        base_config.chain_name.clone(),
-    );
-
-    let handler = Handler::builder()
-        .verifier(verifier)
-        .voting_verifier_contract(contracts.voting_verifier)
-        .chain(base_config.chain_name)
-        .finalizer_type(Finalization::RPCFinalizedBlock) // TODO: make this configurable
-        .rpc_client(rpc_client)
-        .monitoring_client(monitoring_client)
-        .build();
+    let handler = build_handler(&runtime, base_config.chain_name, handler_config)?;
 
     let task = HandlerTask::builder()
         .handler(handler)
@@ -102,24 +58,37 @@ async fn main() -> Result<(), Error> {
         })
         .build();
 
-    let exit_token = token.clone();
-    tokio::spawn(async move {
-        let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
-        let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");
-
-        tokio::select! {
-            _ = sigint.recv() => {},
-            _ = sigterm.recv() => {},
-        }
-
-        info!("signal received, waiting for program to exit gracefully");
-
-        exit_token.cancel();
-    });
-
-    task.run(&mut client, token)
+    task.run(&mut runtime.grpc_client, token)
         .await
         .change_context(Error::HandlerTask)?;
 
     Ok(())
+}
+
+fn build_handler(
+    runtime: &HandlerRuntime,
+    chain_name: ChainName,
+    handler_config: EvmHandlerConfig,
+) -> Result<Handler<json_rpc::Client<Http>>, Error> {
+    let rpc_client = json_rpc::Client::new_http(
+        handler_config.rpc_url,
+        reqwest::ClientBuilder::new()
+            .connect_timeout(DEFAULT_RPC_TIMEOUT) // TODO: make this configurable
+            .timeout(DEFAULT_RPC_TIMEOUT)
+            .build()
+            .change_context(Error::HandlerStart)?,
+        runtime.monitoring_client.clone(),
+        chain_name.clone(),
+    );
+
+    let handler = Handler::builder()
+        .verifier(runtime.verifier.clone())
+        .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
+        .chain(chain_name)
+        .finalizer_type(Finalization::RPCFinalizedBlock) // TODO: make this configurable
+        .rpc_client(rpc_client)
+        .monitoring_client(runtime.monitoring_client.clone())
+        .build();
+
+    Ok(handler)
 }

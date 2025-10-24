@@ -1,0 +1,1 @@
+rpc_url = "http://k8s-devneted-ganaches-0e78963f17-01f5e96374afcae4.elb.us-east-2.amazonaws.com:7545"
