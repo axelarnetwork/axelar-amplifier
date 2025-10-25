@@ -350,11 +350,26 @@ version = "0.1.0"
 dependencies = [
  "ampd",
  "ampd-sdk",
+ "async-trait",
+ "axelar-wasm-std",
+ "cosmrs",
  "error-stack",
+ "ethers-core",
+ "ethers-providers",
  "events",
+ "futures",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "typed-builder",
+ "valuable",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -397,6 +412,7 @@ dependencies = [
  "tokio-util",
  "tonic 0.13.1",
  "tracing",
+ "tracing-subscriber",
  "typed-builder",
  "valuable",
 ]

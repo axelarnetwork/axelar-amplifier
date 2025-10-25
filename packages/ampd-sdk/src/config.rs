@@ -1,3 +1,4 @@
+use ampd::monitoring;
 use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
 use error_stack::{Report, Result, ResultExt};
@@ -38,7 +39,7 @@ pub enum Error {
 /// let config = Config::builder()
 ///     .add_file_source("custom_config.toml")
 ///     .add_env_source("MY_HANDLER")
-///     .build();
+///     .build::<Config>();
 /// # Ok(())
 /// # }
 /// ```
@@ -56,7 +57,7 @@ pub enum Error {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     #[serde(default = "default_ampd_url")]
@@ -66,6 +67,9 @@ pub struct Config {
     // Using `serde_aux` to be able to use `default` together with `flatten`. See https://github.com/serde-rs/serde/issues/1626
     #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
     pub event_handler: event::event_handler::Config,
+
+    #[serde(default)]
+    pub monitoring_server: monitoring::Config,
 }
 
 fn default_ampd_url() -> Url {
@@ -134,10 +138,13 @@ impl ConfigBuilder {
     /// Builds the config from the sources.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
-    pub fn build(self) -> Result<Config, Error> {
+    pub fn build<T>(self) -> Result<T, Error>
+    where
+        T: serde::de::DeserializeOwned,
+    {
         self.0
             .build()
-            .and_then(|config| config.try_deserialize::<Config>())
+            .and_then(|config| config.try_deserialize::<T>())
             .change_context(Error::Build)
     }
 }
@@ -186,7 +193,10 @@ mod tests {
                 (format!("{prefix}_CHAIN_NAME"), Some(chain_name)),
             ],
             || {
-                let config = Config::builder().add_env_source(prefix).build().unwrap();
+                let config = Config::builder()
+                    .add_env_source(prefix)
+                    .build::<Config>()
+                    .unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -211,7 +221,7 @@ mod tests {
 
         let config = Config::builder()
             .add_file_source(config_path.to_str().unwrap())
-            .build()
+            .build::<Config>()
             .unwrap();
 
         assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
@@ -241,7 +251,7 @@ mod tests {
                 tokio::spawn(async move {
                     let config = Config::builder()
                         .add_file_source(config_path_clone.to_str().unwrap())
-                        .build()
+                        .build::<Config>()
                         .unwrap();
 
                     assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
@@ -270,7 +280,7 @@ mod tests {
 
         let res = Config::builder()
             .add_file_source(config_path.to_str().unwrap())
-            .build();
+            .build::<Config>();
 
         assert_err_contains!(res, Error, Error::Build);
     }
@@ -290,7 +300,7 @@ mod tests {
 
         let config = Config::builder()
             .add_file_source(config_path.to_str().unwrap())
-            .build()
+            .build::<Config>()
             .unwrap();
 
         assert_eq!(config.ampd_url, default_ampd_url());
