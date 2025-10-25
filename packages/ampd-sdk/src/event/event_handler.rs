@@ -6,7 +6,6 @@ use cosmrs::Any;
 use error_stack::{Context, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
 use futures::{pin_mut, Stream, StreamExt};
-use mockall::automock;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::interval;
@@ -19,26 +18,24 @@ use valuable::Valuable;
 use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client::{EventHandlerClient, HandlerTaskClient};
 
-#[derive(Clone, Deserialize, Debug)]
-#[allow(dead_code)]
-pub struct MockEvent(u64);
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("failed to retrieve events stream from the client")]
+    EventStream,
 
-impl TryFrom<Event> for MockEvent {
-    type Error = Report<Error>;
+    #[error("timeout while waiting for event stream")]
+    StreamTimeout(#[from] Elapsed),
 
-    fn try_from(event: Event) -> std::result::Result<MockEvent, error_stack::Report<Error>> {
-        match event {
-            Event::BlockBegin(height) => Ok(MockEvent(height.into())),
-            Event::BlockEnd(height) => Ok(MockEvent(height.into())),
-            _ => unimplemented!("MockEvent is not implemented for this event type"),
-        }
-    }
+    #[error("unable to parse event of type")]
+    EventConversion,
+
+    #[error("error when handling event messages")]
+    HandlerFailed,
+
+    #[error("error when broadcasting message")]
+    BroadcastFailed,
 }
 
-#[automock(
-    type Err = Error;
-    type Event = MockEvent;
-)]
 #[async_trait]
 pub trait EventHandler: Send + Sync {
     type Err: Context;
@@ -79,24 +76,6 @@ impl Default for Config {
             stream_timeout: Duration::from_secs(10),
         }
     }
-}
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("failed to retrieve events stream from the client")]
-    EventStream,
-
-    #[error("timeout while waiting for event stream")]
-    StreamTimeout(#[from] Elapsed),
-
-    #[error("unable to parse event of type")]
-    EventConversion,
-
-    #[error("error when handling event messages")]
-    HandlerFailed,
-
-    #[error("error when broadcasting message")]
-    BroadcastFailed,
 }
 
 #[derive(Debug, TypedBuilder)]
@@ -276,11 +255,49 @@ mod tests {
     use axelar_wasm_std::nonempty_str;
     use cosmrs::AccountId;
     use error_stack::report;
+    use mockall::mock;
 
     use super::*;
     use crate::grpc::client::tests::MockHandlerTaskClient;
     use crate::grpc::client::types::BroadcastClientResponse;
     use crate::grpc::error::{AppError, Error as ClientError};
+
+    #[derive(Clone, Deserialize, Debug)]
+    pub struct MockEvent(pub u64);
+
+    impl TryFrom<Event> for MockEvent {
+        type Error = Report<Error>;
+
+        fn try_from(event: Event) -> std::result::Result<MockEvent, error_stack::Report<Error>> {
+            match event {
+                Event::BlockBegin(height) => Ok(MockEvent(height.into())),
+                Event::BlockEnd(height) => Ok(MockEvent(height.into())),
+                _ => unimplemented!("MockEvent is not implemented for this event type"),
+            }
+        }
+    }
+
+    mock! {
+        pub EventHandler {}
+
+        #[async_trait]
+        impl EventHandler for EventHandler {
+            type Err = Error;
+            type Event = MockEvent;
+
+            async fn handle<HC: EventHandlerClient + Send + 'static>(
+                &self,
+                event: MockEvent,
+                client: &mut HC,
+            ) -> Result<Vec<Any>, Error>;
+
+            fn subscription_params(&self) -> SubscriptionParams;
+        }
+
+        impl Debug for EventHandler {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+    }
 
     fn setup_handler() -> MockEventHandler {
         let mut handler = MockEventHandler::new();
