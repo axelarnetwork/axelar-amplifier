@@ -39,7 +39,7 @@ pub enum Error {
 /// let config = Config::builder()
 ///     .add_file_source("custom_config.toml")
 ///     .add_env_source("MY_HANDLER")
-///     .build();
+///     .build::<Config>();
 /// # Ok(())
 /// # }
 /// ```
@@ -68,6 +68,7 @@ pub struct Config {
     #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
     pub event_handler: event::event_handler::Config,
 
+    #[serde(default)]
     pub monitoring_server: monitoring::Config,
 }
 
@@ -192,7 +193,10 @@ mod tests {
                 (format!("{prefix}_CHAIN_NAME"), Some(chain_name)),
             ],
             || {
-                let config = Config::builder().add_env_source(prefix).build().unwrap();
+                let config = Config::builder()
+                    .add_env_source(prefix)
+                    .build::<Config>()
+                    .unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -217,7 +221,7 @@ mod tests {
 
         let config = Config::builder()
             .add_file_source(config_path.to_str().unwrap())
-            .build()
+            .build::<Config>()
             .unwrap();
 
         assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
@@ -247,7 +251,7 @@ mod tests {
                 tokio::spawn(async move {
                     let config = Config::builder()
                         .add_file_source(config_path_clone.to_str().unwrap())
-                        .build()
+                        .build::<Config>()
                         .unwrap();
 
                     assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
@@ -276,7 +280,7 @@ mod tests {
 
         let res = Config::builder()
             .add_file_source(config_path.to_str().unwrap())
-            .build();
+            .build::<Config>();
 
         assert_err_contains!(res, Error, Error::Build);
     }
@@ -296,7 +300,7 @@ mod tests {
 
         let config = Config::builder()
             .add_file_source(config_path.to_str().unwrap())
-            .build()
+            .build::<Config>()
             .unwrap();
 
         assert_eq!(config.ampd_url, default_ampd_url());

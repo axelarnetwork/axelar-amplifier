@@ -19,9 +19,24 @@ use valuable::Valuable;
 use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client::{EventHandlerClient, HandlerTaskClient};
 
+#[derive(Clone, Deserialize, Debug)]
+pub struct MockEvent(u64);
+
+impl TryFrom<Event> for MockEvent {
+    type Error = Report<Error>;
+
+    fn try_from(event: Event) -> std::result::Result<MockEvent, error_stack::Report<Error>> {
+        match event {
+            Event::BlockBegin(height) => Ok(MockEvent(height.into())),
+            Event::BlockEnd(height) => Ok(MockEvent(height.into())),
+            _ => unimplemented!("MockEvent is not implemented for this event type"),
+        }
+    }
+}
+
 #[automock(
     type Err = Error;
-    type Event = Event;
+    type Event = MockEvent;
 )]
 #[async_trait]
 pub trait EventHandler: Send + Sync {
@@ -253,8 +268,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
+    use axelar_wasm_std::nonempty_str;
     use cosmrs::AccountId;
     use error_stack::report;
 
@@ -269,7 +287,7 @@ mod tests {
             .expect_subscription_params()
             .returning(|| SubscriptionParams {
                 event_filters: vec![AbciEventTypeFilter {
-                    event_type: "test_event".to_string(),
+                    event_type: nonempty_str!("mock-event"),
                     contract: AccountId::from_str(
                         "axelar1252ahkw208d08ls64atp2pql4cnl9naxy7ahhq3lrthvq3spseys26l8xj",
                     )
@@ -355,12 +373,7 @@ mod tests {
             .expect_handle()
             .times(2)
             .returning(|event, _: &mut MockHandlerTaskClient| {
-                let height = match event {
-                    Event::BlockBegin(h) => h.value(),
-                    _ => 0,
-                };
-
-                if height == 1 {
+                if event.0 == 1 {
                     Err(report!(Error::HandlerFailed))
                 } else {
                     Ok(vec![])
