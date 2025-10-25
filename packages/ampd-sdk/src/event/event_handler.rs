@@ -20,6 +20,7 @@ use crate::future::{with_retry, RetryPolicy};
 use crate::grpc::client::{EventHandlerClient, HandlerTaskClient};
 
 #[derive(Clone, Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct MockEvent(u64);
 
 impl TryFrom<Event> for MockEvent {

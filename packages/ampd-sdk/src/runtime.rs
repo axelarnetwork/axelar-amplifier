@@ -6,6 +6,7 @@ use ampd::url::Url;
 use cosmrs::AccountId;
 use error_stack::{Context, Report, Result, ResultExt};
 use events::Event;
+use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, Level};
@@ -16,8 +17,6 @@ use crate::future::RetryPolicy;
 use crate::grpc::client::types::ContractsAddresses;
 use crate::grpc::client::{EventHandlerClient, GrpcClient, HandlerTaskClient};
 use crate::grpc::connection_pool::ConnectionPool;
-
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
