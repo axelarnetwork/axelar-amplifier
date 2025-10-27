@@ -5,6 +5,9 @@ rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
+[features]
+test-utils = []
+
 [dependencies]
 ampd = { path = "../../ampd", default-features = false, features = ["url"] }
 ampd-proto = { workspace = true }

@@ -229,7 +229,7 @@ mod test {
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::*;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::test_utils::into_structured_event;
     use crate::monitoring::{metrics, test_utils};
     use crate::types::TMAddress;
     use crate::PREFIX;
