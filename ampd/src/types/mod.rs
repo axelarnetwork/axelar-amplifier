@@ -119,7 +119,7 @@ impl fmt::Display for AxelarAddress {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils {
     use super::key::test_utils::random_cosmos_public_key;
     use crate::types::{AxelarAddress, TMAddress};

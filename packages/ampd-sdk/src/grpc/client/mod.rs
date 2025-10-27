@@ -285,23 +285,21 @@ impl HandlerTaskClient for GrpcClient {
     }
 }
 
-#[cfg(test)]
-pub mod tests {
-    use std::str::FromStr;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
     use std::vec;
 
-    use ampd::url::Url;
-    use ampd_proto::blockchain_service_server::{BlockchainService, BlockchainServiceServer};
-    use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
+    use ampd_proto::blockchain_service_server::BlockchainService;
+    use ampd_proto::crypto_service_server::CryptoService;
     use ampd_proto::{
-        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
-        KeyResponse, LatestBlockHeightRequest, LatestBlockHeightResponse, SignResponse,
-        SubscribeResponse,
+        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyResponse,
+        LatestBlockHeightRequest, LatestBlockHeightResponse, SignResponse, SubscribeResponse,
     };
-    use axelar_wasm_std::chain_name;
-    use cosmrs::{AccountId, Any};
-    use futures::StreamExt;
+    use cosmrs::AccountId;
     use mockall::mock;
+    use tonic::{Request, Response, Status};
+
+    use super::*;
 
     mock! {
         #[derive(Debug)]
@@ -348,17 +346,6 @@ pub mod tests {
         }
     }
 
-    use serde::{Deserialize, Serialize};
-    use serde_json::Value;
-    use tokio::time::{sleep, Duration};
-    use tokio_util::sync::CancellationToken;
-    use tonic::{Request, Response, Status};
-
-    use super::*;
-    use crate::grpc::client::types::KeyAlgorithm;
-    use crate::grpc::connection_pool::{ConnectionPool, ConnectionState};
-    use crate::grpc::error::GrpcError;
-
     type ServerSubscribeStream =
         Pin<Box<dyn Stream<Item = std::result::Result<SubscribeResponse, Status>> + Send>>;
     mock! {
@@ -387,6 +374,35 @@ pub mod tests {
             async fn key(&self, request: Request<KeyRequest>) -> std::result::Result<Response<KeyResponse>, Status>;
         }
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::str::FromStr;
+    use std::vec;
+
+    use ampd::url::Url;
+    use ampd_proto::blockchain_service_server::BlockchainServiceServer;
+    use ampd_proto::crypto_service_server::CryptoServiceServer;
+    use ampd_proto::{
+        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
+        KeyResponse, LatestBlockHeightResponse, SignResponse, SubscribeResponse,
+    };
+    use axelar_wasm_std::chain_name;
+    use cosmrs::{AccountId, Any};
+    use futures::StreamExt;
+
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+    use tokio::time::{sleep, Duration};
+    use tokio_util::sync::CancellationToken;
+    use tonic::{Response, Status};
+
+    use super::*;
+    use crate::grpc::client::test_utils::{MockBlockchainService, MockCryptoService};
+    use crate::grpc::client::types::KeyAlgorithm;
+    use crate::grpc::connection_pool::{ConnectionPool, ConnectionState};
+    use crate::grpc::error::GrpcError;
 
     async fn test_setup(
         mock_blockchain: MockBlockchainService,
