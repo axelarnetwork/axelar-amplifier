@@ -212,3 +212,247 @@ where
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::convert::TryInto;
+
+    use ampd::evm::finalizer::Finalization;
+    use ampd::evm::json_rpc::MockEthereumClient;
+    use ampd::handlers::test_utils::{into_structured_event, participants};
+    use ampd::monitoring;
+    use ampd::types::{Hash, TMAddress};
+    use ampd_sdk::event::event_handler::EventHandler;
+    use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
+    use axelar_wasm_std::chain_name;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::voting::Vote;
+    use cosmwasm_std;
+    use error_stack::{Report, Result};
+    use ethers_core::types::{Block, H160, H256, U64};
+    use ethers_providers::ProviderError;
+    use events::Error::{DeserializationFailed, EventTypeMismatch};
+    use events::Event;
+    use tokio::test as async_test;
+    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+
+    use crate::handler::Handler;
+
+    use super::PollStartedEvent;
+
+    const PREFIX: &str = "axelar";
+    const ETHEREUM: &str = "ethereum";
+
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        let msg_ids = [
+            HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
+            HexTxHashAndEventIndex::new(H256::repeat_byte(2), 1u64),
+            HexTxHashAndEventIndex::new(H256::repeat_byte(3), 10u64),
+        ];
+        PollStarted::Messages {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!(ETHEREUM),
+                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                    .parse()
+                    .unwrap(),
+                confirmation_height: 15,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+            messages: vec![
+                TxEventConfirmation {
+                    message_id: msg_ids[0].to_string().parse().unwrap(),
+                    source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
+                    destination_chain: chain_name!(ETHEREUM),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(2)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
+                },
+                TxEventConfirmation {
+                    message_id: msg_ids[1].to_string().parse().unwrap(),
+                    source_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
+                    destination_chain: chain_name!(ETHEREUM),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(4)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(5).to_fixed_bytes(),
+                },
+                TxEventConfirmation {
+                    message_id: msg_ids[2].to_string().parse().unwrap(),
+                    source_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
+                    destination_chain: chain_name!(ETHEREUM),
+                    destination_address: format!("0x{:x}", H160::repeat_byte(6)).parse().unwrap(),
+                    payload_hash: H256::repeat_byte(6).to_fixed_bytes(),
+                },
+            ],
+        }
+    }
+
+    fn mock_handler_client(latest_block_height: u64) -> MockHandlerTaskClient {
+        let mut client = MockHandlerTaskClient::new();
+        client
+            .expect_latest_block_height()
+            .returning(move || Ok(latest_block_height));
+        client
+    }
+
+    #[test]
+    fn should_not_deserialize_incorrect_event() {
+        // incorrect event type
+        let mut event: Event = into_structured_event(
+            poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        );
+        match event {
+            Event::Abci {
+                ref mut event_type, ..
+            } => {
+                *event_type = "incorrect".into();
+            }
+            _ => panic!("incorrect event type"),
+        }
+        let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
+
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            EventTypeMismatch(_)
+        ));
+
+        // invalid field
+        let mut event: Event = into_structured_event(
+            poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        );
+        match event {
+            Event::Abci {
+                ref mut attributes, ..
+            } => {
+                attributes.insert("source_gateway_address".into(), "invalid".into());
+            }
+            _ => panic!("incorrect event type"),
+        }
+
+        let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
+
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            DeserializationFailed(_, _)
+        ));
+    }
+
+    #[test]
+    fn evm_verify_msg_should_deserialize_correct_event() {
+        let event: Event = into_structured_event(
+            poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        );
+        let event: PollStartedEvent = event.try_into().unwrap();
+
+        goldie::assert_debug!(event);
+    }
+
+    #[async_test]
+    async fn should_skip_expired_poll() {
+        let mut rpc_client = MockEthereumClient::new();
+        // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
+        rpc_client.expect_finalized_block().returning(|| {
+            Err(Report::from(ProviderError::CustomError(
+                "failed to get finalized block".to_string(),
+            )))
+        });
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event: Event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier_contract,
+        );
+
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier_contract.into())
+            .chain(chain_name!(ETHEREUM))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        // poll is not expired yet, should hit rpc error
+        assert!(handler
+            .handle(event.clone().try_into().unwrap(), &mut client)
+            .await
+            .is_err());
+
+        let mut client = mock_handler_client(expiration + 1);
+
+        // poll is expired, should not hit rpc error now
+        assert_eq!(
+            handler
+                .handle(event.try_into().unwrap(), &mut client)
+                .await
+                .unwrap(),
+            vec![]
+        );
+    }
+
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let mut rpc_client = MockEthereumClient::new();
+        let mut block = Block::<Hash>::default();
+        let block_number: U64 = 10.into();
+        block.number = Some(block_number);
+
+        rpc_client
+            .expect_finalized_block()
+            .returning(move || Ok(block.clone()));
+
+        rpc_client
+            .expect_transaction_receipt()
+            .returning(|_| Ok(None));
+
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
+            &voting_verifier_contract,
+        );
+        let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier_contract.into())
+            .chain(chain_name!(ETHEREUM))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(0);
+
+        assert!(handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .is_ok());
+
+        for _ in 0..3 {
+            let metrics = receiver.recv().await.unwrap();
+
+            assert_eq!(
+                metrics,
+                monitoring::metrics::Msg::VerificationVote {
+                    vote_decision: Vote::NotFound,
+                    chain_name: chain_name!(ETHEREUM),
+                }
+            );
+        }
+
+        assert!(receiver.try_recv().is_err());
+    }
+}
