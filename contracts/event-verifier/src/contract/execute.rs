@@ -45,7 +45,7 @@ pub fn verify_events(
         event_status(deps.as_ref(), &event, env.block.height).map(|status| (status, event))
     })?;
 
-    let events_to_verify: Vec<event_verifier_api::EventToVerify> = events
+    let events_to_verify: Vec<_> = events
         .into_iter()
         .filter_map(|(status, event)| match status {
             VerificationStatus::NotFoundOnSourceChain

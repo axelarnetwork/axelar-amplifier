@@ -115,7 +115,10 @@ fn match_participant(
 mod test {
     use assert_ok::assert_ok;
     use axelar_wasm_std::voting::{PollStatus, Vote};
-    use axelar_wasm_std::{fixed_size, nonempty, MajorityThreshold, Threshold, VerificationStatus};
+    use axelar_wasm_std::{
+        assert_err_contains, fixed_size, nonempty, permission_control, MajorityThreshold,
+        Threshold, VerificationStatus,
+    };
     use cosmwasm_std::testing::{
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
@@ -126,7 +129,6 @@ mod test {
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
 
     use super::*;
-    use crate::error::ContractError;
 
     const SENDER: &str = "sender";
     const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
@@ -383,7 +385,7 @@ mod test {
     #[test]
     fn anyone_can_verify_events() {
         let verifiers = verifiers(1);
-        let mut deps = setup(verifiers);
+        let mut deps = setup(verifiers.clone());
         let api = deps.api;
 
         let res = execute(
@@ -396,24 +398,46 @@ mod test {
     }
 
     #[test]
-    fn anyone_can_vote() {
-        let verifiers = verifiers(1);
-        let mut deps = setup(verifiers);
+    fn only_participants_can_vote() {
+        let verifiers = verifiers(3);
+        let mut deps = setup(verifiers.clone());
         let api = deps.api;
 
-        // No poll exists; should not be Unauthorized, but PollNotFound
-        let res = execute(
+        let event = EventToVerify {
+            source_chain: source_chain(),
+            event_data: evm_event_json(),
+        };
+
+        assert_ok!(execute(
             deps.as_mut(),
             mock_env(),
             message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyEvents(vec![event.clone()]),
+        ));
+
+        assert_err_contains!(
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&api.addr_make(SENDER), &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::SucceededOnChain],
+                },
+            ),
+            permission_control::Error,
+            permission_control::Error::SpecificPermissionDenied { .. }
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&verifiers[0].address, &[]),
             ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
-                votes: vec![],
+                votes: vec![Vote::SucceededOnChain],
             },
         );
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            ContractError::PollNotFound.to_string()
-        );
+        assert!(res.is_ok());
     }
 }
