@@ -391,7 +391,6 @@ pub mod tests {
     use axelar_wasm_std::chain_name;
     use cosmrs::{AccountId, Any};
     use futures::StreamExt;
-
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use tokio::time::{sleep, Duration};
