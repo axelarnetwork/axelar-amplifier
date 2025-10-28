@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
@@ -8,7 +7,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
 use msgs_derive::Permissions;
 use multisig::key::KeyType;
-use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
@@ -96,11 +94,14 @@ pub struct ProverMsg {
     pub service_name: nonempty::String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub encoder: Encoder,
     pub key_type: KeyType,
     #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub domain_separator: Hash,
+    pub notify_signing_session: bool,
+    pub expect_full_message_payloads: bool,
+    pub sig_verifier_address: Option<String>,
+    pub chain_codec_address: nonempty::String,
 }
 
 #[cw_serde]
@@ -114,7 +115,7 @@ pub struct VerifierMsg {
     pub source_chain: ChainName,
     pub rewards_address: nonempty::String,
     pub msg_id_format: MessageIdFormat,
-    pub address_format: AddressFormat,
+    pub chain_codec_address: nonempty::String,
 }
 
 #[cw_serde]
