@@ -4,7 +4,7 @@ mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
-use error_stack::Result;
+use error_stack::{bail, Result};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use multisig_prover_api::encoding::Encoder;
@@ -42,6 +42,7 @@ impl EncoderExt for Encoder {
             Encoder::StellarXdr => {
                 stellar_xdr::payload_digest(domain_separator, verifier_set, payload)
             }
+            _ => bail!(ContractError::EncoderNotImplemented),
         }
     }
 
@@ -56,6 +57,7 @@ impl EncoderExt for Encoder {
             Encoder::Abi => abi::encode_execute_data(domain_separator, verifier_set, sigs, payload),
             Encoder::Bcs => bcs::encode_execute_data(domain_separator, verifier_set, sigs, payload),
             Encoder::StellarXdr => stellar_xdr::encode_execute_data(verifier_set, sigs, payload),
+            _ => bail!(ContractError::EncoderNotImplemented),
         }
     }
 }
