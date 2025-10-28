@@ -125,7 +125,7 @@ impl From<CosmosPublicKey> for PublicKey {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils {
     use rand::rngs::OsRng;
 

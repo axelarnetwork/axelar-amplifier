@@ -226,7 +226,7 @@ mod tests {
 
     use super::*;
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::test_utils::into_structured_event;
     use crate::monitoring::{metrics, test_utils};
     use crate::types::TMAddress;
     use crate::PREFIX;

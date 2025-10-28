@@ -196,7 +196,7 @@ mod tests {
 
     use super::{PollStartedEvent, STELLAR_CHAIN_NAME};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::stellar::rpc_client::Client;
     use crate::types::TMAddress;

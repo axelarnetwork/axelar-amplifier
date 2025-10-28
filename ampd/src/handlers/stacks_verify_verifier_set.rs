@@ -215,7 +215,7 @@ mod tests {
 
     use super::{Handler, PollStartedEvent};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};

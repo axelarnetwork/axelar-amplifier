@@ -11,6 +11,7 @@ default = ["commands", "config", "dummy-grpc-broadcast"]
 commands = []
 config = []
 url = []
+test-utils = ["rand"]
 dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
 
 [dependencies]
@@ -67,6 +68,7 @@ primitive-types = "0.12"
 prometheus-client = "0.23.1"
 prost = "0.13.5"
 prost-types = "0.13.5"
+rand = { workspace = true, optional = true }
 regex = "1.10.2"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
