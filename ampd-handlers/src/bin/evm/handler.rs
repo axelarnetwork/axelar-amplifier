@@ -227,7 +227,6 @@ mod tests {
     use axelar_wasm_std::chain_name;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_core::types::{Block, H160, H256, U64};
     use ethers_providers::ProviderError;
@@ -236,9 +235,8 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use crate::handler::Handler;
-
     use super::PollStartedEvent;
+    use crate::handler::Handler;
 
     const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
