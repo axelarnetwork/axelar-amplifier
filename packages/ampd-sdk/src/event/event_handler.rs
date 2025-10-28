@@ -68,12 +68,17 @@ impl SubscriptionParams {
 pub struct Config {
     #[serde(with = "humantime_serde")]
     pub stream_timeout: Duration,
+    #[serde(with = "humantime_serde")]
+    pub retry_delay: Duration,
+    pub retry_max_attempts: u64,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             stream_timeout: Duration::from_secs(10),
+            retry_delay: Duration::from_secs(1),
+            retry_max_attempts: 3,
         }
     }
 }
@@ -88,8 +93,6 @@ where
 {
     handler: H,
     config: Config,
-    #[builder(default = RetryPolicy::NoRetry)]
-    handler_retry_policy: RetryPolicy,
 }
 
 impl<H, C> HandlerTask<H, C>
@@ -219,7 +222,10 @@ where
                 let event_clone = event.clone();
                 async move { self.handler.handle(event_clone, &mut client_clone).await }
             },
-            self.handler_retry_policy,
+            RetryPolicy::RepeatConstant {
+                sleep: self.config.retry_delay,
+                max_attempts: self.config.retry_max_attempts,
+            },
         )
         .await
         .ok()
@@ -345,8 +351,9 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
-            .handler_retry_policy(RetryPolicy::NoRetry)
             .build();
 
         let result = tokio::time::timeout(
@@ -376,6 +383,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -408,6 +417,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -443,10 +454,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
-            })
-            .handler_retry_policy(RetryPolicy::RepeatConstant {
-                sleep: Duration::from_millis(10),
-                max_attempts: 3,
+                retry_delay: Duration::from_millis(10),
+                retry_max_attempts: 3,
             })
             .build();
 
@@ -473,6 +482,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -495,6 +506,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(50),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -539,6 +552,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -583,6 +598,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -618,6 +635,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -644,6 +663,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
