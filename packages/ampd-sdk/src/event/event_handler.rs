@@ -258,7 +258,7 @@ mod tests {
     use mockall::mock;
 
     use super::*;
-    use crate::grpc::client::tests::MockHandlerTaskClient;
+    use crate::grpc::client::test_utils::MockHandlerTaskClient;
     use crate::grpc::client::types::BroadcastClientResponse;
     use crate::grpc::error::{AppError, Error as ClientError};
 
