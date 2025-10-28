@@ -2526,7 +2526,7 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "axelar-wasm-std",
  "client",
@@ -3883,6 +3883,41 @@ dependencies = [
  "event-macros",
  "solana-program",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "event-verifier"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "assert_ok",
+ "axelar-wasm-std",
+ "bech32 0.11.0",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "error-stack",
+ "event-verifier-api",
+ "goldie",
+ "integration-tests",
+ "itertools 0.14.0",
+ "msgs-derive",
+ "multisig",
+ "rand 0.8.5",
+ "report",
+ "rewards",
+ "router-api",
+ "semver 1.0.26",
+ "serde_json",
+ "service-registry",
+ "service-registry-api",
+ "sha3",
+ "starknet-checked-felt",
+ "thiserror 1.0.69",
+ "voting-verifier-api",
 ]
 
 [[package]]
