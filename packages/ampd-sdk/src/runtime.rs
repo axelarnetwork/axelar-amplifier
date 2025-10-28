@@ -24,6 +24,8 @@ pub enum Error {
     HandlerRun,
 }
 
+#[non_exhaustive] // prevents creating the runtime using struct expression from outside this crate
+#[derive(Debug)]
 pub struct HandlerRuntime {
     pub monitoring_client: monitoring::Client,
     pub grpc_client: GrpcClient,
@@ -32,10 +34,33 @@ pub struct HandlerRuntime {
 }
 
 impl HandlerRuntime {
+    /// Starts and creates the handler runtime. This will do the following:
+    /// - Initialize the tracing subsystem
+    /// - Start the shutdown signal monitor
+    /// - Start the monitoring server
+    /// - Start the connection pool
+    /// - Fetch the contracts addresses and verifier address from the ampd server
+    /// - Return the handler runtime
+    ///
+    /// # Examples
+    /// ```rust, no_run
+    /// use ampd_sdk::config;
+    /// use ampd_sdk::runtime::HandlerRuntime;
+    /// # use std::error::Error;
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// # #[tokio::main]
+    /// async fn main() {
+    ///     let config = config::Config::from_default_sources().unwrap();
+    ///     let token = CancellationToken::new();
+    ///
+    ///     let runtime = HandlerRuntime::start(&config, token).await.unwrap();
+    /// }
+    /// ```
     pub async fn start(config: &Config, token: CancellationToken) -> Result<Self, Error> {
         init_tracing(Level::INFO);
 
-        info!("Starting runtime");
+        info!("Starting handler runtime");
 
         start_shutdown_signal_monitor(token.clone());
         let monitoring_client =
@@ -58,6 +83,7 @@ impl HandlerRuntime {
         })
     }
 
+    /// Use the started runtime to create and run the handler task
     pub async fn run_handler<H, C>(
         mut self,
         handler: H,
