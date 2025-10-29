@@ -11,6 +11,10 @@ use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 
+fn default_confirmation_height() -> u64 {
+    1
+}
+
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct Chain {
     pub name: ChainName,
@@ -35,6 +39,8 @@ pub enum Config {
         #[serde(flatten, with = "chain")]
         chain: Chain,
         rpc_timeout: Option<Duration>,
+        #[serde(default = "default_confirmation_height")]
+        confirmation_height: u64,
     },
     EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,

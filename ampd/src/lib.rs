@@ -384,6 +384,7 @@ impl App {
                 chain,
                 cosmwasm_contract,
                 rpc_timeout,
+                confirmation_height,
             } => {
                 let rpc_client = json_rpc::Client::new_http(
                     chain.rpc_url.clone(),
@@ -407,6 +408,7 @@ impl App {
                             verifier.clone(),
                             cosmwasm_contract.clone(),
                             chain.name.clone(),
+                            *confirmation_height,
                             chain.finalization.clone(),
                             rpc_client,
                             self.block_height_monitor.latest_block_height(),

@@ -37,11 +37,15 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-events_poll_started")]
 struct PollStartedEvent {
+    events: Vec<EventToVerify>,
+    metadata: EventPollMetadata,
+}
+
+#[derive(Deserialize, Debug)]
+struct EventPollMetadata {
     poll_id: PollId,
     source_chain: ChainName,
-    confirmation_height: u64,
     expires_at: u64,
-    events: Vec<EventToVerify>,
     participants: Vec<TMAddress>,
 }
 
@@ -53,6 +57,7 @@ where
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
     chain: ChainName,
+    confirmation_height: u64,
     finalizer_type: Finalization,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
@@ -63,10 +68,12 @@ impl<C> Handler<C>
 where
     C: EthereumClient + Send + Sync,
 {
+    #![allow(clippy::too_many_arguments)]
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
         chain: ChainName,
+        confirmation_height: u64,
         finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
@@ -76,6 +83,7 @@ where
             verifier,
             voting_verifier_contract,
             chain,
+            confirmation_height,
             finalizer_type,
             rpc_client,
             latest_block_height,
@@ -174,12 +182,14 @@ where
         }
 
         let PollStartedEvent {
-            poll_id,
-            source_chain,
             events: events_to_verify,
-            expires_at,
-            confirmation_height,
-            participants,
+            metadata:
+                EventPollMetadata {
+                    poll_id,
+                    source_chain,
+                    expires_at,
+                    participants,
+                },
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(vec![])
@@ -223,7 +233,7 @@ where
             .collect();
 
         let finalized_tx_receipts = self
-            .finalized_tx_receipts(&events_data, confirmation_height)
+            .finalized_tx_receipts(&events_data, self.confirmation_height)
             .await?;
 
         let poll_id_str: String = poll_id.into();
@@ -290,12 +300,13 @@ mod tests {
 
     use axelar_wasm_std::fixed_size;
     use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std::{self, Event as CosmEvent, Uint256};
+    use cosmwasm_std::{self, Uint256};
     use error_stack::{Report, Result};
     use ethers_core::types::{
         Block, Bytes, Log as EthLog, Transaction, TransactionReceipt, H160, H256, U256, U64,
     };
     use ethers_providers::ProviderError;
+    use event_verifier::events::{Event as EventVerifierEvent, PollMetadata};
     use event_verifier_api::evm::{Event as ApiEvent, EvmEvent as ApiEvmEvent, TransactionDetails};
     use event_verifier_api::{EventData, EventToVerify};
     use events::Error::{DeserializationFailed, EventTypeMismatch};
@@ -409,18 +420,42 @@ mod tests {
         }
     }
 
-    fn events_json_from(evm_events: Vec<ApiEvmEvent>) -> String {
-        let items: Vec<EventToVerify> = evm_events
+    fn events_from(evm_events: Vec<ApiEvmEvent>) -> Vec<EventToVerify> {
+        evm_events
             .into_iter()
             .map(|ev| EventToVerify {
                 source_chain: chain_name!(ETHEREUM),
                 event_data: serde_json::to_string(&EventData::Evm(ev)).unwrap(),
             })
-            .collect();
-        serde_json::to_string(&items).unwrap()
+            .collect()
     }
 
-    fn sample_events_json() -> String {
+    fn poll_started_event_with_events(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+        events: Vec<EventToVerify>,
+    ) -> EventVerifierEvent {
+        let participants_as_addr: Vec<cosmwasm_std::Addr> = participants
+            .into_iter()
+            .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+            .collect();
+
+        EventVerifierEvent::EventsPollStarted {
+            events,
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!(ETHEREUM),
+                expires_at,
+                participants: participants_as_addr,
+            },
+        }
+    }
+
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> EventVerifierEvent {
+        poll_started_event_with_events(participants, expires_at, sample_events())
+    }
+
+    fn sample_events() -> Vec<EventToVerify> {
         // build three minimal EVM events
         let mk_evm = |byte: u8| -> ApiEvmEvent {
             let tx_hash = fixed_size::HexBinary::<32>::try_from([byte; 32]).unwrap();
@@ -439,7 +474,7 @@ mod tests {
             }
         };
 
-        let items = vec![
+        vec![
             EventToVerify {
                 source_chain: chain_name!(ETHEREUM),
                 event_data: serde_json::to_string(&EventData::Evm(mk_evm(1))).unwrap(),
@@ -452,38 +487,7 @@ mod tests {
                 source_chain: chain_name!(ETHEREUM),
                 event_data: serde_json::to_string(&EventData::Evm(mk_evm(3))).unwrap(),
             },
-        ];
-
-        serde_json::to_string(&items).unwrap()
-    }
-
-    fn poll_started_event_with_raw_events_json(
-        participants: Vec<TMAddress>,
-        expires_at: u64,
-        events_json: String,
-    ) -> CosmEvent {
-        let participants_as_addr: Vec<cosmwasm_std::Addr> = participants
-            .into_iter()
-            .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-            .collect();
-
-        CosmEvent::new("events_poll_started")
-            .add_attribute(
-                "poll_id",
-                serde_json::to_string(&axelar_wasm_std::voting::PollId::from(100u64)).unwrap(),
-            )
-            .add_attribute("source_chain", chain_name!(ETHEREUM).to_string())
-            .add_attribute("confirmation_height", 15u64.to_string())
-            .add_attribute("expires_at", expires_at.to_string())
-            .add_attribute(
-                "participants",
-                serde_json::to_string(&participants_as_addr).unwrap(),
-            )
-            .add_attribute("events", events_json)
-    }
-
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> CosmEvent {
-        poll_started_event_with_raw_events_json(participants, expires_at, sample_events_json())
+        ]
     }
 
     #[test]
@@ -517,7 +521,7 @@ mod tests {
             Event::Abci {
                 ref mut attributes, ..
             } => {
-                attributes.insert("poll_id".into(), "invalid".into());
+                attributes.insert("metadata".into(), "{\"invalid\": \"json\"}".into());
             }
             _ => panic!("incorrect event type"),
         }
@@ -567,6 +571,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             rx,
@@ -609,6 +614,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -661,14 +667,13 @@ mod tests {
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
 
-        let malformed_events = serde_json::to_string(&vec![serde_json::json!({
-            "source_chain": chain_name!(ETHEREUM),
-            "event_data": "{ this is not valid json",
-        })])
-        .unwrap();
+        let malformed_events = vec![EventToVerify {
+            source_chain: chain_name!(ETHEREUM),
+            event_data: "{ this is not valid json".to_string(),
+        }];
 
         let event: Event = into_structured_event(
-            poll_started_event_with_raw_events_json(
+            poll_started_event_with_events(
                 participants(1, Some(verifier.clone())),
                 100,
                 malformed_events,
@@ -682,6 +687,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -725,16 +731,12 @@ mod tests {
             .returning(move |_| Ok(Some(receipt.clone())));
 
         let evm_event = make_api_event_only(tx_hash, contract_addr, topic0, data_bytes.clone(), 0);
-        let events_json = events_json_from(vec![evm_event]);
+        let events = events_from(vec![evm_event]);
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let event: Event = into_structured_event(
-            poll_started_event_with_raw_events_json(
-                participants(1, Some(verifier.clone())),
-                100,
-                events_json,
-            ),
+            poll_started_event_with_events(participants(1, Some(verifier.clone())), 100, events),
             &voting_verifier_contract,
         );
 
@@ -744,6 +746,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -810,16 +813,12 @@ mod tests {
             0,
             details,
         );
-        let events_json = events_json_from(vec![evm_event]);
+        let events = events_from(vec![evm_event]);
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let event: Event = into_structured_event(
-            poll_started_event_with_raw_events_json(
-                participants(1, Some(verifier.clone())),
-                100,
-                events_json,
-            ),
+            poll_started_event_with_events(participants(1, Some(verifier.clone())), 100, events),
             &voting_verifier_contract,
         );
 
@@ -828,6 +827,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -891,16 +891,12 @@ mod tests {
             0,
             details,
         );
-        let events_json = events_json_from(vec![evm_event]);
+        let events = events_from(vec![evm_event]);
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let event: Event = into_structured_event(
-            poll_started_event_with_raw_events_json(
-                participants(1, Some(verifier.clone())),
-                100,
-                events_json,
-            ),
+            poll_started_event_with_events(participants(1, Some(verifier.clone())), 100, events),
             &voting_verifier_contract,
         );
 
@@ -909,6 +905,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,
@@ -950,16 +947,12 @@ mod tests {
         let wrong_topic: H256 = H256::repeat_byte(0x22);
         let evm_event =
             make_api_event_only(tx_hash, contract_addr, wrong_topic, data_bytes.clone(), 0);
-        let events_json = events_json_from(vec![evm_event]);
+        let events = events_from(vec![evm_event]);
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let event: Event = into_structured_event(
-            poll_started_event_with_raw_events_json(
-                participants(1, Some(verifier.clone())),
-                100,
-                events_json,
-            ),
+            poll_started_event_with_events(participants(1, Some(verifier.clone())), 100, events),
             &voting_verifier_contract,
         );
 
@@ -968,6 +961,7 @@ mod tests {
             verifier,
             voting_verifier_contract,
             chain_name!(ETHEREUM),
+            1,
             Finalization::RPCFinalizedBlock,
             rpc_client,
             watch::channel(0).1,

@@ -265,6 +265,7 @@ dependencies = [
  "ethers-core",
  "ethers-providers",
  "event-cpi",
+ "event-verifier",
  "event-verifier-api",
  "events",
  "evm-gateway",
