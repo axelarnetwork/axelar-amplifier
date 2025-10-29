@@ -417,6 +417,7 @@ dependencies = [
  "tonic 0.13.1",
  "tracing",
  "tracing-subscriber",
+ "tracing-test",
  "typed-builder",
  "valuable",
 ]

@@ -252,21 +252,11 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
-
-    use axelar_wasm_std::nonempty_str;
-    use cosmrs::AccountId;
-    use error_stack::report;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
     use mockall::mock;
 
     use super::*;
-    use crate::grpc::client::test_utils::MockHandlerTaskClient;
-    use crate::grpc::client::types::BroadcastClientResponse;
-    use crate::grpc::error::{AppError, Error as ClientError};
 
     #[derive(Clone, Deserialize, Debug)]
     pub struct MockEvent(pub u64);
@@ -304,6 +294,23 @@ mod tests {
             fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use axelar_wasm_std::nonempty_str;
+    use cosmrs::AccountId;
+    use error_stack::report;
+
+    use super::*;
+    use crate::event::event_handler::test_utils::MockEventHandler;
+    use crate::grpc::client::test_utils::MockHandlerTaskClient;
+    use crate::grpc::client::types::BroadcastClientResponse;
+    use crate::grpc::error::{AppError, Error as ClientError};
 
     fn setup_handler() -> MockEventHandler {
         let mut handler = MockEventHandler::new();

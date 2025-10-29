@@ -41,6 +41,7 @@ valuable = { workspace = true }
 temp-env = { workspace = true }
 tempfile = "3.21.0"
 tokio = { workspace = true, features = ["test-util"] }
+tracing-test = { workspace = true }
 
 [lints]
 workspace = true
