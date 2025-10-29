@@ -8,7 +8,7 @@ use events::Event;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, Level};
+use tracing::info;
 
 use crate::config::Config;
 use crate::event::event_handler::{EventHandler, HandlerTask};
@@ -35,7 +35,6 @@ pub struct HandlerRuntime {
 
 impl HandlerRuntime {
     /// Starts and creates the handler runtime. This will do the following:
-    /// - Initialize the tracing subsystem
     /// - Start the shutdown signal monitor
     /// - Start the monitoring server
     /// - Start the connection pool
@@ -58,8 +57,6 @@ impl HandlerRuntime {
     /// }
     /// ```
     pub async fn start(config: &Config, token: CancellationToken) -> Result<Self, Error> {
-        init_tracing(Level::INFO);
-
         info!("Starting handler runtime");
 
         start_shutdown_signal_monitor(token.clone());
@@ -107,15 +104,6 @@ impl HandlerRuntime {
 
         Ok(())
     }
-}
-
-fn init_tracing(max_level: Level) {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(max_level)
-            .finish(),
-    )
-    .expect("failed to set global default tracing subscriber");
 }
 
 fn start_connection_pool(ampd_url: Url, token: CancellationToken) -> GrpcClient {

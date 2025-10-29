@@ -15,6 +15,7 @@ use error_stack::{Result, ResultExt};
 use ethers_providers::Http;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use tracing::Level;
 
 use crate::error::Error;
 use crate::handler::Handler;
@@ -62,10 +63,21 @@ fn build_handler(
     Ok(handler)
 }
 
+fn init_tracing(max_level: Level) {
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(max_level)
+            .finish(),
+    )
+    .expect("failed to set global default tracing subscriber");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     #[cfg(debug_assertions)]
     dotenv().ok();
+
+    init_tracing(Level::INFO);
 
     let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
     let handler_config = config::Config::builder()
