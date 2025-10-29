@@ -6,4 +6,5 @@ pub enum Encoder {
     Abi,
     Bcs,
     StellarXdr,
+    Solana,
 }
