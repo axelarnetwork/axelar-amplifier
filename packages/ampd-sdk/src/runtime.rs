@@ -8,7 +8,8 @@ use events::Event;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{error, info};
+use valuable::Valuable;
 
 use crate::config::Config;
 use crate::event::event_handler::{EventHandler, HandlerTask};
@@ -110,7 +111,12 @@ fn start_connection_pool(ampd_url: Url, token: CancellationToken) -> GrpcClient 
     let (pool, handle) = ConnectionPool::new(ampd_url);
 
     tokio::spawn(async move {
-        let _ = pool.run(token).await;
+        let _ = pool.run(token).await.inspect_err(|err| {
+            error!(
+                err = report::LoggableError::from(err).as_value(),
+                "connection pool failed"
+            )
+        });
     });
 
     GrpcClient::new(handle)
@@ -124,7 +130,12 @@ fn start_monitoring_server(
         monitoring::Server::new(config).expect("failed to create monitoring server");
 
     tokio::spawn(async move {
-        let _ = server.run(token).await;
+        let _ = server.run(token).await.inspect_err(|err| {
+            error!(
+                err = report::LoggableError::from(err).as_value(),
+                "monitoring server failed"
+            )
+        });
     });
 
     client
