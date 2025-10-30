@@ -38,11 +38,6 @@ type Result<T> = error_stack::Result<T, Error>;
 #[try_from("wasm-events_poll_started")]
 struct PollStartedEvent {
     events: Vec<EventToVerify>,
-    metadata: EventPollMetadata,
-}
-
-#[derive(Deserialize, Debug)]
-struct EventPollMetadata {
     poll_id: PollId,
     source_chain: ChainName,
     expires_at: u64,
@@ -64,31 +59,29 @@ where
     monitoring_client: monitoring::Client,
 }
 
+#[derive(typed_builder::TypedBuilder)]
+#[builder(build_method(into = Result<Handler<C>>))]
+pub struct HandlerParams<C>
+where
+    C: EthereumClient,
+{
+    verifier: TMAddress,
+    voting_verifier_contract: TMAddress,
+    chain: ChainName,
+    confirmation_height: Option<u64>,
+    finalizer_type: Finalization,
+    rpc_client: C,
+    latest_block_height: Receiver<u64>,
+    monitoring_client: monitoring::Client,
+}
+
 impl<C> Handler<C>
 where
     C: EthereumClient + Send + Sync,
 {
-    #![allow(clippy::too_many_arguments)]
-    pub fn new(
-        verifier: TMAddress,
-        voting_verifier_contract: TMAddress,
-        chain: ChainName,
-        confirmation_height: u64,
-        finalizer_type: Finalization,
-        rpc_client: C,
-        latest_block_height: Receiver<u64>,
-        monitoring_client: monitoring::Client,
-    ) -> Self {
-        Self {
-            verifier,
-            voting_verifier_contract,
-            chain,
-            confirmation_height,
-            finalizer_type,
-            rpc_client,
-            latest_block_height,
-            monitoring_client,
-        }
+    #[allow(clippy::type_complexity)]
+    pub fn builder() -> HandlerParamsBuilder<C, ((), (), (), (), (), (), (), ())> {
+        HandlerParams::builder()
     }
 
     async fn finalized_tx_receipts(
@@ -169,6 +162,32 @@ where
     }
 }
 
+impl<C> From<HandlerParams<C>> for Result<Handler<C>>
+where
+    C: EthereumClient,
+{
+    fn from(params: HandlerParams<C>) -> Self {
+        let confirmation_height = match params.finalizer_type {
+            Finalization::ConfirmationHeight => params
+                .confirmation_height
+                .ok_or(Error::MissingConfirmationHeight)?,
+            // This finalizer type won't actually use the confirmation height field
+            Finalization::RPCFinalizedBlock => params.confirmation_height.unwrap_or(1),
+        };
+
+        Ok(Handler {
+            verifier: params.verifier,
+            voting_verifier_contract: params.voting_verifier_contract,
+            chain: params.chain,
+            confirmation_height,
+            finalizer_type: params.finalizer_type,
+            rpc_client: params.rpc_client,
+            latest_block_height: params.latest_block_height,
+            monitoring_client: params.monitoring_client,
+        })
+    }
+}
+
 #[async_trait]
 impl<C> EventHandler for Handler<C>
 where
@@ -183,13 +202,10 @@ where
 
         let PollStartedEvent {
             events: events_to_verify,
-            metadata:
-                EventPollMetadata {
-                    poll_id,
-                    source_chain,
-                    expires_at,
-                    participants,
-                },
+            poll_id,
+            source_chain,
+            expires_at,
+            participants,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(vec![])
@@ -306,7 +322,7 @@ mod tests {
         Block, Bytes, Log as EthLog, Transaction, TransactionReceipt, H160, H256, U256, U64,
     };
     use ethers_providers::ProviderError;
-    use event_verifier::events::{Event as EventVerifierEvent, PollMetadata};
+    use event_verifier::events::Event as EventVerifierEvent;
     use event_verifier_api::evm::{Event as ApiEvent, EvmEvent as ApiEvmEvent, TransactionDetails};
     use event_verifier_api::{EventData, EventToVerify};
     use events::Error::{DeserializationFailed, EventTypeMismatch};
@@ -319,6 +335,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
+    use crate::handlers::errors::Error as HandlerError;
     use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::types::TMAddress;
@@ -442,12 +459,10 @@ mod tests {
 
         EventVerifierEvent::EventsPollStarted {
             events,
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(ETHEREUM),
-                expires_at,
-                participants: participants_as_addr,
-            },
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(ETHEREUM),
+            expires_at,
+            participants: participants_as_addr,
         }
     }
 
@@ -521,7 +536,7 @@ mod tests {
             Event::Abci {
                 ref mut attributes, ..
             } => {
-                attributes.insert("metadata".into(), "{\"invalid\": \"json\"}".into());
+                attributes.insert("poll_id".into(), "{\"invalid\": \"json\"}".into());
             }
             _ => panic!("incorrect event type"),
         }
@@ -567,16 +582,17 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            rx,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(rx)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
@@ -610,16 +626,17 @@ mod tests {
         );
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
 
@@ -683,16 +700,17 @@ mod tests {
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
 
@@ -742,16 +760,17 @@ mod tests {
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
 
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
 
@@ -823,16 +842,17 @@ mod tests {
         );
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
         let metrics = receiver.recv().await.unwrap();
@@ -901,16 +921,17 @@ mod tests {
         );
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
         let metrics = receiver.recv().await.unwrap();
@@ -957,16 +978,17 @@ mod tests {
         );
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            1,
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = super::Handler::builder()
+            .verifier(verifier)
+            .voting_verifier_contract(voting_verifier_contract)
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(Some(1))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build()
+            .unwrap();
 
         assert!(handler.handle(&event).await.is_ok());
         let metrics = receiver.recv().await.unwrap();
@@ -978,5 +1000,48 @@ mod tests {
             }
         );
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn should_error_when_confirmation_height_missing_for_confirmation_height_finalizer() {
+        let rpc_client = MockEthereumClient::new();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let result = super::Handler::builder()
+            .verifier(TMAddress::random(PREFIX))
+            .voting_verifier_contract(TMAddress::random(PREFIX))
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(None)
+            .finalizer_type(Finalization::ConfirmationHeight)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
+            HandlerError::MissingConfirmationHeight
+        ));
+    }
+
+    #[test]
+    fn should_accept_none_confirmation_height_for_rpc_finalized_block() {
+        let rpc_client = MockEthereumClient::new();
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let result = super::Handler::builder()
+            .verifier(TMAddress::random(PREFIX))
+            .voting_verifier_contract(TMAddress::random(PREFIX))
+            .chain(chain_name!(ETHEREUM))
+            .confirmation_height(None)
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .latest_block_height(watch::channel(0).1)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().confirmation_height, 1);
     }
 }

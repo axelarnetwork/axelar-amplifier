@@ -45,7 +45,6 @@ ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
 event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-event-verifier = { workspace = true }
 event-verifier-api = { workspace = true }
 events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
@@ -127,6 +126,7 @@ axum-test = "15.7.4"
 cosmos-sdk-proto = "0.27.0"
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
+event-verifier = { workspace = true }
 faux = "0.1.10"
 generic-array = "0.14.7"
 goldie = { workspace = true }

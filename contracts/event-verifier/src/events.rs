@@ -1,16 +1,7 @@
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{IntoEvent, VerificationStatus};
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use router_api::ChainName;
-
-#[cw_serde]
-pub struct PollMetadata {
-    pub poll_id: PollId,
-    pub source_chain: ChainName,
-    pub expires_at: u64,
-    pub participants: Vec<Addr>,
-}
 
 #[derive(IntoEvent)]
 pub enum Event {
@@ -22,7 +13,10 @@ pub enum Event {
     },
     EventsPollStarted {
         events: Vec<event_verifier_api::EventToVerify>,
-        metadata: PollMetadata,
+        poll_id: PollId,
+        source_chain: ChainName,
+        expires_at: u64,
+        participants: Vec<Addr>,
     },
     Voted {
         poll_id: PollId,
@@ -133,16 +127,14 @@ mod tests {
                     .unwrap(),
                 },
             ],
-            metadata: PollMetadata {
-                poll_id: 1.into(),
-                source_chain: "sourceChain".try_into().unwrap(),
-                expires_at: 1,
-                participants: vec![
-                    api.addr_make("participant1"),
-                    api.addr_make("participant2"),
-                    api.addr_make("participant3"),
-                ],
-            },
+            poll_id: 1.into(),
+            source_chain: "sourceChain".try_into().unwrap(),
+            expires_at: 1,
+            participants: vec![
+                api.addr_make("participant1"),
+                api.addr_make("participant2"),
+                api.addr_make("participant3"),
+            ],
         }
         .into();
 
