@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use ampd::evm::finalizer::{self, Finalization};
+use ampd::evm::finalizer::Finalization;
 use ampd::evm::json_rpc::EthereumClient;
 use ampd::evm::verifier::verify_message;
 use ampd::handlers::evm_verify_msg::Message;
@@ -12,22 +12,18 @@ use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
-use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
-use ethers_core::types::{TransactionReceipt, U64};
-use events::{try_from, AbciEventTypeFilter, EventType};
-use futures::future::join_all;
+use events::{try_from, EventType};
 use serde::Deserialize;
 use tracing::{info, info_span};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
-use voting_verifier::msg::ExecuteMsg;
 
-use crate::Error;
+use crate::{common, Error};
 
-type Result<T> = error_stack::Result<T, Error>;
+type Result<T> = common::Result<T>;
 
 #[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
@@ -52,57 +48,6 @@ where
     finalizer_type: Finalization,
     rpc_client: C,
     monitoring_client: monitoring::Client,
-}
-
-impl<C> Handler<C>
-where
-    C: EthereumClient + Send + Sync,
-{
-    async fn finalized_tx_receipts<T>(
-        &self,
-        tx_hashes: T,
-        confirmation_height: u64,
-    ) -> Result<HashMap<Hash, TransactionReceipt>>
-    where
-        T: IntoIterator<Item = Hash>,
-    {
-        let latest_finalized_block_height =
-            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
-                .latest_finalized_block_height()
-                .await
-                .change_context(Error::Finalizer)?;
-
-        Ok(join_all(
-            tx_hashes
-                .into_iter()
-                .map(|tx_hash| self.rpc_client.transaction_receipt(tx_hash)),
-        )
-        .await
-        .into_iter()
-        .filter_map(std::result::Result::unwrap_or_default)
-        .filter_map(|tx_receipt| {
-            if tx_receipt
-                .block_number
-                .unwrap_or(U64::MAX)
-                .le(&latest_finalized_block_height)
-            {
-                Some((tx_receipt.transaction_hash, tx_receipt))
-            } else {
-                None
-            }
-        })
-        .collect())
-    }
-
-    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
-        MsgExecuteContract {
-            sender: self.verifier.clone(),
-            contract: self.voting_verifier_contract.clone(),
-            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-                .expect("vote msg should serialize"),
-            funds: vec![],
-        }
-    }
 }
 
 #[async_trait]
@@ -150,9 +95,13 @@ where
             .map(|msg| msg.message_id.tx_hash.into())
             .collect();
 
-        let finalized_tx_receipts = self
-            .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await?;
+        let finalized_tx_receipts = common::finalized_tx_receipts(
+            &self.rpc_client,
+            &self.finalizer_type,
+            tx_hashes,
+            confirmation_height,
+        )
+        .await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -196,19 +145,20 @@ where
             votes
         });
 
-        Ok(vec![self
-            .vote_msg(poll_id, votes)
-            .into_any()
-            .expect("vote msg should serialize")])
+        Ok(vec![common::vote_msg(
+            &self.verifier,
+            &self.voting_verifier_contract,
+            poll_id,
+            votes,
+        )
+        .into_any()
+        .expect("vote msg should serialize")])
     }
 
     fn subscription_params(&self) -> SubscriptionParams {
-        SubscriptionParams::new(
-            vec![AbciEventTypeFilter {
-                event_type: PollStartedEvent::event_type(),
-                contract: self.voting_verifier_contract.clone(),
-            }], // TODO: Add verifier set poll started event filter?
-            false,
+        common::subscription_params(
+            &self.voting_verifier_contract,
+            PollStartedEvent::event_type(),
         )
     }
 }
@@ -235,8 +185,7 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
-    use crate::handler::Handler;
+    use super::{Handler, PollStartedEvent};
 
     const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
