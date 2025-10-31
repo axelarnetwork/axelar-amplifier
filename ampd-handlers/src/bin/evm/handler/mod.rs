@@ -1,3 +1,6 @@
+mod messages_handler;
+mod verifier_set_handler;
+
 use ampd::evm::finalizer::Finalization;
 use ampd::evm::json_rpc::EthereumClient;
 use ampd::monitoring;
@@ -11,8 +14,8 @@ use events::{AbciEventTypeFilter, Event, EventType};
 use serde::Deserialize;
 use typed_builder::TypedBuilder;
 
-use crate::messages_handler::{handle_messages, MessagesPollStarted};
-use crate::verifier_set_handler::{handle_verifier_set, VerifierSetPollStarted};
+use crate::handler::messages_handler::{handle_messages, MessagesPollStarted};
+use crate::handler::verifier_set_handler::{handle_verifier_set, VerifierSetPollStarted};
 use crate::{common, Error};
 
 type Result<T> = common::Result<T>;

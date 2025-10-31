@@ -139,7 +139,7 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
-    use super::{Handler, PollStartedEvent};
+    use super::{Handler, VerifierSetPollStarted};
 
     const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
@@ -158,7 +158,7 @@ mod tests {
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
-        let event: PollStartedEvent = event.try_into().unwrap();
+        let event: VerifierSetPollStarted = event.try_into().unwrap();
 
         goldie::assert_debug!(event);
     }
