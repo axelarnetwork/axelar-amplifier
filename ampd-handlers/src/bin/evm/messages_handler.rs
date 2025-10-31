@@ -2,9 +2,8 @@ use std::collections::HashSet;
 
 use ampd::evm::finalizer::Finalization;
 use ampd::evm::json_rpc::EthereumClient;
-use ampd::evm::verifier::{verify_message, verify_verifier_set};
+use ampd::evm::verifier::verify_message;
 use ampd::handlers::evm_verify_msg::Message;
-use ampd::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
 use ampd::monitoring::metrics;
 use ampd::types::{EVMAddress, Hash};
@@ -15,8 +14,8 @@ use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
-use error_stack::{Report, ResultExt};
-use events::{try_from, AbciEventTypeFilter, Event, EventType};
+use error_stack::ResultExt;
+use events::{try_from, EventType};
 use serde::Deserialize;
 use tracing::{info, info_span};
 use typed_builder::TypedBuilder;
@@ -26,9 +25,9 @@ use crate::{common, Error};
 
 type Result<T> = common::Result<T>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
-pub struct MessagesPollStarted {
+pub struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: EVMAddress,
@@ -36,50 +35,6 @@ pub struct MessagesPollStarted {
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<AccountId>,
-}
-
-#[derive(Deserialize, Debug)]
-#[try_from("wasm-verifier_set_poll_started")]
-pub struct VerifierSetPollStarted {
-    verifier_set: VerifierSetConfirmation,
-    poll_id: PollId,
-    source_chain: ChainName,
-    source_gateway_address: EVMAddress,
-    expires_at: u64,
-    confirmation_height: u64,
-    participants: Vec<AccountId>,
-}
-
-pub enum PollStartedEvent {
-    Messages(MessagesPollStarted),
-    VerifierSet(VerifierSetPollStarted),
-}
-
-impl TryFrom<Event> for PollStartedEvent {
-    type Error = Report<events::Error>;
-
-    fn try_from(event: Event) -> std::result::Result<Self, Self::Error> {
-        match event.clone() {
-            Event::Abci {
-                event_type,
-                attributes: _,
-            } if event_type == *MessagesPollStarted::event_type() => {
-                Ok(PollStartedEvent::Messages(event.try_into()?))
-            }
-            Event::Abci {
-                event_type,
-                attributes: _,
-            } if event_type == *VerifierSetPollStarted::event_type() => {
-                Ok(PollStartedEvent::VerifierSet(event.try_into()?))
-            }
-            _ => Err(events::Error::EventTypeMismatch(format!(
-                "{}/{}",
-                MessagesPollStarted::event_type(),
-                VerifierSetPollStarted::event_type()
-            )))
-            .attach_printable(format!("{{ event = {event:?} }}")),
-        }
-    }
 }
 
 #[derive(Debug, TypedBuilder)]
@@ -95,16 +50,20 @@ where
     monitoring_client: monitoring::Client,
 }
 
-impl<C> Handler<C>
+#[async_trait]
+impl<C> EventHandler for Handler<C>
 where
     C: EthereumClient + Send + Sync,
 {
-    async fn handle_messages<HC: EventHandlerClient + Send + 'static>(
+    type Err = Error;
+    type Event = PollStartedEvent;
+
+    async fn handle<HC: EventHandlerClient + Send + 'static>(
         &self,
-        event: MessagesPollStarted,
+        event: PollStartedEvent,
         client: &mut HC,
     ) -> Result<Vec<Any>> {
-        let MessagesPollStarted {
+        let PollStartedEvent {
             poll_id,
             source_chain,
             source_gateway_address,
@@ -196,119 +155,10 @@ where
         .expect("vote msg should serialize")])
     }
 
-    async fn handle_verifier_set<HC: EventHandlerClient + Send + 'static>(
-        &self,
-        event: VerifierSetPollStarted,
-        client: &mut HC,
-    ) -> Result<Vec<Any>> {
-        let VerifierSetPollStarted {
-            poll_id,
-            source_chain,
-            source_gateway_address,
-            expires_at,
-            confirmation_height,
-            participants,
-            verifier_set,
-        } = event;
-
-        if self.chain != source_chain {
-            return Ok(vec![]);
-        }
-
-        if !participants.contains(&self.verifier) {
-            return Ok(vec![]);
-        }
-
-        let latest_block_height = client
-            .latest_block_height()
-            .await
-            .change_context(Error::EventHandling)?;
-        if latest_block_height >= expires_at {
-            info!(poll_id = poll_id.to_string(), "skipping expired poll");
-            return Ok(vec![]);
-        }
-
-        let tx_hash: ampd::types::Hash = verifier_set.message_id.tx_hash.into();
-        let finalized_tx_receipts = common::finalized_tx_receipts(
-            &self.rpc_client,
-            &self.finalizer_type,
-            [tx_hash],
-            confirmation_height,
-        )
-        .await?;
-        let tx_receipt = finalized_tx_receipts.get(&tx_hash).cloned();
-
-        let vote = info_span!(
-            "verify a new verifier set for an EVM chain",
-            poll_id = poll_id.to_string(),
-            source_chain = source_chain.to_string(),
-            id = verifier_set.message_id.to_string()
-        )
-        .in_scope(|| {
-            info!("ready to verify a new verifier set in poll");
-
-            let vote = tx_receipt.map_or(Vote::NotFound, |tx_receipt| {
-                verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
-            });
-
-            self.monitoring_client
-                .metrics()
-                .record_metric(metrics::Msg::VerificationVote {
-                    vote_decision: vote.clone(),
-                    chain_name: self.chain.clone(),
-                });
-
-            info!(
-                vote = vote.as_value(),
-                "ready to vote for a new verifier set in poll"
-            );
-
-            vote
-        });
-
-        Ok(vec![common::vote_msg(
-            &self.verifier,
-            &self.voting_verifier_contract,
-            poll_id,
-            vec![vote],
-        )
-        .into_any()
-        .expect("vote msg should serialize")])
-    }
-}
-
-#[async_trait]
-impl<C> EventHandler for Handler<C>
-where
-    C: EthereumClient + Send + Sync,
-{
-    type Err = Error;
-    type Event = PollStartedEvent;
-
-    async fn handle<HC: EventHandlerClient + Send + 'static>(
-        &self,
-        event: PollStartedEvent,
-        client: &mut HC,
-    ) -> Result<Vec<Any>> {
-        match event {
-            PollStartedEvent::Messages(event) => self.handle_messages(event, client).await,
-            PollStartedEvent::VerifierSet(event) => self.handle_verifier_set(event, client).await,
-        }
-    }
-
     fn subscription_params(&self) -> SubscriptionParams {
-        SubscriptionParams::new(
-            vec![
-                AbciEventTypeFilter {
-                    event_type: MessagesPollStarted::event_type(),
-                    contract: self.voting_verifier_contract.clone(),
-                },
-                AbciEventTypeFilter {
-                    event_type: VerifierSetPollStarted::event_type(),
-                    contract: self.voting_verifier_contract.clone(),
-                },
-            ],
-            false,
+        common::subscription_params(
+            &self.voting_verifier_contract,
+            PollStartedEvent::event_type(),
         )
     }
 }

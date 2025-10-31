@@ -89,14 +89,14 @@ where
         }
 
         let tx_hash: ampd::types::Hash = verifier_set.message_id.tx_hash.into();
-        let tx_receipts = common::finalized_tx_receipts(
+        let finalized_tx_receipts = common::finalized_tx_receipts(
             &self.rpc_client,
             &self.finalizer_type,
             [tx_hash],
             confirmation_height,
         )
         .await?;
-        let tx_receipt = tx_receipts.get(&tx_hash).cloned();
+        let tx_receipt = finalized_tx_receipts.get(&tx_hash).cloned();
 
         let vote = info_span!(
             "verify a new verifier set for an EVM chain",
