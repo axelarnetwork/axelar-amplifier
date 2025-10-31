@@ -8,7 +8,6 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::AccountId;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
-use events::AbciEventTypeFilter;
 use futures::future::join_all;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -80,18 +79,4 @@ where
         .expect("vote msg should serialize"),
         funds: vec![],
     }
-}
-
-/// Creates subscription parameters for event filtering
-pub fn subscription_params(
-    voting_verifier_contract: &AccountId,
-    event_type: axelar_wasm_std::nonempty::String,
-) -> ampd_sdk::event::event_handler::SubscriptionParams {
-    ampd_sdk::event::event_handler::SubscriptionParams::new(
-        vec![AbciEventTypeFilter {
-            event_type,
-            contract: voting_verifier_contract.clone(),
-        }],
-        false,
-    )
 }

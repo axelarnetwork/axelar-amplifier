@@ -1,33 +1,29 @@
 use std::collections::HashSet;
 
-use ampd::evm::finalizer::Finalization;
 use ampd::evm::json_rpc::EthereumClient;
 use ampd::evm::verifier::verify_message;
 use ampd::handlers::evm_verify_msg::Message;
-use ampd::monitoring;
 use ampd::monitoring::metrics;
 use ampd::types::{EVMAddress, Hash};
-use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
-use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
-use events::{try_from, EventType};
+use events::try_from;
 use serde::Deserialize;
 use tracing::{info, info_span};
-use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
+use crate::handler::Handler;
 use crate::{common, Error};
 
 type Result<T> = common::Result<T>;
 
 #[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
-pub struct PollStartedEvent {
+pub struct MessagesPollStarted {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: EVMAddress,
@@ -37,130 +33,106 @@ pub struct PollStartedEvent {
     participants: Vec<AccountId>,
 }
 
-#[derive(Debug, TypedBuilder)]
-pub struct Handler<C>
+pub async fn handle_messages<HC, C>(
+    handler: &Handler<C>,
+    event: MessagesPollStarted,
+    client: &mut HC,
+) -> Result<Vec<Any>>
 where
-    C: EthereumClient,
-{
-    verifier: AccountId,
-    voting_verifier_contract: AccountId,
-    chain: ChainName,
-    finalizer_type: Finalization,
-    rpc_client: C,
-    monitoring_client: monitoring::Client,
-}
-
-#[async_trait]
-impl<C> EventHandler for Handler<C>
-where
+    HC: EventHandlerClient + Send + 'static,
     C: EthereumClient + Send + Sync,
 {
-    type Err = Error;
-    type Event = PollStartedEvent;
+    let MessagesPollStarted {
+        poll_id,
+        source_chain,
+        source_gateway_address,
+        messages,
+        expires_at,
+        confirmation_height,
+        participants,
+    } = event;
 
-    async fn handle<HC: EventHandlerClient + Send + 'static>(
-        &self,
-        event: PollStartedEvent,
-        client: &mut HC,
-    ) -> Result<Vec<Any>> {
-        let PollStartedEvent {
-            poll_id,
-            source_chain,
-            source_gateway_address,
-            messages,
-            expires_at,
-            confirmation_height,
-            participants,
-        } = event;
+    if source_chain != handler.chain {
+        return Ok(vec![]);
+    }
 
-        if source_chain != self.chain {
-            return Ok(vec![]);
-        }
+    if !participants.contains(&handler.verifier) {
+        return Ok(vec![]);
+    }
 
-        if !participants.contains(&self.verifier) {
-            return Ok(vec![]);
-        }
+    let latest_block_height = client
+        .latest_block_height()
+        .await
+        .change_context(Error::EventHandling)?;
+    if latest_block_height >= expires_at {
+        info!(poll_id = poll_id.to_string(), "skipping expired poll");
+        return Ok(vec![]);
+    }
 
-        let latest_block_height = client
-            .latest_block_height()
-            .await
-            .change_context(Error::EventHandling)?;
-        if latest_block_height >= expires_at {
-            info!(poll_id = poll_id.to_string(), "skipping expired poll");
-            return Ok(vec![]);
-        }
+    let tx_hashes: HashSet<Hash> = messages
+        .iter()
+        .map(|msg| msg.message_id.tx_hash.into())
+        .collect();
 
-        let tx_hashes: HashSet<Hash> = messages
+    let finalized_tx_receipts = common::finalized_tx_receipts(
+        &handler.rpc_client,
+        &handler.finalizer_type,
+        tx_hashes,
+        confirmation_height,
+    )
+    .await?;
+
+    let poll_id_str: String = poll_id.into();
+    let source_chain_str: String = source_chain.into();
+
+    let votes = info_span!(
+        "verify messages from an EVM chain",
+        poll_id = poll_id_str,
+        source_chain = source_chain_str,
+        message_ids = messages
             .iter()
-            .map(|msg| msg.message_id.tx_hash.into())
+            .map(|msg| msg.message_id.to_string())
+            .collect::<Vec<String>>()
+            .as_value(),
+    )
+    .in_scope(|| {
+        info!("ready to verify messages in poll",);
+
+        let votes: Vec<_> = messages
+            .iter()
+            .map(|msg| {
+                finalized_tx_receipts
+                    .get(&msg.message_id.tx_hash.into())
+                    .map_or(Vote::NotFound, |tx_receipt| {
+                        verify_message(&source_gateway_address, tx_receipt, msg)
+                    })
+            })
+            .inspect(|vote| {
+                handler
+                    .monitoring_client
+                    .metrics()
+                    .record_metric(metrics::Msg::VerificationVote {
+                        vote_decision: vote.clone(),
+                        chain_name: handler.chain.clone(),
+                    });
+            })
             .collect();
+        info!(
+            votes = votes.as_value(),
+            "ready to vote for messages in poll"
+        );
 
-        let finalized_tx_receipts = common::finalized_tx_receipts(
-            &self.rpc_client,
-            &self.finalizer_type,
-            tx_hashes,
-            confirmation_height,
-        )
-        .await?;
+        votes
+    });
 
-        let poll_id_str: String = poll_id.into();
-        let source_chain_str: String = source_chain.into();
-
-        let votes = info_span!(
-            "verify messages from an EVM chain",
-            poll_id = poll_id_str,
-            source_chain = source_chain_str,
-            message_ids = messages
-                .iter()
-                .map(|msg| msg.message_id.to_string())
-                .collect::<Vec<String>>()
-                .as_value(),
-        )
-        .in_scope(|| {
-            info!("ready to verify messages in poll",);
-
-            let votes: Vec<_> = messages
-                .iter()
-                .map(|msg| {
-                    finalized_tx_receipts
-                        .get(&msg.message_id.tx_hash.into())
-                        .map_or(Vote::NotFound, |tx_receipt| {
-                            verify_message(&source_gateway_address, tx_receipt, msg)
-                        })
-                })
-                .inspect(|vote| {
-                    self.monitoring_client.metrics().record_metric(
-                        metrics::Msg::VerificationVote {
-                            vote_decision: vote.clone(),
-                            chain_name: self.chain.clone(),
-                        },
-                    );
-                })
-                .collect();
-            info!(
-                votes = votes.as_value(),
-                "ready to vote for messages in poll"
-            );
-
-            votes
-        });
-
-        Ok(vec![common::vote_msg(
-            &self.verifier,
-            &self.voting_verifier_contract,
-            poll_id,
-            votes,
-        )
-        .into_any()
-        .expect("vote msg should serialize")])
-    }
-
-    fn subscription_params(&self) -> SubscriptionParams {
-        common::subscription_params(
-            &self.voting_verifier_contract,
-            PollStartedEvent::event_type(),
-        )
-    }
+    Ok(vec![common::vote_msg(
+        &handler.verifier,
+        &handler.voting_verifier_contract,
+        poll_id,
+        votes,
+    )
+    .into_any()
+    .expect("vote msg should serialize")])
 }
 
 #[cfg(test)]
@@ -185,7 +157,7 @@ mod tests {
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::{Handler, PollStartedEvent};
+    use super::{Handler, MessagesPollStarted};
 
     const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
@@ -260,7 +232,7 @@ mod tests {
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
+        let event: Result<MessagesPollStarted, events::Error> = (&event).try_into();
 
         assert!(matches!(
             event.unwrap_err().current_context(),
@@ -281,7 +253,7 @@ mod tests {
             _ => panic!("incorrect event type"),
         }
 
-        let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
+        let event: Result<MessagesPollStarted, events::Error> = (&event).try_into();
 
         assert!(matches!(
             event.unwrap_err().current_context(),
@@ -295,7 +267,7 @@ mod tests {
             poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
-        let event: PollStartedEvent = event.try_into().unwrap();
+        let event: MessagesPollStarted = event.try_into().unwrap();
 
         goldie::assert_debug!(event);
     }
