@@ -362,6 +362,7 @@ dependencies = [
  "futures",
  "goldie",
  "humantime-serde",
+ "multisig",
  "reqwest 0.11.27",
  "serde",
  "serde_json",

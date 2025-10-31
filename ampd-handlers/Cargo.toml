@@ -42,6 +42,7 @@ ampd = { path = "../ampd", default-features = false, features = ["url", "test-ut
 ampd-sdk = { workspace = true, features = ["test-utils"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 goldie = { workspace = true }
+multisig = { workspace = true, features = ["test"] }
 
 [lints]
 workspace = true
