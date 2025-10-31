@@ -8,14 +8,13 @@ use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
-use error_stack::ResultExt;
 use events::try_from;
 use serde::Deserialize;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
+use crate::common;
 use crate::handler::Handler;
-use crate::{common, Error};
 
 type Result<T> = common::Result<T>;
 
@@ -50,20 +49,16 @@ where
         verifier_set,
     } = event;
 
-    if handler.chain != source_chain {
-        return Ok(vec![]);
-    }
-
-    if !participants.contains(&handler.verifier) {
-        return Ok(vec![]);
-    }
-
-    let latest_block_height = client
-        .latest_block_height()
-        .await
-        .change_context(Error::EventHandling)?;
-    if latest_block_height >= expires_at {
-        info!(poll_id = poll_id.to_string(), "skipping expired poll");
+    if common::should_skip_handling(
+        handler,
+        client,
+        source_chain.clone(),
+        participants,
+        expires_at,
+        poll_id,
+    )
+    .await?
+    {
         return Ok(vec![]);
     }
 

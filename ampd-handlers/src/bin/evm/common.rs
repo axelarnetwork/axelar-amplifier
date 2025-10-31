@@ -3,17 +3,56 @@ use std::collections::HashMap;
 use ampd::evm::finalizer::{self, Finalization};
 use ampd::evm::json_rpc::EthereumClient;
 use ampd::types::Hash;
+use ampd_sdk::grpc::client::EventHandlerClient;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::AccountId;
 use error_stack::ResultExt;
 use ethers_core::types::{TransactionReceipt, U64};
 use futures::future::join_all;
+use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
+use crate::handler::Handler;
 use crate::Error;
 
 pub type Result<T> = error_stack::Result<T, Error>;
+
+pub async fn should_skip_handling<HC, C>(
+    handler: &Handler<C>,
+    client: &mut HC,
+    source_chain: ChainName,
+    participants: Vec<AccountId>,
+    expires_at: u64,
+    poll_id: PollId,
+) -> Result<bool>
+where
+    HC: EventHandlerClient + Send + 'static,
+    C: EthereumClient + Send + Sync,
+{
+    // Skip if the source chain is not the same as the handler chain
+    if source_chain != handler.chain {
+        return Ok(true);
+    }
+
+    // Skip if the verifier is not a participant
+    if !participants.contains(&handler.verifier) {
+        return Ok(true);
+    }
+
+    // Skip if the poll has expired
+    let latest_block_height = client
+        .latest_block_height()
+        .await
+        .change_context(Error::EventHandling)?;
+    if latest_block_height >= expires_at {
+        info!(poll_id = poll_id.to_string(), "skipping expired poll");
+        return Ok(true);
+    }
+
+    Ok(false)
+}
 
 /// Retrieves finalized transaction receipts for one or more transactions
 ///
