@@ -15,10 +15,7 @@ use serde::Deserialize;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use crate::common;
 use crate::handler::Handler;
-
-type Result<T> = common::Result<T>;
 
 #[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
@@ -32,102 +29,97 @@ pub struct MessagesPollStarted {
     participants: Vec<AccountId>,
 }
 
-pub async fn handle_messages<HC, C>(
-    handler: &Handler<C>,
-    event: MessagesPollStarted,
-    client: &mut HC,
-) -> Result<Vec<Any>>
+impl<C> Handler<C>
 where
-    HC: EventHandlerClient + Send + 'static,
     C: EthereumClient + Send + Sync,
 {
-    let MessagesPollStarted {
-        poll_id,
-        source_chain,
-        source_gateway_address,
-        messages,
-        expires_at,
-        confirmation_height,
-        participants,
-    } = event;
-
-    if common::should_skip_handling(
-        handler,
-        client,
-        source_chain.clone(),
-        participants,
-        expires_at,
-        poll_id,
-    )
-    .await?
+    pub async fn handle_messages<HC>(
+        &self,
+        event: MessagesPollStarted,
+        client: &mut HC,
+    ) -> crate::handler::Result<Vec<Any>>
+    where
+        HC: EventHandlerClient + Send + 'static,
     {
-        return Ok(vec![]);
-    }
+        let MessagesPollStarted {
+            poll_id,
+            source_chain,
+            source_gateway_address,
+            messages,
+            expires_at,
+            confirmation_height,
+            participants,
+        } = event;
 
-    let tx_hashes: HashSet<Hash> = messages
-        .iter()
-        .map(|msg| msg.message_id.tx_hash.into())
-        .collect();
+        if self
+            .should_skip_handling(
+                client,
+                source_chain.clone(),
+                participants,
+                expires_at,
+                poll_id,
+            )
+            .await?
+        {
+            return Ok(vec![]);
+        }
 
-    let finalized_tx_receipts = common::finalized_tx_receipts(
-        &handler.rpc_client,
-        &handler.finalizer_type,
-        tx_hashes,
-        confirmation_height,
-    )
-    .await?;
-
-    let poll_id_str: String = poll_id.into();
-    let source_chain_str: String = source_chain.into();
-
-    let votes = info_span!(
-        "verify messages from an EVM chain",
-        poll_id = poll_id_str,
-        source_chain = source_chain_str,
-        message_ids = messages
+        let tx_hashes: HashSet<Hash> = messages
             .iter()
-            .map(|msg| msg.message_id.to_string())
-            .collect::<Vec<String>>()
-            .as_value(),
-    )
-    .in_scope(|| {
-        info!("ready to verify messages in poll",);
-
-        let votes: Vec<_> = messages
-            .iter()
-            .map(|msg| {
-                finalized_tx_receipts
-                    .get(&msg.message_id.tx_hash.into())
-                    .map_or(Vote::NotFound, |tx_receipt| {
-                        verify_message(&source_gateway_address, tx_receipt, msg)
-                    })
-            })
-            .inspect(|vote| {
-                handler
-                    .monitoring_client
-                    .metrics()
-                    .record_metric(metrics::Msg::VerificationVote {
-                        vote_decision: vote.clone(),
-                        chain_name: handler.chain.clone(),
-                    });
-            })
+            .map(|msg| msg.message_id.tx_hash.into())
             .collect();
-        info!(
-            votes = votes.as_value(),
-            "ready to vote for messages in poll"
-        );
 
-        votes
-    });
+        let finalized_tx_receipts = self
+            .finalized_tx_receipts(tx_hashes, confirmation_height)
+            .await?;
 
-    Ok(vec![common::vote_msg(
-        &handler.verifier,
-        &handler.voting_verifier_contract,
-        poll_id,
-        votes,
-    )
-    .into_any()
-    .expect("vote msg should serialize")])
+        let poll_id_str: String = poll_id.to_string();
+        let source_chain_str: String = source_chain.to_string();
+
+        let votes = info_span!(
+            "verify messages from an EVM chain",
+            poll_id = poll_id_str,
+            source_chain = source_chain_str,
+            message_ids = messages
+                .iter()
+                .map(|msg| msg.message_id.to_string())
+                .collect::<Vec<String>>()
+                .as_value(),
+        )
+        .in_scope(|| {
+            info!("ready to verify messages in poll",);
+
+            let votes: Vec<_> = messages
+                .iter()
+                .map(|msg| {
+                    finalized_tx_receipts
+                        .get(&msg.message_id.tx_hash.into())
+                        .map_or(Vote::NotFound, |tx_receipt| {
+                            verify_message(&source_gateway_address, tx_receipt, msg)
+                        })
+                })
+                .inspect(|vote| {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: self.chain.clone(),
+                        },
+                    );
+                })
+                .collect();
+            info!(
+                votes = votes.as_value(),
+                "ready to vote for messages in poll"
+            );
+
+            votes
+        });
+
+        Ok(vec![self
+            .vote_msg(poll_id, votes)
+            .into_any()
+            .expect("vote msg should serialize")])
+    }
 }
 
 #[cfg(test)]

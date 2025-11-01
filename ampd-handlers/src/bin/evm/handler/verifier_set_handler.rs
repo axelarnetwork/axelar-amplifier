@@ -13,10 +13,7 @@ use serde::Deserialize;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use crate::common;
 use crate::handler::Handler;
-
-type Result<T> = common::Result<T>;
 
 #[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-verifier_set_poll_started")]
@@ -30,85 +27,85 @@ pub struct VerifierSetPollStarted {
     participants: Vec<AccountId>,
 }
 
-pub async fn handle_verifier_set<HC, C>(
-    handler: &Handler<C>,
-    event: VerifierSetPollStarted,
-    client: &mut HC,
-) -> Result<Vec<Any>>
+impl<C> Handler<C>
 where
-    HC: EventHandlerClient + Send + 'static,
     C: EthereumClient + Send + Sync,
 {
-    let VerifierSetPollStarted {
-        poll_id,
-        source_chain,
-        source_gateway_address,
-        expires_at,
-        confirmation_height,
-        participants,
-        verifier_set,
-    } = event;
-
-    if common::should_skip_handling(
-        handler,
-        client,
-        source_chain.clone(),
-        participants,
-        expires_at,
-        poll_id,
-    )
-    .await?
+    pub async fn handle_verifier_set<HC>(
+        &self,
+        event: VerifierSetPollStarted,
+        client: &mut HC,
+    ) -> crate::handler::Result<Vec<Any>>
+    where
+        HC: EventHandlerClient + Send + 'static,
     {
-        return Ok(vec![]);
-    }
+        let VerifierSetPollStarted {
+            poll_id,
+            source_chain,
+            source_gateway_address,
+            expires_at,
+            confirmation_height,
+            participants,
+            verifier_set,
+        } = event;
 
-    let tx_hash: ampd::types::Hash = verifier_set.message_id.tx_hash.into();
-    let finalized_tx_receipts = common::finalized_tx_receipts(
-        &handler.rpc_client,
-        &handler.finalizer_type,
-        [tx_hash],
-        confirmation_height,
-    )
-    .await?;
-    let tx_receipt = finalized_tx_receipts.get(&tx_hash).cloned();
+        if self
+            .should_skip_handling(
+                client,
+                source_chain.clone(),
+                participants,
+                expires_at,
+                poll_id,
+            )
+            .await?
+        {
+            return Ok(vec![]);
+        }
 
-    let vote = info_span!(
-        "verify a new verifier set for an EVM chain",
-        poll_id = poll_id.to_string(),
-        source_chain = source_chain.to_string(),
-        id = verifier_set.message_id.to_string()
-    )
-    .in_scope(|| {
-        info!("ready to verify a new verifier set in poll");
+        let tx_hashes = [verifier_set.message_id.tx_hash.into()];
 
-        let vote = tx_receipt.map_or(Vote::NotFound, |tx_receipt| {
-            verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
+        let finalized_tx_receipts = self
+            .finalized_tx_receipts(tx_hashes, confirmation_height)
+            .await?;
+
+        let poll_id_str = poll_id.to_string();
+        let source_chain_str = source_chain.to_string();
+
+        let vote = info_span!(
+            "verify a new verifier set for an EVM chain",
+            poll_id = poll_id_str,
+            source_chain = source_chain_str,
+            id = verifier_set.message_id.to_string()
+        )
+        .in_scope(|| {
+            info!("ready to verify a new verifier set in poll");
+
+            let vote = finalized_tx_receipts
+                .get(&verifier_set.message_id.tx_hash.into())
+                .map_or(Vote::NotFound, |tx_receipt| {
+                    verify_verifier_set(&source_gateway_address, &tx_receipt, &verifier_set)
+                });
+
+            self.monitoring_client
+                .metrics()
+                .record_metric(metrics::Msg::VerificationVote {
+                    vote_decision: vote.clone(),
+                    chain_name: self.chain.clone(),
+                });
+
+            info!(
+                vote = vote.as_value(),
+                "ready to vote for a new verifier set in poll"
+            );
+
+            vote
         });
 
-        handler
-            .monitoring_client
-            .metrics()
-            .record_metric(metrics::Msg::VerificationVote {
-                vote_decision: vote.clone(),
-                chain_name: handler.chain.clone(),
-            });
-
-        info!(
-            vote = vote.as_value(),
-            "ready to vote for a new verifier set in poll"
-        );
-
-        vote
-    });
-
-    Ok(vec![common::vote_msg(
-        &handler.verifier,
-        &handler.voting_verifier_contract,
-        poll_id,
-        vec![vote],
-    )
-    .into_any()
-    .expect("vote msg should serialize")])
+        Ok(vec![self
+            .vote_msg(poll_id, vec![vote])
+            .into_any()
+            .expect("vote msg should serialize")])
+    }
 }
 
 #[cfg(test)]
