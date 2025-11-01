@@ -15,7 +15,7 @@ use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
 use events::{try_from, EventType};
 use serde::Deserialize;
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
@@ -72,10 +72,19 @@ where
         } = event;
 
         if self.chain != source_chain {
+            debug!(
+                event_chain = source_chain.to_string(),
+                handler_chain = self.chain.to_string(),
+                "chain mismatch, skipping event"
+            );
             return Ok(vec![]);
         }
 
         if !participants.contains(&self.verifier) {
+            debug!(
+                verifier = self.verifier.to_string(),
+                "verifier not in participants, skipping event"
+            );
             return Ok(vec![]);
         }
 
