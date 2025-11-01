@@ -4,7 +4,7 @@ use ampd::evm::verifier::verify_message;
 use ampd::handlers::evm_verify_msg::Message;
 use ampd::monitoring;
 use ampd::monitoring::metrics;
-use ampd::types::{EVMAddress, Hash};
+use ampd::types::EVMAddress;
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;
