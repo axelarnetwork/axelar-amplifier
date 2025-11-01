@@ -129,6 +129,7 @@ tracing-subscriber = { version = "0.3.20", features = [
   "valuable",
   "env-filter",
 ] }
+tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
 voting-verifier = { version = "^1.2.0", path = "contracts/voting-verifier" }

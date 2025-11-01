@@ -77,7 +77,7 @@ pub trait HandlerTaskClient: EventHandlerClient {
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GrpcClient {
     connection_handle: ConnectionHandle,
 }
@@ -228,8 +228,8 @@ impl HandlerTaskClient for GrpcClient {
             filters: filters
                 .into_iter()
                 .map(|filter| ampd_proto::EventFilter {
-                    r#type: filter.event_type,
-                    contract: Default::default(),
+                    r#type: filter.event_type.into(),
+                    contract: filter.contract.to_string(),
                 })
                 .collect(),
             include_block_begin_end,

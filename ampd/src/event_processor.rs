@@ -137,7 +137,7 @@ where
 }
 
 fn is_xrpl_evm_handler(handler_label: &str) -> bool {
-    let xrpl_handlers = ["xrpl-msg-verifier", "xrpl-verifier-set-verifier"];
+    let xrpl_handlers = ["xrpl-evm-msg-verifier", "xrpl-evm-verifier-set-verifier"];
 
     xrpl_handlers
         .iter()
