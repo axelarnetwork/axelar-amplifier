@@ -84,22 +84,20 @@ impl Default for Config {
 }
 
 #[derive(Debug, TypedBuilder)]
-pub struct HandlerTask<H, C>
+pub struct HandlerTask<H>
 where
     H: EventHandler,
-    H::Event: TryFrom<Event, Error = Report<C>>,
-    C: Context,
+    H::Event: TryFrom<Event, Error = Report<events::Error>>,
     H::Event: Debug,
 {
     handler: H,
     config: Config,
 }
 
-impl<H, C> HandlerTask<H, C>
+impl<H> HandlerTask<H>
 where
     H: EventHandler + Debug,
-    H::Event: TryFrom<Event, Error = Report<C>>,
-    C: Context,
+    H::Event: TryFrom<Event, Error = Report<events::Error>>,
     H::Event: Debug + Clone,
 {
     pub async fn run<HC>(self, client: &mut HC, token: CancellationToken) -> Result<(), Error>
@@ -262,9 +260,11 @@ pub mod test_utils {
     pub struct MockEvent(pub u64);
 
     impl TryFrom<Event> for MockEvent {
-        type Error = Report<Error>;
+        type Error = Report<events::Error>;
 
-        fn try_from(event: Event) -> std::result::Result<MockEvent, error_stack::Report<Error>> {
+        fn try_from(
+            event: Event,
+        ) -> std::result::Result<MockEvent, error_stack::Report<events::Error>> {
             match event {
                 Event::BlockBegin(height) => Ok(MockEvent(height.into())),
                 Event::BlockEnd(height) => Ok(MockEvent(height.into())),

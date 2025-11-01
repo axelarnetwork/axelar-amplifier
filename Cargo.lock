@@ -370,6 +370,8 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "tracing-core",
+ "tracing-error",
  "tracing-subscriber",
  "typed-builder",
  "valuable",

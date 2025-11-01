@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use ampd::monitoring;
 use ampd::url::Url;
 use cosmrs::AccountId;
-use error_stack::{Context, Report, Result, ResultExt};
+use error_stack::{Report, Result, ResultExt};
 use events::Event;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
@@ -82,7 +82,7 @@ impl HandlerRuntime {
     }
 
     /// Use the started runtime to create and run the handler task
-    pub async fn run_handler<H, C>(
+    pub async fn run_handler<H>(
         mut self,
         handler: H,
         config: Config,
@@ -90,8 +90,7 @@ impl HandlerRuntime {
     ) -> Result<(), Error>
     where
         H: EventHandler + Debug,
-        H::Event: TryFrom<Event, Error = Report<C>>,
-        C: Context,
+        H::Event: TryFrom<Event, Error = Report<events::Error>>,
         H::Event: Debug + Clone,
     {
         let task = HandlerTask::builder()

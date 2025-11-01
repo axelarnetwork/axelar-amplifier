@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use ampd::evm::finalizer::{self, Finalization};
 use ampd::evm::json_rpc::EthereumClient;
@@ -20,7 +20,7 @@ use ethers_core::types::{TransactionReceipt, U64};
 use events::{try_from, AbciEventTypeFilter, EventType};
 use futures::future::join_all;
 use serde::Deserialize;
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
@@ -129,10 +129,19 @@ where
         } = event;
 
         if source_chain != self.chain {
+            debug!(
+                event_chain = source_chain.to_string(),
+                handler_chain = self.chain.to_string(),
+                "chain mismatch, skipping event"
+            );
             return Ok(vec![]);
         }
 
         if !participants.contains(&self.verifier) {
+            debug!(
+                verifier = self.verifier.to_string(),
+                "verifier not in participants, skipping event"
+            );
             return Ok(vec![]);
         }
 
@@ -145,10 +154,7 @@ where
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<Hash> = messages
-            .iter()
-            .map(|msg| msg.message_id.tx_hash.into())
-            .collect();
+        let tx_hashes = messages.iter().map(|msg| msg.message_id.tx_hash.into());
 
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
@@ -261,7 +267,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
                     message_id: msg_ids[0].to_string().parse().unwrap(),
