@@ -16,6 +16,11 @@ use ethers_providers::Http;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
+use tracing_core::LevelFilter;
+use tracing_error::ErrorLayer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 use crate::error::Error;
 use crate::handler::Handler;
@@ -64,12 +69,17 @@ fn build_handler(
 }
 
 fn init_tracing(max_level: Level) {
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(max_level)
-            .finish(),
-    )
-    .expect("failed to set global default tracing subscriber");
+    let error_layer = ErrorLayer::default();
+    let filter_layer = EnvFilter::builder()
+        .with_default_directive(LevelFilter::from_level(max_level).into())
+        .from_env_lossy();
+    let fmt_layer = tracing_subscriber::fmt::layer().json().flatten_event(true);
+
+    tracing_subscriber::registry()
+        .with(error_layer)
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
 }
 
 #[tokio::main]
@@ -82,7 +92,7 @@ async fn main() -> Result<(), Error> {
     let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
     let handler_config = config::Config::builder()
         .add_file_source("evm-handler-config.toml")
-        .add_env_source("EVM_HANDLER")
+        .add_env_source("AMPD_EVM_HANDLER")
         .build::<EvmHandlerConfig>()
         .change_context(Error::HandlerStart)?;
 

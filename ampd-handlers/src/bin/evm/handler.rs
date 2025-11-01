@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 
-use crate::Error;
 use ampd::evm::finalizer;
 use ampd::evm::finalizer::Finalization;
 use ampd::evm::json_rpc::EthereumClient;
@@ -23,11 +23,12 @@ use ethers_core::types::{TransactionReceipt, U64};
 use events::{try_from, AbciEventTypeFilter, Event, EventType};
 use futures::future::join_all;
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
+
+use crate::Error;
 
 pub type Result<T> = error_stack::Result<T, Error>;
 
@@ -148,7 +149,7 @@ impl TryFrom<Event> for PollStartedEvent {
                 MessagesPollStarted::event_type(),
                 VerifierSetPollStarted::event_type()
             )))
-                .attach_printable(format!("{{ event = {event:?} }}"))
+            .attach_printable(format!("{{ event = {event:?} }}"))
         }
     }
 }
@@ -202,7 +203,7 @@ where
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<Hash> = poll_data.iter().map(|data| data.tx_hash().into()).collect();
+        let tx_hashes = poll_data.iter().map(|data| data.tx_hash().into());
 
         let finalized_tx_receipts = self
             .finalized_tx_receipts(tx_hashes, confirmation_height)
@@ -221,34 +222,34 @@ where
                 .collect::<Vec<String>>()
                 .as_value(),
         )
-            .in_scope(|| {
-                info!("ready to verify events in poll",);
+        .in_scope(|| {
+            info!("ready to verify events in poll",);
 
-                let votes: Vec<_> = poll_data
-                    .iter()
-                    .map(|data| {
-                        finalized_tx_receipts
-                            .get(&data.tx_hash().into())
-                            .map_or(Vote::NotFound, |tx_receipt| {
-                                data.verify(&source_gateway_address, tx_receipt)
-                            })
-                    })
-                    .inspect(|vote| {
-                        self.monitoring_client.metrics().record_metric(
-                            metrics::Msg::VerificationVote {
-                                vote_decision: vote.clone(),
-                                chain_name: self.chain.clone(),
-                            },
-                        );
-                    })
-                    .collect();
-                info!(
+            let votes: Vec<_> = poll_data
+                .iter()
+                .map(|data| {
+                    finalized_tx_receipts
+                        .get(&data.tx_hash().into())
+                        .map_or(Vote::NotFound, |tx_receipt| {
+                            data.verify(&source_gateway_address, tx_receipt)
+                        })
+                })
+                .inspect(|vote| {
+                    self.monitoring_client.metrics().record_metric(
+                        metrics::Msg::VerificationVote {
+                            vote_decision: vote.clone(),
+                            chain_name: self.chain.clone(),
+                        },
+                    );
+                })
+                .collect();
+            info!(
                 votes = votes.as_value(),
                 "ready to vote for messages in poll"
             );
 
-                votes
-            });
+            votes
+        });
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -290,11 +291,20 @@ where
     {
         // Skip if the source chain is not the same as the handler chain
         if source_chain != self.chain {
+            debug!(
+                event_chain = source_chain.to_string(),
+                handler_chain = self.chain.to_string(),
+                "chain mismatch, skipping event"
+            );
             return Ok(true);
         }
 
         // Skip if the verifier is not a participant
         if !participants.contains(&self.verifier) {
+            debug!(
+                verifier = self.verifier.to_string(),
+                "verifier not in participants, skipping event"
+            );
             return Ok(true);
         }
 
@@ -336,21 +346,21 @@ where
                 .into_iter()
                 .map(|tx_hash| rcp_client.transaction_receipt(tx_hash)),
         )
-            .await
-            .into_iter()
-            .filter_map(std::result::Result::unwrap_or_default)
-            .filter_map(|tx_receipt| {
-                if tx_receipt
-                    .block_number
-                    .unwrap_or(U64::MAX)
-                    .le(&latest_finalized_block_height)
-                {
-                    Some((tx_receipt.transaction_hash, tx_receipt))
-                } else {
-                    None
-                }
-            })
-            .collect())
+        .await
+        .into_iter()
+        .filter_map(std::result::Result::unwrap_or_default)
+        .filter_map(|tx_receipt| {
+            if tx_receipt
+                .block_number
+                .unwrap_or(U64::MAX)
+                .le(&latest_finalized_block_height)
+            {
+                Some((tx_receipt.transaction_hash, tx_receipt))
+            } else {
+                None
+            }
+        })
+        .collect())
     }
 
     /// Creates a vote message for one or more votes
@@ -367,7 +377,7 @@ where
                 poll_id,
                 votes: votes.into(),
             })
-                .expect("vote msg should serialize"),
+            .expect("vote msg should serialize"),
             funds: vec![],
         }
     }
@@ -387,21 +397,19 @@ mod tests {
     use axelar_wasm_std::chain_name;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use error_stack::Report;
-    use error_stack::Result;
-    use ethers_core::types::H160;
-    use ethers_core::types::{Block, H256, U64};
+    use error_stack::{Report, Result};
+    use ethers_core::types::{Block, H160, H256, U64};
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use tokio::test as async_test;
-    use voting_verifier::events::TxEventConfirmation;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{
+        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation,
+    };
 
-    use super::MessagesPollStarted;
-    use super::{Handler, VerifierSetPollStarted};
+    use super::{Handler, MessagesPollStarted, VerifierSetPollStarted};
 
     const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
@@ -426,7 +434,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
                     message_id: msg_ids[0].to_string().parse().unwrap(),
@@ -732,7 +739,10 @@ mod tests {
         assert!(receiver.try_recv().is_err());
     }
 
-    fn verifier_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn verifier_set_poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> PollStarted {
         let msg_id = HexTxHashAndEventIndex::new(H256::repeat_byte(1), 100u64);
         PollStarted::VerifierSet {
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed

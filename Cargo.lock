@@ -371,6 +371,8 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "tracing-core",
+ "tracing-error",
  "tracing-subscriber",
  "typed-builder",
  "valuable",
@@ -6822,7 +6824,7 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "multisig"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "assert_ok",
  "axelar-wasm-std",
