@@ -84,7 +84,7 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^2.3.1", path = "contracts/multisig" }
+multisig = { version = "^2.3.2", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
@@ -130,6 +130,7 @@ tracing-subscriber = { version = "0.3.20", features = [
   "valuable",
   "env-filter",
 ] }
+tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
 voting-verifier = { version = "^1.2.0", path = "contracts/voting-verifier" }

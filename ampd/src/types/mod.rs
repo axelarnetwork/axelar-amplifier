@@ -54,6 +54,12 @@ impl From<AccountId> for TMAddress {
     }
 }
 
+impl From<TMAddress> for AccountId {
+    fn from(value: TMAddress) -> Self {
+        value.0
+    }
+}
+
 impl AsRef<AccountId> for TMAddress {
     fn as_ref(&self) -> &AccountId {
         &self.0

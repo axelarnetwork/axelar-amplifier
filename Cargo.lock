@@ -351,11 +351,33 @@ version = "0.1.0"
 dependencies = [
  "ampd",
  "ampd-sdk",
+ "async-trait",
+ "axelar-wasm-std",
+ "cosmrs",
+ "cosmwasm-std",
+ "dotenv",
  "error-stack",
+ "ethers-core",
+ "ethers-providers",
  "events",
+ "futures",
+ "goldie",
+ "humantime-serde",
+ "multisig",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tracing",
+ "tracing-core",
+ "tracing-error",
+ "tracing-subscriber",
+ "typed-builder",
+ "valuable",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -398,6 +420,8 @@ dependencies = [
  "tokio-util",
  "tonic 0.13.1",
  "tracing",
+ "tracing-subscriber",
+ "tracing-test",
  "typed-builder",
  "valuable",
 ]
@@ -3310,6 +3334,12 @@ dependencies = [
  "quote 1.0.40",
  "syn 2.0.101",
 ]
+
+[[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "downcast"
@@ -6795,7 +6825,7 @@ checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 
 [[package]]
 name = "multisig"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "assert_ok",
  "axelar-wasm-std",

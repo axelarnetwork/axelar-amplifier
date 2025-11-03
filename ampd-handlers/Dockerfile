@@ -9,7 +9,7 @@ COPY . .
 # Build argument to specify which handler to build
 ARG HANDLER=evm
 
-RUN cargo build --release --bin ${HANDLER}
+RUN cargo build --release --bin ${HANDLER}-handler
 
 FROM debian:bookworm-slim AS runner
 ARG GRPCURL_VERSION=1.9.3
@@ -27,5 +27,5 @@ RUN wget https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VE
     && chmod +x /usr/local/bin/grpcurl \
     && rm grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz
 
-COPY --from=builder /app/target/release/${HANDLER} /usr/local/bin/ampd_handler
+COPY --from=builder /app/target/release/${HANDLER}-handler /usr/local/bin/ampd_handler
 ENTRYPOINT ["ampd_handler"]

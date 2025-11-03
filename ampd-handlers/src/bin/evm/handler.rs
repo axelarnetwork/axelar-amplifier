@@ -1,141 +1,51 @@
-use std::collections::{HashMap, HashSet};
-use std::convert::TryInto;
-
+use ampd::evm::finalizer::Finalization;
+use ampd::evm::json_rpc::EthereumClient;
+use ampd::evm::verifier::verify_message;
+use ampd::handlers::evm_verify_msg::Message;
+use ampd::monitoring;
+use ampd::monitoring::metrics;
+use ampd::types::EVMAddress;
+use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
+use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::{PollId, Vote};
-use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
-use cosmrs::Any;
+use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
-use ethers_core::types::{TransactionReceipt, U64};
-use events::Error::EventTypeMismatch;
 use events::{try_from, EventType};
-use futures::future::join_all;
-use router_api::ChainName;
 use serde::Deserialize;
-use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span};
+use typed_builder::TypedBuilder;
 use valuable::Valuable;
-use voting_verifier::msg::ExecuteMsg;
 
-use crate::event_processor::EventHandler;
-use crate::event_sub::event_filter::{EventFilter, EventFilters};
-use crate::evm::finalizer;
-use crate::evm::finalizer::Finalization;
-use crate::evm::json_rpc::EthereumClient;
-use crate::evm::verifier::verify_message;
-use crate::handlers::errors::Error;
-use crate::handlers::errors::Error::DeserializeEvent;
-use crate::monitoring;
-use crate::monitoring::metrics;
-use crate::types::{EVMAddress, Hash, TMAddress};
+use crate::{common, Error};
 
-type Result<T> = error_stack::Result<T, Error>;
+type Result<T> = common::Result<T>;
 
-#[derive(Clone, Deserialize, Debug)]
-pub struct Message {
-    pub message_id: HexTxHashAndEventIndex,
-    pub destination_address: String,
-    pub destination_chain: ChainName,
-    pub source_address: EVMAddress,
-    pub payload_hash: Hash,
-}
-
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
-struct PollStartedEvent {
+pub struct PollStartedEvent {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     expires_at: u64,
     messages: Vec<Message>,
-    participants: Vec<TMAddress>,
+    participants: Vec<AccountId>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, TypedBuilder)]
 pub struct Handler<C>
 where
     C: EthereumClient,
 {
-    verifier: TMAddress,
-    voting_verifier_contract: TMAddress,
+    verifier: AccountId,
+    voting_verifier_contract: AccountId,
     chain: ChainName,
     finalizer_type: Finalization,
     rpc_client: C,
-    latest_block_height: Receiver<u64>,
     monitoring_client: monitoring::Client,
-}
-
-impl<C> Handler<C>
-where
-    C: EthereumClient + Send + Sync,
-{
-    pub fn new(
-        verifier: TMAddress,
-        voting_verifier_contract: TMAddress,
-        chain: ChainName,
-        finalizer_type: Finalization,
-        rpc_client: C,
-        latest_block_height: Receiver<u64>,
-        monitoring_client: monitoring::Client,
-    ) -> Self {
-        Self {
-            verifier,
-            voting_verifier_contract,
-            chain,
-            finalizer_type,
-            rpc_client,
-            latest_block_height,
-            monitoring_client,
-        }
-    }
-
-    async fn finalized_tx_receipts<T>(
-        &self,
-        tx_hashes: T,
-        confirmation_height: u64,
-    ) -> Result<HashMap<Hash, TransactionReceipt>>
-    where
-        T: IntoIterator<Item = Hash>,
-    {
-        let latest_finalized_block_height =
-            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
-                .latest_finalized_block_height()
-                .await
-                .change_context(Error::Finalizer)?;
-
-        Ok(join_all(
-            tx_hashes
-                .into_iter()
-                .map(|tx_hash| self.rpc_client.transaction_receipt(tx_hash)),
-        )
-        .await
-        .into_iter()
-        .filter_map(std::result::Result::unwrap_or_default)
-        .filter_map(|tx_receipt| {
-            if tx_receipt
-                .block_number
-                .unwrap_or(U64::MAX)
-                .le(&latest_finalized_block_height)
-            {
-                Some((tx_receipt.transaction_hash, tx_receipt))
-            } else {
-                None
-            }
-        })
-        .collect())
-    }
-    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
-        MsgExecuteContract {
-            sender: self.verifier.as_ref().clone(),
-            contract: self.voting_verifier_contract.as_ref().clone(),
-            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-                .expect("vote msg should serialize"),
-            funds: vec![],
-        }
-    }
 }
 
 #[async_trait]
@@ -144,12 +54,13 @@ where
     C: EthereumClient + Send + Sync,
 {
     type Err = Error;
+    type Event = PollStartedEvent;
 
-    async fn handle(&self, event: &events::Event) -> Result<Vec<Any>> {
-        if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
-            return Ok(vec![]);
-        }
-
+    async fn handle<HC: EventHandlerClient + Send + 'static>(
+        &self,
+        event: PollStartedEvent,
+        client: &mut HC,
+    ) -> Result<Vec<Any>> {
         let PollStartedEvent {
             poll_id,
             source_chain,
@@ -158,34 +69,43 @@ where
             expires_at,
             confirmation_height,
             participants,
-        } = match event.try_into() as error_stack::Result<_, _> {
-            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(vec![])
-            }
-            event => event.change_context(DeserializeEvent)?,
-        };
+        } = event;
 
-        if self.chain != source_chain {
+        if source_chain != self.chain {
+            debug!(
+                event_chain = source_chain.to_string(),
+                handler_chain = self.chain.to_string(),
+                "chain mismatch, skipping event"
+            );
             return Ok(vec![]);
         }
 
         if !participants.contains(&self.verifier) {
+            debug!(
+                verifier = self.verifier.to_string(),
+                "verifier not in participants, skipping event"
+            );
             return Ok(vec![]);
         }
 
-        let latest_block_height = *self.latest_block_height.borrow();
+        let latest_block_height = client
+            .latest_block_height()
+            .await
+            .change_context(Error::EventHandling)?;
         if latest_block_height >= expires_at {
             info!(poll_id = poll_id.to_string(), "skipping expired poll");
             return Ok(vec![]);
         }
 
-        let tx_hashes: HashSet<Hash> = messages
-            .iter()
-            .map(|msg| msg.message_id.tx_hash.into())
-            .collect();
-        let finalized_tx_receipts = self
-            .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await?;
+        let tx_hashes = messages.iter().map(|msg| msg.message_id.tx_hash.into());
+
+        let finalized_tx_receipts = common::finalized_tx_receipts(
+            &self.rpc_client,
+            &self.finalizer_type,
+            tx_hashes,
+            confirmation_height,
+        )
+        .await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -229,19 +149,20 @@ where
             votes
         });
 
-        Ok(vec![self
-            .vote_msg(poll_id, votes)
-            .into_any()
-            .expect("vote msg should serialize")])
+        Ok(vec![common::vote_msg(
+            &self.verifier,
+            &self.voting_verifier_contract,
+            poll_id,
+            votes,
+        )
+        .into_any()
+        .expect("vote msg should serialize")])
     }
 
-    fn event_filters(&self) -> EventFilters {
-        EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
-            )],
-            true,
+    fn subscription_params(&self) -> SubscriptionParams {
+        common::subscription_params(
+            &self.voting_verifier_contract,
+            PollStartedEvent::event_type(),
         )
     }
 }
@@ -250,28 +171,27 @@ where
 mod tests {
     use std::convert::TryInto;
 
+    use ampd::evm::finalizer::Finalization;
+    use ampd::evm::json_rpc::MockEthereumClient;
+    use ampd::handlers::test_utils::{into_structured_event, participants};
+    use ampd::monitoring;
+    use ampd::types::{Hash, TMAddress};
+    use ampd_sdk::event::event_handler::EventHandler;
+    use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
+    use axelar_wasm_std::chain_name;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers_core::types::{Block, H160, H256, U64};
     use ethers_providers::ProviderError;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use router_api::chain_name;
-    use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
-    use crate::event_processor::EventHandler;
-    use crate::evm::finalizer::Finalization;
-    use crate::evm::json_rpc::MockEthereumClient;
-    use crate::handlers::test_utils::{into_structured_event, participants};
-    use crate::monitoring::{metrics, test_utils};
-    use crate::types::{Hash, TMAddress};
-    use crate::PREFIX;
+    use super::{Handler, PollStartedEvent};
 
+    const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
@@ -318,6 +238,14 @@ mod tests {
                 },
             ],
         }
+    }
+
+    fn mock_handler_client(latest_block_height: u64) -> MockHandlerTaskClient {
+        let mut client = MockHandlerTaskClient::new();
+        client
+            .expect_latest_block_height()
+            .returning(move || Ok(latest_block_height));
+        client
     }
 
     #[test]
@@ -393,27 +321,35 @@ mod tests {
             &voting_verifier_contract,
         );
 
-        let (monitoring_client, _) = test_utils::monitoring_client();
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (tx, rx) = watch::channel(expiration - 1);
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier_contract.into())
+            .chain(chain_name!(ETHEREUM))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
 
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            rx,
-            monitoring_client,
-        );
+        let mut client = mock_handler_client(expiration - 1);
 
         // poll is not expired yet, should hit rpc error
-        assert!(handler.handle(&event).await.is_err());
+        assert!(handler
+            .handle(event.clone().try_into().unwrap(), &mut client)
+            .await
+            .is_err());
 
-        let _ = tx.send(expiration + 1);
+        let mut client = mock_handler_client(expiration + 1);
 
         // poll is expired, should not hit rpc error now
-        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
+        assert_eq!(
+            handler
+                .handle(event.try_into().unwrap(), &mut client)
+                .await
+                .unwrap(),
+            vec![]
+        );
     }
 
     #[async_test]
@@ -433,30 +369,34 @@ mod tests {
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
-        let event: Event = into_structured_event(
+        let event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), 100),
             &voting_verifier_contract,
         );
-        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+        let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
 
-        let handler = super::Handler::new(
-            verifier,
-            voting_verifier_contract,
-            chain_name!(ETHEREUM),
-            Finalization::RPCFinalizedBlock,
-            rpc_client,
-            watch::channel(0).1,
-            monitoring_client,
-        );
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier_contract.into())
+            .chain(chain_name!(ETHEREUM))
+            .finalizer_type(Finalization::RPCFinalizedBlock)
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
 
-        assert!(handler.handle(&event).await.is_ok());
+        let mut client = mock_handler_client(0);
+
+        assert!(handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .is_ok());
 
         for _ in 0..3 {
             let metrics = receiver.recv().await.unwrap();
 
             assert_eq!(
                 metrics,
-                metrics::Msg::VerificationVote {
+                monitoring::metrics::Msg::VerificationVote {
                     vote_decision: Vote::NotFound,
                     chain_name: chain_name!(ETHEREUM),
                 }
