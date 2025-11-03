@@ -16,4 +16,6 @@ pub enum Error {
     Sign,
     #[error("failed to get transaction receipts")]
     TxReceipts,
+    #[error("confirmation_height must be set in event verifier handler config when finalization is ConfirmationHeight")]
+    MissingConfirmationHeight,
 }

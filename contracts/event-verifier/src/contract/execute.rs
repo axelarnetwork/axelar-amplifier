@@ -10,7 +10,7 @@ use service_registry::WeightedVerifier;
 
 use crate::contract::query::event_status;
 use crate::error::ContractError;
-use crate::events::{self, PollMetadata};
+use crate::events;
 use crate::hash::hash_event_to_verify;
 use crate::state::{self, CONFIG, POLLS, POLL_ID, VOTES};
 
@@ -97,12 +97,10 @@ pub fn verify_events(
 
     Ok(Response::new().add_event(events::Event::EventsPollStarted {
         events: events_to_verify.clone(),
-        metadata: PollMetadata {
-            poll_id: id,
-            source_chain: source_chain.clone(),
-            expires_at,
-            participants,
-        },
+        poll_id: id,
+        source_chain: source_chain.clone(),
+        expires_at,
+        participants,
     }))
 }
 
@@ -700,41 +698,55 @@ mod tests {
             "Events in poll_started event should match input events exactly"
         );
 
-        // Verify metadata attribute
-        let metadata_attr = poll_started_event
+        // Verify poll_id attribute
+        let poll_id_attr = poll_started_event
             .attributes
             .iter()
-            .find(|attr| attr.key == "metadata")
+            .find(|attr| attr.key == "poll_id")
             .unwrap();
-        let metadata: crate::events::PollMetadata =
-            serde_json::from_str(&metadata_attr.value).unwrap();
+        let poll_id: axelar_wasm_std::voting::PollId =
+            serde_json::from_str(&poll_id_attr.value).unwrap();
+        assert_eq!(poll_id, 1u64.into(), "Poll ID should be 1 for first poll");
 
-        // Verify poll_id is correct (should be 1 for the first poll)
-        assert_eq!(
-            metadata.poll_id,
-            1u64.into(),
-            "Poll ID should be 1 for first poll"
-        );
-
-        // Verify source_chain matches the events
+        // Verify source_chain attribute
+        let source_chain_attr = poll_started_event
+            .attributes
+            .iter()
+            .find(|attr| attr.key == "source_chain")
+            .unwrap();
+        let source_chain: router_api::ChainName =
+            serde_json::from_str(&source_chain_attr.value).unwrap();
         let expected_chain: router_api::ChainName = event1.source_chain;
         assert_eq!(
-            metadata.source_chain, expected_chain,
+            source_chain, expected_chain,
             "Source chain should match event source chain"
         );
 
-        // Verify expires_at is set correctly (current block height + POLL_BLOCK_EXPIRY)
+        // Verify expires_at attribute
+        let expires_at_attr = poll_started_event
+            .attributes
+            .iter()
+            .find(|attr| attr.key == "expires_at")
+            .unwrap();
+        let expires_at: u64 = serde_json::from_str(&expires_at_attr.value).unwrap();
         let expected_expiry = mock_env().block.height + POLL_BLOCK_EXPIRY;
         assert_eq!(
-            metadata.expires_at, expected_expiry,
+            expires_at, expected_expiry,
             "Expiry should be current block height + poll block expiry"
         );
 
-        // Verify participants match the verifier set (order may differ, so sort both)
+        // Verify participants attribute
+        let participants_attr = poll_started_event
+            .attributes
+            .iter()
+            .find(|attr| attr.key == "participants")
+            .unwrap();
+        let participants: Vec<cosmwasm_std::Addr> =
+            serde_json::from_str(&participants_attr.value).unwrap();
         let mut expected_participants: Vec<_> =
             verifiers.iter().map(|v| v.address.clone()).collect();
         expected_participants.sort();
-        let mut actual_participants = metadata.participants.clone();
+        let mut actual_participants = participants;
         actual_participants.sort();
         assert_eq!(
             actual_participants, expected_participants,
