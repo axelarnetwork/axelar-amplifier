@@ -384,6 +384,7 @@ impl App {
                 chain,
                 cosmwasm_contract,
                 rpc_timeout,
+                confirmation_height,
             } => {
                 let rpc_client = json_rpc::Client::new_http(
                     chain.rpc_url.clone(),
@@ -403,15 +404,17 @@ impl App {
                     task_name.clone(),
                     self.create_handler_task(
                         task_name,
-                        handlers::evm_verify_event::Handler::new(
-                            verifier.clone(),
-                            cosmwasm_contract.clone(),
-                            chain.name.clone(),
-                            chain.finalization.clone(),
-                            rpc_client,
-                            self.block_height_monitor.latest_block_height(),
-                            self.monitoring_client.clone(),
-                        ),
+                        handlers::evm_verify_event::Handler::builder()
+                            .verifier(verifier.clone())
+                            .voting_verifier_contract(cosmwasm_contract.clone())
+                            .chain(chain.name.clone())
+                            .confirmation_height(*confirmation_height)
+                            .finalizer_type(chain.finalization.clone())
+                            .rpc_client(rpc_client)
+                            .latest_block_height(self.block_height_monitor.latest_block_height())
+                            .monitoring_client(self.monitoring_client.clone())
+                            .build()
+                            .change_context(Error::LoadConfig)?,
                         event_processor_config.clone(),
                         self.monitoring_client.clone(),
                     ),

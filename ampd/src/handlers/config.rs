@@ -35,6 +35,7 @@ pub enum Config {
         #[serde(flatten, with = "chain")]
         chain: Chain,
         rpc_timeout: Option<Duration>,
+        confirmation_height: Option<u64>,
     },
     EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
