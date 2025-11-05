@@ -7,41 +7,23 @@ use ampd::evm::verifier::{verify_message, verify_verifier_set};
 use ampd::handlers::evm_verify_msg::Message;
 use ampd::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::monitoring::metrics;
-use ampd::types::{EVMAddress, Hash};
+use ampd::types::EVMAddress;
+use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
-use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::tx::Msg;
 use cosmrs::{AccountId, Any};
 use error_stack::{Report, ResultExt};
 use ethers_core::types::{TransactionReceipt, U64};
 use events::{try_from, AbciEventTypeFilter, Event, EventType};
 use futures::future::join_all;
 use serde::Deserialize;
-use tracing::{debug, info, info_span};
 use typed_builder::TypedBuilder;
-use valuable::Valuable;
-use voting_verifier::msg::ExecuteMsg;
-
-use crate::Error;
 
 pub type Result<T> = error_stack::Result<T, Error>;
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct PollStartedEvent {
-    poll_data: Vec<PollEventData>,
-    poll_id: PollId,
-    source_chain: ChainName,
-    source_gateway_address: EVMAddress,
-    expires_at: u64,
-    confirmation_height: u64,
-    participants: Vec<AccountId>,
-}
 
 #[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
@@ -73,23 +55,24 @@ pub enum PollEventData {
     VerifierSet(VerifierSetConfirmation),
 }
 
-impl PollEventData {
-    pub fn tx_hash(&self) -> axelar_wasm_std::hash::Hash {
+impl voting::PollEventData for PollEventData {
+    type Digest = axelar_wasm_std::hash::Hash;
+    type MessageId = HexTxHashAndEventIndex;
+    type ChainAddress = EVMAddress;
+    type Receipt = TransactionReceipt;
+
+    fn tx_hash(&self) -> axelar_wasm_std::hash::Hash {
         self.message_id().tx_hash
     }
 
-    pub fn message_id(&self) -> &HexTxHashAndEventIndex {
+    fn message_id(&self) -> &HexTxHashAndEventIndex {
         match self {
             PollEventData::Message(message) => &message.message_id,
             PollEventData::VerifierSet(verifier_set) => &verifier_set.message_id,
         }
     }
 
-    pub fn verify(
-        &self,
-        source_gateway_address: &EVMAddress,
-        tx_receipt: &TransactionReceipt,
-    ) -> Vote {
+    fn verify(&self, source_gateway_address: &EVMAddress, tx_receipt: &TransactionReceipt) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(source_gateway_address, tx_receipt, message)
@@ -100,6 +83,9 @@ impl PollEventData {
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct PollStartedEvent(pub voting::PollStartedEvent<PollEventData, EVMAddress>);
 
 impl TryFrom<Event> for PollStartedEvent {
     type Error = Report<events::Error>;
@@ -115,7 +101,7 @@ impl TryFrom<Event> for PollStartedEvent {
                 confirmation_height,
                 participants,
             } = event;
-            Ok(PollStartedEvent {
+            Ok(PollStartedEvent(voting::PollStartedEvent {
                 poll_data: messages.into_iter().map(PollEventData::Message).collect(),
                 poll_id,
                 source_chain,
@@ -123,7 +109,7 @@ impl TryFrom<Event> for PollStartedEvent {
                 expires_at,
                 confirmation_height,
                 participants,
-            })
+            }))
         } else if let Ok(event) = VerifierSetPollStarted::try_from(event.clone()) {
             let VerifierSetPollStarted {
                 poll_id,
@@ -134,7 +120,7 @@ impl TryFrom<Event> for PollStartedEvent {
                 participants,
                 verifier_set,
             } = event;
-            Ok(PollStartedEvent {
+            Ok(PollStartedEvent(voting::PollStartedEvent {
                 poll_data: vec![PollEventData::VerifierSet(verifier_set)],
                 poll_id,
                 source_chain,
@@ -142,7 +128,7 @@ impl TryFrom<Event> for PollStartedEvent {
                 expires_at,
                 confirmation_height,
                 participants,
-            })
+            }))
         } else {
             Err(events::Error::EventTypeMismatch(format!(
                 "{}/{}",
@@ -168,172 +154,37 @@ where
 }
 
 #[async_trait]
-impl<C> EventHandler for Handler<C>
+impl<C> VotingHandler for Handler<C>
 where
     C: EthereumClient + Send + Sync,
 {
-    type Err = Error;
-    type Event = PollStartedEvent;
+    type Digest = axelar_wasm_std::hash::Hash;
+    type Receipt = TransactionReceipt;
+    type ChainAddress = EVMAddress;
+    type EventData = PollEventData;
 
-    async fn handle<HC: EventHandlerClient + Send + 'static>(
+    fn chain(&self) -> &ChainName {
+        &self.chain
+    }
+    fn verifier(&self) -> &AccountId {
+        &self.verifier
+    }
+    fn voting_verifier_contract(&self) -> &AccountId {
+        &self.voting_verifier_contract
+    }
+    fn monitoring_client(&self) -> &monitoring::Client {
+        &self.monitoring_client
+    }
+
+    async fn finalized_txs(
         &self,
-        event: PollStartedEvent,
-        client: &mut HC,
-    ) -> Result<Vec<Any>> {
-        let PollStartedEvent {
-            poll_id,
-            source_chain,
-            source_gateway_address,
-            expires_at,
-            confirmation_height,
-            participants,
-            poll_data,
-        } = event;
-
-        if self
-            .should_skip_handling(
-                client,
-                source_chain.clone(),
-                participants,
-                expires_at,
-                poll_id,
-            )
-            .await?
-        {
-            return Ok(vec![]);
-        }
+        poll_data: &[Self::EventData],
+        confirmation_height: Option<u64>,
+    ) -> Result<HashMap<Self::Digest, Self::Receipt>> {
+        let confirmation_height = confirmation_height.expect("confirmation height is required");
 
         let tx_hashes = poll_data.iter().map(|data| data.tx_hash().into());
 
-        let finalized_tx_receipts = self
-            .finalized_tx_receipts(tx_hashes, confirmation_height)
-            .await?;
-
-        let poll_id_str: String = poll_id.to_string();
-        let source_chain_str: String = source_chain.to_string();
-
-        let votes = info_span!(
-            "verify events from an EVM chain",
-            poll_id = poll_id_str,
-            source_chain = source_chain_str,
-            message_ids = poll_data
-                .iter()
-                .map(|data| data.message_id().to_string())
-                .collect::<Vec<String>>()
-                .as_value(),
-        )
-        .in_scope(|| {
-            info!("ready to verify events in poll",);
-
-            let votes: Vec<_> = poll_data
-                .iter()
-                .map(|data| {
-                    finalized_tx_receipts
-                        .get(&data.tx_hash().into())
-                        .map_or(Vote::NotFound, |tx_receipt| {
-                            data.verify(&source_gateway_address, tx_receipt)
-                        })
-                })
-                .inspect(|vote| {
-                    self.monitoring_client.metrics().record_metric(
-                        metrics::Msg::VerificationVote {
-                            vote_decision: vote.clone(),
-                            chain_name: self.chain.clone(),
-                        },
-                    );
-                })
-                .collect();
-            info!(
-                votes = votes.as_value(),
-                "ready to vote for messages in poll"
-            );
-
-            votes
-        });
-
-        Ok(vec![self
-            .vote_msg(poll_id, votes)
-            .into_any()
-            .expect("vote msg should serialize")])
-    }
-
-    fn subscription_params(&self) -> SubscriptionParams {
-        SubscriptionParams::new(
-            vec![
-                AbciEventTypeFilter {
-                    event_type: MessagesPollStarted::event_type(),
-                    contract: self.voting_verifier_contract.clone(),
-                },
-                AbciEventTypeFilter {
-                    event_type: VerifierSetPollStarted::event_type(),
-                    contract: self.voting_verifier_contract.clone(),
-                },
-            ],
-            false,
-        )
-    }
-}
-
-impl<C> Handler<C>
-where
-    C: EthereumClient,
-{
-    pub async fn should_skip_handling<HC>(
-        &self,
-        client: &mut HC,
-        source_chain: ChainName,
-        participants: Vec<AccountId>,
-        expires_at: u64,
-        poll_id: PollId,
-    ) -> Result<bool>
-    where
-        HC: EventHandlerClient + Send + 'static,
-    {
-        // Skip if the source chain is not the same as the handler chain
-        if source_chain != self.chain {
-            debug!(
-                event_chain = source_chain.to_string(),
-                handler_chain = self.chain.to_string(),
-                "chain mismatch, skipping event"
-            );
-            return Ok(true);
-        }
-
-        // Skip if the verifier is not a participant
-        if !participants.contains(&self.verifier) {
-            debug!(
-                verifier = self.verifier.to_string(),
-                "verifier not in participants, skipping event"
-            );
-            return Ok(true);
-        }
-
-        // Skip if the poll has expired
-        let latest_block_height = client
-            .latest_block_height()
-            .await
-            .change_context(Error::EventHandling)?;
-        if latest_block_height >= expires_at {
-            info!(poll_id = poll_id.to_string(), "skipping expired poll");
-            return Ok(true);
-        }
-
-        Ok(false)
-    }
-
-    /// Retrieves finalized transaction receipts for one or more transactions
-    ///
-    /// Returns a HashMap where keys are transaction hashes and values are receipts.
-    /// Only receipts that are finalized (at or before the latest finalized block) are included.
-    pub async fn finalized_tx_receipts<T>(
-        &self,
-        tx_hashes: T,
-        confirmation_height: u64,
-    ) -> Result<HashMap<Hash, TransactionReceipt>>
-    where
-        C: EthereumClient + Send + Sync,
-        T: IntoIterator<Item = Hash>,
-    {
         let latest_finalized_block_height =
             finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
                 .latest_finalized_block_height()
@@ -355,31 +206,45 @@ where
                 .unwrap_or(U64::MAX)
                 .le(&latest_finalized_block_height)
             {
-                Some((tx_receipt.transaction_hash, tx_receipt))
+                Some((tx_receipt.transaction_hash.into(), tx_receipt))
             } else {
                 None
             }
         })
         .collect())
     }
+}
 
-    /// Creates a vote message for one or more votes
-    ///
-    /// Pass a single vote as `vec![vote]` or multiple votes as a vector.
-    pub fn vote_msg<V>(&self, poll_id: PollId, votes: V) -> MsgExecuteContract
-    where
-        V: Into<Vec<Vote>>,
-    {
-        MsgExecuteContract {
-            sender: self.verifier.clone(),
-            contract: self.voting_verifier_contract.clone(),
-            msg: serde_json::to_vec(&ExecuteMsg::Vote {
-                poll_id,
-                votes: votes.into(),
-            })
-            .expect("vote msg should serialize"),
-            funds: vec![],
-        }
+#[async_trait]
+impl<C> EventHandler for Handler<C>
+where
+    C: EthereumClient + Send + Sync,
+{
+    type Err = Error;
+    type Event = PollStartedEvent;
+
+    async fn handle<HC: EventHandlerClient + Send + 'static>(
+        &self,
+        event: PollStartedEvent,
+        client: &mut HC,
+    ) -> Result<Vec<Any>> {
+        VotingHandler::handle(self, event.0, client).await
+    }
+
+    fn subscription_params(&self) -> SubscriptionParams {
+        SubscriptionParams::new(
+            vec![
+                AbciEventTypeFilter {
+                    event_type: MessagesPollStarted::event_type(),
+                    contract: self.voting_verifier_contract.clone(),
+                },
+                AbciEventTypeFilter {
+                    event_type: VerifierSetPollStarted::event_type(),
+                    contract: self.voting_verifier_contract.clone(),
+                },
+            ],
+            false,
+        )
     }
 }
 
