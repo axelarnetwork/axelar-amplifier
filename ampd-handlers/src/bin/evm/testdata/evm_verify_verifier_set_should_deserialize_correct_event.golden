@@ -1,4 +1,4 @@
-PollStartedEvent {
+VerifierSetPollStarted {
     verifier_set: VerifierSetConfirmation {
         message_id: HexTxHashAndEventIndex {
             tx_hash: [

@@ -1,4 +1,4 @@
-PollStartedEvent {
+MessagesPollStarted {
     poll_id: PollId(
         Uint64(
             100,

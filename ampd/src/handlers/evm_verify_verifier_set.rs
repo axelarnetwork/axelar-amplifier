@@ -31,7 +31,7 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct VerifierSetConfirmation {
     pub message_id: HexTxHashAndEventIndex,
     pub verifier_set: VerifierSet,

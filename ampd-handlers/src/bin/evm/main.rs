@@ -1,7 +1,5 @@
-mod common;
 mod error;
 mod handler;
-mod verifier_set_handler;
 
 use std::time::Duration;
 
@@ -20,7 +18,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::Level;
 use tracing_core::LevelFilter;
 use tracing_error::ErrorLayer;
-use tracing_subscriber::prelude::*;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 use crate::error::Error;
