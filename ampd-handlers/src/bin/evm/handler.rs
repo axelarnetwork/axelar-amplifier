@@ -85,50 +85,19 @@ impl voting::PollEventData for PollEventData {
 }
 
 #[derive(Clone, Debug)]
-pub struct PollStartedEvent(pub voting::PollStartedEvent<PollEventData, EVMAddress>);
+pub enum PollStartedEvent {
+    Messages(MessagesPollStarted),
+    VerifierSet(VerifierSetPollStarted),
+}
 
 impl TryFrom<Event> for PollStartedEvent {
     type Error = Report<events::Error>;
 
     fn try_from(event: Event) -> std::result::Result<Self, Self::Error> {
         if let Ok(event) = MessagesPollStarted::try_from(event.clone()) {
-            let MessagesPollStarted {
-                poll_id,
-                source_chain,
-                source_gateway_address,
-                messages,
-                expires_at,
-                confirmation_height,
-                participants,
-            } = event;
-            Ok(PollStartedEvent(voting::PollStartedEvent {
-                poll_data: messages.into_iter().map(PollEventData::Message).collect(),
-                poll_id,
-                source_chain,
-                source_gateway_address,
-                expires_at,
-                confirmation_height,
-                participants,
-            }))
+            Ok(PollStartedEvent::Messages(event))
         } else if let Ok(event) = VerifierSetPollStarted::try_from(event.clone()) {
-            let VerifierSetPollStarted {
-                poll_id,
-                source_chain,
-                source_gateway_address,
-                expires_at,
-                confirmation_height,
-                participants,
-                verifier_set,
-            } = event;
-            Ok(PollStartedEvent(voting::PollStartedEvent {
-                poll_data: vec![PollEventData::VerifierSet(verifier_set)],
-                poll_id,
-                source_chain,
-                source_gateway_address,
-                expires_at,
-                confirmation_height,
-                participants,
-            }))
+            Ok(PollStartedEvent::VerifierSet(event))
         } else {
             Err(events::Error::EventTypeMismatch(format!(
                 "{}/{}",
@@ -136,6 +105,35 @@ impl TryFrom<Event> for PollStartedEvent {
                 VerifierSetPollStarted::event_type()
             )))
             .attach_printable(format!("{{ event = {event:?} }}"))
+        }
+    }
+}
+
+impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, EVMAddress> {
+    fn from(event: PollStartedEvent) -> Self {
+        match event {
+            PollStartedEvent::Messages(message_event) => voting::PollStartedEvent {
+                poll_data: message_event
+                    .messages
+                    .into_iter()
+                    .map(PollEventData::Message)
+                    .collect(),
+                poll_id: message_event.poll_id,
+                source_chain: message_event.source_chain,
+                source_gateway_address: message_event.source_gateway_address,
+                expires_at: message_event.expires_at,
+                confirmation_height: message_event.confirmation_height,
+                participants: message_event.participants,
+            },
+            PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
+                poll_data: vec![PollEventData::VerifierSet(verifier_set_event.verifier_set)],
+                poll_id: verifier_set_event.poll_id,
+                source_chain: verifier_set_event.source_chain,
+                source_gateway_address: verifier_set_event.source_gateway_address,
+                expires_at: verifier_set_event.expires_at,
+                confirmation_height: verifier_set_event.confirmation_height,
+                participants: verifier_set_event.participants,
+            },
         }
     }
 }
@@ -228,7 +226,7 @@ where
         event: PollStartedEvent,
         client: &mut HC,
     ) -> Result<Vec<Any>> {
-        VotingHandler::handle(self, event.0, client).await
+        VotingHandler::handle(self, event.into(), client).await
     }
 
     fn subscription_params(&self) -> SubscriptionParams {
