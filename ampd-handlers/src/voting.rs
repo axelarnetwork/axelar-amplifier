@@ -44,15 +44,15 @@ pub trait PollEventData: Clone + Debug + Send + Sync {
 }
 
 #[derive(Clone, Debug)]
-pub struct PollStartedEvent<PD, CA>
+pub struct PollStartedEvent<P, A>
 where
-    PD: PollEventData,
-    CA: Clone + Debug + Send + Sync,
+    P: PollEventData,
+    A: Clone + Debug + Send + Sync,
 {
-    pub poll_data: Vec<PD>,
+    pub poll_data: Vec<P>,
     pub poll_id: PollId,
     pub source_chain: ChainName,
-    pub source_gateway_address: CA,
+    pub source_gateway_address: A,
     pub expires_at: u64,
     pub confirmation_height: u64,
     pub participants: Vec<AccountId>,
