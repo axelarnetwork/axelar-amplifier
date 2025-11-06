@@ -319,8 +319,6 @@ mod tests {
         VotingVerifierEvent::VerifierSetPollStarted {
             #[allow(deprecated)]
             verifier_set: VerifierSetConfirmation {
-                tx_id: msg_id.tx_hash_as_hex(),
-                event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },

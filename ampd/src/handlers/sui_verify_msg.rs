@@ -203,7 +203,7 @@ mod tests {
     use super::{PollStartedEvent, SUI_CHAIN_NAME};
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;
@@ -442,8 +442,6 @@ mod tests {
                 .collect(),
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
-                tx_id: msg_id.tx_digest_as_base58(),
-                event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
                     .unwrap()

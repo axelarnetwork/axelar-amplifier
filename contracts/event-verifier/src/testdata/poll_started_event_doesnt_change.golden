@@ -1,0 +1,25 @@
+{
+  "type": "events_poll_started",
+  "attributes": [
+    {
+      "key": "events",
+      "value": "[{\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"evm\\\":{\\\"transaction_hash\\\":\\\"0000000000000000000000000000000000000000000000000000000000000000\\\",\\\"transaction_details\\\":null,\\\"events\\\":[{\\\"contract_address\\\":\\\"0000000000000000000000000000000000000000\\\",\\\"event_index\\\":1,\\\"topics\\\":[\\\"0102030000000000000000000000000000000000000000000000000000000000\\\"],\\\"data\\\":\\\"01020304\\\"}]}}\"},{\"source_chain\":\"sourcechain\",\"event_data\":\"{\\\"evm\\\":{\\\"transaction_hash\\\":\\\"0000000000000000000000000000000000000000000000000000000000000000\\\",\\\"transaction_details\\\":null,\\\"events\\\":[{\\\"contract_address\\\":\\\"0000000000000000000000000000000000000000\\\",\\\"event_index\\\":2,\\\"topics\\\":[\\\"0102030000000000000000000000000000000000000000000000000000000000\\\"],\\\"data\\\":\\\"05060708\\\"}]}}\"}]"
+    },
+    {
+      "key": "poll_id",
+      "value": "\"1\""
+    },
+    {
+      "key": "source_chain",
+      "value": "\"sourcechain\""
+    },
+    {
+      "key": "expires_at",
+      "value": "1"
+    },
+    {
+      "key": "participants",
+      "value": "[\"cosmwasm12msqmrh0gvhyfztrlveax89unzvr2wzwc2ggdrs2pa6h8vj5kxhsvfdqwv\",\"cosmwasm162h5mj8myky9cywlshyq4l43k6agc8x3e6c96p552eakkz5z5s6sw2p4jy\",\"cosmwasm1la882th3963m9xcg5ea99mc8uvrel8796za2jwjdgantwlu5gzcqqp9ss4\"]"
+    }
+  ]
+}
