@@ -33,7 +33,7 @@ pub fn encode_execute_data(
     // Separately, compute a PREFIXED hash for signature generation only
     // This adds the prefix: keccak256(PREFIX + unprefixed_hash)
     // Gateway will add the same prefix during verification
-    let prefixed_payload_hash = payload_digest(domain_separator, verifier_set, payload)?;
+    let prefixed_payload_hash = payload_digest(domain_separator, payload)?;
 
     // Encode the signers & their signatures
     // Note: Signatures were generated over the prefixed hash
@@ -73,15 +73,14 @@ pub fn encode_execute_data(
 /// Note: This prefixed hash is used ONLY for signing. The unprefixed hash is transmitted.
 pub fn payload_digest(
     domain_separator: &Hash,
-    verifier_set: &VerifierSet,
     payload: &Payload,
 ) -> error_stack::Result<Hash, ContractError> {
-    let verifier_set = to_verifier_set(verifier_set)?;
     let payload = to_payload(payload)?;
-    let hash = axelar_solana_encoding::hash_payload(domain_separator, &verifier_set, payload)
-        .map_err(|err| ContractError::SolanaEncoding {
+    let hash = axelar_solana_encoding::hash_payload(domain_separator, payload).map_err(|err| {
+        ContractError::SolanaEncoding {
             reason: err.to_string(),
-        })?;
+        }
+    })?;
 
     // Add prefix for Solana offchain signing (matches gateway implementation)
     let prefixed_message = [PREFIX, hash.as_slice()].concat();
@@ -219,25 +218,11 @@ mod tests {
     use router_api::{CrossChainId, Message};
     use sha3::{Digest, Keccak256};
 
-    use super::{encode_execute_data, payload_digest, to_payload, to_verifier_set, PREFIX};
+    use super::{encode_execute_data, payload_digest, to_payload, PREFIX};
     use crate::payload::Payload;
 
     #[test]
     fn solana_messages_payload_digest() {
-        let signers_data = vec![
-            (
-                "addr_1",
-                "508bcac3df50837e0b093aebc549211ba72bd1e7c1830a288b816b677d62a046",
-                9u128,
-            ),
-            (
-                "addr_2",
-                "5c186341e6392ff06b35b2b80a05f99cdd1dd7d5b436f2eef1a6dd08c07c9463",
-                4u128,
-            ),
-        ];
-        let verifier_set = gen_verifier_set(signers_data, 22, 2024);
-
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
                 source_chain: "evm".parse().unwrap(),
@@ -263,21 +248,12 @@ mod tests {
                 .to_array()
                 .unwrap();
         goldie::assert!(hex::encode(
-            payload_digest(&domain_separator, &verifier_set, &payload).unwrap()
+            payload_digest(&domain_separator, &payload).unwrap()
         ));
     }
 
     #[test]
     fn solana_verifier_set_payload_digest() {
-        let verifier_set = gen_verifier_set(
-            vec![(
-                "addr_1",
-                "bf95c447eb2e694974ee2cf5f17e7165bc884a0cb676bb4de50c604bb7a6ea77",
-                4u128,
-            )],
-            1,
-            2024,
-        );
         let signers_data = vec![
             (
                 "addr_1",
@@ -298,7 +274,7 @@ mod tests {
                 .unwrap();
 
         goldie::assert!(hex::encode(
-            payload_digest(&domain_separator, &verifier_set, &payload).unwrap()
+            payload_digest(&domain_separator, &payload).unwrap()
         ));
     }
 
@@ -479,13 +455,6 @@ mod tests {
     #[test]
     fn test_payload_digest_uses_prefix() {
         // 1. Setup test data
-        let signers_data = vec![(
-            "addr_1",
-            "508bcac3df50837e0b093aebc549211ba72bd1e7c1830a288b816b677d62a046",
-            9u128,
-        )];
-        let verifier_set = gen_verifier_set(signers_data, 22, 2024);
-
         let payload = Payload::Messages(vec![Message {
             cc_id: CrossChainId {
                 source_chain: "evm".parse().unwrap(),
@@ -513,17 +482,12 @@ mod tests {
                 .unwrap();
 
         // 2. Get unprefixed hash directly from encoding library
-        let verifier_set_encoded = to_verifier_set(&verifier_set).unwrap();
         let payload_encoded = to_payload(&payload).unwrap();
-        let unprefixed_hash = axelar_solana_encoding::hash_payload(
-            &domain_separator,
-            &verifier_set_encoded,
-            payload_encoded,
-        )
-        .unwrap();
+        let unprefixed_hash =
+            axelar_solana_encoding::hash_payload(&domain_separator, payload_encoded).unwrap();
 
         // 3. Get prefixed hash from our function
-        let prefixed_hash = payload_digest(&domain_separator, &verifier_set, &payload).unwrap();
+        let prefixed_hash = payload_digest(&domain_separator, &payload).unwrap();
 
         // 4. Manually compute expected prefixed hash
         let expected_prefixed_hash = {
