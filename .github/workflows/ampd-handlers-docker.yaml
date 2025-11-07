@@ -178,9 +178,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.HANDLER }}-latest
+          tags: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
           file: ampd-handlers/Dockerfile
           build-args: |
             HANDLER=${{ env.HANDLER }}
@@ -194,7 +192,6 @@ jobs:
           echo "**Would push to:** ECR Repository \`${{ env.REPOSITORY }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Tags that would be created:**" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.HANDLER }}-latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Full image name that would be created:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
@@ -211,7 +208,6 @@ jobs:
           echo "**Repository:** ${{ env.REPOSITORY }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.HANDLER }}-latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Full Image:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
