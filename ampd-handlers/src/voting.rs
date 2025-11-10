@@ -22,10 +22,10 @@ pub type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to handle event")]
-    EventHandling,
-    #[error("failed to get the latest finalized block")]
-    Finalizer,
+    #[error("failed to determine voting eligibility")]
+    VotingEligibility,
+    #[error("failed to retrieve finalized transactions")]
+    FinalizedTxs,
 }
 
 pub trait PollEventData: Clone + Debug + Send + Sync {
@@ -118,7 +118,8 @@ pub trait VotingHandler: EventHandler {
         let latest_block_height = client
             .latest_block_height()
             .await
-            .change_context(Error::EventHandling)?;
+            .change_context(Error::VotingEligibility)
+            .attach_printable("failed to get amplifier's latest block height")?;
         if latest_block_height >= expires_at {
             info!(poll_id = poll_id.to_string(), "skipping expired poll");
             return Ok(true);
@@ -166,16 +167,14 @@ pub trait VotingHandler: EventHandler {
 
         if self
             .should_skip_voting(client, &source_chain, participants, expires_at, &poll_id)
-            .await
-            .change_context(Error::EventHandling)?
+            .await?
         {
             return Ok(vec![]);
         }
 
         let finalized_tx_receipts = self
             .finalized_txs(&poll_data, Some(confirmation_height))
-            .await
-            .change_context(Error::EventHandling)?;
+            .await?;
 
         let poll_id_str: String = poll_id.to_string();
         let source_chain_str: String = source_chain.to_string();

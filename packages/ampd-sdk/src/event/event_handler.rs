@@ -226,6 +226,12 @@ where
             },
         )
         .await
+        .inspect_err(|err| {
+            error!(
+                err = report::LoggableError::from(err).as_value(),
+                "failed to handle event"
+            )
+        })
         .ok()
     }
 
