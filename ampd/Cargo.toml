@@ -80,10 +80,6 @@ serde_json = { workspace = true }
 serde_with = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
-solana-client = "=2.1.21"
-solana-sdk = "=2.1.21"
-solana-transaction-status = "=2.1.21"
-solana-zk-token-sdk = "=2.1.21"
 starknet-checked-felt = { workspace = true }
 
 starknet-core = { workspace = true }

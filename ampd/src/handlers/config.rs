@@ -269,16 +269,6 @@ where
     )?;
     ensure_unique_config!(
         &configs,
-        Config::SolanaMsgVerifier,
-        "Solana message verifier"
-    )?;
-    ensure_unique_config!(
-        &configs,
-        Config::SolanaVerifierSetVerifier,
-        "Solana verifier set verifier"
-    )?;
-    ensure_unique_config!(
-        &configs,
         Config::StacksMsgVerifier,
         "Stacks message verifier"
     )?;
@@ -303,7 +293,6 @@ mod tests {
     use crate::url::Url;
     use crate::PREFIX;
 
-    const SOLANA: &str = "solana";
     const STACKS: &str = "stacks";
 
     #[test]
