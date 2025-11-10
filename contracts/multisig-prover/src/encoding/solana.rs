@@ -1,7 +1,7 @@
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 
-use axelar_solana_encoding::types::pubkey::{ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN};
+use axelar_solana_encoding::types::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use itertools::Itertools;
@@ -39,7 +39,7 @@ pub fn encode_execute_data(
     // Note: Signatures were generated over the prefixed hash
     let mut signers_with_signatures = BTreeMap::<
         axelar_solana_encoding::types::pubkey::PublicKey,
-        axelar_solana_encoding::types::pubkey::Signature,
+        axelar_solana_encoding::types::pubkey::EcdsaRecoverableSignature,
     >::new();
     for signer in signers_with_sigs {
         let pubkey = to_pub_key(&signer.signer.pub_key)?;
@@ -111,20 +111,18 @@ fn to_verifier_set(
 fn to_pub_key(
     pk: &PublicKey,
 ) -> error_stack::Result<axelar_solana_encoding::types::pubkey::PublicKey, ContractError> {
-    Ok(match pk {
-        PublicKey::Ecdsa(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
+    match pk {
+        PublicKey::Ecdsa(hb) => Ok(axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
             hb.to_array::<SECP256K1_COMPRESSED_PUBKEY_LEN>()
                 .map_err(|err| ContractError::SolanaEncoding {
                     reason: err.to_string(),
                 })?,
-        ),
-        PublicKey::Ed25519(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Ed25519(
-            hb.to_array::<ED25519_PUBKEY_LEN>()
-                .map_err(|err| ContractError::SolanaEncoding {
-                    reason: err.to_string(),
-                })?,
-        ),
-    })
+        )),
+        PublicKey::Ed25519(_hb) => Err(ContractError::InvalidPublicKey {
+            reason: "Ed25519 public keys are not supported".to_string(),
+        }
+        .into()),
+    }
 }
 
 fn to_payload(
@@ -163,7 +161,10 @@ fn to_signature(
     sig: &Signature,
     pub_key: &PublicKey,
     prefixed_payload_hash: &[u8; 32],
-) -> error_stack::Result<axelar_solana_encoding::types::pubkey::Signature, ContractError> {
+) -> error_stack::Result<
+    axelar_solana_encoding::types::pubkey::EcdsaRecoverableSignature,
+    ContractError,
+> {
     let recovery_transform = |recovery_byte: RecoveryId| -> u8 { recovery_byte.to_byte() };
     match sig {
         Signature::Ecdsa(nonrec) => {
@@ -172,28 +173,13 @@ fn to_signature(
                 .map_err(|e| ContractError::SolanaEncoding {
                     reason: e.to_string(),
                 })?;
-            Ok(
-                axelar_solana_encoding::types::pubkey::Signature::EcdsaRecoverable(
-                    recoverable_ecdsa_to_array(&recov)?,
-                ),
-            )
+            Ok(recoverable_ecdsa_to_array(&recov)?)
         }
-        Signature::EcdsaRecoverable(r) => Ok(
-            axelar_solana_encoding::types::pubkey::Signature::EcdsaRecoverable(
-                recoverable_ecdsa_to_array(r)?,
-            ),
-        ),
-        Signature::Ed25519(ed) => {
-            let data = ed.as_ref().try_into().map_err(|e: TryFromSliceError| {
-                ContractError::SolanaEncoding {
-                    reason: e.to_string(),
-                }
-            })?;
-
-            Ok(axelar_solana_encoding::types::pubkey::Signature::Ed25519(
-                data,
-            ))
+        Signature::EcdsaRecoverable(r) => Ok(recoverable_ecdsa_to_array(r)?),
+        Signature::Ed25519(_ed) => Err(ContractError::InvalidSignature {
+            reason: "Ed25519 signatures are not supported".to_string(),
         }
+        .into()),
     }
 }
 
@@ -211,7 +197,7 @@ fn recoverable_ecdsa_to_array(rec: &Recoverable) -> error_stack::Result<[u8; 65]
 mod tests {
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
-    use multisig::key::KeyType::Ed25519;
+    use multisig::key::KeyType::Ecdsa;
     use multisig::key::Signature;
     use multisig::msg::{Signer, SignerWithSig};
     use multisig::verifier_set::VerifierSet;
@@ -257,12 +243,12 @@ mod tests {
         let signers_data = vec![
             (
                 "addr_1",
-                "5086d25f94b8c42faf7ef4325516864e179fcb2a1a9321720f0fc2b249105106",
+                "023a55792bb3695f426c7c5e680e91cdb7b1da77c40fa4e5753af5beeab9d5c3e4",
                 5u128,
             ),
             (
                 "addr_2",
-                "57a446f70d8243b7d5e08edcd9c5774f3f0257940df7aa84bca5b1acfc0f3ba3",
+                "02f603296b4a510c9b0bac70caec378b8d47b79f44f94280bd8f5cdc9a59512c5b",
                 7u128,
             ),
         ];
@@ -283,13 +269,13 @@ mod tests {
         let signers_data = vec![
             (
                 "addr_1",
-                "12f7d9a9463212335914b39ee90bfa2045f90b64c1f2d7b58ed335282abac4a4",
+                "023a55792bb3695f426c7c5e680e91cdb7b1da77c40fa4e5753af5beeab9d5c3e4",
                 8u128,
-                Some("b5b3b0749aa585f866d802e32ca4a6356f82eb52e2a1b4797cbaa30f3d755462f2eb995c70d9099e436b8a48498e4d613ff2d3ca7618973a36c2fde17493180f"),
+                Some("1FD785CC75E4E238A1FDA1CF78618028987F41AC263C508E7C0BF0653C87B4585FBC115858D12FC6E9FA9EFFBC5E140E2F23F4566900007397B36629E686505501"),
             ),
             (
                 "addr_2",
-                "4c3863e4b0252a8674c1c6ad70b3ca3002b400b49ddfae5583b21907e65c5dd8",
+                "02f603296b4a510c9b0bac70caec378b8d47b79f44f94280bd8f5cdc9a59512c5b",
                 1u128,
                 None
             ),
@@ -347,13 +333,13 @@ mod tests {
         let signers_data = vec![
             (
                 "addr_1",
-                "77dd4768dda195f8080fe970be8fec5fee9cea781718158ce19d4a331442fd57",
+                "023a55792bb3695f426c7c5e680e91cdb7b1da77c40fa4e5753af5beeab9d5c3e4",
                 2u128,
-                Some("91db8ad94ab379ee9021caeb3ee852582d09d06801213256cbd2937f2ad8182f518fde7a7f8c801adde7161e05cbbb9841ac0bf3290831570a54c6ae3d089703"),
+                Some("6386A3F3DEF9B727DD1A463D54CC5ADE23CDC378D8E5008BE6CF34C81205379060AF65DCC6BA22FB74CEE3337B910E8F6BB10A25A975FB63F10B8A733C35953C01"),
             ),
             (
                 "addr_2",
-                "c35aa94d2038f258ecb1bb28fbc8a83ab79d2dc0a7223fd528a8f52a14c03292",
+                "02f603296b4a510c9b0bac70caec378b8d47b79f44f94280bd8f5cdc9a59512c5b",
                 1u128,
                 None,
             ),
@@ -374,12 +360,12 @@ mod tests {
             vec![
                 (
                     "addr_1",
-                    "358a2305fc783b6072049ee6f5f76fb14c3a14d7c01e36d9ef502661bf46a011",
+                    "023a55792bb3695f426c7c5e680e91cdb7b1da77c40fa4e5753af5beeab9d5c3e4",
                     9u128,
                 ),
                 (
                     "addr_2",
-                    "3b1caf530189a9a65ae347b18cb8bf88729ba90d2aeaf7f185b600400ab49891",
+                    "02f603296b4a510c9b0bac70caec378b8d47b79f44f94280bd8f5cdc9a59512c5b",
                     1u128,
                 ),
             ],
@@ -416,7 +402,7 @@ mod tests {
                         addr.to_string(),
                         Signer {
                             address: MockApi::default().addr_make(addr),
-                            pub_key: (Ed25519, HexBinary::from_hex(pub_key).unwrap())
+                            pub_key: (Ecdsa, HexBinary::from_hex(pub_key).unwrap())
                                 .try_into()
                                 .unwrap(),
                             weight: Uint128::from(weight),
@@ -440,14 +426,12 @@ mod tests {
             .map(|(addr, pub_key, weight, sig)| {
                 Signer {
                     address: MockApi::default().addr_make(addr),
-                    pub_key: (Ed25519, HexBinary::from_hex(pub_key).unwrap())
+                    pub_key: (Ecdsa, HexBinary::from_hex(pub_key).unwrap())
                         .try_into()
                         .unwrap(),
                     weight: Uint128::from(weight),
                 }
-                .with_sig(
-                    Signature::try_from((Ed25519, HexBinary::from_hex(sig).unwrap())).unwrap(),
-                )
+                .with_sig(Signature::try_from((Ecdsa, HexBinary::from_hex(sig).unwrap())).unwrap())
             })
             .collect::<Vec<_>>()
     }
