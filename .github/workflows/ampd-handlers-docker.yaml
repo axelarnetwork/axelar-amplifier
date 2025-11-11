@@ -45,6 +45,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
+          
 
       - name: Check which handlers exist
         id: check-handlers
