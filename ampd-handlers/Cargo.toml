@@ -9,6 +9,10 @@ edition = { workspace = true }
 name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
+[[bin]]
+name = "evm-event-verifier-handler"
+path = "src/bin/evm-event-verifier/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
@@ -21,6 +25,7 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
+event-verifier-api = { workspace = true }
 events = { workspace = true }
 futures = { workspace = true }
 humantime-serde = { workspace = true }
