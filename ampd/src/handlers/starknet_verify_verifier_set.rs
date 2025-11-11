@@ -194,8 +194,6 @@ mod tests {
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    
-    
     use error_stack::Result;
     use ethers_core::types::U256;
     use events::Event;

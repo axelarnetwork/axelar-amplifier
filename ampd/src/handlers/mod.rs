@@ -23,8 +23,6 @@ pub mod xrpl_verify_msg;
 pub mod test_utils {
     use std::convert::TryInto;
 
-    
-    
     use cosmrs::AccountId;
     use events::Event;
     use tendermint::abci;

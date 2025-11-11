@@ -184,8 +184,6 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
-    
-    
     use ethers_core::types::H256;
     use events::Event;
     use mockall::predicate::eq;
