@@ -190,8 +190,8 @@ mod test {
     use std::collections::HashMap;
     use std::convert::{TryFrom, TryInto};
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+    
+    
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};

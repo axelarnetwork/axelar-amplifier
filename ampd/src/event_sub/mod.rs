@@ -184,8 +184,8 @@ mod tests {
     use std::time::Duration;
 
     use axelar_wasm_std::assert_err_contains;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+    
+    
     use error_stack::report;
     use events::Event;
     use futures::stream::StreamExt;

@@ -184,8 +184,8 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+    
+    
     use ethers_core::types::H256;
     use events::Event;
     use mockall::predicate::eq;

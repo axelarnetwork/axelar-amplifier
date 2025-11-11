@@ -23,8 +23,8 @@ pub mod xrpl_verify_msg;
 pub mod test_utils {
     use std::convert::TryInto;
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+    
+    
     use cosmrs::AccountId;
     use events::Event;
     use tendermint::abci;
