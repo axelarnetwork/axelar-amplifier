@@ -217,7 +217,7 @@ mod tests {
 
     use super::{PollStartedEvent, MULTIVERSX_CHAIN_NAME};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::mvx::proxy::MockMvxProxy;
     use crate::types::TMAddress;
@@ -432,10 +432,6 @@ mod tests {
             },
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
-                tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
-                    .parse()
-                    .unwrap(),
-                event_index: 1,
                 message_id:
                     "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
                 .to_string()

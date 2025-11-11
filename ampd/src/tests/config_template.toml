@@ -106,6 +106,7 @@ type = 'SolanaMsgVerifier'
 chain_name = 'solana'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
+gateway_address = '11111111111111111111111111111112'
 
 [handlers.rpc_timeout]
 secs = 3
@@ -116,6 +117,7 @@ type = 'SolanaVerifierSetVerifier'
 chain_name = 'solana'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
+gateway_address = '11111111111111111111111111111112'
 
 [handlers.rpc_timeout]
 secs = 3

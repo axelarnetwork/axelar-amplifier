@@ -35,6 +35,8 @@ pub enum Error {
     EventStream,
     #[error("handler stopped prematurely")]
     Tasks(#[from] TaskError),
+    #[error("task group execution failed")]
+    TaskGroup(#[from] crate::asyncutil::task::TaskGroupError),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -134,10 +136,12 @@ where
     Ok(())
 }
 
-fn is_avalanche_evm_handler(handler_label: &str) -> bool {
-    let evm_handlers = ["avalanche-msg-verifier", "avalanche-verifier-set-verifier"];
+fn is_xrpl_evm_handler(handler_label: &str) -> bool {
+    let xrpl_handlers = ["xrpl-evm-msg-verifier", "xrpl-evm-verifier-set-verifier"];
 
-    evm_handlers.iter().any(|handler| handler_label == *handler)
+    xrpl_handlers
+        .iter()
+        .any(|handler| handler_label == *handler)
 }
 
 #[instrument(fields(event = %event), skip_all)]
@@ -165,7 +169,7 @@ where
 
     match res {
         Ok(msgs) => {
-            if is_avalanche_evm_handler(handler_label) {
+            if is_xrpl_evm_handler(handler_label) {
                 for (i, msg) in msgs.iter().enumerate() {
                     match broadcast::deserialize_protobuf(&msg.value) {
                         Ok(deserialized_values) => {

@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum Error {
     #[error("failed to deserialize the event")]
     DeserializeEvent,
+    #[error("failed to fetch Solana account")]
+    FetchSolanaAccount,
     #[error("failed to get the latest finalized block")]
     Finalizer,
     #[error("failed to prepare message for signing")]
@@ -14,4 +16,6 @@ pub enum Error {
     Sign,
     #[error("failed to get transaction receipts")]
     TxReceipts,
+    #[error("confirmation_height must be set in event verifier handler config when finalization is ConfirmationHeight")]
+    MissingConfirmationHeight,
 }

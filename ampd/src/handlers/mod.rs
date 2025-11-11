@@ -1,5 +1,6 @@
 pub mod config;
 mod errors;
+pub mod evm_verify_event;
 pub mod evm_verify_msg;
 pub mod evm_verify_verifier_set;
 pub mod multisig;
@@ -18,8 +19,8 @@ pub mod sui_verify_verifier_set;
 pub mod xrpl_multisig;
 pub mod xrpl_verify_msg;
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
     use std::convert::TryInto;
 
     use base64::engine::general_purpose::STANDARD;

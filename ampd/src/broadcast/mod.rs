@@ -10,6 +10,7 @@ use prost::encoding::{decode_key, decode_varint, WireType};
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 
@@ -89,7 +90,7 @@ pub enum Error {
 pub struct BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Debug,
     S: tofnd::Multisig,
 {
     broadcaster: broadcaster::Broadcaster<T>,
@@ -104,7 +105,7 @@ where
 impl<T, Q, S> BroadcasterTask<T, Q, S>
 where
     T: cosmos::CosmosClient + Debug,
-    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Unpin + Debug,
+    Q: futures::Stream<Item = nonempty::Vec<msg_queue::QueueMsg>> + Debug,
     S: tofnd::Multisig + Debug,
 {
     /// Runs the broadcaster task until the message queue is exhausted
@@ -125,10 +126,25 @@ where
     /// A Result indicating whether the task completed successfully.
     /// Note that individual transaction failures don't cause the task to return an error.
     #[instrument(skip_all)]
-    pub async fn run(mut self) -> Result<()> {
-        while let Some(msgs) = self.msg_queue.next().await {
+    pub async fn run(self, token: CancellationToken) -> Result<()> {
+        let Self {
+            mut broadcaster,
+            msg_queue,
+            mut signer,
+            key_id,
+            tx_confirmer_client,
+            monitoring_client,
+        } = self;
+
+        let stream = futures::StreamExt::take_until(msg_queue, token.cancelled());
+
+        tokio::pin!(stream);
+        while let Some(msgs) = stream.next().await {
             let (res, elapsed) = metrics::timed(|| async {
-                self.broadcast(
+                broadcast(
+                    &mut broadcaster,
+                    &mut signer,
+                    &key_id,
                     msgs.as_ref()
                         .iter()
                         .map(|msg| msg.msg.clone())
@@ -140,116 +156,125 @@ where
             })
             .await;
 
-            self.monitoring_client
-                .metrics()
-                .record_metric(Msg::StageResult {
-                    stage: Stage::TransactionBroadcast,
-                    success: res.is_ok(),
-                    duration: elapsed,
-                });
-
-            self.handle_tx_res(res.map(|res| res.txhash), msgs).await?;
-        }
-
-        Ok(())
-    }
-
-    /// Broadcasts a collection of messages as a single transaction to the Cosmos blockchain.
-    ///
-    /// This method handles the complete transaction lifecycle:
-    /// 1. Packages messages into a BatchRequest
-    /// 2. Estimates appropriate gas and fee based on simulation
-    /// 3. Signs the transaction using the configured signer
-    /// 4. Broadcasts the signed transaction to the network
-    /// 5. Logs the results of the broadcast operation
-    ///
-    /// The gas calculation applies the configured gas adjustment factor to the
-    /// simulated gas, and calculates fees based on the gas price denomination.
-    ///
-    /// # Parameters
-    /// * `msgs` - A non-empty vector of Any-encoded protocol messages to broadcast
-    ///
-    /// # Returns
-    /// * On success: TxResponse containing the transaction hash and execution results
-    /// * On failure: Error indicating what part of the broadcast process failed
-    ///
-    /// # Errors
-    /// This method can fail with various error types depending on where in the process it fails:
-    /// * `Error::EstimateGas` - If the gas estimation simulation fails
-    /// * `Error::FeeAdjustment` - If fee calculation encounters numeric conversion issues
-    /// * `Error::SignTx` - If transaction signing fails
-    /// * `Error::BroadcastTx` - If the network rejects the transaction
-    #[instrument(skip_all)]
-    pub async fn broadcast(&mut self, msgs: nonempty::Vec<Any>) -> Result<TxResponse> {
-        let msgs: Vec<_> = msgs.into();
-        let msg_count = msgs.len();
-        info!(msg_count, "broadcasting messages");
-
-        let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
-            sender: self.broadcaster.address.as_ref().to_string(),
-            messages: msgs,
-        })
-        .expect("failed to serialize proto message for batch request");
-        let pub_key = self.broadcaster.pub_key;
-
-        self.broadcaster
-            .broadcast(vec![batch_req], |sign_doc| {
-                let mut hasher = Sha256::new();
-                hasher.update(sign_doc);
-
-                let sign_digest: [u8; 32] = hasher
-                    .finalize()
-                    .to_vec()
-                    .try_into()
-                    .expect("hash size must be 32");
-
-                self.signer.sign(
-                    &self.key_id,
-                    sign_digest,
-                    pub_key.into(),
-                    tofnd::Algorithm::Ecdsa,
-                )
-            })
-            .await
-            .inspect(|res| {
-                info!(
-                    tx_hash = res.txhash,
-                    msg_count, "successfully broadcasted tx"
-                );
-            })
-    }
-
-    #[instrument(skip(self))]
-    async fn handle_tx_res(
-        &self,
-        tx_hash: Result<String>,
-        msgs: nonempty::Vec<msg_queue::QueueMsg>,
-    ) -> Result<()> {
-        if let (Some(confirmer), Ok(tx_hash)) = (&self.tx_confirmer_client, &tx_hash) {
-            confirmer
-                .send(tx_hash.clone())
-                .await
-                .change_context(Error::ConfirmTx(tx_hash.clone()))?;
-        }
-
-        let tx_hash = tx_hash.map_err(Arc::new);
-
-        Vec::from(msgs)
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, msg)| {
-                match &tx_hash {
-                    Ok(tx_hash) => {
-                        let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
-                    }
-                    Err(err) => {
-                        let _ = msg.tx_res_callback.send(Err(err.clone()));
-                    }
-                };
+            monitoring_client.metrics().record_metric(Msg::StageResult {
+                stage: Stage::TransactionBroadcast,
+                success: res.is_ok(),
+                duration: elapsed,
             });
 
+            handle_tx_res(
+                tx_confirmer_client.as_ref(),
+                res.map(|res| res.txhash),
+                msgs,
+            )
+            .await?;
+        }
+
+        info!("broadcaster task exited");
+
         Ok(())
     }
+}
+
+/// Broadcasts a collection of messages as a single transaction to the Cosmos blockchain.
+///
+/// This method handles the complete transaction lifecycle:
+/// 1. Packages messages into a BatchRequest
+/// 2. Estimates appropriate gas and fee based on simulation
+/// 3. Signs the transaction using the configured signer
+/// 4. Broadcasts the signed transaction to the network
+/// 5. Logs the results of the broadcast operation
+///
+/// The gas calculation applies the configured gas adjustment factor to the
+/// simulated gas, and calculates fees based on the gas price denomination.
+///
+/// # Parameters
+/// * `msgs` - A non-empty vector of Any-encoded protocol messages to broadcast
+///
+/// # Returns
+/// * On success: TxResponse containing the transaction hash and execution results
+/// * On failure: Error indicating what part of the broadcast process failed
+///
+/// # Errors
+/// This method can fail with various error types depending on where in the process it fails:
+/// * `Error::EstimateGas` - If the gas estimation simulation fails
+/// * `Error::FeeAdjustment` - If fee calculation encounters numeric conversion issues
+/// * `Error::SignTx` - If transaction signing fails
+/// * `Error::BroadcastTx` - If the network rejects the transaction
+#[instrument(skip_all)]
+pub async fn broadcast<T, S>(
+    broadcaster: &mut Broadcaster<T>,
+    signer: &mut S,
+    key_id: &str,
+    msgs: nonempty::Vec<Any>,
+) -> Result<TxResponse>
+where
+    T: cosmos::CosmosClient + Debug,
+    S: tofnd::Multisig + Debug,
+{
+    let msgs: Vec<_> = msgs.into();
+    let msg_count = msgs.len();
+    info!(msg_count, "broadcasting messages");
+
+    let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
+        sender: broadcaster.address.to_string(),
+        messages: msgs,
+    })
+    .expect("failed to serialize proto message for batch request");
+    let pub_key = broadcaster.pub_key;
+
+    broadcaster
+        .broadcast(vec![batch_req], |sign_doc| {
+            let mut hasher = Sha256::new();
+            hasher.update(sign_doc);
+
+            let sign_digest: [u8; 32] = hasher
+                .finalize()
+                .to_vec()
+                .try_into()
+                .expect("hash size must be 32");
+
+            signer.sign(key_id, sign_digest, pub_key.into(), tofnd::Algorithm::Ecdsa)
+        })
+        .await
+        .inspect(|res| {
+            info!(
+                tx_hash = res.txhash,
+                msg_count, "successfully broadcasted tx"
+            );
+        })
+}
+
+#[instrument]
+async fn handle_tx_res(
+    tx_confirmer_client: Option<&confirmer::TxConfirmerClient>,
+    tx_hash: Result<String>,
+    msgs: nonempty::Vec<msg_queue::QueueMsg>,
+) -> Result<()> {
+    if let (Some(confirmer), Ok(tx_hash)) = (tx_confirmer_client, &tx_hash) {
+        confirmer
+            .send(tx_hash.clone())
+            .await
+            .change_context(Error::ConfirmTx(tx_hash.clone()))?;
+    }
+
+    let tx_hash = tx_hash.map_err(Arc::new);
+
+    Vec::from(msgs)
+        .into_iter()
+        .enumerate()
+        .for_each(|(i, msg)| {
+            match &tx_hash {
+                Ok(tx_hash) => {
+                    let _ = msg.tx_res_callback.send(Ok((tx_hash.clone(), i as u64)));
+                }
+                Err(err) => {
+                    let _ = msg.tx_res_callback.send(Err(err.clone()));
+                }
+            };
+        });
+
+    Ok(())
 }
 
 // TODO: Remove this function once all handlers are migrated to the new sdk
@@ -358,6 +383,8 @@ pub(crate) mod test_utils {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use axelar_wasm_std::{assert_err_contains, err_contains};
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
@@ -369,12 +396,13 @@ mod tests {
     use futures::StreamExt;
     use mockall::{predicate, Sequence};
     use tokio::sync::{mpsc, oneshot};
+    use tokio_stream::iter;
     use tokio_stream::wrappers::ReceiverStream;
-    use tokio_stream::{empty, iter};
+    use tokio_util::sync::CancellationToken;
 
     use crate::broadcast::dec_coin::DecCoin;
     use crate::broadcast::msg_queue::QueueMsg;
-    use crate::broadcast::{broadcaster, BroadcasterTask, Error};
+    use crate::broadcast::{broadcaster, BroadcasterTask, Error, MsgQueue};
     use crate::monitoring::metrics::{Msg, Stage};
     use crate::tofnd::{self, MockMultisig};
     use crate::types::random_cosmos_public_key;
@@ -385,6 +413,70 @@ mod tests {
             type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
             value: vec![1, 2, 3],
         }
+    }
+
+    #[tokio::test]
+    async fn broadcaster_task_should_exit_when_token_is_cancelled() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let base_account = broadcast::test_utils::create_base_account(&address);
+        let gas_adjustment = 1.5;
+        let gas_price_amount = 0.025;
+        let gas_price_denom = "uaxl";
+
+        let mock_signer = MockMultisig::new();
+
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_client
+            .expect_clone()
+            .return_once(cosmos::MockCosmosClient::default);
+
+        let mut seq = Sequence::new();
+
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            base_account,
+            &address,
+        );
+
+        let broadcaster = broadcaster::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(gas_adjustment)
+            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
+            .build()
+            .await
+            .unwrap();
+        let (tx, _rx) = mpsc::channel(1);
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+        let (msg_queue, _msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+            broadcaster.clone(),
+            10,
+            1000u64,
+            tokio::time::Duration::from_secs(1),
+            monitoring_client.clone(),
+        );
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .tx_confirmer_client(tx)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let token = CancellationToken::new();
+        let handle = tokio::spawn(broadcaster_task.run(token.child_token()));
+        token.cancel();
+
+        let result = tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("Task timed out")
+            .unwrap();
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -451,7 +543,8 @@ mod tests {
             .monitoring_client(monitoring_client)
             .build();
 
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
             .await
             .unwrap();
         assert!(result.is_ok());
@@ -526,7 +619,8 @@ mod tests {
             .monitoring_client(monitoring_client)
             .build();
 
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
             .await
             .unwrap();
         assert!(result.is_ok());
@@ -622,7 +716,8 @@ mod tests {
             .monitoring_client(monitoring_client)
             .build();
 
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
             .await
             .unwrap();
         assert!(result.is_ok());
@@ -699,7 +794,8 @@ mod tests {
             .monitoring_client(monitoring_client)
             .build();
 
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
             .await
             .unwrap();
         assert!(result.is_ok());
@@ -823,7 +919,8 @@ mod tests {
             .monitoring_client(monitoring_client)
             .build();
 
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
             .await
             .unwrap();
         assert!(result.is_ok());
@@ -954,7 +1051,8 @@ mod tests {
             .monitoring_client(monitoring_client)
             .build();
 
-        let result = tokio::spawn(async move { broadcaster_task.run().await })
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
             .await
             .unwrap();
         assert!(result.is_ok());
@@ -1034,7 +1132,7 @@ mod tests {
                 })
             });
 
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let mut broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -1043,18 +1141,10 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-        let msg_queue = empty();
-        let mut broadcaster_task = BroadcasterTask::builder()
-            .broadcaster(broadcaster)
-            .msg_queue(msg_queue)
-            .signer(mock_signer)
-            .key_id("test-key".to_string())
-            .monitoring_client(monitoring_client)
-            .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
-        let result = broadcaster_task.broadcast(messages).await;
+        let result =
+            broadcast::broadcast(&mut broadcaster, &mut mock_signer, "test-key", messages).await;
         assert!(result.is_ok());
 
         let response = result.unwrap();
@@ -1116,7 +1206,7 @@ mod tests {
                 })
             });
 
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let mut broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -1125,20 +1215,12 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let msg_queue = empty();
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-        let mut broadcaster_task = BroadcasterTask::builder()
-            .broadcaster(broadcaster)
-            .msg_queue(msg_queue)
-            .signer(mock_signer)
-            .key_id("test-key".to_string())
-            .monitoring_client(monitoring_client)
-            .build();
 
         let messages = vec![dummy_msg(), dummy_msg(), dummy_msg()]
             .try_into()
             .unwrap();
-        let result = broadcaster_task.broadcast(messages).await;
+        let result =
+            broadcast::broadcast(&mut broadcaster, &mut mock_signer, "test-key", messages).await;
         assert!(result.is_ok());
 
         let response = result.unwrap();
@@ -1168,7 +1250,7 @@ mod tests {
 
         mock_simulate_failure(&mut mock_client, &mut seq);
 
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let mut broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -1177,18 +1259,15 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let msg_queue = empty();
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-        let mut broadcaster_task = BroadcasterTask::builder()
-            .broadcaster(broadcaster)
-            .msg_queue(msg_queue)
-            .signer(MockMultisig::new())
-            .key_id("test-key".to_string())
-            .monitoring_client(monitoring_client)
-            .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
-        let result = broadcaster_task.broadcast(messages).await;
+        let result = broadcast::broadcast(
+            &mut broadcaster,
+            &mut MockMultisig::new(),
+            "test-key",
+            messages,
+        )
+        .await;
         assert!(result.is_err());
         assert_err_contains!(result, Error, Error::EstimateGas);
     }
@@ -1234,7 +1313,7 @@ mod tests {
                 })
             });
 
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let mut broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -1243,18 +1322,10 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let msg_queue = empty();
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-        let mut broadcaster_task = BroadcasterTask::builder()
-            .broadcaster(broadcaster)
-            .msg_queue(msg_queue)
-            .signer(mock_signer)
-            .key_id("test-key".to_string())
-            .monitoring_client(monitoring_client)
-            .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
-        let result = broadcaster_task.broadcast(messages).await;
+        let result =
+            broadcast::broadcast(&mut broadcaster, &mut mock_signer, "test-key", messages).await;
         assert!(result.is_err());
         assert_err_contains!(result, Error, Error::SignTx);
     }
@@ -1315,7 +1386,7 @@ mod tests {
                 )))
             });
 
-        let broadcaster = broadcaster::Broadcaster::builder()
+        let mut broadcaster = broadcaster::Broadcaster::builder()
             .client(mock_client)
             .chain_id(chain_id)
             .pub_key(pub_key)
@@ -1324,18 +1395,10 @@ mod tests {
             .build()
             .await
             .unwrap();
-        let msg_queue = empty();
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-        let mut broadcaster_task = BroadcasterTask::builder()
-            .broadcaster(broadcaster)
-            .msg_queue(msg_queue)
-            .signer(mock_signer)
-            .key_id("test-key".to_string())
-            .monitoring_client(monitoring_client)
-            .build();
 
         let messages = vec![dummy_msg()].try_into().unwrap();
-        let result = broadcaster_task.broadcast(messages).await;
+        let result =
+            broadcast::broadcast(&mut broadcaster, &mut mock_signer, "test-key", messages).await;
         assert!(result.is_err());
         assert_err_contains!(result, Error, Error::BroadcastTx);
     }
@@ -1388,7 +1451,8 @@ mod tests {
             .key_id("test-key".to_string())
             .monitoring_client(monitoring_client)
             .build();
-        let _ = tokio::spawn(async move { broadcaster_task.run().await }).await;
+        // token doesn't need to be cancelled because the message queue is a `Vec` and gets exhausted
+        let _ = tokio::spawn(broadcaster_task.run(CancellationToken::new())).await;
 
         let msg_success_broadcast = receiver.recv().await.unwrap();
         assert!(matches!(

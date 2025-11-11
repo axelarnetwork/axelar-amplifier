@@ -14,7 +14,8 @@ use crate::Error;
 const KEY_CONTRACT_ADDRESS: &str = "_contract_address";
 
 pub struct AbciEventTypeFilter {
-    pub event_type: String,
+    pub event_type: nonempty::String,
+    pub contract: AccountId,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
