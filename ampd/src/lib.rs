@@ -1,4 +1,4 @@
-mod asyncutil;
+pub mod asyncutil;
 mod block_height_monitor;
 mod broadcast;
 #[cfg(feature = "commands")]

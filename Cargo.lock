@@ -360,6 +360,8 @@ dependencies = [
  "error-stack",
  "ethers-core",
  "ethers-providers",
+ "event-verifier",
+ "event-verifier-api",
  "events",
  "futures",
  "goldie",

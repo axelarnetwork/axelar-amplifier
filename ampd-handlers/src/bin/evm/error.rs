@@ -4,6 +4,10 @@ use thiserror::Error;
 pub enum Error {
     #[error("handler failed to start")]
     HandlerStart,
+    #[error("event verifier contract not found in contracts response")]
+    EventVerifierContractNotFound,
     #[error("handler task failed")]
     HandlerTask,
+    #[error("task group execution failed")]
+    TaskGroup,
 }

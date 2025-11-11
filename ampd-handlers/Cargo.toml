@@ -26,6 +26,7 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
+event-verifier-api = { workspace = true }
 events = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -52,6 +53,7 @@ ampd = { path = "../ampd", default-features = false, features = ["url", "test-ut
 ampd-sdk = { workspace = true, features = ["test-utils"] }
 base64 = { workspace = true }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
+event-verifier = { workspace = true }
 goldie = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
