@@ -57,11 +57,20 @@ fn build_handler(
         chain_name.clone(),
     );
 
+    let confirmation_height = match config.finalization {
+        Finalization::ConfirmationHeight => config
+            .confirmation_height
+            .ok_or(Error::HandlerStart)?,
+        // This finalizer type won't actually use the confirmation height field
+        Finalization::RPCFinalizedBlock => config.confirmation_height.unwrap_or(1),
+    };
+
     let handler = Handler::builder()
         .verifier(runtime.verifier.clone())
-        .event_verifier_contract(runtime.contracts.event_verifier.clone())
+        .event_verifier_contract(runtime.contracts.voting_verifier.clone())
         .chain(chain_name)
         .finalizer_type(config.finalization)
+        .confirmation_height(confirmation_height)
         .rpc_client(rpc_client)
         .monitoring_client(runtime.monitoring_client.clone())
         .build();
