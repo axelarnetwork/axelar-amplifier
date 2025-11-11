@@ -7,9 +7,9 @@ use std::sync::Arc;
 use axelar_wasm_std::nonempty;
 use cosmrs::{Any, Gas};
 use error_stack::{report, Report, ResultExt};
-use futures::{FutureExt, Stream};
+use futures::Stream;
 use pin_project_lite::pin_project;
-use report::{ErrorExt, LoggableError};
+use report::LoggableError;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time;
 use tokio_stream::adapters::Fuse;
@@ -121,7 +121,11 @@ where
     /// * `Error::GasExceedsGasCap` - If the message requires more gas than allowed
     /// * `Error::ReceiveTxResult` - If the result channel is closed prematurely
     #[instrument(skip(self))]
+    #[cfg(any(not(feature = "dummy-grpc-broadcast"), test))]
     pub async fn enqueue(&mut self, msg: Any) -> Result<impl Future<Output = TxResult> + Send> {
+        use futures::FutureExt;
+        use report::ErrorExt;
+
         let rx = self.enqueue_with_channel(msg).await?;
 
         Ok(rx.map(|result| match result {
