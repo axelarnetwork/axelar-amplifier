@@ -269,7 +269,7 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use tokio::test as async_test;
     use voting_verifier::events::{
-        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation,
+        Event as VotingVerifierEvent, TxEventConfirmation, VerifierSetConfirmation,
     };
 
     use super::{Handler, MessagesPollStarted, VerifierSetPollStarted};
@@ -277,26 +277,27 @@ mod tests {
     const PREFIX: &str = "axelar";
     const ETHEREUM: &str = "ethereum";
 
-    fn message_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn message_poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> VotingVerifierEvent {
         let msg_ids = [
             HexTxHashAndEventIndex::new(H256::repeat_byte(1), 0u64),
             HexTxHashAndEventIndex::new(H256::repeat_byte(2), 1u64),
             HexTxHashAndEventIndex::new(H256::repeat_byte(3), 10u64),
         ];
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(ETHEREUM),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+        VotingVerifierEvent::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(ETHEREUM),
+            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             messages: vec![
                 TxEventConfirmation {
                     message_id: msg_ids[0].to_string().parse().unwrap(),
@@ -605,27 +606,25 @@ mod tests {
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
+    ) -> VotingVerifierEvent {
         let msg_id = HexTxHashAndEventIndex::new(H256::repeat_byte(1), 100u64);
-        PollStarted::VerifierSet {
+        VotingVerifierEvent::VerifierSetPollStarted {
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(ETHEREUM),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(ETHEREUM),
+            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
         }
     }
 }
