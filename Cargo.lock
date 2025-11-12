@@ -359,6 +359,7 @@ dependencies = [
  "error-stack",
  "ethers-core",
  "ethers-providers",
+ "event-verifier",
  "event-verifier-api",
  "events",
  "futures",
@@ -14191,39 +14192,6 @@ dependencies = [
  "cosmwasm-schema",
  "router-api",
  "serde_json",
-]
-
-[[package]]
-name = "voting-verifier-v2"
-version = "2.0.0"
-dependencies = [
- "assert_ok",
- "axelar-wasm-std",
- "client",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus",
- "cw2",
- "error-stack",
- "ethers-contract",
- "ethers-core",
- "event-verifier-api",
- "evm-gateway",
- "goldie",
- "itertools 0.14.0",
- "msgs-derive",
- "multisig",
- "report",
- "rewards",
- "router-api",
- "semver 1.0.26",
- "serde_json",
- "service-registry",
- "service-registry-api",
- "sha3",
- "thiserror 1.0.69",
- "voting-verifier-api",
 ]
 
 [[package]]

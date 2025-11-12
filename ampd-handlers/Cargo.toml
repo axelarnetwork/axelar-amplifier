@@ -48,6 +48,7 @@ voting-verifier = { workspace = true }
 ampd = { path = "../ampd", default-features = false, features = ["url", "test-utils"] }
 ampd-sdk = { workspace = true, features = ["test-utils"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
+event-verifier = { workspace = true }
 goldie = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
 
