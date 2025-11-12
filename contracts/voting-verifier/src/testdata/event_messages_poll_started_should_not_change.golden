@@ -3,7 +3,7 @@
   "attributes": [
     {
       "key": "messages",
-      "value": "[{\"tx_id\":\"txId1\",\"event_index\":1,\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress1\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress1\",\"payload_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\"},{\"tx_id\":\"txId2\",\"event_index\":2,\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress2\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress2\",\"payload_hash\":\"0101010101010101010101010101010101010101010101010101010101010101\"}]"
+      "value": "[{\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress1\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress1\",\"payload_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\"},{\"message_id\":\"messageId\",\"destination_address\":\"destinationAddress2\",\"destination_chain\":\"destinationchain\",\"source_address\":\"sourceAddress2\",\"payload_hash\":\"0101010101010101010101010101010101010101010101010101010101010101\"}]"
     },
     {
       "key": "poll_id",
