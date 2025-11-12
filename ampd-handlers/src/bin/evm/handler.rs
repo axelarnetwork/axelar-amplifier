@@ -187,7 +187,8 @@ where
             finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
                 .latest_finalized_block_height()
                 .await
-                .change_context(Error::Finalizer)?;
+                .change_context(Error::FinalizedTxs)
+                .attach_printable("failed to get chain's latest finalized block height")?;
 
         let rcp_client = &self.rpc_client;
         Ok(join_all(
