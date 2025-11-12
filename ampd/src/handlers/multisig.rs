@@ -344,9 +344,6 @@ mod test {
         let event: Result<SigningStartedEvent, events::Error> =
             (&signing_started_event()).try_into();
 
-        println!("{:?}", signing_started_event());
-        println!("{:?}", event);
-
         assert!(event.is_ok());
     }
 
