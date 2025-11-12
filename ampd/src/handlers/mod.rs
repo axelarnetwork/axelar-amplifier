@@ -23,8 +23,6 @@ pub mod xrpl_verify_msg;
 pub mod test_utils {
     use std::convert::TryInto;
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::AccountId;
     use events::Event;
     use tendermint::abci;
@@ -47,9 +45,7 @@ pub mod test_utils {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .expect("should convert to ABCI event")

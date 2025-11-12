@@ -96,7 +96,7 @@ sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sysinfo = "0.36.1"
 tendermint = { workspace = true }
-tendermint-rpc = { version = "0.35.0", features = ["http-client"] }
+tendermint-rpc = { version = "0.40.4", features = ["http-client"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
 tokio-stream = { workspace = true, features = ["sync"] }

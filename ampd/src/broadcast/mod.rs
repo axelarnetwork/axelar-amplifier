@@ -217,7 +217,7 @@ where
     info!(msg_count, "broadcasting messages");
 
     let batch_req = Any::from_msg(&proto::axelar::auxiliary::v1beta1::BatchRequest {
-        sender: broadcaster.address.as_ref().to_bytes(),
+        sender: broadcaster.address.to_string(),
         messages: msgs,
     })
     .expect("failed to serialize proto message for batch request");
