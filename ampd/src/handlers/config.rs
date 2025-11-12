@@ -30,6 +30,13 @@ pub enum Config {
         chain: Chain,
         rpc_timeout: Option<Duration>,
     },
+    EvmEventVerifier {
+        cosmwasm_contract: TMAddress,
+        #[serde(flatten, with = "chain")]
+        chain: Chain,
+        rpc_timeout: Option<Duration>,
+        confirmation_height: Option<u64>,
+    },
     EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
@@ -98,6 +105,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+        gateway_address: String,
         rpc_timeout: Option<Duration>,
     },
     SolanaVerifierSetVerifier {
@@ -105,6 +113,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+        gateway_address: String,
         rpc_timeout: Option<Duration>,
     },
     StacksMsgVerifier {
@@ -185,6 +194,29 @@ where
     Ok(())
 }
 
+fn validate_evm_event_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    if !configs
+        .iter()
+        .filter_map(|config| match config {
+            Config::EvmEventVerifier {
+                chain: Chain { name, .. },
+                ..
+            } => Some(name),
+            _ => None,
+        })
+        .all_unique()
+    {
+        return Err(de::Error::custom(
+            "the chain name EVM event verifier configs must be unique",
+        ));
+    }
+
+    Ok(())
+}
+
 macro_rules! ensure_unique_config {
     ($configs:expr, $config_type:path, $config_name:expr) => {
         match $configs
@@ -209,6 +241,7 @@ where
 
     validate_starknet_msg_verifier_config::<D>(&configs)?;
     validate_evm_msg_verifier_configs::<D>(&configs)?;
+    validate_evm_event_verifier_configs::<D>(&configs)?;
     validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
     ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
@@ -397,6 +430,7 @@ mod tests {
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
+            gateway_address: "11111111111111111111111111111112".to_string(),
         };
 
         let configs = vec![sample_config.clone(), sample_config];
@@ -412,6 +446,7 @@ mod tests {
             cosmwasm_contract: TMAddress::random(PREFIX),
             rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
             rpc_timeout: None,
+            gateway_address: "11111111111111111111111111111112".to_string(),
         };
 
         let configs = vec![sample_config.clone(), sample_config];

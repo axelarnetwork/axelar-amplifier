@@ -1,7 +1,7 @@
 [package]
 name = "ampd"
 edition = { workspace = true }
-version = "1.12.1"
+version = "1.13.0"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,17 +11,23 @@ default = ["commands", "config", "dummy-grpc-broadcast"]
 commands = []
 config = []
 url = []
+test-utils = ["rand"]
 dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
 
 [dependencies]
 ampd-proto = { workspace = true }
+anchor-lang = "0.31.1"
 async-trait = { workspace = true }
+axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = "0.21.2"
 bcs = { workspace = true }
+bech32 = "0.11.0"
+borsh = "1.5.1"
+bs58 = { workspace = true }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = { workspace = true }
@@ -38,6 +44,8 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
+event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
+event-verifier-api = { workspace = true }
 events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
 futures = { workspace = true }
@@ -56,9 +64,11 @@ openssl = { version = "0.10.72", features = [
   "vendored",
 ] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
+primitive-types = "0.12"
 prometheus-client = "0.23.1"
 prost = "0.13.5"
 prost-types = "0.13.5"
+rand = { workspace = true, optional = true }
 regex = "1.10.2"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
@@ -116,6 +126,7 @@ axum-test = "15.7.4"
 cosmos-sdk-proto = "0.27.0"
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
+event-verifier = { workspace = true }
 faux = "0.1.10"
 generic-array = "0.14.7"
 goldie = { workspace = true }
@@ -126,7 +137,7 @@ temp-env = { workspace = true, features = ["async_closure"] }
 tendermint-proto = { version = "0.40.3" }
 test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
-tracing-test = "0.2.5"
+tracing-test = { workspace = true }
 
 [lints]
 workspace = true

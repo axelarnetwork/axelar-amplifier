@@ -9,6 +9,7 @@ pub mod counter;
 pub mod error;
 pub mod event;
 pub use event::EventAttributes;
+pub mod fixed_size;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;

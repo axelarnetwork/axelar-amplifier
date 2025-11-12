@@ -11,7 +11,7 @@
 //! - **Configurable Server**: Can be enabled/disabled via configuration
 //! - **Graceful Shutdown**: Handles cancellation tokens for clean shutdown
 
-mod endpoints;
+pub mod endpoints;
 mod server;
 pub use endpoints::metrics;
 pub use server::*;

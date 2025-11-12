@@ -526,14 +526,10 @@ mod tests {
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0"
                             .parse()
                             .unwrap(),
-                    event_index: 0,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -548,14 +544,10 @@ mod tests {
                 },
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000002"
                     ),
@@ -589,14 +581,10 @@ mod tests {
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0"
                             .parse()
                             .unwrap(),
-                    event_index: 0,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -611,14 +599,10 @@ mod tests {
                 },
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -652,14 +636,10 @@ mod tests {
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -674,14 +654,10 @@ mod tests {
                 },
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
