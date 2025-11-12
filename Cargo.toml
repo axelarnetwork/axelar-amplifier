@@ -48,14 +48,15 @@ config = "0.15.11"
 const-str = "0.6.2"
 coordinator = { version = "^2.1.3", path = "contracts/coordinator" }
 cosmrs = "0.22.0"
-cosmwasm-crypto = "2.1.4"
-cosmwasm-schema = "2.1.4"
-cosmwasm-std = "2.1.4"
+cosmwasm-crypto = "=2.1.4"
+cosmwasm-schema = "=2.1.4"
+cosmwasm-std = "=2.1.4"
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
 cw2 = "2.0.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
+ed25519-zebra = "=4.0.3"
 error-stack = { version = "0.4.0", features = ["eyre", "spantrace"] }
 ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
