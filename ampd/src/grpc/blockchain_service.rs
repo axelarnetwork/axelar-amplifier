@@ -799,11 +799,14 @@ mod tests {
             result: None,
         };
 
-        let (service, mut msg_queue) = TestBuilder::default()
+        let (service, msg_queue) = TestBuilder::default()
             .with_expected_simulate_response(simulate_response)
             .build()
             .await;
-        tokio::spawn(async move { while msg_queue.next().await.is_some() {} });
+        tokio::spawn(async move {
+            tokio::pin!(msg_queue);
+            while msg_queue.next().await.is_some() {}
+        });
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -822,7 +825,7 @@ mod tests {
             result: None,
         };
 
-        let (service, mut msg_queue) = TestBuilder::default()
+        let (service, msg_queue) = TestBuilder::default()
             .with_expected_simulate_response(simulate_response)
             .build()
             .await;
@@ -845,6 +848,7 @@ mod tests {
                 .collect::<Vec<_>>(),
         );
 
+        tokio::pin!(msg_queue);
         let msgs: Vec<_> = msg_queue.next().await.unwrap().into();
         assert_eq!(msgs.len(), msg_count);
         for (i, msg) in msgs.into_iter().enumerate() {

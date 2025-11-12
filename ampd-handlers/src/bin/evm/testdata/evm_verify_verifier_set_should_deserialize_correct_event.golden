@@ -1,0 +1,110 @@
+VerifierSetPollStarted {
+    verifier_set: VerifierSetConfirmation {
+        message_id: HexTxHashAndEventIndex {
+            tx_hash: [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+            ],
+            event_index: 100,
+        },
+        verifier_set: VerifierSet {
+            signers: {
+                "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey": Signer {
+                    address: Addr(
+                        "cosmwasm12qeyytrx2drup9gptvcqg4l6jdthymmz2lpu40rk6evs5cazf2kss8u0ey",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ecdsa(
+                        HexBinary(02d530fb1b8fcfb978c37d8d74d4a79ca840a01df457e48a81bbe01bc962820921),
+                    ),
+                },
+                "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3": Signer {
+                    address: Addr(
+                        "cosmwasm1g6q4zg5fk2uyg2wnxrt63dc6p5w0ycng2tq98k5cgg0w4zngt3wqnynyv3",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ecdsa(
+                        HexBinary(0354f1838e4dbc30d4c612633b9dc54c06ead9723bb164afee0bcc516cbb156985),
+                    ),
+                },
+                "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz": Signer {
+                    address: Addr(
+                        "cosmwasm1jguu9vd3fty0cr949yawye8gj88n0rjvjtpxa7t93umqpn3j96mqr93mgz",
+                    ),
+                    weight: Uint128(
+                        1,
+                    ),
+                    pub_key: Ecdsa(
+                        HexBinary(03c6dee9a36c078363104b04ace62841d441dc05848f7e1e31674b3c04e621f9dc),
+                    ),
+                },
+            },
+            threshold: Uint128(
+                2,
+            ),
+            created_at: 0,
+        },
+    },
+    poll_id: PollId(
+        Uint64(
+            100,
+        ),
+    ),
+    source_chain: ChainName(
+        "ethereum",
+    ),
+    source_gateway_address: 0x4f4495243837681061c4743b74eedf548d5686a5,
+    expires_at: 100,
+    confirmation_height: 15,
+    participants: [
+        AccountId(
+            "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq87nk3s",
+        ),
+        AccountId(
+            "axelar1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpuxy7hs",
+        ),
+        AccountId(
+            "axelar1qgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszg9nw3w",
+        ),
+        AccountId(
+            "axelar1qvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrqvpsxqcrnayxhw",
+        ),
+        AccountId(
+            "axelar1qszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyz29mj8",
+        ),
+    ],
+}

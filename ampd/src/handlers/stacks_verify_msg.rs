@@ -234,7 +234,7 @@ mod tests {
 
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
@@ -485,23 +485,18 @@ mod tests {
         let msg_id = HexTxHashAndEventIndex::new(Hash::from([3; 32]), 1u64);
 
         Event::MessagesPollStarted {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(STACKS),
-                source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at: 100,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            #[allow(
-                deprecated
-            )] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(STACKS),
+            source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at: 100,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             messages: vec![TxEventConfirmation {
-                tx_id: msg_id.tx_hash_as_hex(),
-                event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: address!("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"),
                 destination_chain: chain_name!("ethereum"),

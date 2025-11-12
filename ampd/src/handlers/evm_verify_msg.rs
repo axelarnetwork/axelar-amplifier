@@ -33,7 +33,7 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
@@ -268,7 +268,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
@@ -282,22 +282,19 @@ mod tests {
             HexTxHashAndEventIndex::new(H256::repeat_byte(3), 10u64),
         ];
         VotingVerifierEvent::MessagesPollStarted {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(ETHEREUM),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(ETHEREUM),
+            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                 .collect(),
-            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: msg_ids[0].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -305,8 +302,6 @@ mod tests {
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[1].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[1].event_index).unwrap(),
                     message_id: msg_ids[1].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -314,8 +309,6 @@ mod tests {
                     payload_hash: H256::repeat_byte(5).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[2].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[2].event_index).unwrap(),
                     message_id: msg_ids[2].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(5)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -420,8 +413,6 @@ mod tests {
             #[allow(deprecated)]
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: msg_ids[0].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -429,8 +420,6 @@ mod tests {
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: msg_ids[1].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: avalanche.clone(),
@@ -444,8 +433,6 @@ mod tests {
         let legacy_event = PollStarted::Messages {
             messages: vec![
                 LegacyTxEventConfirmation {
-                    tx_id: msg_ids[0].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: chain_name!(ETHEREUM),
@@ -453,8 +440,6 @@ mod tests {
                     payload_hash: H256::repeat_byte(4).to_fixed_bytes(),
                 },
                 LegacyTxEventConfirmation {
-                    tx_id: msg_ids[1].tx_hash_as_hex(),
-                    event_index: u32::try_from(msg_ids[0].event_index).unwrap(),
                     message_id: msg_ids[0].to_string().parse().unwrap(),
                     source_address: format!("0x{:x}", H160::repeat_byte(1)).parse().unwrap(),
                     destination_chain: avalanche.clone(),

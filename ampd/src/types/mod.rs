@@ -54,6 +54,12 @@ impl From<AccountId> for TMAddress {
     }
 }
 
+impl From<TMAddress> for AccountId {
+    fn from(value: TMAddress) -> Self {
+        value.0
+    }
+}
+
 impl AsRef<AccountId> for TMAddress {
     fn as_ref(&self) -> &AccountId {
         &self.0
@@ -119,7 +125,7 @@ impl fmt::Display for AxelarAddress {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils {
     use super::key::test_utils::random_cosmos_public_key;
     use crate::types::{AxelarAddress, TMAddress};

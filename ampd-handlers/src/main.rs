@@ -1,7 +1,7 @@
 use std::env;
 
 use ampd::url::Url;
-use ampd_sdk::grpc::client::{Client, GrpcClient};
+use ampd_sdk::grpc::client::{GrpcClient, HandlerTaskClient};
 use ampd_sdk::grpc::connection_pool::ConnectionPool;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
