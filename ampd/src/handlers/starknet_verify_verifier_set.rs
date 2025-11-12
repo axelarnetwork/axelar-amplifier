@@ -207,7 +207,7 @@ mod tests {
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, VerifierSetConfirmation};
 
     use super::STARKNET_CHAIN_NAME;
     use crate::event_processor::EventHandler;
@@ -313,29 +313,27 @@ mod tests {
         format!("0x{:064x}", result)
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> VotingVerifierEvent {
         let random_felt = CheckedFelt::from_str(&random_hash()).unwrap();
         let msg_id = FieldElementAndEventIndex::new(random_felt, 100u64).unwrap();
-        PollStarted::VerifierSet {
+        VotingVerifierEvent::VerifierSetPollStarted {
             #[allow(deprecated)]
             verifier_set: VerifierSetConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("starknet-devnet-v1"),
-                source_gateway_address:
-                    "0x049ec69cd2e0c987857fbda7966ff59077e2e92c18959bdb9b0012438c452047"
-                        .parse()
-                        .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!("starknet-devnet-v1"),
+            source_gateway_address:
+                "0x049ec69cd2e0c987857fbda7966ff59077e2e92c18959bdb9b0012438c452047"
+                    .parse()
+                    .unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
         }
     }
 

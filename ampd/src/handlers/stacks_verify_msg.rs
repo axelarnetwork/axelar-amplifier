@@ -230,7 +230,7 @@ mod tests {
     use router_api::{address, chain_name};
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{Event, TxEventConfirmation};
 
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
@@ -481,23 +481,21 @@ mod tests {
         .unwrap()
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>) -> Event {
         let msg_id = HexTxHashAndEventIndex::new(Hash::from([3; 32]), 1u64);
 
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(STACKS),
-                source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at: 100,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+        Event::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(STACKS),
+            source_gateway_address: "SP2N959SER36FZ5QT1CX9BR63W3E8X35WQCMBYYWC.axelar-gateway"
+                .parse()
+                .unwrap(),
+            confirmation_height: 15,
+            expires_at: 100,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             messages: vec![TxEventConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: address!("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"),
