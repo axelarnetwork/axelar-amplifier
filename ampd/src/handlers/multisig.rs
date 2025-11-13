@@ -501,9 +501,10 @@ mod test {
 
     #[test]
     fn test_multisig_event_vs_legacy_event_parsing() {
-        use crate::handlers::test_utils::into_structured_event;
         use events::Event as MultisigEvent;
         use multisig::LegacyEvent;
+
+        use crate::handlers::test_utils::into_structured_event;
 
         let pub_keys = (0..10)
             .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
