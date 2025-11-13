@@ -1,0 +1,13 @@
+{
+  "type": "chain_unfrozen",
+  "attributes": [
+    {
+      "key": "name",
+      "value": "\"ethereum\""
+    },
+    {
+      "key": "direction",
+      "value": "\"Bidirectional\""
+    }
+  ]
+}
