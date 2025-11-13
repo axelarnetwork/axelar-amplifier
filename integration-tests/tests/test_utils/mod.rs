@@ -226,7 +226,7 @@ pub fn sign_proof(
     response: AppResponse,
 ) -> Uint64 {
     let msg_to_sign = find_event_attribute(&response.events, "wasm-signing_started", "msg")
-        .map(|attr| attr.value.clone())
+        .map(|attr| serde_json::from_str::<String>(&attr.value).unwrap())
         .expect("couldn't find message to sign");
     let session_id = multisig_session_id(response);
 
