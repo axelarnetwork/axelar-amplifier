@@ -498,4 +498,76 @@ mod test {
 
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
+
+    #[test]
+    fn test_multisig_event_vs_legacy_event_parsing() {
+        use crate::handlers::test_utils::into_structured_event;
+        use events::Event as MultisigEvent;
+        use multisig::LegacyEvent;
+
+        let pub_keys = (0..10)
+            .map(|_| (TMAddress::random(PREFIX).to_string(), rand_public_key()))
+            .collect::<HashMap<String, multisig::key::PublicKey>>();
+
+        let session_id = 11u64;
+        let verifier_set_id = "verifier_set_id".to_string();
+        let msg = MsgToSign::unchecked(rand_message());
+        let chain = chain_name!(ETHEREUM);
+        let expires_at = 100u64;
+        let contract_address = TMAddress::random(PREFIX);
+
+        let current_event = Event::SigningStarted {
+            session_id,
+            verifier_set_id: verifier_set_id.clone(),
+            pub_keys: pub_keys.clone(),
+            msg: msg.clone(),
+            chain: chain.clone(),
+            expires_at,
+        };
+
+        let legacy_event = LegacyEvent::SigningStarted {
+            session_id: cosmwasm_std::Uint64::from(session_id),
+            verifier_set_id: verifier_set_id.clone(),
+            pub_keys: pub_keys.clone(),
+            msg: msg.clone(),
+            chain_name: chain.clone(),
+            expires_at,
+        };
+
+        let current_structured_event: MultisigEvent =
+            into_structured_event(current_event, &contract_address);
+
+        let legacy_structured_event: MultisigEvent =
+            into_structured_event(legacy_event, &contract_address);
+
+        let current_result: Result<SigningStartedEvent, _> = (&current_structured_event).try_into();
+        let legacy_result: Result<SigningStartedEvent, _> = (&legacy_structured_event).try_into();
+
+        assert!(
+            current_result.is_ok(),
+            "Current event should deserialize successfully"
+        );
+        assert!(
+            legacy_result.is_ok(),
+            "Legacy event should deserialize successfully"
+        );
+
+        let current_signing_started = current_result.unwrap();
+        let legacy_signing_started = legacy_result.unwrap();
+
+        assert_eq!(
+            current_signing_started.session_id,
+            legacy_signing_started.session_id
+        );
+        assert_eq!(
+            current_signing_started.pub_keys.len(),
+            legacy_signing_started.pub_keys.len()
+        );
+        assert_eq!(current_signing_started.msg, legacy_signing_started.msg);
+        assert_eq!(current_signing_started.chain, legacy_signing_started.chain);
+        assert_eq!(
+            current_signing_started.expires_at,
+            legacy_signing_started.expires_at
+        );
+    }
 }

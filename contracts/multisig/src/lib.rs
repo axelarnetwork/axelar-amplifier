@@ -5,6 +5,8 @@ pub mod error;
 
 mod events;
 pub use events::Event;
+mod legacy_events;
+pub use legacy_events::LegacyEvent;
 
 pub mod key;
 pub mod msg;
