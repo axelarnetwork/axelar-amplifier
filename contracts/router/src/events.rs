@@ -7,6 +7,8 @@ pub enum Event {
     RouterInstantiated {
         admin_address: Addr,
         governance_address: Addr,
+        axelarnet_gateway: Addr,
+        coordinator: Addr,
     },
     ChainRegistered {
         name: ChainName,
@@ -47,6 +49,8 @@ mod tests {
         let event = Event::RouterInstantiated {
             admin_address: api.addr_make("admin"),
             governance_address: api.addr_make("governance"),
+            axelarnet_gateway: api.addr_make("axelarnet_gateway"),
+            coordinator: api.addr_make("coordinator"),
         };
         let event = cosmwasm_std::Event::from(event);
 

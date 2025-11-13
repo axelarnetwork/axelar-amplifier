@@ -49,6 +49,8 @@ pub fn instantiate(
     Ok(Response::new().add_event(Event::RouterInstantiated {
         admin_address: admin,
         governance_address: governance,
+        axelarnet_gateway,
+        coordinator,
     }))
 }
 
