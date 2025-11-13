@@ -43,7 +43,7 @@ pub fn event_attributes_derive(input: TokenStream) -> TokenStream {
     let field_impls = match fields {
         syn::Fields::Named(fields) => {
             let field_impls = fields.named.iter().map(|field| {
-                let field_name = field.ident.as_ref().unwrap();
+                let field_name = field.ident.as_ref().expect("named fields must have an identifier");
                 let field_name_str = field_name.to_string();
                 let attribute_name = field_name_str.to_snake_case();
                 let error_message = format!("failed to serialize event field {}", field_name_str);
