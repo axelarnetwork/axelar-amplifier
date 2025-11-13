@@ -11,7 +11,7 @@
     },
     {
       "key": "pub_keys",
-      "value": "{\"verifier2\":{\"ed25519\":\"d75a980182b10c7d15b61f9b6f484d2c7b3307f1b1c0c9c0c9c0c9c0c9c0c9c0c9\"},\"verifier1\":{\"ecdsa\":\"02a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7\"}}"
+      "value": "{\"verifier1\":{\"ecdsa\":\"02a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7\"},\"verifier2\":{\"ed25519\":\"d75a980182b10c7d15b61f9b6f484d2c7b3307f1b1c0c9c0c9c0c9c0c9c0c9c0c9\"}}"
     },
     {
       "key": "msg",
