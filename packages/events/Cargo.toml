@@ -12,7 +12,7 @@ derive = ["dep:events-derive"]
 [dependencies]
 ampd-proto = { workspace = true }
 axelar-wasm-std = { workspace = true }
-base64 = "0.21.2"
+base64 = { workspace = true }
 cosmrs = { version = "0.22.0", features = ["cosmwasm"] }
 error-stack = { workspace = true }
 events-derive = { workspace = true, optional = true }
