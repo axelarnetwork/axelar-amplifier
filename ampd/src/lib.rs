@@ -424,7 +424,7 @@ impl App {
                 cosmwasm_contract,
                 chain_name,
             } => {
-                let task_name = "multisig-signer".to_string();
+                let task_name = format!("{}-multisig-signer", chain_name);
                 Ok((
                     task_name.clone(),
                     self.create_handler_task(
