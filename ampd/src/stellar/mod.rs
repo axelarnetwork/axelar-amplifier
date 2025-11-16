@@ -1,2 +1,3 @@
-pub(crate) mod rpc_client;
-pub(crate) mod verifier;
+pub mod json_rpc;
+pub mod rpc_client;
+pub mod verifier;

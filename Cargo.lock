@@ -367,6 +367,8 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "serde_with",
+ "stellar-xdr",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",

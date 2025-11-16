@@ -9,12 +9,17 @@ edition = { workspace = true }
 name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
+[[bin]]
+name = "stellar-handler"
+path = "src/bin/stellar/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
 cosmrs = { workspace = true }
+cosmwasm-std = { workspace = true }
 dotenv = "0.15.0"
 error-stack = { workspace = true }
 ethers-core = { workspace = true }
@@ -27,6 +32,8 @@ humantime-serde = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_with = "3.2.0"
+stellar-xdr = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
@@ -45,6 +52,7 @@ ampd-sdk = { workspace = true, features = ["test-utils"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 goldie = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
+stellar-xdr = { workspace = true }
 
 [lints]
 workspace = true

@@ -30,7 +30,7 @@ pub enum TxParseError {
 }
 
 /// TxResponse parses XDR encoded TransactionMeta to ContractEvent type, and only contains necessary fields for verification
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxResponse {
     pub transaction_hash: String,
     pub successful: bool,
