@@ -32,11 +32,20 @@ pub enum ExecuteMsg {
         new_verifier_set: VerifierSet,
     },
 
-    // Update voting parameters. Callable only by governance
+    /// Update voting parameters. Callable only by governance.
+    /// Each parameter is optional - `None` values keep the current configuration unchanged.
+    /// This allows updating parameters individually or in combination.
     #[permission(Governance)]
     UpdateVotingParameters {
+        /// Minimum fraction of total verifier weight required to reach consensus on a poll.
+        /// `None` keeps current threshold.
         voting_threshold: Option<MajorityThreshold>,
+        /// Number of blocks after which a poll expires if consensus is not reached.
+        /// `None` keeps current block expiry.
         block_expiry: Option<nonempty::Uint64>,
+        /// Minimum block depth required on the source chain for message verification
+        /// when not using a finality flag to determine confirmation.
+        /// `None` keeps current confirmation height.
         confirmation_height: Option<u64>,
     },
 }
