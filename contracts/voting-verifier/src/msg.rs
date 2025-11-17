@@ -32,10 +32,12 @@ pub enum ExecuteMsg {
         new_verifier_set: VerifierSet,
     },
 
-    // Update the threshold used for new polls. Callable only by governance
+    // Update voting parameters. Callable only by governance
     #[permission(Governance)]
-    UpdateVotingThreshold {
-        new_voting_threshold: MajorityThreshold,
+    UpdateVotingParameters {
+        voting_threshold: Option<MajorityThreshold>,
+        block_expiry: Option<nonempty::Uint64>,
+        confirmation_height: Option<u64>,
     },
 }
 
@@ -63,8 +65,15 @@ pub enum QueryMsg {
     #[returns(VerificationStatus)]
     VerifierSetStatus(VerifierSet),
 
-    #[returns(MajorityThreshold)]
-    CurrentThreshold,
+    #[returns(VotingParameters)]
+    VotingParameters,
+}
+
+#[cw_serde]
+pub struct VotingParameters {
+    pub voting_threshold: MajorityThreshold,
+    pub block_expiry: nonempty::Uint64,
+    pub confirmation_height: u64,
 }
 
 #[cw_serde]

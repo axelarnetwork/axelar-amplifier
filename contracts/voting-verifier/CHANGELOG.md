@@ -2,6 +2,11 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
+### Changed
+
+- Replace `UpdateVotingThreshold` execute message with `UpdateVotingParameters` that allows updating voting threshold, block expiry, and confirmation height
+- Replace `CurrentThreshold` query with `VotingParameters` query that returns all voting-related parameters (voting threshold, block expiry, confirmation height)
+
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/voting-verifier-v1.2.0..HEAD)
 
 ## [v1.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/voting-verifier-v1.2.0)

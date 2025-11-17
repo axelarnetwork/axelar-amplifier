@@ -76,11 +76,15 @@ pub fn execute(
             message_id,
             new_verifier_set,
         )?),
-        ExecuteMsg::UpdateVotingThreshold {
-            new_voting_threshold,
-        } => Ok(execute::update_voting_threshold(
+        ExecuteMsg::UpdateVotingParameters {
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
+        } => Ok(execute::update_voting_parameters(
             deps,
-            new_voting_threshold,
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
         )?),
     }
 }
@@ -101,7 +105,7 @@ pub fn query(
         QueryMsg::VerifierSetStatus(new_verifier_set) => to_json_binary(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
-        QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
+        QueryMsg::VotingParameters => to_json_binary(&query::voting_parameters(deps)?),
     }?
     .then(Ok)
 }
@@ -1285,36 +1289,6 @@ mod test {
     }
 
     #[test]
-    fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
-        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let verifiers = verifiers(2);
-        let mut deps = setup(verifiers.clone(), &msg_id_format);
-
-        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
-            initial_voting_threshold().numerator().u64() + 1,
-            initial_voting_threshold().denominator().u64() + 1,
-        ))
-        .unwrap()
-        .try_into()
-        .unwrap();
-
-        execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold,
-            },
-        )
-        .unwrap();
-
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold).unwrap();
-
-        let threshold: MajorityThreshold = from_json(res).unwrap();
-        assert_eq!(threshold, new_voting_threshold);
-    }
-
-    #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn threshold_changes_should_not_affect_existing_polls() {
         let verifiers = verifiers(10);
@@ -1366,8 +1340,10 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold,
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: None,
+                confirmation_height: None,
             },
         )
         .unwrap();
@@ -1421,8 +1397,10 @@ mod test {
             deps.as_mut(),
             mock_env(),
             message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold,
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: None,
+                confirmation_height: None,
             },
         )
         .unwrap();
@@ -1653,5 +1631,101 @@ mod test {
             msg,
         );
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn should_be_able_to_update_voting_parameters() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
+            initial_voting_threshold().numerator().u64() + 1,
+            initial_voting_threshold().denominator().u64() + 1,
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+        let new_confirmation_height: u64 = 200;
+
+        // Update all parameters
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: Some(new_confirmation_height),
+            },
+        )
+        .unwrap();
+
+        // Verify all parameters were updated
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(params.confirmation_height, new_confirmation_height);
+    }
+
+    #[test]
+    fn should_be_able_to_update_individual_voting_parameters() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let original_config = CONFIG.load(deps.as_ref().storage).unwrap();
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        // Update only block_expiry
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        assert_eq!(config.block_expiry, new_block_expiry);
+        assert_eq!(config.voting_threshold, original_config.voting_threshold);
+        assert_eq!(
+            config.confirmation_height,
+            original_config.confirmation_height
+        );
+    }
+
+    #[test]
+    fn only_governance_can_update_voting_parameters() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        // Non-governance address should fail
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            axelar_wasm_std::permission_control::Error,
+            axelar_wasm_std::permission_control::Error::GeneralPermissionDenied { .. }
+        ));
     }
 }
