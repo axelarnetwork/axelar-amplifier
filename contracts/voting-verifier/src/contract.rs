@@ -1296,10 +1296,8 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         // Set explicit initial voting parameters: threshold 8/10, expiry 100 blocks
-        let initial_threshold: MajorityThreshold = Threshold::try_from((8, 10))
-            .unwrap()
-            .try_into()
-            .unwrap();
+        let initial_threshold: MajorityThreshold =
+            Threshold::try_from((8, 10)).unwrap().try_into().unwrap();
         let initial_block_expiry: nonempty::Uint64 = 100u64.try_into().unwrap();
 
         execute(
@@ -1345,10 +1343,8 @@ mod test {
         });
 
         // Update threshold to 6/10 (equal to current votes)
-        let new_threshold_lower: MajorityThreshold = Threshold::try_from((6, 10))
-            .unwrap()
-            .try_into()
-            .unwrap();
+        let new_threshold_lower: MajorityThreshold =
+            Threshold::try_from((6, 10)).unwrap().try_into().unwrap();
 
         execute(
             deps.as_mut(),
@@ -1676,7 +1672,10 @@ mod test {
         let params: crate::msg::VotingParameters = from_json(res).unwrap();
         assert_eq!(params.voting_threshold, new_voting_threshold);
         assert_eq!(params.block_expiry, initial_params.block_expiry);
-        assert_eq!(params.confirmation_height, initial_params.confirmation_height);
+        assert_eq!(
+            params.confirmation_height,
+            initial_params.confirmation_height
+        );
 
         // Update only block_expiry
         let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
@@ -1697,7 +1696,10 @@ mod test {
         let params: crate::msg::VotingParameters = from_json(res).unwrap();
         assert_eq!(params.voting_threshold, new_voting_threshold);
         assert_eq!(params.block_expiry, new_block_expiry);
-        assert_eq!(params.confirmation_height, initial_params.confirmation_height);
+        assert_eq!(
+            params.confirmation_height,
+            initial_params.confirmation_height
+        );
 
         // Update only confirmation_height
         let new_confirmation_height: u64 = 200;

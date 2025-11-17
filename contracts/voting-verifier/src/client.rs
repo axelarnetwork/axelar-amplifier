@@ -119,6 +119,7 @@ impl Client<'_> {
 #[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
+
     use assert_ok::assert_ok;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
@@ -213,7 +214,10 @@ mod test {
         let params = params.unwrap();
         assert_eq!(params.voting_threshold, instantiate_msg.voting_threshold);
         assert_eq!(params.block_expiry, instantiate_msg.block_expiry);
-        assert_eq!(params.confirmation_height, instantiate_msg.confirmation_height);
+        assert_eq!(
+            params.confirmation_height,
+            instantiate_msg.confirmation_height
+        );
     }
 
     #[test]
