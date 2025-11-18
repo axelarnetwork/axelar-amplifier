@@ -194,6 +194,7 @@ mod tests {
             "Coordinator1.0.0",
             Some(admin_addr.to_string()),
         );
+        
 
         assert!(coordinator_addr.is_ok());
         let coordinator_addr = coordinator_addr.unwrap();
