@@ -278,7 +278,7 @@ async fn handle_tx_res(
 }
 
 // TODO: Remove this function once all handlers are migrated to the new sdk
-pub fn deserialize_protobuf(
+pub fn _deserialize_protobuf(
     bytes: &[u8],
 ) -> std::result::Result<String, Box<dyn std::error::Error>> {
     let mut result = Vec::new();

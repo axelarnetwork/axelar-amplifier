@@ -148,6 +148,7 @@ where
     ///
     /// * `Error::EstimateGas` - If gas estimation fails
     /// * `Error::EnqueueMsg` - If enqueueing fails
+    #[allow(dead_code)] // TODO: Remove once old handlers are fully migrated
     pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
         let _rx = self.enqueue_with_channel(msg).await?;
 
