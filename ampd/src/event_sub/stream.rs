@@ -530,7 +530,7 @@ mod tests {
     use error_stack::report;
     use events::Event;
     use futures::{stream, StreamExt};
-    use tendermint::abci::EventAttribute;
+    use tendermint::abci::v0_34::EventAttribute;
     use tendermint::block;
 
     use super::super::tests::{block_results_response, random_event};
@@ -980,11 +980,12 @@ mod tests {
             .times(1)
             .returning(|height| {
                 let mut invalid_event = random_event();
-                invalid_event.attributes = vec![EventAttribute {
-                    key: "invalid".to_string(),
-                    value: "invalid".to_string(),
-                    index: false,
-                }]; // attributes are expected to be base64 encoded
+                invalid_event.attributes =
+                    vec![tendermint::abci::EventAttribute::V034(EventAttribute {
+                        key: vec![0xFF, 0xFE, 0xFA],
+                        value: vec![0xFF, 0xFE, 0xFA],
+                        index: false,
+                    })]; // attributes are expected to be valid strings
 
                 Ok(block_results_response(
                     height,

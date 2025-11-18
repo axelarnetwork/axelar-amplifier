@@ -287,7 +287,7 @@ dependencies = [
  "primitive-types 0.12.2",
  "prometheus-client",
  "prost 0.13.5",
- "prost-types 0.13.5",
+ "prost-types",
  "rand 0.8.5",
  "random-string",
  "regex",
@@ -316,8 +316,8 @@ dependencies = [
  "sui-types 0.1.0",
  "sysinfo",
  "temp-env",
- "tendermint 0.35.0",
- "tendermint-proto 0.40.4",
+ "tendermint",
+ "tendermint-proto",
  "tendermint-rpc",
  "test-log",
  "thiserror 1.0.69",
@@ -362,7 +362,7 @@ version = "0.1.0"
 dependencies = [
  "cosmrs",
  "prost 0.13.5",
- "prost-types 0.13.5",
+ "prost-types",
  "serde_json",
  "tonic 0.13.1",
  "tonic-build",
@@ -2584,7 +2584,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95ac39be7373404accccaede7cc1ec942ccef14f0ca18d209967a756bf1dbb1f"
 dependencies = [
  "prost 0.13.5",
- "tendermint-proto 0.40.4",
+ "tendermint-proto",
  "tonic 0.13.1",
 ]
 
@@ -2604,7 +2604,7 @@ dependencies = [
  "serde_json",
  "signature 2.2.0",
  "subtle-encoding",
- "tendermint 0.40.4",
+ "tendermint",
  "thiserror 1.0.69",
 ]
 
@@ -3889,7 +3889,7 @@ dependencies = [
  "goldie",
  "serde",
  "serde_json",
- "tendermint 0.35.0",
+ "tendermint",
  "thiserror 1.0.69",
 ]
 
@@ -8245,7 +8245,7 @@ dependencies = [
  "petgraph 0.7.1",
  "prettyplease",
  "prost 0.13.5",
- "prost-types 0.13.5",
+ "prost-types",
  "regex",
  "syn 2.0.101",
  "tempfile",
@@ -8275,15 +8275,6 @@ dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 2.0.101",
-]
-
-[[package]]
-name = "prost-types"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9091c90b0a32608e984ff2fa4091273cbdd755d54935c51d520887f4a1dbd5b0"
-dependencies = [
- "prost 0.12.6",
 ]
 
 [[package]]
@@ -12511,7 +12502,7 @@ dependencies = [
  "openapiv3",
  "prometheus",
  "prost 0.13.5",
- "prost-types 0.13.5",
+ "prost-types",
  "rand 0.8.5",
  "reqwest 0.12.18",
  "roaring",
@@ -12834,35 +12825,6 @@ dependencies = [
 
 [[package]]
 name = "tendermint"
-version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43f8a10105d0a7c4af0a242e23ed5a12519afe5cc0e68419da441bb5981a6802"
-dependencies = [
- "bytes",
- "digest 0.10.7",
- "ed25519 2.2.3",
- "ed25519-consensus",
- "flex-error",
- "futures",
- "num-traits",
- "once_cell",
- "prost 0.12.6",
- "prost-types 0.12.6",
- "serde",
- "serde_bytes",
- "serde_json",
- "serde_repr",
- "sha2 0.10.9",
- "signature 2.2.0",
- "subtle",
- "subtle-encoding",
- "tendermint-proto 0.35.0",
- "time",
- "zeroize",
-]
-
-[[package]]
-name = "tendermint"
 version = "0.40.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc997743ecfd4864bbca8170d68d9b2bee24653b034210752c2d883ef4b838b1"
@@ -12886,41 +12848,23 @@ dependencies = [
  "signature 2.2.0",
  "subtle",
  "subtle-encoding",
- "tendermint-proto 0.40.4",
+ "tendermint-proto",
  "time",
  "zeroize",
 ]
 
 [[package]]
 name = "tendermint-config"
-version = "0.35.0"
+version = "0.40.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6bf36c613bb113737c333e3c1d6dfd3c99f8ac679e84feb58dd6456d77fb2e"
+checksum = "069d1791f9b02a596abcd26eb72003b2e9906c6169a60fa82ffc080dd3a43fda"
 dependencies = [
  "flex-error",
  "serde",
  "serde_json",
- "tendermint 0.35.0",
+ "tendermint",
  "toml 0.8.22",
  "url",
-]
-
-[[package]]
-name = "tendermint-proto"
-version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff525d5540a9fc535c38dc0d92a98da3ee36fcdfbda99cecb9f3cce5cd4d41d7"
-dependencies = [
- "bytes",
- "flex-error",
- "num-derive 0.4.2",
- "num-traits",
- "prost 0.12.6",
- "prost-types 0.12.6",
- "serde",
- "serde_bytes",
- "subtle-encoding",
- "time",
 ]
 
 [[package]]
@@ -12940,9 +12884,9 @@ dependencies = [
 
 [[package]]
 name = "tendermint-rpc"
-version = "0.35.0"
+version = "0.40.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d8fe61b1772cd50038bdeeadf53773bb37a09e639dd8e6d996668fd220ddb29"
+checksum = "35e0569a4b4cc42ff00df5a665be2858a39ff79df4790b176f1cd0e169bc0fc2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -12959,9 +12903,9 @@ dependencies = [
  "serde_json",
  "subtle",
  "subtle-encoding",
- "tendermint 0.35.0",
+ "tendermint",
  "tendermint-config",
- "tendermint-proto 0.35.0",
+ "tendermint-proto",
  "thiserror 1.0.69",
  "time",
  "tokio",
@@ -13464,7 +13408,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2 1.0.95",
  "prost-build",
- "prost-types 0.13.5",
+ "prost-types",
  "quote 1.0.40",
  "syn 2.0.101",
 ]
