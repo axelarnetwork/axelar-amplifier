@@ -116,7 +116,7 @@ sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 temp-env = "0.3.6"
-tendermint = "0.35.0"
+tendermint = "0.40.4"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
 tokio = "1.44.2"

@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
-use axelar_wasm_std::{nonempty, FnExt};
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
+use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;
 use error_stack::{Report, Result, ResultExt};
 use serde::Serialize;
@@ -115,13 +113,15 @@ fn try_into_kv_pair(attr: &EventAttribute) -> Result<(String, serde_json::Value)
 
 fn decode_event_attribute(attribute: &EventAttribute) -> Result<(String, String), DecodingError> {
     Ok((
-        base64_to_utf8(&attribute.key)?,
-        base64_to_utf8(&attribute.value)?,
+        attribute
+            .key_str()
+            .map(String::from)
+            .map_err(DecodingError::Tendermint)?,
+        attribute
+            .value_str()
+            .map(String::from)
+            .map_err(DecodingError::Tendermint)?,
     ))
-}
-
-fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError> {
-    Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
 }
 
 impl From<Event> for ampd_proto::subscribe_response::Event {
