@@ -9,6 +9,10 @@ edition = { workspace = true }
 name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
+[[bin]]
+name = "sui-handler"
+path = "src/bin/sui/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
