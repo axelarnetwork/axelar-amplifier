@@ -353,22 +353,28 @@ dependencies = [
  "ampd-sdk",
  "async-trait",
  "axelar-wasm-std",
+ "base64 0.21.7",
  "cosmrs",
  "cosmwasm-std",
- "dotenv",
+ "dotenv-flow",
  "error-stack",
  "ethers-core",
  "ethers-providers",
  "events",
  "futures",
  "goldie",
+ "hex",
  "humantime-serde",
+ "k256",
  "multisig",
+ "rand 0.8.5",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "serde_with",
  "sui-json-rpc-types",
  "sui-types 0.1.0",
+ "tendermint 0.35.0",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -3338,10 +3344,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
+name = "dotenv-flow"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
+checksum = "ccff2060df2e1a42732ab1e7af8c5f930ed3d0255aaadfae66e032781e8d271a"
 
 [[package]]
 name = "downcast"

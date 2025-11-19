@@ -40,6 +40,7 @@ axelar-solana-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifi
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
+base64 = "0.21.2"
 bcs = "0.1.5"
 bech32 = "0.11.0"
 bs58 = "0.5.1"
@@ -99,6 +100,7 @@ schemars = "0.8.10"
 semver = "1.0"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.134"
+serde_with = "3.2.0"
 service-registry = { version = "^1.2.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
