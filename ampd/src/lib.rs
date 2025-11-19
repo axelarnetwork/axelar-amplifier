@@ -22,7 +22,7 @@ mod solana;
 mod stacks;
 mod starknet;
 mod stellar;
-mod sui;
+pub mod sui;
 mod tm_client;
 mod tofnd;
 pub mod types;

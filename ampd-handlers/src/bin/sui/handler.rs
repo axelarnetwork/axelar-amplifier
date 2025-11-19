@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use ampd::monitoring;
 use ampd::sui::json_rpc::SuiClient;
+use ampd::sui::verifier::{verify_message, verify_verifier_set};
 use ampd::handlers::sui_verify_msg::Message;
 use ampd::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
@@ -19,8 +20,6 @@ use sui_json_rpc_types::SuiTransactionBlockResponse;
 use sui_types::base_types::SuiAddress;
 use sui_types::digests::TransactionDigest;
 use typed_builder::TypedBuilder;
-
-use crate::sui::verifier::{verify_message, verify_verifier_set};
 
 pub type Result<T> = error_stack::Result<T, Error>;
 
@@ -60,8 +59,8 @@ impl voting::PollEventData for PollEventData {
     type ChainAddress = SuiAddress;
     type Receipt = SuiTransactionBlockResponse;
 
-    fn tx_hash(&self) -> axelar_wasm_std::hash::Hash {
-        self.message_id().tx_hash
+    fn tx_hash(&self) -> TransactionDigest {
+        self.message_id().tx_digest.into()
     }
 
     fn message_id(&self) -> &Base58TxDigestAndEventIndex {

@@ -367,6 +367,8 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "sui-json-rpc-types",
+ "sui-types 0.1.0",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
