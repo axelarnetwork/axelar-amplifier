@@ -228,3 +228,148 @@ where
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ampd::handlers::test_utils::{into_structured_event, participants};
+    use ampd::monitoring::{test_utils};
+    use ampd::sui::json_rpc::MockSuiClient;
+    use ampd::types::TMAddress;
+    use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
+    use ampd_sdk::event::event_handler::EventHandler;
+    use axelar_wasm_std::chain_name;
+    use ethers_core::types::H160;
+    use sui_types::base_types::{SUI_ADDRESS_LENGTH, SuiAddress};
+    use tokio::test as async_test;
+    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+
+    use super::{Base58TxDigestAndEventIndex, Handler, PollStartedEvent};
+
+    const PREFIX: &str = "axelar";
+
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
+        PollStarted::Messages {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!("sui"),
+                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                confirmation_height: 15,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            // TODO: The below event uses the deprecated tx_id and event_index fields. 
+            // Remove this attribute when those fields are removed
+            #[allow(deprecated)]
+            messages: vec![TxEventConfirmation {
+                message_id: msg_id.to_string().parse().unwrap(),
+                source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                destination_chain: chain_name!("ethereum"),
+                destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
+                payload_hash: [2; 32],
+            }],
+        }
+    }
+
+    fn verifier_set_poll_started_event(
+        participants: Vec<TMAddress>, 
+        expires_at: u64
+    ) -> PollStarted {
+        let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
+        PollStarted::Messages {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!("sui"),
+                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                confirmation_height: 15,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            // TODO: The below event uses the deprecated tx_id and event_index fields. 
+            // Remove this attribute when those fields are removed
+            #[allow(deprecated)]
+            messages: vec![TxEventConfirmation {
+                message_id: msg_id.to_string().parse().unwrap(),
+                source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                destination_chain: chain_name!("ethereum"),
+                destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
+                payload_hash: [2; 32],
+            }],
+        }
+    }
+
+    fn mock_handler_client(latest_block_height: u64) -> MockHandlerTaskClient {
+        let mut client = MockHandlerTaskClient::new();
+        client
+            .expect_latest_block_height()
+            .returning(move || Ok(latest_block_height));
+        client
+    }
+
+    #[test]
+    fn sui_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
+            poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into()
+        .unwrap();
+
+        goldie::assert_debug!(event);
+    }
+
+    // Should not handle event if it is not a poll started event
+    #[async_test]
+    async fn not_poll_started_event() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            verifier_set_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("sui"))
+            .rpc_client(MockSuiClient::new())
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        assert_eq!(
+            handler
+                .handle(event.clone().try_into().unwrap(), &mut client)
+                .await
+                .unwrap(),
+            vec![]
+        );
+    }
+}
