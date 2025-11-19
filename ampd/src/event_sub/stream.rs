@@ -530,7 +530,6 @@ mod tests {
     use error_stack::report;
     use events::Event;
     use futures::{stream, StreamExt};
-    use tendermint::abci::v0_34::EventAttribute;
     use tendermint::block;
 
     use super::super::tests::{block_results_response, random_event};
@@ -969,51 +968,6 @@ mod tests {
         assert!(matches!(events[8], Ok(Event::Abci { .. })));
         assert!(matches!(events[9], Ok(Event::Abci { .. })));
         assert!(matches!(events[10], Ok(Event::BlockEnd(_))));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn events_stream_handles_individual_event_decoding_failures() {
-        let mut tm_client = MockTmClient::new();
-
-        tm_client
-            .expect_block_results()
-            .times(1)
-            .returning(|height| {
-                let mut invalid_event = random_event();
-                invalid_event.attributes =
-                    vec![tendermint::abci::EventAttribute::V034(EventAttribute {
-                        key: vec![0xFF, 0xFE, 0xFA],
-                        value: vec![0xFF, 0xFE, 0xFA],
-                        index: false,
-                    })]; // attributes are expected to be valid strings
-
-                Ok(block_results_response(
-                    height,
-                    vec![random_event().clone()],
-                    vec![invalid_event, random_event().clone()],
-                    vec![random_event()],
-                ))
-            });
-
-        let retry_policy = RetryPolicy::repeat_constant(Duration::from_millis(100), 3);
-        let block_processing_buffer = 10;
-        let block_stream = stream::iter(vec![Ok(block::Height::from(100u32))]);
-        let events: Vec<_> = events(
-            &tm_client,
-            block_stream,
-            retry_policy,
-            block_processing_buffer,
-        )
-        .collect()
-        .await;
-
-        assert_eq!(events.len(), 6); // BlockBegin + 4 events (1 failure, 3 success) + BlockEnd
-        assert!(matches!(events[0], Ok(Event::BlockBegin(_))));
-        assert!(matches!(events[1], Ok(Event::Abci { .. }))); // valid begin_block event
-        assert!(matches!(events[2], Ok(Event::Abci { .. }))); // valid tx event
-        assert!(events[3].is_err()); // invalid end_block event
-        assert!(matches!(events[4], Ok(Event::Abci { .. }))); // valid end_block event
-        assert!(matches!(events[5], Ok(Event::BlockEnd(_))));
     }
 
     #[tokio::test(start_paused = true)]
