@@ -6,7 +6,7 @@ use error_stack::ResultExt;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
-use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg};
+use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg, VotingParameters};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -108,7 +108,7 @@ impl Client<'_> {
             .change_context_lazy(|| Error::for_query(msg))
     }
 
-    pub fn voting_parameters(&self) -> Result<crate::msg::VotingParameters> {
+    pub fn voting_parameters(&self) -> Result<VotingParameters> {
         let msg = QueryMsg::VotingParameters;
         self.client
             .query(&msg)
