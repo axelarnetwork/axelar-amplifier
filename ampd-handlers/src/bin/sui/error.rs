@@ -6,6 +6,4 @@ pub enum Error {
     HandlerStart,
     #[error("handler task failed")]
     HandlerTask,
-    #[error("failed to get finalized transaction blocks")]
-    FinalizedTxs,
 }
