@@ -35,6 +35,7 @@ pub enum ExecuteMsg {
     /// Update voting parameters. Callable only by governance.
     /// Each parameter is optional - `None` values keep the current configuration unchanged.
     /// This allows updating parameters individually or in combination.
+    /// Updates only apply to future polls, not currently active ones.
     #[permission(Governance)]
     UpdateVotingParameters {
         /// Minimum fraction of total verifier weight required to reach consensus on a poll.
