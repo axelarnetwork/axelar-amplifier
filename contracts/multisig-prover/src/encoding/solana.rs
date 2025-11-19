@@ -1,7 +1,6 @@
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 
-use axelar_solana_encoding::types::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::HexBinary;
 use itertools::Itertools;
@@ -11,6 +10,8 @@ use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 use sha3::{Digest, Keccak256};
+use solana_axelar_std::hasher::Hasher;
+use solana_axelar_std::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
 
 use crate::error::ContractError;
 use crate::payload::Payload;
@@ -37,10 +38,8 @@ pub fn encode_execute_data(
 
     // Encode the signers & their signatures
     // Note: Signatures were generated over the prefixed hash
-    let mut signers_with_signatures = BTreeMap::<
-        axelar_solana_encoding::types::pubkey::PublicKey,
-        axelar_solana_encoding::types::pubkey::EcdsaRecoverableSignature,
-    >::new();
+    let mut signers_with_signatures =
+        BTreeMap::<solana_axelar_std::PublicKey, solana_axelar_std::Signature>::new();
     for signer in signers_with_sigs {
         let pubkey = to_pub_key(&signer.signer.pub_key)?;
         let signature = to_signature(
@@ -54,7 +53,7 @@ pub fn encode_execute_data(
     // Encode all the data
     // Note: This sends UNPREFIXED execute data (verifier_set_encoded, payload_encoded)
     // The gateway will add the prefix during verification to match our prefixed_payload_hash
-    let bytes = axelar_solana_encoding::encode(
+    let bytes = solana_axelar_std::execute_data::encode::<Hasher>(
         &verifier_set_encoded,
         &signers_with_signatures,
         *domain_separator,
@@ -76,10 +75,9 @@ pub fn payload_digest(
     payload: &Payload,
 ) -> error_stack::Result<Hash, ContractError> {
     let payload = to_payload(payload)?;
-    let hash = axelar_solana_encoding::hash_payload(domain_separator, payload).map_err(|err| {
-        ContractError::SolanaEncoding {
-            reason: err.to_string(),
-        }
+    let hash = solana_axelar_std::execute_data::hash_payload::<Hasher>(domain_separator, payload)
+        .map_err(|err| ContractError::SolanaEncoding {
+        reason: err.to_string(),
     })?;
 
     // Add prefix for Solana offchain signing (matches gateway implementation)
@@ -91,7 +89,7 @@ pub fn payload_digest(
 /// Transform from Axelar VerifierSet to axelar_solana_encoding VerifierSet
 fn to_verifier_set(
     vs: &VerifierSet,
-) -> error_stack::Result<axelar_solana_encoding::types::verifier_set::VerifierSet, ContractError> {
+) -> error_stack::Result<solana_axelar_std::VerifierSet, ContractError> {
     let mut signers = BTreeMap::new();
 
     for (_cosmwasm_adr, signer) in vs.signers.iter() {
@@ -100,7 +98,7 @@ fn to_verifier_set(
         signers.insert(pub_key, weight);
     }
 
-    let verifier_set = axelar_solana_encoding::types::verifier_set::VerifierSet {
+    let verifier_set = solana_axelar_std::VerifierSet {
         nonce: vs.created_at,
         signers,
         quorum: vs.threshold.u128(),
@@ -108,11 +106,9 @@ fn to_verifier_set(
     Ok(verifier_set)
 }
 
-fn to_pub_key(
-    pk: &PublicKey,
-) -> error_stack::Result<axelar_solana_encoding::types::pubkey::PublicKey, ContractError> {
+fn to_pub_key(pk: &PublicKey) -> error_stack::Result<solana_axelar_std::PublicKey, ContractError> {
     match pk {
-        PublicKey::Ecdsa(hb) => Ok(axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
+        PublicKey::Ecdsa(hb) => Ok(solana_axelar_std::PublicKey(
             hb.to_array::<SECP256K1_COMPRESSED_PUBKEY_LEN>()
                 .map_err(|err| ContractError::SolanaEncoding {
                     reason: err.to_string(),
@@ -127,28 +123,28 @@ fn to_pub_key(
 
 fn to_payload(
     payload: &Payload,
-) -> error_stack::Result<axelar_solana_encoding::types::payload::Payload, ContractError> {
+) -> error_stack::Result<solana_axelar_std::execute_data::Payload, ContractError> {
     let payload = match payload {
         Payload::Messages(msgs) => {
             let messages = msgs.iter().map(to_msg).collect_vec();
-            let messages = axelar_solana_encoding::types::messages::Messages(messages);
-            axelar_solana_encoding::types::payload::Payload::Messages(messages)
+            let messages = solana_axelar_std::message::Messages(messages);
+            solana_axelar_std::execute_data::Payload::Messages(messages)
         }
         Payload::VerifierSet(vs) => {
             let verifier_set = to_verifier_set(vs)?;
-            axelar_solana_encoding::types::payload::Payload::NewVerifierSet(verifier_set)
+            solana_axelar_std::execute_data::Payload::NewVerifierSet(verifier_set)
         }
     };
     Ok(payload)
 }
 
-fn to_msg(msg: &Message) -> axelar_solana_encoding::types::messages::Message {
-    let cc_id = axelar_solana_encoding::types::messages::CrossChainId {
+fn to_msg(msg: &Message) -> solana_axelar_std::Message {
+    let cc_id = solana_axelar_std::CrossChainId {
         chain: msg.cc_id.source_chain.to_string(),
         id: msg.cc_id.message_id.to_string(),
     };
 
-    axelar_solana_encoding::types::messages::Message {
+    solana_axelar_std::Message {
         cc_id,
         source_address: msg.source_address.to_string(),
         destination_chain: msg.destination_chain.to_string(),
@@ -161,11 +157,15 @@ fn to_signature(
     sig: &Signature,
     pub_key: &PublicKey,
     prefixed_payload_hash: &[u8; 32],
-) -> error_stack::Result<
-    axelar_solana_encoding::types::pubkey::EcdsaRecoverableSignature,
-    ContractError,
-> {
-    let recovery_transform = |recovery_byte: RecoveryId| -> u8 { recovery_byte.to_byte() };
+) -> error_stack::Result<solana_axelar_std::Signature, ContractError> {
+    // convert to eth recovery transform
+    let recovery_transform = |recovery_byte: RecoveryId| -> u8 {
+        recovery_byte
+            .to_byte()
+            .checked_add(27)
+            .expect("overflow when adding 27 to recovery byte")
+    };
+
     match sig {
         Signature::Ecdsa(nonrec) => {
             let recov = nonrec
@@ -183,14 +183,16 @@ fn to_signature(
     }
 }
 
-fn recoverable_ecdsa_to_array(rec: &Recoverable) -> error_stack::Result<[u8; 65], ContractError> {
-    let res =
+fn recoverable_ecdsa_to_array(
+    rec: &Recoverable,
+) -> error_stack::Result<solana_axelar_std::Signature, ContractError> {
+    Ok(solana_axelar_std::Signature(
         rec.as_ref()
             .try_into()
             .map_err(|e: TryFromSliceError| ContractError::SolanaEncoding {
                 reason: e.to_string(),
-            })?;
-    Ok(res)
+            })?,
+    ))
 }
 
 #[cfg(test)]
@@ -203,6 +205,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
     use sha3::{Digest, Keccak256};
+    use solana_axelar_std::hasher::Hasher;
 
     use super::{encode_execute_data, payload_digest, to_payload, PREFIX};
     use crate::payload::Payload;
@@ -467,8 +470,11 @@ mod tests {
 
         // 2. Get unprefixed hash directly from encoding library
         let payload_encoded = to_payload(&payload).unwrap();
-        let unprefixed_hash =
-            axelar_solana_encoding::hash_payload(&domain_separator, payload_encoded).unwrap();
+        let unprefixed_hash = solana_axelar_std::execute_data::hash_payload::<Hasher>(
+            &domain_separator,
+            payload_encoded,
+        )
+        .unwrap();
 
         // 3. Get prefixed hash from our function
         let prefixed_hash = payload_digest(&domain_separator, &payload).unwrap();
