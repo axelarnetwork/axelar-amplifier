@@ -248,9 +248,13 @@ mod tests {
     use error_stack::Report;
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{
+        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation
+    };
 
     use super::{
         Base58TxDigestAndEventIndex, Event, EventHandler, Handler, PollStartedEvent, Vote,
@@ -293,6 +297,37 @@ mod tests {
         }
     }
 
+    fn verifier_set_poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> PollStarted {
+        let msg_id = Base58TxDigestAndEventIndex::new([5; 32], 0u64);
+        PollStarted::VerifierSet {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!("sui"),
+                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                confirmation_height: 1,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            // TODO: The below event uses the deprecated tx_id and event_index fields.
+            // Remove this attribute when those fields are removed
+            #[allow(deprecated)]
+            verifier_set: VerifierSetConfirmation {
+                message_id: msg_id.to_string().parse().unwrap(),
+                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
+            },
+        }
+    }
+
     fn mock_handler_client(latest_block_height: u64) -> MockHandlerTaskClient {
         let mut client = MockHandlerTaskClient::new();
         client
@@ -305,6 +340,18 @@ mod tests {
     fn sui_verify_msg_should_deserialize_correct_event() {
         let event: PollStartedEvent = into_structured_event(
             poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into()
+        .unwrap();
+
+        goldie::assert_debug!(event);
+    }
+
+    #[test]
+    fn sui_verify_verifier_set_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
+            verifier_set_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
         .try_into()
