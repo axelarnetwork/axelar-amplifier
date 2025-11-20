@@ -9,10 +9,6 @@ edition = { workspace = true }
 name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
-[[bin]]
-name = "evm-event-verifier-handler"
-path = "src/bin/evm-event-verifier/main.rs"
-
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }

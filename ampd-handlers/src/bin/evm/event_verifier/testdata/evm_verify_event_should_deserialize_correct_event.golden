@@ -1,0 +1,47 @@
+PollStartedEvent {
+    events: [
+        EventToVerify {
+            source_chain: ChainName(
+                "ethereum",
+            ),
+            event_data: "{\"Evm\":{\"transaction_hash\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"transaction_details\":null,\"events\":[{\"contract_address\":\"0x0101010101010101010101010101010101010101\",\"event_index\":0,\"topics\":[\"0x0101010101010101010101010101010101010101010101010101010101010101\"],\"data\":\"01020304\"}]}}",
+        },
+        EventToVerify {
+            source_chain: ChainName(
+                "ethereum",
+            ),
+            event_data: "{\"Evm\":{\"transaction_hash\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"transaction_details\":null,\"events\":[{\"contract_address\":\"0x0202020202020202020202020202020202020202\",\"event_index\":0,\"topics\":[\"0x0101010101010101010101010101010101010101010101010101010101010101\"],\"data\":\"01020304\"}]}}",
+        },
+        EventToVerify {
+            source_chain: ChainName(
+                "ethereum",
+            ),
+            event_data: "{\"Evm\":{\"transaction_hash\":\"0x0303030303030303030303030303030303030303030303030303030303030303\",\"transaction_details\":null,\"events\":[{\"contract_address\":\"0x0303030303030303030303030303030303030303\",\"event_index\":0,\"topics\":[\"0x0101010101010101010101010101010101010101010101010101010101010101\"],\"data\":\"01020304\"}]}}",
+        },
+    ],
+    poll_id: PollId(
+        "100",
+    ),
+    source_chain: ChainName(
+        "ethereum",
+    ),
+    expires_at: 100,
+    participants: [
+        Addr(
+            "axelar1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v",
+        ),
+        Addr(
+            "axelar1gtm0wr3gpkzx8wkxthqs9vjr8yxq8p6q2l0qwf",
+        ),
+        Addr(
+            "axelar1qdcmjqpvuz8jz7grw0g0e6hqyha8f5yxqskd3p",
+        ),
+        Addr(
+            "axelar15f3h9q8r0qc8pxpvdmumxy0h68wc45v0tkl6z0",
+        ),
+        Addr(
+            "axelar1p50y5uhs6m9v4uc5a7vprr9f32nspz4vk7mj9c",
+        ),
+    ],
+}
+

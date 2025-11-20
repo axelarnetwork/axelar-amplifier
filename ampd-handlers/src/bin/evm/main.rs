@@ -1,8 +1,10 @@
 mod error;
-mod handler;
+mod gmp;
+mod event_verifier;
 
 use std::time::Duration;
 
+use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd::evm::finalizer::Finalization;
 use ampd::json_rpc;
 use ampd::url::Url;
@@ -23,10 +25,9 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 use crate::error::Error;
-use crate::handler::Handler;
 
 #[derive(Debug, Deserialize, Serialize)]
-struct EvmHandlerConfig {
+struct EvmGmpHandlerConfig {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     rpc_url: Url,
     #[serde(with = "humantime_serde")]
@@ -36,15 +37,27 @@ struct EvmHandlerConfig {
     finalization: Finalization,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct EvmEventVerifierHandlerConfig {
+    #[serde(deserialize_with = "Url::deserialize_sensitive")]
+    rpc_url: Url,
+    #[serde(with = "humantime_serde")]
+    #[serde(default = "default_rpc_timeout")]
+    rpc_timeout: Duration,
+    #[serde(default)]
+    finalization: Finalization,
+    confirmation_height: Option<u64>,
+}
+
 fn default_rpc_timeout() -> Duration {
     Duration::from_secs(3)
 }
 
-fn build_handler(
+fn build_gmp_handler(
     runtime: &HandlerRuntime,
     chain_name: ChainName,
-    config: EvmHandlerConfig,
-) -> Result<Handler<json_rpc::Client<Http>>, Error> {
+    config: EvmGmpHandlerConfig,
+) -> Result<gmp::Handler<json_rpc::Client<Http>>, Error> {
     let rpc_client = json_rpc::Client::new_http(
         config.rpc_url,
         reqwest::ClientBuilder::new()
@@ -56,11 +69,48 @@ fn build_handler(
         chain_name.clone(),
     );
 
-    let handler = Handler::builder()
+    let handler = gmp::Handler::builder()
         .verifier(runtime.verifier.clone())
         .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
         .chain(chain_name)
         .finalizer_type(config.finalization)
+        .rpc_client(rpc_client)
+        .monitoring_client(runtime.monitoring_client.clone())
+        .build();
+
+    Ok(handler)
+}
+
+fn build_event_verifier_handler(
+    runtime: &HandlerRuntime,
+    chain_name: ChainName,
+    config: EvmEventVerifierHandlerConfig,
+) -> Result<event_verifier::Handler<json_rpc::Client<Http>>, Error> {
+    let rpc_client = json_rpc::Client::new_http(
+        config.rpc_url,
+        reqwest::ClientBuilder::new()
+            .connect_timeout(config.rpc_timeout)
+            .timeout(config.rpc_timeout)
+            .build()
+            .change_context(Error::HandlerStart)?,
+        runtime.monitoring_client.clone(),
+        chain_name.clone(),
+    );
+
+    let confirmation_height = match config.finalization {
+        Finalization::ConfirmationHeight => config
+            .confirmation_height
+            .ok_or(Error::HandlerStart)?,
+        // This finalizer type won't actually use the confirmation height field
+        Finalization::RPCFinalizedBlock => config.confirmation_height.unwrap_or(1),
+    };
+
+    let handler = event_verifier::Handler::builder()
+        .verifier(runtime.verifier.clone())
+        .event_verifier_contract(runtime.contracts.voting_verifier.clone())
+        .chain(chain_name)
+        .finalizer_type(config.finalization)
+        .confirmation_height(confirmation_height)
         .rpc_client(rpc_client)
         .monitoring_client(runtime.monitoring_client.clone())
         .build();
@@ -90,24 +140,64 @@ async fn main() -> Result<(), Error> {
     init_tracing(Level::INFO);
 
     let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
-    let handler_config = config::Config::builder()
+    
+    let gmp_handler_config = config::Config::builder()
         .add_file_source("evm-handler-config.toml")
         .add_env_source("AMPD_EVM_HANDLER")
-        .build::<EvmHandlerConfig>()
+        .build::<EvmGmpHandlerConfig>()
+        .change_context(Error::HandlerStart)?;
+
+    let event_verifier_handler_config = config::Config::builder()
+        .add_file_source("evm-event-verifier-handler-config.toml")
+        .add_env_source("AMPD_EVM_EVENT_VERIFIER_HANDLER")
+        .build::<EvmEventVerifierHandlerConfig>()
         .change_context(Error::HandlerStart)?;
 
     let token = CancellationToken::new();
 
-    let runtime = HandlerRuntime::start(&base_config, token.clone())
-        .await
-        .change_context(Error::HandlerStart)?;
+    // Build GMP handler task
+    let gmp_task = {
+        let base_config_clone = base_config.clone();
+        let gmp_handler_config_clone = gmp_handler_config;
+        CancellableTask::create(move |token| async move {
+            let runtime = HandlerRuntime::start(&base_config_clone, token.clone())
+                .await
+                .change_context(Error::HandlerStart)?;
 
-    let handler = build_handler(&runtime, base_config.chain_name.clone(), handler_config)?;
+            let handler = build_gmp_handler(&runtime, base_config_clone.chain_name.clone(), gmp_handler_config_clone)?;
 
-    runtime
-        .run_handler(handler, base_config, token)
+            runtime
+                .run_handler(handler, base_config_clone, token)
+                .await
+                .change_context(Error::HandlerTask)
+        })
+    };
+
+    // Build event verifier handler task
+    let event_verifier_task = {
+        let base_config_clone = base_config.clone();
+        let event_verifier_handler_config_clone = event_verifier_handler_config;
+        CancellableTask::create(move |token| async move {
+            let runtime = HandlerRuntime::start(&base_config_clone, token.clone())
+                .await
+                .change_context(Error::HandlerStart)?;
+
+            let handler = build_event_verifier_handler(&runtime, base_config_clone.chain_name.clone(), event_verifier_handler_config_clone)?;
+
+            runtime
+                .run_handler(handler, base_config_clone, token)
+                .await
+                .change_context(Error::HandlerTask)
+        })
+    };
+
+    // Run both handlers concurrently using TaskGroup
+    TaskGroup::new("evm-handlers")
+        .add_task("gmp-handler", gmp_task)
+        .add_task("event-verifier-handler", event_verifier_task)
+        .run(token)
         .await
-        .change_context(Error::HandlerTask)?;
+        .change_context(Error::TaskGroup)?;
 
     Ok(())
 }
