@@ -3,6 +3,7 @@ use router_api::ChainName;
 
 use super::*;
 use crate::key::{KeyType, PublicKey};
+use crate::msg::SigningParameters;
 use crate::multisig::Multisig;
 use crate::state::{chain_by_prover, load_pub_key, load_session_signatures, prover_by_chain};
 use crate::verifier_set::VerifierSet;
@@ -44,4 +45,14 @@ pub fn prover_for_chain(deps: Deps, chain_name: ChainName) -> Result<Addr, Contr
     prover_by_chain(deps.storage, chain_name.clone())
         .change_context(ContractError::Storage)?
         .ok_or(report!(ContractError::ProverNotFound(chain_name)))
+}
+
+pub fn signing_parameters(deps: Deps) -> Result<SigningParameters, ContractError> {
+    let config = CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::Storage)?;
+
+    Ok(SigningParameters {
+        block_expiry: config.block_expiry,
+    })
 }

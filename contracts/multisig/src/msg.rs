@@ -73,6 +73,19 @@ pub enum ExecuteMsg {
     /// Resumes routing after an emergency shutdown
     #[permission(Elevated)]
     EnableSigning,
+
+    /// Update signing parameters. Callable only by governance.
+    /// Each parameter is optional - `None` values keep the current configuration unchanged.
+    /// This allows updating parameters individually or in combination.
+    /// Updates only apply to future signing sessions, not currently active ones.
+    /// Note: This endpoint is kept general to allow for future parameter additions
+    /// while maintaining backward compatibility.
+    #[permission(Governance)]
+    UpdateSigningParameters {
+        /// Number of blocks after which a signing session expires.
+        /// `None` keeps current block expiry.
+        block_expiry: Option<nonempty::Uint64>,
+    },
 }
 
 #[cw_serde]
@@ -98,6 +111,14 @@ pub enum QueryMsg {
 
     #[returns(Addr)]
     AuthorizedCaller { chain_name: ChainName },
+
+    #[returns(SigningParameters)]
+    SigningParameters,
+}
+
+#[cw_serde]
+pub struct SigningParameters {
+    pub block_expiry: nonempty::Uint64,
 }
 
 #[cw_serde]
