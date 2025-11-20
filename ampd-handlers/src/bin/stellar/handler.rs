@@ -205,11 +205,13 @@ where
 
         Ok(transaction_responses
             .into_iter()
-            .map(|(tx_hash_str, tx_response)| {
+            .filter_map(|(tx_hash_str, tx_response)| {
                 let tx_hash = HexBinary::from_hex(&tx_hash_str)
-                    .map(|hb| hb.as_slice().try_into().unwrap_or([0; 32]))
-                    .unwrap_or([0; 32]);
-                (tx_hash, tx_response)
+                    .ok()?
+                    .as_slice()
+                    .try_into()
+                    .ok()?;
+                Some((tx_hash, tx_response))
             })
             .collect())
     }
