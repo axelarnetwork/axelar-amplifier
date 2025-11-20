@@ -20,4 +20,6 @@ pub enum DecodingError {
     Base64(#[from] base64::DecodeError),
     #[error(transparent)]
     UTF8(#[from] std::string::FromUtf8Error),
+    #[error(transparent)]
+    Tendermint(#[from] tendermint::Error),
 }
