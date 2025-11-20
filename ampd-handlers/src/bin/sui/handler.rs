@@ -235,8 +235,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use ampd::handlers::test_utils::{into_structured_event, participants};
-    use ampd::monitoring::test_utils;
+    use ampd::monitoring::{metrics, test_utils};
     use ampd::sui::json_rpc::MockSuiClient;
     use ampd::types::TMAddress;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
@@ -255,8 +257,8 @@ mod tests {
         Event,
         EventHandler,
         Handler,
-        HashMap,
         PollStartedEvent,
+        Vote,
     };
 
     const PREFIX: &str = "axelar";
@@ -472,5 +474,52 @@ mod tests {
 
         assert_eq!(res.len(), 1);
         assert!(MsgExecuteContract::from_any(res.first().unwrap()).is_ok());
+    }
+
+    #[async_test]
+    async fn should_record_verification_vote_metric() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| Ok(HashMap::new()));
+
+        let sui_chain_name = chain_name!("sui");
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration.clone()),
+             &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(sui_chain_name.clone())
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        let _ = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+
+        let metric = receiver.recv().await.unwrap();
+
+        assert_eq!(
+            metric,
+            metrics::Msg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: sui_chain_name,
+            }
+        );
+
+        assert!(receiver.try_recv().is_err());
     }
 }
