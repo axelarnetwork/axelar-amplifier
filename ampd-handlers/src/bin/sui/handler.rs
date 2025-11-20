@@ -388,13 +388,10 @@ mod tests {
             .await
             .unwrap_err();
 
-        let expected = Report::from(ProviderError::CustomError(
+        let expected_err = Report::from(ProviderError::CustomError(
             "failed to get tx blocks".to_string(),
         ));
 
-        assert!(matches!(
-            res,
-            expected
-        ));
+        assert!(matches!(res, expected_err));
     }
 }
