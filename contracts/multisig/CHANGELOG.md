@@ -5,10 +5,34 @@
 
 ### Changed
 
-- Add `UpdateSigningParameters` execute message to allow governance to update block expiry
-- Add `SigningParameters` query to retrieve current signing parameters (block expiry)
+- add `UpdateSigningParameters` execute message to allow governance to update block expiry [#1092](https://github.com/axelarnetwork/axelar-amplifier/pull/1092)
+- add `SigningParameters` query to retrieve current signing parameters (block expiry) [#1092](https://github.com/axelarnetwork/axelar-amplifier/pull/1092)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.2.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.3.2..HEAD)
+
+## [v2.3.2](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.3.2)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.3.1..multisig-v2.3.2)
+
+- update solana handler to parse events via CPI [#1048](https://github.com/axelarnetwork/axelar-amplifier/pull/1048)
+
+## [v2.3.1](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.3.1)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.3.0..multisig-v2.3.1)
+
+- remove duplicate prover chain mappings for multisig migration [#1053](https://github.com/axelarnetwork/axelar-amplifier/pull/1053)
+- use full path for return macro types [#1050](https://github.com/axelarnetwork/axelar-amplifier/pull/1050)
+
+## [v2.3.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.3.0)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.2.0..multisig-v2.3.0)
+
+- coordinator v2 migration to add missing chains [#1011](https://github.com/axelarnetwork/axelar-amplifier/pull/1011)
+- generate goldie tests for `Permissions` macro [#1001](https://github.com/axelarnetwork/axelar-amplifier/pull/1001)
+- permissions check returns bool instead of address [#1005](https://github.com/axelarnetwork/axelar-amplifier/pull/1005)
+- miscellaneous changes to add `router_api` macros to tests [#1004](https://github.com/axelarnetwork/axelar-amplifier/pull/1004)
+- use `cosmos_addr!` macro instead of string literal conversion [#991](https://github.com/axelarnetwork/axelar-amplifier/pull/991)
+- use `chain_name!` macro instead of string literal conversion [#992](https://github.com/axelarnetwork/axelar-amplifier/pull/992)
 
 ## [v2.2.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.2.0)
 
