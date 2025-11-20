@@ -253,12 +253,7 @@ mod tests {
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::{
-        Base58TxDigestAndEventIndex,
-        Event,
-        EventHandler,
-        Handler,
-        PollStartedEvent,
-        Vote,
+        Base58TxDigestAndEventIndex, Event, EventHandler, Handler, PollStartedEvent, Vote,
     };
 
     const PREFIX: &str = "axelar";
@@ -376,7 +371,7 @@ mod tests {
 
         let event = into_structured_event(
             poll_started_event(participants(5, None), expiration),
-             &voting_verifier,
+            &voting_verifier,
         );
 
         let (monitoring_client, _) = test_utils::monitoring_client();
@@ -412,7 +407,7 @@ mod tests {
 
         let event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
-             &voting_verifier,
+            &voting_verifier,
         );
 
         let (monitoring_client, _) = test_utils::monitoring_client();
@@ -450,7 +445,7 @@ mod tests {
 
         let event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
-             &voting_verifier,
+            &voting_verifier,
         );
 
         let (monitoring_client, mut receiver) = test_utils::monitoring_client();
@@ -501,7 +496,7 @@ mod tests {
 
         let event = into_structured_event(
             poll_started_event(participants(5, Some(verifier.clone())), expiration),
-             &voting_verifier,
+            &voting_verifier,
         );
 
         let (monitoring_client, _) = test_utils::monitoring_client();
