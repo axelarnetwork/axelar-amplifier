@@ -3,6 +3,7 @@ mod handler;
 
 use ampd::stellar::rpc_client::Client;
 use ampd::url::Url;
+use ampd_handlers::tracing::init_tracing;
 use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;
 use axelar_wasm_std::chain::ChainName;
@@ -12,11 +13,6 @@ use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
-use tracing_core::LevelFilter;
-use tracing_error::ErrorLayer;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
 
 use crate::error::Error;
 use crate::handler::Handler;
@@ -48,20 +44,6 @@ fn build_handler(
         .build();
 
     Ok(handler)
-}
-
-fn init_tracing(max_level: Level) {
-    let error_layer = ErrorLayer::default();
-    let filter_layer = EnvFilter::builder()
-        .with_default_directive(LevelFilter::from_level(max_level).into())
-        .from_env_lossy();
-    let fmt_layer = tracing_subscriber::fmt::layer().json().flatten_event(true);
-
-    tracing_subscriber::registry()
-        .with(error_layer)
-        .with(filter_layer)
-        .with(fmt_layer)
-        .init();
 }
 
 #[tokio::main]

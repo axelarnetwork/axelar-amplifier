@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ampd::handlers::stellar_verify_msg::Message;
 use ampd::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::stellar::json_rpc::StellarClient;
+use ampd::stellar::rpc_client::StellarClient;
 use ampd::stellar::rpc_client::TxResponse;
 use ampd::stellar::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
@@ -256,7 +256,7 @@ mod tests {
 
     use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring;
-    use ampd::stellar::json_rpc::MockStellarClient;
+    use ampd::stellar::rpc_client::MockStellarClient;
     use ampd::types::TMAddress;
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;

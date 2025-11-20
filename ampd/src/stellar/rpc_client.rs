@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
+use async_trait::async_trait;
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
+use mockall::automock;
 use router_api::ChainName;
 use stellar_rpc_client::GetTransactionResponse;
 use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta};
@@ -198,6 +200,36 @@ impl Client {
             });
 
         Ok(res)
+    }
+}
+
+#[automock]
+#[async_trait]
+pub trait StellarClient {
+    async fn transaction_response(
+        &self,
+        tx_hash: String,
+    ) -> error_stack::Result<Option<TxResponse>, Error>;
+    async fn transaction_responses(
+        &self,
+        tx_hashes: HashSet<String>,
+    ) -> error_stack::Result<HashMap<String, TxResponse>, Error>;
+}
+
+#[async_trait]
+impl StellarClient for Client {
+    async fn transaction_response(
+        &self,
+        tx_hash: String,
+    ) -> error_stack::Result<Option<TxResponse>, Error> {
+        self.transaction_response(tx_hash).await
+    }
+
+    async fn transaction_responses(
+        &self,
+        tx_hashes: HashSet<String>,
+    ) -> error_stack::Result<HashMap<String, TxResponse>, Error> {
+        self.transaction_responses(tx_hashes).await
     }
 }
 
