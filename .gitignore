@@ -20,3 +20,4 @@
 
 config.toml
 .env
+.env.*
