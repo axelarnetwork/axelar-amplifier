@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use ampd::handlers::sui_verify_msg::Message;
+use ampd::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
 use ampd::sui::json_rpc::SuiClient;
 use ampd::sui::verifier::{verify_message, verify_verifier_set};
-use ampd::handlers::sui_verify_msg::Message;
-use ampd::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -70,7 +70,11 @@ impl voting::PollEventData for PollEventData {
         }
     }
 
-    fn verify(&self, source_gateway_address: &SuiAddress, tx_receipt: &SuiTransactionBlockResponse) -> Vote {
+    fn verify(
+        &self,
+        source_gateway_address: &SuiAddress,
+        tx_receipt: &SuiTransactionBlockResponse,
+    ) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(source_gateway_address, tx_receipt, message)
@@ -232,16 +236,16 @@ where
 #[cfg(test)]
 mod tests {
     use ampd::handlers::test_utils::{into_structured_event, participants};
-    use ampd::monitoring::{test_utils};
+    use ampd::monitoring::test_utils;
     use ampd::sui::json_rpc::MockSuiClient;
     use ampd::types::TMAddress;
-    use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use ampd_sdk::event::event_handler::EventHandler;
+    use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
-    use error_stack::{Report};
+    use error_stack::Report;
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
-    use sui_types::base_types::{SUI_ADDRESS_LENGTH, SuiAddress};
+    use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
@@ -250,7 +254,7 @@ mod tests {
         Event,
         Handler,
         // HashMap,
-        PollStartedEvent
+        PollStartedEvent,
     };
 
     const PREFIX: &str = "axelar";
@@ -273,7 +277,7 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            // TODO: The below event uses the deprecated tx_id and event_index fields. 
+            // TODO: The below event uses the deprecated tx_id and event_index fields.
             // Remove this attribute when those fields are removed
             #[allow(deprecated)]
             messages: vec![TxEventConfirmation {
@@ -293,8 +297,8 @@ mod tests {
     // TODO: use this
     #[allow(dead_code)]
     fn verifier_set_poll_started_event(
-        participants: Vec<TMAddress>, 
-        expires_at: u64
+        participants: Vec<TMAddress>,
+        expires_at: u64,
     ) -> PollStarted {
         let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
         PollStarted::Messages {
@@ -313,7 +317,7 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            // TODO: The below event uses the deprecated tx_id and event_index fields. 
+            // TODO: The below event uses the deprecated tx_id and event_index fields.
             // Remove this attribute when those fields are removed
             #[allow(deprecated)]
             messages: vec![TxEventConfirmation {
