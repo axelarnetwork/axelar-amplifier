@@ -374,7 +374,7 @@ mod tests {
         let expiration = 100u64;
 
         let event: Event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration.clone()),
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
 
@@ -415,7 +415,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, None), expiration.clone()),
+            poll_started_event(participants(5, None), expiration),
              &voting_verifier,
         );
 
@@ -451,7 +451,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration.clone()),
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
              &voting_verifier,
         );
 
@@ -489,7 +489,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration.clone()),
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
              &voting_verifier,
         );
 
@@ -521,5 +521,56 @@ mod tests {
         );
 
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[async_test]
+    async fn should_skip_expired_poll() {
+        let mut rpc_client = MockSuiClient::new();
+        // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| {
+                Err(Report::from(ProviderError::CustomError(
+                    "failed to get tx blocks".to_string(),
+                )))
+            });
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
+             &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("sui"))
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        // poll is not expired yet, should hit rpc error
+        assert!(handler
+            .handle(event.clone().try_into().unwrap(), &mut client)
+            .await
+            .is_err());
+
+        let mut client = mock_handler_client(expiration + 1);
+
+        // poll is expired, should not hit rpc error now
+        assert_eq!(
+            handler
+                .handle(event.try_into().unwrap(), &mut client)
+                .await
+                .unwrap(),
+            vec![]
+        );
     }
 }
