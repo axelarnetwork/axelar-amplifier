@@ -372,7 +372,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "tendermint 0.35.0",
+ "tendermint",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
