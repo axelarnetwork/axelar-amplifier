@@ -298,46 +298,6 @@ mod tests {
         }
     }
 
-    // TODO: use this
-    #[allow(dead_code)]
-    fn verifier_set_poll_started_event(
-        participants: Vec<TMAddress>,
-        expires_at: u64,
-    ) -> PollStarted {
-        let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!("sui"),
-                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
-                    .unwrap()
-                    .to_string()
-                    .parse()
-                    .unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
-            // TODO: The below event uses the deprecated tx_id and event_index fields.
-            // Remove this attribute when those fields are removed
-            #[allow(deprecated)]
-            messages: vec![TxEventConfirmation {
-                message_id: msg_id.to_string().parse().unwrap(),
-                source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
-                    .unwrap()
-                    .to_string()
-                    .parse()
-                    .unwrap(),
-                destination_chain: chain_name!("ethereum"),
-                destination_address: format!("0x{:x}", H160::repeat_byte(3)).parse().unwrap(),
-                payload_hash: [2; 32],
-            }],
-        }
-    }
-
     fn mock_handler_client(latest_block_height: u64) -> MockHandlerTaskClient {
         let mut client = MockHandlerTaskClient::new();
         client
