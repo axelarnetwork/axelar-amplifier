@@ -194,7 +194,8 @@ impl Client<'_> {
         &self,
         block_expiry: Option<axelar_wasm_std::nonempty::Uint64>,
     ) -> CosmosMsg {
-        self.client.execute(&ExecuteMsg::UpdateSigningParameters { block_expiry })
+        self.client
+            .execute(&ExecuteMsg::UpdateSigningParameters { block_expiry })
     }
 
     pub fn signing_parameters(&self) -> Result<crate::msg::SigningParameters, Error> {

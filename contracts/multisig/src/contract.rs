@@ -1432,10 +1432,14 @@ mod tests {
         // Query initial parameters
         let res = query(deps.as_ref(), mock_env(), QueryMsg::SigningParameters).unwrap();
         let initial_params: crate::msg::SigningParameters = from_json(res).unwrap();
-        assert_eq!(initial_params.block_expiry, SIGNATURE_BLOCK_EXPIRY.try_into().unwrap());
+        assert_eq!(
+            initial_params.block_expiry,
+            SIGNATURE_BLOCK_EXPIRY.try_into().unwrap()
+        );
 
         // Update block_expiry
-        let new_block_expiry: axelar_wasm_std::nonempty::Uint64 = (SIGNATURE_BLOCK_EXPIRY + 50).try_into().unwrap();
+        let new_block_expiry: axelar_wasm_std::nonempty::Uint64 =
+            (SIGNATURE_BLOCK_EXPIRY + 50).try_into().unwrap();
 
         execute(
             deps.as_mut(),
@@ -1443,7 +1447,8 @@ mod tests {
             message_info(&cosmos_addr!(GOVERNANCE), &[]),
             ExecuteMsg::UpdateSigningParameters {
                 block_expiry: Some(new_block_expiry),
-            }.into(),
+            }
+            .into(),
         )
         .unwrap();
 
@@ -1467,9 +1472,7 @@ mod tests {
             deps.as_mut(),
             mock_env(),
             message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateSigningParameters {
-                block_expiry: None,
-            }.into(),
+            ExecuteMsg::UpdateSigningParameters { block_expiry: None }.into(),
         )
         .unwrap();
 
