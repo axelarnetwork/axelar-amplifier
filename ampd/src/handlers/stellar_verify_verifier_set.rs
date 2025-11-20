@@ -34,7 +34,7 @@ lazy_static! {
     static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct VerifierSetConfirmation {
     pub message_id: HexTxHashAndEventIndex,
     pub verifier_set: VerifierSet,

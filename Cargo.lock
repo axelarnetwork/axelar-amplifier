@@ -356,6 +356,7 @@ dependencies = [
  "base64 0.21.7",
  "cosmrs",
  "cosmwasm-std",
+ "dotenv",
  "dotenv-flow",
  "error-stack",
  "ethers-core",
@@ -372,6 +373,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "stellar-xdr",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
  "tokio",
@@ -3340,6 +3342,12 @@ dependencies = [
  "quote 1.0.40",
  "syn 2.0.101",
 ]
+
+[[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "dotenv-flow"
