@@ -194,8 +194,6 @@ where
             .change_context(Error::FinalizedTxs)
             .attach_printable("failed to get finalized transaction blocks")?;
 
-        // TODO: parse tx blocks?
-
         Ok(transaction_blocks)
     }
 }
