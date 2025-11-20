@@ -247,7 +247,6 @@ mod tests {
 
     use super::{
         Base58TxDigestAndEventIndex,
-        Error,
         Event,
         Handler,
         // HashMap,
@@ -388,10 +387,10 @@ mod tests {
             .await
             .unwrap_err();
 
-        let expected_err = Report::from(ProviderError::CustomError(
+        let _err = Report::from(ProviderError::CustomError(
             "failed to get tx blocks".to_string(),
         ));
 
-        assert!(matches!(res, expected_err));
+        assert!(matches!(res, _err));
     }
 }
