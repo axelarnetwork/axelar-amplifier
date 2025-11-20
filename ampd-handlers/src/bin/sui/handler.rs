@@ -241,6 +241,8 @@ mod tests {
     use ampd::types::TMAddress;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
+    use cosmrs::cosmwasm::MsgExecuteContract;
+    use cosmrs::tx::Msg;
     use error_stack::Report;
     use ethers_core::types::H160;
     use ethers_providers::ProviderError;
@@ -433,5 +435,42 @@ mod tests {
             .unwrap();
 
         assert_eq!(res, vec![]);
+    }
+
+    #[async_test]
+    async fn should_vote_correctly() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| Ok(HashMap::new()));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration.clone()),
+             &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("sui"))
+            .rpc_client(rpc_client)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        let res = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+
+        assert_eq!(res.len(), 1);
+        assert!(MsgExecuteContract::from_any(res.first().unwrap()).is_ok());
     }
 }
