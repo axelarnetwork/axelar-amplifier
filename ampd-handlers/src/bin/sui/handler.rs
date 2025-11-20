@@ -238,12 +238,21 @@ mod tests {
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use ampd_sdk::event::event_handler::EventHandler;
     use axelar_wasm_std::chain_name;
+    use error_stack::{Report};
     use ethers_core::types::H160;
+    use ethers_providers::ProviderError;
     use sui_types::base_types::{SUI_ADDRESS_LENGTH, SuiAddress};
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::{Base58TxDigestAndEventIndex, Handler, PollStartedEvent};
+    use super::{
+        Base58TxDigestAndEventIndex,
+        Error,
+        Event,
+        Handler,
+        // HashMap,
+        PollStartedEvent
+    };
 
     const PREFIX: &str = "axelar";
 
@@ -282,6 +291,8 @@ mod tests {
         }
     }
 
+    // TODO: use this
+    #[allow(dead_code)]
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>, 
         expires_at: u64
@@ -340,15 +351,23 @@ mod tests {
         goldie::assert_debug!(event);
     }
 
-    // Should not handle event if it is not a poll started event
     #[async_test]
-    async fn not_poll_started_event() {
+    async fn failed_to_get_finalized_tx_blocks() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| {
+                Err(Report::from(ProviderError::CustomError(
+                    "failed to get tx blocks".to_string(),
+                )))
+            });
+
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
 
-        let event = into_structured_event(
-            verifier_set_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+        let event: Event = into_structured_event(
+            poll_started_event(participants(5, Some(verifier.clone())), expiration.clone()),
             &voting_verifier,
         );
 
@@ -358,18 +377,24 @@ mod tests {
             .verifier(verifier.into())
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("sui"))
-            .rpc_client(MockSuiClient::new())
+            .rpc_client(rpc_client)
             .monitoring_client(monitoring_client)
             .build();
 
         let mut client = mock_handler_client(expiration - 1);
 
-        assert_eq!(
-            handler
-                .handle(event.clone().try_into().unwrap(), &mut client)
-                .await
-                .unwrap(),
-            vec![]
-        );
+        let res = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap_err();
+
+        let expected = Report::from(ProviderError::CustomError(
+            "failed to get tx blocks".to_string(),
+        ));
+
+        assert!(matches!(
+            res,
+            expected
+        ));
     }
 }
