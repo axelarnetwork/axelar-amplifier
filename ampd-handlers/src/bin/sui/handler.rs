@@ -251,7 +251,7 @@ mod tests {
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
     use tokio::test as async_test;
     use voting_verifier::events::{
-        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation
+        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation,
     };
 
     use super::{
