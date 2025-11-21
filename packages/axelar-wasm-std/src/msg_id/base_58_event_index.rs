@@ -11,7 +11,7 @@ use super::Error;
 use crate::hash::Hash;
 use crate::nonempty;
 
-#[derive(Debug, DeserializeFromStr)]
+#[derive(Clone, Debug, DeserializeFromStr)]
 pub struct Base58TxDigestAndEventIndex {
     pub tx_digest: Hash,
     pub event_index: u64,

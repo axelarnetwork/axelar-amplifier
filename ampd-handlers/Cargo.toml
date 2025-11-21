@@ -13,6 +13,10 @@ path = "src/bin/evm/main.rs"
 name = "multisig-handler"
 path = "src/bin/multisig/main.rs"
 
+[[bin]]
+name = "sui-handler"
+path = "src/bin/sui/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
@@ -35,6 +39,8 @@ reqwest = { version = "0.11.24", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
+sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }

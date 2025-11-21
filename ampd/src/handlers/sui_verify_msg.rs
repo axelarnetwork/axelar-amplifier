@@ -33,7 +33,7 @@ lazy_static! {
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Message {
     pub message_id: Base58TxDigestAndEventIndex,
     pub destination_address: String,
