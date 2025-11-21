@@ -255,7 +255,7 @@ mod tests {
     };
 
     use super::{
-        Base58TxDigestAndEventIndex, Event, EventHandler, Handler, PollStartedEvent, Vote,
+        Base58TxDigestAndEventIndex, Error, Event, EventHandler, Handler, PollStartedEvent, Vote,
     };
 
     const PREFIX: &str = "axelar";
@@ -395,11 +395,10 @@ mod tests {
             .await
             .unwrap_err();
 
-        let _err = Report::from(ProviderError::CustomError(
-            "failed to get tx blocks".to_string(),
+        assert!(matches!(
+            res.current_context(),
+            Error::FinalizedTxs
         ));
-
-        assert!(matches!(res, _err));
     }
 
     // Should not handle event if it is not emitted from voting verifier
