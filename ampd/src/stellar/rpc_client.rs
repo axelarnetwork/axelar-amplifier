@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
+use async_trait::async_trait;
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
+use mockall::automock;
 use router_api::ChainName;
 use stellar_rpc_client::GetTransactionResponse;
 use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta};
@@ -150,7 +152,7 @@ impl Client {
             .ok()
     }
 
-    pub async fn transaction_responses(
+    pub async fn fetch_transaction_responses(
         &self,
         tx_hashes: HashSet<String>,
     ) -> error_stack::Result<HashMap<String, TxResponse>, Error> {
@@ -183,7 +185,7 @@ impl Client {
             .collect())
     }
 
-    pub async fn transaction_response(
+    pub async fn fetch_transaction_response(
         &self,
         tx_hash: String,
     ) -> error_stack::Result<Option<TxResponse>, Error> {
@@ -198,6 +200,37 @@ impl Client {
             });
 
         Ok(res)
+    }
+}
+
+#[automock]
+#[async_trait]
+pub trait StellarClient {
+    async fn transaction_response(
+        &self,
+        tx_hash: String,
+    ) -> error_stack::Result<Option<TxResponse>, Error>;
+    async fn transaction_responses(
+        &self,
+        tx_hashes: HashSet<String>,
+    ) -> error_stack::Result<HashMap<String, TxResponse>, Error>;
+}
+
+#[cfg(not(test))]
+#[async_trait]
+impl StellarClient for Client {
+    async fn transaction_response(
+        &self,
+        tx_hash: String,
+    ) -> error_stack::Result<Option<TxResponse>, Error> {
+        self.fetch_transaction_response(tx_hash).await
+    }
+
+    async fn transaction_responses(
+        &self,
+        tx_hashes: HashSet<String>,
+    ) -> error_stack::Result<HashMap<String, TxResponse>, Error> {
+        self.fetch_transaction_responses(tx_hashes).await
     }
 }
 
@@ -485,7 +518,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = client.transaction_responses(tx_hashes).await;
+        let result = client.fetch_transaction_responses(tx_hashes).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
 
@@ -517,7 +550,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = client.transaction_response(tx_hash.clone()).await;
+        let result = client.fetch_transaction_response(tx_hash.clone()).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
