@@ -8,7 +8,7 @@ use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;
 use axelar_wasm_std::chain::ChainName;
 #[cfg(debug_assertions)]
-use dotenv::dotenv;
+use dotenv_flow::dotenv_flow;
 use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -49,7 +49,7 @@ fn build_handler(
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     #[cfg(debug_assertions)]
-    dotenv().ok();
+    dotenv_flow().ok();
 
     init_tracing(Level::INFO);
 
