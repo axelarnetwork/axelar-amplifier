@@ -134,7 +134,7 @@ impl EventHandler for Handler {
 
         let transaction_responses = self
             .http_client
-            .get_transaction_responses(tx_hashes)
+            .fetch_transaction_responses(tx_hashes)
             .await
             .change_context(Error::TxReceipts)?;
 
@@ -321,7 +321,7 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.get_transaction_responses).then(|_| Ok(HashMap::new()));
+        faux::when!(client.fetch_transaction_responses).then(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -348,7 +348,7 @@ mod tests {
     #[async_test]
     async fn should_record_verification_vote_metric() {
         let mut client = Client::faux();
-        faux::when!(client.get_transaction_responses).then(|_| Ok(HashMap::new()));
+        faux::when!(client.fetch_transaction_responses).then(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
