@@ -16,11 +16,6 @@ use ethers_providers::Http;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
-use tracing_core::LevelFilter;
-use tracing_error::ErrorLayer;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
 
 use crate::error::Error;
 use crate::handler::Handler;
