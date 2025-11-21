@@ -641,6 +641,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("solana"),
@@ -653,6 +654,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("flow"),
@@ -665,6 +667,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                     ],
                 },

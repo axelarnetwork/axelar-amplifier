@@ -29,6 +29,7 @@ pub struct ContractsAddresses {
     pub service_registry: AccountId,
     pub rewards: AccountId,
     pub multisig: AccountId,
+    pub event_verifier: Option<AccountId>,
 }
 
 impl TryFrom<&ContractsResponse> for ContractsAddresses {
@@ -43,6 +44,7 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
             service_registry,
             rewards,
             multisig,
+            event_verifier,
         } = response;
 
         Ok(ContractsAddresses {
@@ -51,6 +53,10 @@ impl TryFrom<&ContractsResponse> for ContractsAddresses {
             service_registry: super::parse_addr(service_registry)?,
             rewards: super::parse_addr(rewards)?,
             multisig: super::parse_addr(multisig)?,
+            event_verifier: event_verifier
+                .as_ref()
+                .map(|addr| super::parse_addr(addr))
+                .transpose()?,
         })
     }
 }
