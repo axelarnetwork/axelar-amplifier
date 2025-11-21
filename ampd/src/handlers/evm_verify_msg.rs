@@ -237,9 +237,10 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
+            vec![EventFilter::new(
+                Some(PollStartedEvent::event_type()),
+                Some(self.voting_verifier_contract.clone()),
+                HashMap::new(),
             )],
             true,
         )

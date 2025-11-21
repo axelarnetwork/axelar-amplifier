@@ -158,6 +158,7 @@ fn start_shutdown_signal_monitor(token: CancellationToken) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -259,6 +260,7 @@ mod tests {
                         "axelar1252ahkw208d08ls64atp2pql4cnl9naxy7ahhq3lrthvq3spseys26l8xj",
                     )
                     .unwrap(),
+                    attributes: HashMap::new(),
                 }],
                 true,
             )

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -206,9 +206,10 @@ impl EventHandler for Handler {
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
+            vec![EventFilter::new(
+                Some(PollStartedEvent::event_type()),
+                Some(self.voting_verifier_contract.clone()),
+                HashMap::new(),
             )],
             true,
         )

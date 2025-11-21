@@ -184,9 +184,10 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                SigningStartedEvent::event_type(),
-                self.multisig.clone(),
+            vec![EventFilter::new(
+                Some(SigningStartedEvent::event_type()),
+                Some(self.multisig.clone()),
+                HashMap::new(),
             )],
             true,
         )

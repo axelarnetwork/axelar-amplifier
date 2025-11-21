@@ -2,6 +2,7 @@
 //! It processes events related to verifier set, verifies them against the Starknet chain,
 //! and manages the voting process for confirming these changes.
 
+use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -178,9 +179,10 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
+            vec![EventFilter::new(
+                Some(PollStartedEvent::event_type()),
+                Some(self.voting_verifier_contract.clone()),
+                HashMap::new(),
             )],
             true,
         )
