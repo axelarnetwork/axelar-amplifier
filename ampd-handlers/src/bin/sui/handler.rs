@@ -395,10 +395,7 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert!(matches!(
-            res.current_context(),
-            Error::FinalizedTxs
-        ));
+        assert!(matches!(res.current_context(), Error::FinalizedTxs));
     }
 
     // Should not handle event if it is not emitted from voting verifier
