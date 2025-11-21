@@ -137,6 +137,7 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::iter;
 
     use axelar_wasm_std::assert_err_contains;
@@ -153,6 +154,7 @@ mod tests {
             filters: vec![ampd_proto::EventFilter {
                 r#type: "test_event".to_string(),
                 contract: "".to_string(),
+                attributes: HashMap::new(),
             }],
             include_block_begin_end: true,
         });
@@ -169,6 +171,7 @@ mod tests {
                 ampd_proto::EventFilter {
                     r#type: "test_event".to_string(),
                     contract: "".to_string(),
+                    attributes: HashMap::new(),
                 },
                 ampd_proto::EventFilter::default(),
             ],
@@ -185,6 +188,7 @@ mod tests {
             filters: vec![ampd_proto::EventFilter {
                 r#type: "test_event".to_string(),
                 contract: "".to_string(),
+                attributes: HashMap::new(),
             }],
             include_block_begin_end: true,
         });
@@ -200,6 +204,7 @@ mod tests {
             filters: vec![ampd_proto::EventFilter {
                 r#type: "test_event".to_string(),
                 contract: "".to_string(),
+                attributes: HashMap::new(),
             }],
             include_block_begin_end: false,
         });
@@ -215,6 +220,7 @@ mod tests {
             filters: vec![ampd_proto::EventFilter {
                 r#type: "test_event".to_string(),
                 contract: "".to_string(),
+                attributes: HashMap::new(),
             }],
             include_block_begin_end: false,
         });
@@ -238,10 +244,12 @@ mod tests {
                 ampd_proto::EventFilter {
                     r#type: "event_1".to_string(),
                     contract: "".to_string(),
+                    attributes: HashMap::new(),
                 },
                 ampd_proto::EventFilter {
                     r#type: "".to_string(),
                     contract: address.to_string(),
+                    attributes: HashMap::new(),
                 },
             ],
             include_block_begin_end: false,

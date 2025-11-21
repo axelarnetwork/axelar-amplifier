@@ -231,15 +231,22 @@ where
     }
 
     fn subscription_params(&self) -> SubscriptionParams {
+        let attributes = HashMap::from([(
+            "source_chain".to_string(),
+            serde_json::Value::String(self.chain.to_string()),
+        )]);
+
         SubscriptionParams::new(
             vec![
                 AbciEventTypeFilter {
                     event_type: MessagesPollStarted::event_type(),
                     contract: self.voting_verifier_contract.clone(),
+                    attributes: attributes.clone(),
                 },
                 AbciEventTypeFilter {
                     event_type: VerifierSetPollStarted::event_type(),
                     contract: self.voting_verifier_contract.clone(),
+                    attributes,
                 },
             ],
             false,
