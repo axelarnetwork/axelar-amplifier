@@ -260,7 +260,7 @@ mod tests {
 
     const PREFIX: &str = "axelar";
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn message_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         let msg_id = Base58TxDigestAndEventIndex::new([1; 32], 0u64);
         PollStarted::Messages {
             metadata: PollMetadata {
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn sui_verify_msg_should_deserialize_correct_event() {
         let event: PollStartedEvent = into_structured_event(
-            poll_started_event(participants(5, None), 100),
+            message_poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
         .try_into()
@@ -374,7 +374,7 @@ mod tests {
         let expiration = 100u64;
 
         let event: Event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
 
@@ -415,7 +415,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, None), expiration),
+            message_poll_started_event(participants(5, None), expiration),
             &voting_verifier,
         );
 
@@ -451,7 +451,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
 
@@ -489,7 +489,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
 
@@ -587,7 +587,7 @@ mod tests {
         let expiration = 100u64;
 
         let event = into_structured_event(
-            poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
 
