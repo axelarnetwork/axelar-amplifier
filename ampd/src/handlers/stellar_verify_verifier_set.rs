@@ -122,7 +122,7 @@ impl EventHandler for Handler {
 
         let transaction_response = self
             .http_client
-            .transaction_response(
+            .get_transaction_response(
                 verifier_set
                     .message_id
                     .tx_hash_as_hex_no_prefix()
@@ -301,7 +301,7 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = Client::faux();
-        faux::when!(client.transaction_response).then(|_| Ok(None));
+        faux::when!(client.get_transaction_response).then(|_| Ok(None));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -328,7 +328,7 @@ mod tests {
     #[async_test]
     async fn should_record_verification_vote_metric() {
         let mut client = Client::faux();
-        faux::when!(client.transaction_response).then(|_| Ok(None));
+        faux::when!(client.get_transaction_response).then(|_| Ok(None));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
