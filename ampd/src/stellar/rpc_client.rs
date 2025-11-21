@@ -152,7 +152,7 @@ impl Client {
             .ok()
     }
 
-    pub async fn transaction_responses(
+    pub async fn get_transaction_responses(
         &self,
         tx_hashes: HashSet<String>,
     ) -> error_stack::Result<HashMap<String, TxResponse>, Error> {
@@ -185,7 +185,7 @@ impl Client {
             .collect())
     }
 
-    pub async fn transaction_response(
+    pub async fn get_transaction_response(
         &self,
         tx_hash: String,
     ) -> error_stack::Result<Option<TxResponse>, Error> {
@@ -216,20 +216,21 @@ pub trait StellarClient {
     ) -> error_stack::Result<HashMap<String, TxResponse>, Error>;
 }
 
+#[cfg(not(test))]
 #[async_trait]
 impl StellarClient for Client {
     async fn transaction_response(
         &self,
         tx_hash: String,
     ) -> error_stack::Result<Option<TxResponse>, Error> {
-        self.transaction_response(tx_hash).await
+        self.get_transaction_response(tx_hash).await
     }
 
     async fn transaction_responses(
         &self,
         tx_hashes: HashSet<String>,
     ) -> error_stack::Result<HashMap<String, TxResponse>, Error> {
-        self.transaction_responses(tx_hashes).await
+        self.get_transaction_responses(tx_hashes).await
     }
 }
 
@@ -517,7 +518,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = client.transaction_responses(tx_hashes).await;
+        let result = client.get_transaction_responses(tx_hashes).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
 
@@ -549,7 +550,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = client.transaction_response(tx_hash.clone()).await;
+        let result = client.get_transaction_response(tx_hash.clone()).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
