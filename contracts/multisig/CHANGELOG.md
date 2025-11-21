@@ -3,12 +3,14 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-### Changed
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.0..HEAD)
+
+## [v2.4.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.0)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.3.2..multisig-v2.4.0)
 
 - add `UpdateSigningParameters` execute message to allow governance to update block expiry [#1092](https://github.com/axelarnetwork/axelar-amplifier/pull/1092)
 - add `SigningParameters` query to retrieve current signing parameters (block expiry) [#1092](https://github.com/axelarnetwork/axelar-amplifier/pull/1092)
-
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.3.2..HEAD)
 
 ## [v2.3.2](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.3.2)
 
