@@ -155,15 +155,17 @@ async fn main() -> Result<(), Error> {
 
     let token = CancellationToken::new();
 
+    // Create a single shared runtime for both handlers
+    let runtime = HandlerRuntime::start(&base_config, token.clone())
+        .await
+        .change_context(Error::HandlerStart)?;
+
     // Build GMP handler task
     let gmp_task = {
+        let runtime = runtime.clone();
         let base_config_clone = base_config.clone();
         let gmp_handler_config_clone = gmp_handler_config;
         CancellableTask::create(move |token| async move {
-            let runtime = HandlerRuntime::start(&base_config_clone, token.clone())
-                .await
-                .change_context(Error::HandlerStart)?;
-
             let handler = build_gmp_handler(&runtime, base_config_clone.chain_name.clone(), gmp_handler_config_clone)?;
 
             runtime
@@ -175,13 +177,10 @@ async fn main() -> Result<(), Error> {
 
     // Build event verifier handler task
     let event_verifier_task = {
+        let runtime = runtime.clone();
         let base_config_clone = base_config.clone();
         let event_verifier_handler_config_clone = event_verifier_handler_config;
         CancellableTask::create(move |token| async move {
-            let runtime = HandlerRuntime::start(&base_config_clone, token.clone())
-                .await
-                .change_context(Error::HandlerStart)?;
-
             let handler = build_event_verifier_handler(&runtime, base_config_clone.chain_name.clone(), event_verifier_handler_config_clone)?;
 
             runtime
