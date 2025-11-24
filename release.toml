@@ -2,4 +2,4 @@ pre-release-commit-message = "chore: release {{crate_name}} {{version}}"
 consolidate-commits = false
 release = true
 publish = false
-allow-branch	= ["main","releases/*/*"]
+allow-branch	= ["main","releases/**"]
