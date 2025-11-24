@@ -374,6 +374,8 @@ dependencies = [
  "serde_json",
  "serde_with",
  "stellar-xdr",
+ "sui-json-rpc-types",
+ "sui-types 0.1.0",
  "tendermint 0.35.0",
  "thiserror 1.0.69",
  "tokio",
