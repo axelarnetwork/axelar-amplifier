@@ -10,7 +10,7 @@ pub enum Event {
         destination_chain: ChainName,
         payload_id: PayloadId,
         multisig_session_id: Uint64,
-        msg_ids: Vec<CrossChainId>,
+        message_ids: Vec<CrossChainId>,
     },
 }
 
@@ -44,7 +44,7 @@ mod tests {
             destination_chain: chain_name!("avalanche"),
             payload_id: payload.id(),
             multisig_session_id: Uint64::new(2),
-            msg_ids: payload.message_ids().unwrap(),
+            message_ids: payload.message_ids().unwrap(),
         };
         let event = cosmwasm_std::Event::from(event);
 
