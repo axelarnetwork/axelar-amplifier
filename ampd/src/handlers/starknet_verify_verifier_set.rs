@@ -194,8 +194,6 @@ mod tests {
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use error_stack::Result;
     use ethers_core::types::U256;
     use events::Event;
@@ -350,9 +348,7 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .unwrap()
