@@ -278,9 +278,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            // TODO: The below event uses the deprecated tx_id and event_index fields.
-            // Remove this attribute when those fields are removed
-            #[allow(deprecated)]
             messages: vec![TxEventConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
@@ -316,9 +313,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            // TODO: The below event uses the deprecated tx_id and event_index fields.
-            // Remove this attribute when those fields are removed
-            #[allow(deprecated)]
             verifier_set: VerifierSetConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
