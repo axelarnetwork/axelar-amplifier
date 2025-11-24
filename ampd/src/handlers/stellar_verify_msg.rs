@@ -321,7 +321,9 @@ mod tests {
     #[async_test]
     async fn should_vote_correctly() {
         let mut client = MockStellarClient::new();
-        client.expect_transaction_responses().returning(|_| Ok(HashMap::new()));
+        client
+            .expect_transaction_responses()
+            .returning(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -348,7 +350,9 @@ mod tests {
     #[async_test]
     async fn should_record_verification_vote_metric() {
         let mut client = MockStellarClient::new();
-        client.expect_transaction_responses().returning(|_| Ok(HashMap::new()));
+        client
+            .expect_transaction_responses()
+            .returning(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
