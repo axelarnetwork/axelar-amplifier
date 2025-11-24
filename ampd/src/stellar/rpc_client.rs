@@ -171,13 +171,14 @@ impl StellarClient for Client {
         tx_hash: String,
     ) -> error_stack::Result<Option<TxResponse>, Error> {
         let tx_hash = Hash::from_str(tx_hash.as_str()).change_context(Error::TxHash)?;
-        let res = self
-            .validate_tx_response(self.client.get_transaction(&tx_hash).await, tx_hash);
+        let res = self.validate_tx_response(self.client.get_transaction(&tx_hash).await, tx_hash);
 
-        self.monitoring_client.metrics().record_metric(Msg::RpcCall {
-            chain_name: self.chain_name.clone(),
-            success: res.is_some(),
-        });
+        self.monitoring_client
+            .metrics()
+            .record_metric(Msg::RpcCall {
+                chain_name: self.chain_name.clone(),
+                success: res.is_some(),
+            });
 
         Ok(res)
     }
@@ -203,10 +204,12 @@ impl StellarClient for Client {
             .zip(tx_hashes)
             .filter_map(|(response, hash)| {
                 let res = self.validate_tx_response(response, hash);
-                self.monitoring_client.metrics().record_metric(Msg::RpcCall {
-                    chain_name: self.chain_name.clone(),
-                    success: res.is_some(),
-                });
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::RpcCall {
+                        chain_name: self.chain_name.clone(),
+                        success: res.is_some(),
+                    });
 
                 res.map(|tx_response| (tx_response.tx_hash(), tx_response))
             })
