@@ -21,7 +21,7 @@ mod mvx;
 mod solana;
 mod stacks;
 mod starknet;
-mod stellar;
+pub mod stellar;
 pub mod sui;
 mod tm_client;
 mod tofnd;
