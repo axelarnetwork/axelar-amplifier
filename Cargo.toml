@@ -85,7 +85,7 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^2.3.2", path = "contracts/multisig" }
+multisig = { version = "^2.4.0", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
@@ -118,7 +118,7 @@ sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 temp-env = "0.3.6"
-tendermint = "0.35.0"
+tendermint = "0.40.4"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
 tokio = "1.44.2"
@@ -135,7 +135,7 @@ tracing-subscriber = { version = "0.3.20", features = [
 tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
-voting-verifier = { version = "^1.2.0", path = "contracts/voting-verifier" }
+voting-verifier = { version = "^2.0.0", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 

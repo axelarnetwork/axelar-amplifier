@@ -198,8 +198,6 @@ mod test {
     use std::collections::HashMap;
     use std::convert::{TryFrom, TryInto};
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
@@ -256,9 +254,7 @@ mod test {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         ))
         .unwrap()
     }
