@@ -32,10 +32,22 @@ pub enum ExecuteMsg {
         new_verifier_set: VerifierSet,
     },
 
-    // Update the threshold used for new polls. Callable only by governance
+    /// Update voting parameters. Callable only by governance.
+    /// Each parameter is optional - `None` values keep the current configuration unchanged.
+    /// This allows updating parameters individually or in combination.
+    /// Updates only apply to future polls, not currently active ones.
     #[permission(Governance)]
-    UpdateVotingThreshold {
-        new_voting_threshold: MajorityThreshold,
+    UpdateVotingParameters {
+        /// Minimum fraction of total verifier weight required to reach consensus on a poll.
+        /// `None` keeps current threshold.
+        voting_threshold: Option<MajorityThreshold>,
+        /// Number of blocks after which a poll expires if consensus is not reached.
+        /// `None` keeps current block expiry.
+        block_expiry: Option<nonempty::Uint64>,
+        /// Minimum block depth required on the source chain for message verification
+        /// when not using a finality flag to determine confirmation.
+        /// `None` keeps current confirmation height.
+        confirmation_height: Option<u64>,
     },
 }
 
@@ -63,8 +75,15 @@ pub enum QueryMsg {
     #[returns(VerificationStatus)]
     VerifierSetStatus(VerifierSet),
 
-    #[returns(MajorityThreshold)]
-    CurrentThreshold,
+    #[returns(VotingParameters)]
+    VotingParameters,
+}
+
+#[cw_serde]
+pub struct VotingParameters {
+    pub voting_threshold: MajorityThreshold,
+    pub block_expiry: nonempty::Uint64,
+    pub confirmation_height: u64,
 }
 
 #[cw_serde]

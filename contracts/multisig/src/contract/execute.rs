@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::{ensure, OverflowError, OverflowOperation, WasmMsg};
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
@@ -274,4 +275,21 @@ fn signing_response(
     }
 
     Ok(response)
+}
+
+pub fn update_signing_parameters(
+    deps: DepsMut,
+    block_expiry: Option<nonempty::Uint64>,
+) -> error_stack::Result<Response, ContractError> {
+    CONFIG
+        .update(
+            deps.storage,
+            |mut config| -> Result<_, cosmwasm_std::StdError> {
+                config.block_expiry = block_expiry.unwrap_or(config.block_expiry);
+
+                Ok(config)
+            },
+        )
+        .change_context(ContractError::Storage)?;
+    Ok(Response::new())
 }

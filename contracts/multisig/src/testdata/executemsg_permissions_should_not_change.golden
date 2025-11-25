@@ -56,5 +56,12 @@
       "Elevated"
     ],
     "specific": []
+  },
+  "UpdateSigningParameters": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
   }
 }

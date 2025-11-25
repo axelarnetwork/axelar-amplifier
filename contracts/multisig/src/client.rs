@@ -33,6 +33,9 @@ pub enum Error {
 
     #[error("failed to query authorized callers for chain {chain_name}")]
     AuthorizedCallersForChain { chain_name: ChainName },
+
+    #[error("failed to query signing parameters")]
+    SigningParameters,
 }
 
 impl<'a> From<client::ContractClient<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
@@ -63,6 +66,7 @@ impl Error {
             QueryMsg::AuthorizedCaller { chain_name } => {
                 Error::AuthorizedCallersForChain { chain_name }
             }
+            QueryMsg::SigningParameters => Error::SigningParameters,
         }
     }
 }
@@ -181,6 +185,21 @@ impl Client<'_> {
 
     pub fn authorized_callers(&self, chain_name: ChainName) -> Result<Addr, Error> {
         let msg = QueryMsg::AuthorizedCaller { chain_name };
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
+    }
+
+    pub fn update_signing_parameters(
+        &self,
+        block_expiry: Option<axelar_wasm_std::nonempty::Uint64>,
+    ) -> CosmosMsg {
+        self.client
+            .execute(&ExecuteMsg::UpdateSigningParameters { block_expiry })
+    }
+
+    pub fn signing_parameters(&self) -> Result<crate::msg::SigningParameters, Error> {
+        let msg = QueryMsg::SigningParameters;
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
@@ -390,6 +409,13 @@ mod test {
                     QueryMsg::AuthorizedCaller { chain_name: _ } => {
                         Ok(to_json_binary(&cosmos_addr!("prover")).into()).into()
                     }
+                    QueryMsg::SigningParameters => {
+                        Ok(to_json_binary(&crate::msg::SigningParameters {
+                            block_expiry: 100u64.try_into().unwrap(),
+                        })
+                        .into())
+                        .into()
+                    }
                 }
             }
             _ => panic!("unexpected query: {:?}", msg),
@@ -529,5 +555,29 @@ mod test {
             CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
             _ => panic!("cannot deserialize wasm message"),
         }
+    }
+
+    #[test]
+    fn construct_update_signing_parameters_msg() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let block_expiry: axelar_wasm_std::nonempty::Uint64 = 150u64.try_into().unwrap();
+
+        match client.update_signing_parameters(Some(block_expiry)) {
+            CosmosMsg::Wasm(msg) => goldie::assert_json!(&msg),
+            _ => panic!("cannot deserialize wasm message"),
+        }
+    }
+
+    #[test]
+    fn query_signing_parameters() {
+        let (querier, addr) = setup_queries_to_succeed();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let params = client.signing_parameters().unwrap();
+        assert_eq!(params.block_expiry, 100u64.try_into().unwrap());
     }
 }
