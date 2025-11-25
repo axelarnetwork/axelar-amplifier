@@ -736,7 +736,10 @@ pub mod tests {
         let expected_contracts = sample_contracts();
         let mock_response = ContractsResponse {
             voting_verifier: expected_contracts.voting_verifier.to_string(),
-            event_verifier: expected_contracts.event_verifier.as_ref().map(|addr| addr.to_string()),
+            event_verifier: expected_contracts
+                .event_verifier
+                .as_ref()
+                .map(|addr| addr.to_string()),
             multisig_prover: expected_contracts.multisig_prover.to_string(),
             service_registry: expected_contracts.service_registry.to_string(),
             rewards: expected_contracts.rewards.to_string(),

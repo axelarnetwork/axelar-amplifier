@@ -16,7 +16,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
+use tracing::{debug, info, info_span, warn};
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -94,7 +94,7 @@ pub async fn fetch_finalized_tx_receipts<C: EthereumClient + Send + Sync>(
                 .le(&latest_finalized_block_height)
             {
                 let tx = full_transactions.get(&tx_receipt.transaction_hash).cloned();
-                Some((tx_receipt.transaction_hash.into(), (tx_receipt, tx)))
+                Some((tx_receipt.transaction_hash, (tx_receipt, tx)))
             } else {
                 None
             }
@@ -113,15 +113,24 @@ pub fn should_skip_poll<T>(
     poll_id: &axelar_wasm_std::voting::PollId,
 ) -> bool
 where
-    T: PartialEq,
+    T: PartialEq + ToString,
 {
     // Skip if the source chain is not the same as the handler chain
     if handler_chain != source_chain {
+        debug!(
+            handler_chain = handler_chain.to_string(),
+            source_chain = source_chain.to_string(),
+            "chain mismatch, skipping event"
+        );
         return true;
     }
 
     // Skip if the verifier is not a participant
     if !participants.contains(verifier) {
+        debug!(
+            verifier = verifier.to_string(),
+            "verifier not in participants, skipping event"
+        );
         return true;
     }
 
