@@ -372,6 +372,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "sui-json-rpc-types",
+ "sui-types 0.1.0",
  "tendermint",
  "thiserror 1.0.69",
  "tokio",
