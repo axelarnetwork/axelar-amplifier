@@ -114,7 +114,7 @@ where
                         msg_value_plain = ?msg.value,
                         msg_value_deserialized = %deserialized_values,
                         msg_value_hex = %hex::encode(&msg.value),
-                        "gRPC EVM handler message details"
+                        "gRPC modular handler message details"
                     );
                 }
                 Err(e) => {
@@ -123,7 +123,7 @@ where
                         msg_value_plain = ?msg.value,
                         msg_value_hex = %hex::encode(&msg.value),
                         error = %e,
-                        "failed to parse gRPC EVM handler protobuf structure, showing raw data"
+                        "failed to parse gRPC modular handler protobuf structure, showing raw data"
                     );
                 }
             }

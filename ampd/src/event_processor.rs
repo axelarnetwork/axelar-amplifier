@@ -148,6 +148,14 @@ fn is_xrpl_evm_handler(handler_label: &str) -> bool {
         .any(|handler| handler_label == *handler)
 }
 
+fn is_sui_handler(handler_label: &str) -> bool {
+    let sui_handlers = ["sui-msg-verifier", "sui-verifier-set-verifier"];
+
+    sui_handlers
+        .iter()
+        .any(|handler| handler_label == *handler)
+}
+
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
     handler_label: &str,
@@ -196,6 +204,35 @@ where
                                 msg_value_hex = %hex::encode(&msg.value),
                                 error = %e,
                                 "failed to parse AMPD EVM handler protobuf structure, showing raw data"
+                            );
+                        }
+                    }
+                }
+            }
+
+            if is_sui_handler(handler_label) {
+                for (i, msg) in msgs.iter().enumerate() {
+                    match broadcast::deserialize_protobuf(&msg.value) {
+                        Ok(deserialized_values) => {
+                            info!(
+                                handler = %handler_label,
+                                msg_index = i,
+                                msg_type_url = %msg.type_url,
+                                msg_value_plain = ?msg.value,
+                                msg_value_deserialized = %deserialized_values,
+                                msg_value_hex = %hex::encode(&msg.value),
+                                "AMPD Sui handler message details"
+                            );
+                        }
+                        Err(e) => {
+                            warn!(
+                                handler = %handler_label,
+                                msg_index = i,
+                                msg_type_url = %msg.type_url,
+                                msg_value_plain = ?msg.value,
+                                msg_value_hex = %hex::encode(&msg.value),
+                                error = %e,
+                                "failed to parse AMPD Sui handler protobuf structure, showing raw data"
                             );
                         }
                     }
