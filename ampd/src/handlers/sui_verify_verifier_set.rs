@@ -33,7 +33,7 @@ lazy_static! {
     static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
     pub message_id: Base58TxDigestAndEventIndex,
     pub verifier_set: VerifierSet,

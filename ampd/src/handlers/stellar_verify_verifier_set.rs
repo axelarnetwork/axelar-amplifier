@@ -27,7 +27,7 @@ use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
 use crate::monitoring::metrics;
-use crate::stellar::rpc_client::Client;
+use crate::stellar::rpc_client::{Client, StellarClient};
 use crate::stellar::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
@@ -35,7 +35,7 @@ lazy_static! {
     static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct VerifierSetConfirmation {
     pub message_id: HexTxHashAndEventIndex,
     pub verifier_set: VerifierSet,
@@ -54,19 +54,19 @@ struct PollStartedEvent {
 }
 
 #[derive(Debug)]
-pub struct Handler {
+pub struct Handler<C = Client> {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
-    http_client: Client,
+    http_client: C,
     latest_block_height: Receiver<u64>,
     monitoring_client: monitoring::Client,
 }
 
-impl Handler {
+impl<C: StellarClient + Send + Sync> Handler<C> {
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
-        http_client: Client,
+        http_client: C,
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
     ) -> Self {
@@ -91,7 +91,7 @@ impl Handler {
 }
 
 #[async_trait]
-impl EventHandler for Handler {
+impl<C: StellarClient + Send + Sync> EventHandler for Handler<C> {
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> error_stack::Result<Vec<Any>, Self::Err> {
@@ -201,7 +201,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
-    use crate::stellar::rpc_client::Client;
+    use crate::stellar::rpc_client::MockStellarClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -272,7 +272,7 @@ mod tests {
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
-            Client::faux(),
+            MockStellarClient::new(),
             watch::channel(0).1,
             monitoring_client,
         );
@@ -293,7 +293,7 @@ mod tests {
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
-            Client::faux(),
+            MockStellarClient::new(),
             watch::channel(0).1,
             monitoring_client,
         );
@@ -303,8 +303,8 @@ mod tests {
 
     #[async_test]
     async fn should_vote_correctly() {
-        let mut client = Client::faux();
-        faux::when!(client.transaction_response).then(|_| Ok(None));
+        let mut client = MockStellarClient::new();
+        client.expect_transaction_response().returning(|_| Ok(None));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -330,8 +330,8 @@ mod tests {
 
     #[async_test]
     async fn should_record_verification_vote_metric() {
-        let mut client = Client::faux();
-        faux::when!(client.transaction_response).then(|_| Ok(None));
+        let mut client = MockStellarClient::new();
+        client.expect_transaction_response().returning(|_| Ok(None));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
