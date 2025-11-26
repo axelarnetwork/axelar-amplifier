@@ -6,7 +6,7 @@
     ],
     "specific": []
   },
-  "UpdateVotingThreshold": {
+  "UpdateVotingParameters": {
     "external": [],
     "general": [
       "Governance"

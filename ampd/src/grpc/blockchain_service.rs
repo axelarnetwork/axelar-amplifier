@@ -225,6 +225,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -680,6 +681,7 @@ mod tests {
         let filter = ampd_proto::EventFilter {
             r#type: "test_event".to_string(),
             contract: expected.contract_address().unwrap().to_string(),
+            attributes: HashMap::new(),
         };
         let (service, _) = TestBuilder::default()
             .with_expected_events(events)

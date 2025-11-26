@@ -1,61 +1,22 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use cosmrs::Any;
-use error_stack::{Context, ResultExt};
+use error_stack::{Context, Report, Result, ResultExt};
 use events::{AbciEventTypeFilter, Event};
-use futures::{pin_mut, Stream};
-use mockall::automock;
-use report::ErrorExt;
+use futures::{pin_mut, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::interval;
-use tokio_stream::{Elapsed, StreamExt};
+use tokio_stream::Elapsed;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
 use crate::future::{with_retry, RetryPolicy};
-use crate::grpc::client::HandlerTaskClient;
-
-#[automock(
-    type Err = Error;
-    type Event = Event;
-)]
-#[async_trait]
-pub trait EventHandler: Send + Sync {
-    type Err: Context;
-    type Event: TryFrom<Event>;
-
-    async fn handle(
-        &self,
-        event: &Self::Event,
-        token: CancellationToken,
-    ) -> error_stack::Result<Vec<Any>, Self::Err>;
-
-    fn subscription_params(&self) -> SubscriptionParams;
-}
-
-pub struct SubscriptionParams {
-    event_filters: Vec<AbciEventTypeFilter>,
-    include_block_begin_end: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Config {
-    #[serde(with = "humantime_serde")]
-    pub stream_timeout: Duration,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            stream_timeout: Duration::from_secs(10),
-        }
-    }
-}
+use crate::grpc::client::{EventHandlerClient, HandlerTaskClient};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -75,36 +36,85 @@ pub enum Error {
     BroadcastFailed,
 }
 
+#[async_trait]
+pub trait EventHandler: Send + Sync {
+    type Err: Context;
+    type Event: TryFrom<Event>;
+
+    async fn handle<HC: EventHandlerClient + Send + 'static>(
+        &self,
+        event: Self::Event,
+        client: &mut HC,
+    ) -> Result<Vec<Any>, Self::Err>;
+
+    fn subscription_params(&self) -> SubscriptionParams;
+}
+
+pub struct SubscriptionParams {
+    event_filters: Vec<AbciEventTypeFilter>,
+    include_block_begin_end: bool,
+}
+
+impl SubscriptionParams {
+    pub fn new(event_filters: Vec<AbciEventTypeFilter>, include_block_begin_end: bool) -> Self {
+        Self {
+            event_filters,
+            include_block_begin_end,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Config {
+    #[serde(with = "humantime_serde")]
+    pub stream_timeout: Duration,
+    #[serde(with = "humantime_serde")]
+    pub retry_delay: Duration,
+    pub retry_max_attempts: u64,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            stream_timeout: Duration::from_secs(10),
+            retry_delay: Duration::from_secs(1),
+            retry_max_attempts: 3,
+        }
+    }
+}
+
 #[derive(Debug, TypedBuilder)]
 pub struct HandlerTask<H>
 where
     H: EventHandler,
-    <H::Event as TryFrom<Event>>::Error: Context,
-    H::Event: Display,
+    H::Event: TryFrom<Event, Error = Report<events::Error>>,
+    H::Event: Debug,
 {
     handler: H,
     config: Config,
-    #[builder(default = RetryPolicy::NoRetry)]
-    handler_retry_policy: RetryPolicy,
 }
 
 impl<H> HandlerTask<H>
 where
     H: EventHandler + Debug,
-    <H::Event as TryFrom<Event>>::Error: Context,
-    H::Event: Display + Debug,
+    H::Event: TryFrom<Event, Error = Report<events::Error>>,
+    H::Event: Debug + Clone,
 {
-    pub async fn run(
-        self,
-        client: &mut impl HandlerTaskClient,
-        token: CancellationToken,
-    ) -> error_stack::Result<(), Error> {
-        let stream = self.subscribe_to_stream(client, token.clone()).await?;
+    pub async fn run<HC>(self, client: &mut HC, token: CancellationToken) -> Result<(), Error>
+    where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
+        let stream = self
+            .subscribe_to_stream(client)
+            .await?
+            .take_until(token.cancelled());
 
         pin_mut!(stream);
         while let Some(element) = stream.next().await {
             self.process_stream(element, client, token.clone()).await;
         }
+
+        info!("handler task stopped");
 
         Ok(())
     }
@@ -112,8 +122,7 @@ where
     async fn subscribe_to_stream(
         &self,
         client: &mut impl HandlerTaskClient,
-        token: CancellationToken,
-    ) -> error_stack::Result<impl Stream<Item = error_stack::Result<Event, Error>>, Error> {
+    ) -> Result<impl Stream<Item = Result<Event, Error>>, Error> {
         let subscription_params = self.handler.subscription_params();
 
         let stream = client
@@ -122,34 +131,47 @@ where
                 subscription_params.include_block_begin_end,
             )
             .await
-            .change_context(Error::EventStream)?
-            .take_while(move |_| !token.is_cancelled())
-            .timeout_repeating(interval(self.config.stream_timeout))
-            .map(|event| match event {
-                Ok(Ok(event)) => Ok(event),
-                Ok(Err(err)) => Err(err.change_context(Error::EventStream)),
-                Err(elapsed) => Err(Error::StreamTimeout(elapsed).into_report()),
-            });
+            .change_context(Error::EventStream)?;
+
+        let stream = tokio_stream::StreamExt::timeout_repeating(
+            stream,
+            interval(self.config.stream_timeout),
+        )
+        .filter_map(|event| async move {
+            match event {
+                Ok(Ok(event)) => Some(Ok(event)),
+                Ok(Err(err)) => Some(Err(err.change_context(Error::EventStream))),
+                Err(_) => {
+                    info!("stream timed out, waiting for next event");
+                    None
+                }
+            }
+        });
 
         Ok(stream)
     }
 
-    async fn process_stream(
+    async fn process_stream<HC>(
         &self,
         element: error_stack::Result<Event, Error>,
-        client: &mut impl HandlerTaskClient,
+        client: &mut HC,
         token: CancellationToken,
-    ) {
-        if let Some(msgs) = self.process_event(element, token.clone()).await {
+    ) where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
+        if let Some(msgs) = self.process_event(element, client).await {
             Self::broadcast_msgs(client, msgs, token.clone()).await;
         }
     }
 
-    async fn process_event(
+    async fn process_event<HC>(
         &self,
-        element: error_stack::Result<Event, Error>,
-        token: CancellationToken,
-    ) -> Option<Vec<Any>> {
+        element: Result<Event, Error>,
+        client: &HC,
+    ) -> Option<Vec<Any>>
+    where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
         let event = element
             .inspect(Self::log_block_boundary)
             .inspect_err(|err| {
@@ -160,13 +182,18 @@ where
             })
             .ok()?;
         let parsed = Self::parse_event(event)?;
-        self.handle_event(parsed, token).await
+        self.handle_event(parsed, client).await
     }
 
     #[instrument]
     fn parse_event(event: Event) -> Option<H::Event> {
         H::Event::try_from(event.clone())
-            .change_context(Error::EventConversion)
+            .inspect_err(|err| {
+                error!(
+                    err = report::LoggableError::from(err).as_value(),
+                    "failed to parse event"
+                )
+            })
             .ok()
     }
 
@@ -183,12 +210,28 @@ where
     }
 
     #[instrument]
-    async fn handle_event(&self, event: H::Event, token: CancellationToken) -> Option<Vec<Any>> {
+    async fn handle_event<HC>(&self, event: H::Event, client: &HC) -> Option<Vec<Any>>
+    where
+        HC: HandlerTaskClient + Clone + Debug + Send + 'static,
+    {
         with_retry(
-            || self.handler.handle(&event, token.clone()),
-            self.handler_retry_policy,
+            || {
+                let mut client_clone = client.clone();
+                let event_clone = event.clone();
+                async move { self.handler.handle(event_clone, &mut client_clone).await }
+            },
+            RetryPolicy::RepeatConstant {
+                sleep: self.config.retry_delay,
+                max_attempts: self.config.retry_max_attempts,
+            },
         )
         .await
+        .inspect_err(|err| {
+            error!(
+                err = report::LoggableError::from(err).as_value(),
+                "failed to handle event"
+            )
+        })
         .ok()
     }
 
@@ -213,14 +256,66 @@ where
     }
 }
 
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
+    use mockall::mock;
+
+    use super::*;
+
+    #[derive(Clone, Deserialize, Debug)]
+    pub struct MockEvent(pub u64);
+
+    impl TryFrom<Event> for MockEvent {
+        type Error = Report<events::Error>;
+
+        fn try_from(
+            event: Event,
+        ) -> std::result::Result<MockEvent, error_stack::Report<events::Error>> {
+            match event {
+                Event::BlockBegin(height) => Ok(MockEvent(height.into())),
+                Event::BlockEnd(height) => Ok(MockEvent(height.into())),
+                _ => unimplemented!("MockEvent is not implemented for this event type"),
+            }
+        }
+    }
+
+    mock! {
+        pub EventHandler {}
+
+        #[async_trait]
+        impl EventHandler for EventHandler {
+            type Err = Error;
+            type Event = MockEvent;
+
+            async fn handle<HC: EventHandlerClient + Send + 'static>(
+                &self,
+                event: MockEvent,
+                client: &mut HC,
+            ) -> Result<Vec<Any>, Error>;
+
+            fn subscription_params(&self) -> SubscriptionParams;
+        }
+
+        impl Debug for EventHandler {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::str::FromStr;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
+    use axelar_wasm_std::nonempty_str;
+    use cosmrs::AccountId;
     use error_stack::report;
 
     use super::*;
-    use crate::grpc::client::tests::MockHandlerTaskClient;
+    use crate::event::event_handler::test_utils::MockEventHandler;
+    use crate::grpc::client::test_utils::MockHandlerTaskClient;
     use crate::grpc::client::types::BroadcastClientResponse;
     use crate::grpc::error::{AppError, Error as ClientError};
 
@@ -230,7 +325,12 @@ mod tests {
             .expect_subscription_params()
             .returning(|| SubscriptionParams {
                 event_filters: vec![AbciEventTypeFilter {
-                    event_type: "test_event".to_string(),
+                    event_type: nonempty_str!("mock-event"),
+                    contract: AccountId::from_str(
+                        "axelar1252ahkw208d08ls64atp2pql4cnl9naxy7ahhq3lrthvq3spseys26l8xj",
+                    )
+                    .unwrap(),
+                    attributes: HashMap::new(),
                 }],
                 include_block_begin_end: true,
             });
@@ -245,6 +345,9 @@ mod tests {
             Ok(tokio_stream::iter(result_events))
         });
         mock_client
+            .expect_clone()
+            .returning(MockHandlerTaskClient::new);
+        mock_client
     }
 
     #[tokio::test]
@@ -254,7 +357,7 @@ mod tests {
         handler
             .expect_handle()
             .times(2)
-            .returning(|_, _| Ok(vec![]));
+            .returning(|_, _: &mut MockHandlerTaskClient| Ok(vec![]));
 
         let events = vec![Event::BlockBegin(1u32.into()), Event::BlockEnd(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -263,8 +366,9 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
-            .handler_retry_policy(RetryPolicy::NoRetry)
             .build();
 
         let result = tokio::time::timeout(
@@ -285,7 +389,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(|_, _| Err(report!(Error::HandlerFailed)));
+            .returning(|_, _: &mut MockHandlerTaskClient| Err(report!(Error::HandlerFailed)));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -294,6 +398,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -305,18 +411,16 @@ mod tests {
     async fn test_handler_error_with_continue() {
         let mut handler = setup_handler();
 
-        handler.expect_handle().times(2).returning(|event, _| {
-            let height = match event {
-                Event::BlockBegin(h) => h.value(),
-                _ => 0,
-            };
-
-            if height == 1 {
-                Err(report!(Error::HandlerFailed))
-            } else {
-                Ok(vec![])
-            }
-        });
+        handler
+            .expect_handle()
+            .times(2)
+            .returning(|event, _: &mut MockHandlerTaskClient| {
+                if event.0 == 1 {
+                    Err(report!(Error::HandlerFailed))
+                } else {
+                    Ok(vec![])
+                }
+            });
 
         let events = vec![
             Event::BlockBegin(1u32.into()),
@@ -328,6 +432,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -342,16 +448,19 @@ mod tests {
         let call_count = Arc::new(Mutex::new(0));
         let call_count_clone = call_count.clone();
 
-        handler.expect_handle().times(3).returning(move |_, _| {
-            let mut count = call_count_clone.lock().unwrap();
-            *count += 1;
+        handler
+            .expect_handle()
+            .times(3)
+            .returning(move |_, _: &mut MockHandlerTaskClient| {
+                let mut count = call_count_clone.lock().unwrap();
+                *count += 1;
 
-            if *count <= 2 {
-                Err(report!(Error::HandlerFailed))
-            } else {
-                Ok(vec![])
-            }
-        });
+                if *count <= 2 {
+                    Err(report!(Error::HandlerFailed))
+                } else {
+                    Ok(vec![])
+                }
+            });
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -360,10 +469,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
-            })
-            .handler_retry_policy(RetryPolicy::RepeatConstant {
-                sleep: Duration::from_millis(10),
-                max_attempts: 3,
+                retry_delay: Duration::from_millis(10),
+                retry_max_attempts: 3,
             })
             .build();
 
@@ -376,7 +483,7 @@ mod tests {
     #[tokio::test]
     async fn test_client_error_continues_processing() {
         let mut handler = setup_handler();
-        handler.expect_handle().times(0);
+        handler.expect_handle::<MockHandlerTaskClient>().times(0);
 
         let mut client = MockHandlerTaskClient::new();
         client.expect_subscribe().returning(|_, _| {
@@ -384,11 +491,14 @@ mod tests {
                 AppError::InvalidResponse
             )))]))
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -405,11 +515,14 @@ mod tests {
             let result_events: Vec<error_stack::Result<Event, ClientError>> = vec![];
             Ok(tokio_stream::iter(result_events))
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(50),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -432,11 +545,14 @@ mod tests {
         let event_count = Arc::new(Mutex::new(0));
         let event_count_clone = event_count.clone();
 
-        handler.expect_handle().times(5).returning(move |_, _| {
-            let mut count = event_count_clone.lock().unwrap();
-            *count += 1;
-            Ok(vec![])
-        });
+        handler
+            .expect_handle()
+            .times(5)
+            .returning(move |_, _: &mut MockHandlerTaskClient| {
+                let mut count = event_count_clone.lock().unwrap();
+                *count += 1;
+                Ok(vec![])
+            });
 
         let events = vec![
             Event::BlockBegin(1u32.into()),
@@ -451,6 +567,8 @@ mod tests {
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -478,7 +596,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(move |_, _| Ok(test_msgs.clone()));
+            .returning(move |_, _: &mut MockHandlerTaskClient| Ok(test_msgs.clone()));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -489,11 +607,14 @@ mod tests {
                 index: 0,
             })
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -513,7 +634,7 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(move |_, _| Ok(vec![test_msg.clone()]));
+            .returning(move |_, _: &mut MockHandlerTaskClient| Ok(vec![test_msg.clone()]));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
@@ -523,11 +644,14 @@ mod tests {
                 AppError::InvalidResponse
             )))
         });
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 
@@ -542,17 +666,20 @@ mod tests {
         handler
             .expect_handle()
             .times(1)
-            .returning(|_, _| Ok(vec![]));
+            .returning(|_, _: &mut MockHandlerTaskClient| Ok(vec![]));
 
         let events = vec![Event::BlockBegin(1u32.into())];
         let mut client = mock_client_subscribe_with_events(events);
 
         client.expect_broadcast().times(0);
+        client.expect_clone().returning(MockHandlerTaskClient::new);
 
         let task = HandlerTask::builder()
             .handler(handler)
             .config(Config {
                 stream_timeout: Duration::from_millis(100),
+                retry_delay: Duration::from_secs(0),
+                retry_max_attempts: 1,
             })
             .build();
 

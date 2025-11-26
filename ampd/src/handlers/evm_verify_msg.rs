@@ -33,7 +33,7 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Message {
     pub message_id: HexTxHashAndEventIndex,
     pub destination_address: String,
@@ -237,10 +237,12 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier_contract.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -267,7 +269,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;
@@ -294,7 +296,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![
                 TxEventConfirmation {
                     message_id: msg_ids[0].to_string().parse().unwrap(),

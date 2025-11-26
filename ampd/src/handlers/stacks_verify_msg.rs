@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -206,10 +206,12 @@ impl EventHandler for Handler {
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier_contract.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -234,7 +236,7 @@ mod tests {
 
     use super::{Handler, Message, PollStartedEvent};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::stacks::http_client::{Block, Client};
     use crate::types::{Hash, TMAddress};
@@ -498,9 +500,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(
-                deprecated
-            )] // TODO: The below events use the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             messages: vec![TxEventConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
                 source_address: address!("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"),

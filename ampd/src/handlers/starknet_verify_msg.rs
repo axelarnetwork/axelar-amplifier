@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -170,10 +171,12 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -184,8 +187,6 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use ethers_core::types::H256;
     use events::Event;
     use mockall::predicate::eq;
@@ -501,9 +502,7 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .unwrap()

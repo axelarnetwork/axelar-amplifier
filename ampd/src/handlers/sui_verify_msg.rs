@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -33,7 +33,7 @@ lazy_static! {
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Message {
     pub message_id: Base58TxDigestAndEventIndex,
     pub destination_address: String,
@@ -171,10 +171,12 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier_contract.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -203,7 +205,7 @@ mod tests {
     use super::{PollStartedEvent, SUI_CHAIN_NAME};
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::TMAddress;

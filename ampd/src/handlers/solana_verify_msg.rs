@@ -208,10 +208,12 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier_contract.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -229,7 +231,7 @@ mod test {
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::*;
-    use crate::handlers::tests::into_structured_event;
+    use crate::handlers::test_utils::into_structured_event;
     use crate::monitoring::{metrics, test_utils};
     use crate::types::TMAddress;
     use crate::PREFIX;

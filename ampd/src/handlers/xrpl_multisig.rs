@@ -184,10 +184,12 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                SigningStartedEvent::event_type(),
-                self.multisig.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(SigningStartedEvent::event_type()))
+                .contract(Some(self.multisig.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -198,8 +200,6 @@ mod test {
     use std::collections::HashMap;
     use std::convert::{TryFrom, TryInto};
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
@@ -256,9 +256,7 @@ mod test {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         ))
         .unwrap()
     }

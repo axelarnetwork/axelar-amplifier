@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -31,7 +32,7 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct VerifierSetConfirmation {
     pub message_id: HexTxHashAndEventIndex,
     pub verifier_set: VerifierSet,
@@ -211,10 +212,12 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::EventTypeAndContract(
-                PollStartedEvent::event_type(),
-                self.voting_verifier_contract.clone(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier_contract.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }
@@ -241,7 +244,7 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
     use crate::handlers::evm_verify_verifier_set::PollStartedEvent;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::types::{Hash, TMAddress};
     use crate::PREFIX;

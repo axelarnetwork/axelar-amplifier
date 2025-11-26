@@ -5,14 +5,70 @@ rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
+[[bin]]
+name = "evm-handler"
+path = "src/bin/evm/main.rs"
+
+[[bin]]
+name = "multisig-handler"
+path = "src/bin/multisig/main.rs"
+
+[[bin]]
+name = "stellar-handler"
+path = "src/bin/stellar/main.rs"
+
+[[bin]]
+name = "sui-handler"
+path = "src/bin/sui/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
+async-trait = { workspace = true }
+axelar-wasm-std = { workspace = true }
+cosmrs = { workspace = true }
+cosmwasm-std = { workspace = true }
+dotenv = "0.15.0"
+dotenv-flow = "0.16.2"
 error-stack = { workspace = true }
+ethers-core = { workspace = true }
+ethers-providers = { version = "2.0.13", default-features = false, features = [
+  "rustls",
+] }
 events = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
+humantime-serde = { workspace = true }
+multisig = { workspace = true, features = ["library"] }
+reqwest = { version = "0.11.24", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+stellar-xdr = { workspace = true }
+sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-core = { workspace = true }
+tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
+typed-builder = { workspace = true }
+valuable = { version = "0.1.0", features = ["derive"] }
+voting-verifier = { workspace = true }
+
+[dev-dependencies]
+ampd = { path = "../ampd", default-features = false, features = ["url", "test-utils"] }
+ampd-sdk = { workspace = true, features = ["test-utils"] }
+base64 = { workspace = true }
+cosmwasm-std = { workspace = true, features = ["stargate"] }
+goldie = { workspace = true }
+k256 = { workspace = true }
+multisig = { workspace = true, features = ["test"] }
+rand = { workspace = true }
+tendermint = { workspace = true }
 
 [lints]
 workspace = true

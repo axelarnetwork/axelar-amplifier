@@ -40,13 +40,14 @@ axelar-solana-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifi
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
+base64 = "0.21.2"
 bcs = "0.1.5"
 bech32 = "0.11.0"
 bs58 = "0.5.1"
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
 const-str = "0.6.2"
-coordinator = { version = "^2.1.1", path = "contracts/coordinator" }
+coordinator = { version = "^2.1.3", path = "contracts/coordinator" }
 cosmrs = "0.22.0"
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
@@ -61,6 +62,8 @@ ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
 ] }
 ethers-core = "2.0.14"
+event-verifier = { version = "^0.1.0", path = "contracts/event-verifier" }
+event-verifier-api = { version = "^1.0.0", path = "packages/event-verifier-api" }
 events = { version = "^1.0.0", path = "packages/events" }
 events-derive = { version = "^1.0.0", path = "packages/events-derive" }
 evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
@@ -82,7 +85,7 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^2.3.1", path = "contracts/multisig" }
+multisig = { version = "^2.4.0", path = "contracts/multisig" }
 multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
@@ -91,12 +94,13 @@ quote = "1.0.38"
 rand = "0.8.5"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
-router = { version = "^1.3.0", path = "contracts/router" }
+router = { version = "^1.4.0", path = "contracts/router" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
 schemars = "0.8.10"
 semver = "1.0"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.134"
+serde_with = "3.2.0"
 service-registry = { version = "^1.2.0", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
@@ -114,7 +118,7 @@ sui-gateway = { version = "^1.0.0", path = "packages/sui-gateway" }
 sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 temp-env = "0.3.6"
-tendermint = "0.35.0"
+tendermint = "0.40.4"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
 tokio = "1.44.2"
@@ -128,9 +132,10 @@ tracing-subscriber = { version = "0.3.20", features = [
   "valuable",
   "env-filter",
 ] }
+tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
-voting-verifier = { version = "^1.1.0", path = "contracts/voting-verifier" }
+voting-verifier = { version = "^2.0.0", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 

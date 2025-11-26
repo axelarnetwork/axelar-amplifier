@@ -1,5 +1,6 @@
 pub mod config;
 mod errors;
+pub mod evm_verify_event;
 pub mod evm_verify_msg;
 pub mod evm_verify_verifier_set;
 pub mod multisig;
@@ -11,19 +12,17 @@ pub mod stacks_verify_msg;
 pub mod stacks_verify_verifier_set;
 pub mod starknet_verify_msg;
 pub mod starknet_verify_verifier_set;
-pub(crate) mod stellar_verify_msg;
-pub(crate) mod stellar_verify_verifier_set;
+pub mod stellar_verify_msg;
+pub mod stellar_verify_verifier_set;
 pub mod sui_verify_msg;
 pub mod sui_verify_verifier_set;
 pub mod xrpl_multisig;
 pub mod xrpl_verify_msg;
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
     use std::convert::TryInto;
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::AccountId;
     use events::Event;
     use tendermint::abci;
@@ -46,9 +45,7 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .expect("should convert to ABCI event")

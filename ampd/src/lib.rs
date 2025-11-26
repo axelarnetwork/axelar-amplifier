@@ -12,20 +12,20 @@ mod config;
 mod cosmos;
 mod event_processor;
 pub mod event_sub;
-mod evm;
+pub mod evm;
 mod grpc;
-mod handlers;
-mod json_rpc;
-mod monitoring;
+pub mod handlers;
+pub mod json_rpc;
+pub mod monitoring;
 mod mvx;
 mod solana;
 mod stacks;
 mod starknet;
-mod stellar;
-mod sui;
+pub mod stellar;
+pub mod sui;
 mod tm_client;
 mod tofnd;
-mod types;
+pub mod types;
 #[cfg(feature = "url")]
 pub mod url;
 #[cfg(not(feature = "url"))]
@@ -380,11 +380,51 @@ impl App {
                     ),
                 ))
             }
+            handlers::config::Config::EvmEventVerifier {
+                chain,
+                cosmwasm_contract,
+                rpc_timeout,
+                confirmation_height,
+            } => {
+                let rpc_client = json_rpc::Client::new_http(
+                    chain.rpc_url.clone(),
+                    reqwest::ClientBuilder::new()
+                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
+                        .build()
+                        .change_context(Error::Connection)?,
+                    self.monitoring_client.clone(),
+                    chain.name.clone(),
+                );
+
+                check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+
+                let task_name = format!("{}-event-verifier", chain.name);
+                Ok((
+                    task_name.clone(),
+                    self.create_handler_task(
+                        task_name,
+                        handlers::evm_verify_event::Handler::builder()
+                            .verifier(verifier.clone())
+                            .voting_verifier_contract(cosmwasm_contract.clone())
+                            .chain(chain.name.clone())
+                            .confirmation_height(*confirmation_height)
+                            .finalizer_type(chain.finalization.clone())
+                            .rpc_client(rpc_client)
+                            .latest_block_height(self.block_height_monitor.latest_block_height())
+                            .monitoring_client(self.monitoring_client.clone())
+                            .build()
+                            .change_context(Error::LoadConfig)?,
+                        event_processor_config.clone(),
+                        self.monitoring_client.clone(),
+                    ),
+                ))
+            }
             handlers::config::Config::MultisigSigner {
                 cosmwasm_contract,
                 chain_name,
             } => {
-                let task_name = "multisig-signer".to_string();
+                let task_name = format!("{}-multisig-signer", chain_name);
                 Ok((
                     task_name.clone(),
                     self.create_handler_task(
