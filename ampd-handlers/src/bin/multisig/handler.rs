@@ -165,10 +165,16 @@ impl EventHandler for Handler {
     }
 
     fn subscription_params(&self) -> SubscriptionParams {
+        let attributes = HashMap::from([(
+            "chain".to_string(),
+            serde_json::Value::String(self.chain.to_string()),
+        )]);
+
         SubscriptionParams::new(
             vec![AbciEventTypeFilter {
                 event_type: SigningStartedEvent::event_type(),
                 contract: self.multisig.clone().into(),
+                attributes,
             }],
             false,
         )

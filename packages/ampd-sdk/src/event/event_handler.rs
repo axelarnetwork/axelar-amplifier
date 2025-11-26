@@ -304,6 +304,7 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -329,6 +330,7 @@ mod tests {
                         "axelar1252ahkw208d08ls64atp2pql4cnl9naxy7ahhq3lrthvq3spseys26l8xj",
                     )
                     .unwrap(),
+                    attributes: HashMap::new(),
                 }],
                 include_block_begin_end: true,
             });
