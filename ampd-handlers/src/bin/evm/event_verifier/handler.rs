@@ -121,6 +121,7 @@ where
             vec![AbciEventTypeFilter {
                 event_type: PollStartedEvent::event_type(),
                 contract: self.event_verifier_contract.clone(),
+                attributes: Default::default(),
             }],
             false,
         )
