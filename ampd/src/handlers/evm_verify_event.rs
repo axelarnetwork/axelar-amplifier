@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
-use cosmrs::Any;
+use cosmrs::{AccountId, Any};
 use error_stack::ResultExt;
 use ethers_core::types::{Transaction, TransactionReceipt, H256, U64};
 use event_verifier_api::evm::EvmEvent;
@@ -16,8 +16,7 @@ use futures::future::join_all;
 use router_api::ChainName;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span, warn};
-use valuable::Valuable;
+use tracing::{debug, info, info_span, warn};
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -34,14 +33,195 @@ use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
-#[try_from("wasm-events_poll_started")]
-struct PollStartedEvent {
-    events: Vec<EventToVerify>,
-    poll_id: PollId,
-    source_chain: ChainName,
+/// Fetches finalized transaction receipts and optionally full transactions for the given events
+pub async fn fetch_finalized_tx_receipts<C: EthereumClient + Send + Sync>(
+    rpc_client: &C,
+    finalizer_type: &Finalization,
+    events_data: &[Option<EvmEvent>],
+    confirmation_height: u64,
+) -> Result<HashMap<Hash, (TransactionReceipt, Option<Transaction>)>> {
+    let latest_finalized_block_height =
+        finalizer::pick(finalizer_type, rpc_client, confirmation_height)
+            .latest_finalized_block_height()
+            .await
+            .change_context(Error::Finalizer)?;
+
+    let tx_hashes_with_details_needed = events_data.iter().filter_map(|e| e.as_ref()).fold(
+        HashMap::new(),
+        |mut acc, event_data| {
+            let tx_hash = H256::from_slice(event_data.transaction_hash.as_slice());
+            let needs_details = event_data.transaction_details.is_some();
+
+            acc.entry(tx_hash)
+                .and_modify(|existing| *existing |= needs_details)
+                .or_insert(needs_details);
+            acc
+        },
+    );
+
+    // we need to fetch both tx receipts and possibly full transactions. Create the futures for each first, but don't await them yet,
+    // so they can be executed in parallel
+    let tx_receipts_fut = join_all(
+        tx_hashes_with_details_needed
+            .keys()
+            .map(|tx_hash| rpc_client.transaction_receipt(*tx_hash)),
+    );
+
+    let full_transactions_fut = join_all(
+        tx_hashes_with_details_needed
+            .iter()
+            .filter(|(_, needs_transaction)| **needs_transaction)
+            .map(|(tx_hash, _)| rpc_client.transaction_by_hash(*tx_hash)),
+    );
+
+    // await both futures now
+    let tx_receipts = tx_receipts_fut
+        .await
+        .into_iter()
+        .filter_map(std::result::Result::unwrap_or_default);
+    let full_transactions: HashMap<H256, Transaction> = full_transactions_fut
+        .await
+        .into_iter()
+        .filter_map(std::result::Result::unwrap_or_default)
+        .map(|tx| (tx.hash, tx))
+        .collect();
+
+    Ok(tx_receipts
+        .filter_map(|tx_receipt| {
+            if tx_receipt
+                .block_number
+                .unwrap_or(U64::MAX)
+                .le(&latest_finalized_block_height)
+            {
+                let tx = full_transactions.get(&tx_receipt.transaction_hash).cloned();
+                Some((tx_receipt.transaction_hash, (tx_receipt, tx)))
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
+/// Checks if a poll should be skipped based on chain, participants, and expiration
+pub fn should_skip_poll<T>(
+    handler_chain: &ChainName,
+    source_chain: &ChainName,
+    verifier: &T,
+    participants: &[T],
+    latest_block_height: u64,
     expires_at: u64,
-    participants: Vec<TMAddress>,
+    poll_id: &axelar_wasm_std::voting::PollId,
+) -> bool
+where
+    T: PartialEq + ToString,
+{
+    // Skip if the source chain is not the same as the handler chain
+    if handler_chain != source_chain {
+        debug!(
+            handler_chain = handler_chain.to_string(),
+            source_chain = source_chain.to_string(),
+            "chain mismatch, skipping event"
+        );
+        return true;
+    }
+
+    // Skip if the verifier is not a participant
+    if !participants.contains(verifier) {
+        debug!(
+            verifier = verifier.to_string(),
+            "verifier not in participants, skipping event"
+        );
+        return true;
+    }
+
+    // Skip if the poll has expired
+    if latest_block_height >= expires_at {
+        info!(poll_id = poll_id.to_string(), "skipping expired poll");
+        return true;
+    }
+
+    false
+}
+
+/// Deserializes event data from EventToVerify into EvmEvent
+pub fn deserialize_event_data(events_to_verify: &[EventToVerify]) -> Vec<Option<EvmEvent>> {
+    events_to_verify
+        .iter()
+        .map(|event_to_verify| {
+            let event_data = serde_json::from_str::<EventData>(&event_to_verify.event_data)
+                .ok()
+                .map(|data| match data {
+                    EventData::Evm(evm_event) => evm_event,
+                });
+
+            if event_data.is_none() {
+                warn!(
+                    "event data did not deserialize correctly. event: {:?}",
+                    event_to_verify
+                );
+            }
+
+            event_data
+        })
+        .collect()
+}
+
+/// Creates a vote message for a poll
+pub fn create_vote_msg(
+    verifier: &AccountId,
+    contract: &AccountId,
+    poll_id: PollId,
+    votes: Vec<Vote>,
+) -> MsgExecuteContract {
+    MsgExecuteContract {
+        sender: verifier.clone(),
+        contract: contract.clone(),
+        msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
+            .expect("vote msg should serialize"),
+        funds: vec![],
+    }
+}
+
+/// Verifies events against transaction receipts and records metrics
+pub fn verify_and_vote_on_events(
+    events_data: &[Option<EvmEvent>],
+    finalized_tx_receipts: &HashMap<Hash, (TransactionReceipt, Option<Transaction>)>,
+    monitoring_client: &monitoring::Client,
+    chain: &ChainName,
+) -> Vec<Vote> {
+    events_data
+        .iter()
+        .map(|event_data| {
+            // TODO: might be useful to add a different vote type for events that did not deserialize correctly, i.e. Malformed
+            event_data.as_ref().map_or(Vote::NotFound, |event_data| {
+                let tx_hash: Hash = event_data.transaction_hash.to_array().into();
+
+                finalized_tx_receipts
+                    .get(&tx_hash)
+                    .map_or(Vote::NotFound, |(tx_receipt, tx)| {
+                        verify_events(tx_receipt, tx.as_ref(), event_data)
+                    })
+            })
+        })
+        .inspect(|vote| {
+            monitoring_client
+                .metrics()
+                .record_metric(metrics::Msg::VerificationVote {
+                    vote_decision: vote.clone(),
+                    chain_name: chain.clone(),
+                });
+        })
+        .collect()
+}
+
+#[derive(Clone, Deserialize, Debug)]
+#[try_from("wasm-events_poll_started")]
+pub struct PollStartedEvent {
+    pub events: Vec<EventToVerify>,
+    pub poll_id: PollId,
+    pub source_chain: ChainName,
+    pub expires_at: u64,
+    pub participants: Vec<AccountId>,
 }
 
 #[derive(Debug)]
@@ -82,83 +262,6 @@ where
     #[allow(clippy::type_complexity)]
     pub fn builder() -> HandlerParamsBuilder<C, ((), (), (), (), (), (), (), ())> {
         HandlerParams::builder()
-    }
-
-    async fn finalized_tx_receipts(
-        &self,
-        events_data: &[Option<EvmEvent>],
-        confirmation_height: u64,
-    ) -> Result<HashMap<Hash, (TransactionReceipt, Option<Transaction>)>> {
-        let latest_finalized_block_height =
-            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
-                .latest_finalized_block_height()
-                .await
-                .change_context(Error::Finalizer)?;
-
-        let tx_hashes_with_details_needed = events_data.iter().filter_map(|e| e.as_ref()).fold(
-            HashMap::new(),
-            |mut acc, event_data| {
-                let tx_hash = H256::from_slice(event_data.transaction_hash.as_slice());
-                let needs_details = event_data.transaction_details.is_some();
-
-                acc.entry(tx_hash)
-                    .and_modify(|existing| *existing |= needs_details)
-                    .or_insert(needs_details);
-                acc
-            },
-        );
-
-        // we need to fetch both tx receipts and possibly full transactions. Create the futures for each first, but don't await them yet,
-        // so they can be executed in parallel
-        let tx_receipts_fut = join_all(
-            tx_hashes_with_details_needed
-                .keys()
-                .map(|tx_hash| self.rpc_client.transaction_receipt(*tx_hash)),
-        );
-
-        let full_transactions_fut = join_all(
-            tx_hashes_with_details_needed
-                .iter()
-                .filter(|(_, needs_transaction)| **needs_transaction)
-                .map(|(tx_hash, _)| self.rpc_client.transaction_by_hash(*tx_hash)),
-        );
-
-        // await both futures now
-        let tx_receipts = tx_receipts_fut
-            .await
-            .into_iter()
-            .filter_map(std::result::Result::unwrap_or_default);
-        let full_transactions: HashMap<H256, Transaction> = full_transactions_fut
-            .await
-            .into_iter()
-            .filter_map(std::result::Result::unwrap_or_default)
-            .map(|tx| (tx.hash, tx))
-            .collect();
-
-        Ok(tx_receipts
-            .filter_map(|tx_receipt| {
-                if tx_receipt
-                    .block_number
-                    .unwrap_or(U64::MAX)
-                    .le(&latest_finalized_block_height)
-                {
-                    let tx = full_transactions.get(&tx_receipt.transaction_hash).cloned();
-                    Some((tx_receipt.transaction_hash, (tx_receipt, tx)))
-                } else {
-                    None
-                }
-            })
-            .collect())
-    }
-
-    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
-        MsgExecuteContract {
-            sender: self.verifier.as_ref().clone(),
-            contract: self.voting_verifier_contract.as_ref().clone(),
-            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-                .expect("vote msg should serialize"),
-            funds: vec![],
-        }
     }
 }
 
@@ -213,44 +316,28 @@ where
             event => event.change_context(DeserializeEvent)?,
         };
 
-        if self.chain != source_chain {
-            return Ok(vec![]);
-        }
-
-        if !participants.contains(&self.verifier) {
-            return Ok(vec![]);
-        }
-
         let latest_block_height = *self.latest_block_height.borrow();
-        if latest_block_height >= expires_at {
-            info!(poll_id = poll_id.to_string(), "skipping expired poll");
+        if should_skip_poll(
+            &self.chain,
+            &source_chain,
+            self.verifier.as_ref(),
+            &participants,
+            latest_block_height,
+            expires_at,
+            &poll_id,
+        ) {
             return Ok(vec![]);
         }
 
-        // Deserialize event data; only keep EVM events
-        let events_data: Vec<Option<EvmEvent>> = events_to_verify
-            .iter()
-            .map(|event_to_verify| {
-                let event_data = serde_json::from_str::<EventData>(&event_to_verify.event_data)
-                    .ok()
-                    .map(|data| match data {
-                        EventData::Evm(evm_event) => evm_event,
-                    });
+        let events_data = deserialize_event_data(&events_to_verify);
 
-                if event_data.is_none() {
-                    warn!(
-                        "event data did not deserialize correctly. event: {:?}",
-                        event_to_verify
-                    );
-                }
-
-                event_data
-            })
-            .collect();
-
-        let finalized_tx_receipts = self
-            .finalized_tx_receipts(&events_data, self.confirmation_height)
-            .await?;
+        let finalized_tx_receipts = fetch_finalized_tx_receipts(
+            &self.rpc_client,
+            &self.finalizer_type,
+            &events_data,
+            self.confirmation_height,
+        )
+        .await?;
 
         let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
@@ -262,41 +349,30 @@ where
             event_count = events_to_verify.len(),
         )
         .in_scope(|| {
-            info!("ready to verify events in poll",);
+            info!("ready to verify events in poll");
+            let votes = verify_and_vote_on_events(
+                &events_data,
+                &finalized_tx_receipts,
+                &self.monitoring_client,
+                &self.chain,
+            );
 
-            let votes: Vec<_> = events_data
-                .iter()
-                .map(|event_data| {
-                    // TODO: might be useful to add a different vote type for events that did not deserialize correctly, i.e. Malformed
-                    event_data.as_ref().map_or(Vote::NotFound, |event_data| {
-                        let tx_hash: Hash = event_data.transaction_hash.to_array().into();
-
-                        finalized_tx_receipts
-                            .get(&tx_hash)
-                            .map_or(Vote::NotFound, |(tx_receipt, tx)| {
-                                verify_events(tx_receipt, tx.as_ref(), event_data)
-                            })
-                    })
-                })
-                .inspect(|vote| {
-                    self.monitoring_client.metrics().record_metric(
-                        metrics::Msg::VerificationVote {
-                            vote_decision: vote.clone(),
-                            chain_name: self.chain.clone(),
-                        },
-                    );
-                })
-                .collect();
-
-            info!(votes = votes.as_value(), "ready to vote for events in poll");
+            info!(
+                votes = format!("{:?}", votes),
+                "ready to vote for events in poll"
+            );
 
             votes
         });
 
-        Ok(vec![self
-            .vote_msg(poll_id, votes)
-            .into_any()
-            .expect("vote msg should serialize")])
+        Ok(vec![create_vote_msg(
+            self.verifier.as_ref(),
+            self.voting_verifier_contract.as_ref(),
+            poll_id,
+            votes,
+        )
+        .into_any()
+        .expect("vote msg should serialize")])
     }
 
     fn event_filters(&self) -> EventFilters {
