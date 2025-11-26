@@ -206,11 +206,12 @@ impl EventHandler for Handler {
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::new(
-                Some(PollStartedEvent::event_type()),
-                Some(self.voting_verifier_contract.clone()),
-                HashMap::new(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier_contract.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }

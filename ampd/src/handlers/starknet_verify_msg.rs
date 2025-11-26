@@ -171,11 +171,12 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![EventFilter::new(
-                Some(PollStartedEvent::event_type()),
-                Some(self.voting_verifier.clone()),
-                HashMap::new(),
-            )],
+            vec![EventFilter::builder()
+                .event_type(Some(PollStartedEvent::event_type()))
+                .contract(Some(self.voting_verifier.clone()))
+                .attributes(HashMap::new())
+                .build()
+                .expect("event filter should be valid")],
             true,
         )
     }

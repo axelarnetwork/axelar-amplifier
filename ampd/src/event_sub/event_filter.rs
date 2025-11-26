@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::nonempty;
 use error_stack::{report, Report, Result, ResultExt};
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
 use crate::types::{AxelarAddress, TMAddress};
 
@@ -14,11 +15,33 @@ pub enum Error {
     InvalidContractAddress(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
+#[builder(build_method(vis = "", name = build_internal))]
 pub struct EventFilter {
+    #[builder(default)]
     event_type: Option<nonempty::String>,
+    #[builder(default)]
     contract: Option<TMAddress>,
+    #[builder(default)]
     attributes: HashMap<String, serde_json::Value>,
+}
+
+impl<
+        E: ::typed_builder::Optional<Option<nonempty::String>>,
+        C: ::typed_builder::Optional<Option<TMAddress>>,
+        A: ::typed_builder::Optional<HashMap<String, serde_json::Value>>,
+    > EventFilterBuilder<(E, C, A)>
+{
+    pub fn build(self) -> Result<EventFilter, Error> {
+        let filter = self.build_internal();
+
+        if filter.event_type.is_none() && filter.contract.is_none() && filter.attributes.is_empty()
+        {
+            return Err(report!(Error::EmptyFilter));
+        }
+
+        Ok(filter)
+    }
 }
 
 impl TryFrom<ampd_proto::EventFilter> for EventFilter {
@@ -47,31 +70,15 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
             })
             .collect();
 
-        if event_type.is_none() && contract.is_none() && attributes.is_empty() {
-            return Err(report!(Error::EmptyFilter));
-        }
-
-        Ok(Self {
-            event_type,
-            contract,
-            attributes,
-        })
+        EventFilter::builder()
+            .event_type(event_type)
+            .contract(contract)
+            .attributes(attributes)
+            .build()
     }
 }
 
 impl EventFilter {
-    pub fn new(
-        event_type: Option<nonempty::String>,
-        contract: Option<TMAddress>,
-        attributes: HashMap<String, serde_json::Value>,
-    ) -> Self {
-        Self {
-            event_type,
-            contract,
-            attributes,
-        }
-    }
-
     pub fn filter(
         &self,
         event_type: &str,
@@ -80,7 +87,7 @@ impl EventFilter {
     ) -> bool {
         self.event_type
             .as_ref()
-            .is_none_or(|filter| filter.as_str() == event_type)
+            .is_none_or(|filter| filter == event_type)
             && self
                 .contract
                 .as_ref()
