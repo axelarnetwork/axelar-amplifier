@@ -18,9 +18,7 @@ dummy-grpc-broadcast = []  # TEMPORARY: Enable dummy broadcast for debugging
 ampd-proto = { workspace = true }
 anchor-lang = "0.31.1"
 async-trait = { workspace = true }
-axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-axelar-solana-encoding = { workspace = true }
-axelar-solana-gateway = { workspace = true }
+solana-axelar-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = { workspace = true }
@@ -44,12 +42,10 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
-event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 event-verifier-api = { workspace = true }
 events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
 futures = { workspace = true }
-gateway-event-stack = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime-serde = "1.1.1"
 itertools = { workspace = true }

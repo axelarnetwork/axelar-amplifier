@@ -7,5 +7,4 @@ pub enum Encoder {
     Bcs,
     Solana,
     StellarXdr,
-    Solana,
 }

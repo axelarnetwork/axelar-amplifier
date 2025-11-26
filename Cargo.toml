@@ -35,8 +35,7 @@ anyhow = "1.0.89"
 assert_ok = "1.0"
 async-trait = "0.1.59"
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
-axelar-solana-encoding = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-axelar-solana-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
+solana-axelar-std = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "main", default-features = false }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
@@ -49,14 +48,15 @@ config = "0.15.11"
 const-str = "0.6.2"
 coordinator = { version = "^2.1.3", path = "contracts/coordinator" }
 cosmrs = "0.22.0"
-cosmwasm-crypto = "2.1.4"
-cosmwasm-schema = "2.1.4"
-cosmwasm-std = "2.1.4"
+cosmwasm-crypto = "2.2.2"
+cosmwasm-schema = "2.2.2"
+cosmwasm-std = "2.2.2"
 cw-multi-test = "2.2.0"
 cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
 cw2 = "2.0.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
+ed25519-zebra = { version = ">=4.0.3, <4.1.0" }
 error-stack = { version = "0.4.0", features = ["eyre", "spantrace"] }
 ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
@@ -70,7 +70,6 @@ evm-gateway = { version = "^1.0.0", path = "packages/evm-gateway" }
 futures = "0.3.25"
 gateway = { version = "^1.1.1", path = "contracts/gateway" }
 gateway-api = { version = "^1.0.0", path = "packages/gateway-api" }
-gateway-event-stack = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 goldie = { version = "0.5" }
 heck = "0.5.0"
 hex = "0.4.3"
@@ -86,8 +85,8 @@ k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^2.4.0", path = "contracts/multisig" }
-multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
-multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
+solana-multisig-prover = { version = "0.4.0", path = "contracts/multisig-prover" }
+solana-multisig-prover-api = { version = "0.2.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
@@ -156,3 +155,6 @@ debug-assertions = false
 codegen-units = 1
 incremental = false
 overflow-checks = true
+
+[patch.crates-io]
+ed25519-zebra = { git = "https://github.com/ZcashFoundation/ed25519-zebra", tag = "4.0.3" }

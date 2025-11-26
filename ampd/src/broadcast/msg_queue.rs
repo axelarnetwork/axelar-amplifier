@@ -121,6 +121,7 @@ where
     /// * `Error::GasExceedsGasCap` - If the message requires more gas than allowed
     /// * `Error::ReceiveTxResult` - If the result channel is closed prematurely
     #[instrument(skip(self))]
+    #[allow(dead_code)]
     pub async fn enqueue(&mut self, msg: Any) -> Result<impl Future<Output = TxResult> + Send> {
         let rx = self.enqueue_with_channel(msg).await?;
 
