@@ -12,13 +12,12 @@ use itertools::Itertools;
 use msgs_derive::ensure_permissions;
 use router_api::ChainName;
 
-use crate::events::Event;
 use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state::{
     verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
 };
 use crate::types::{MsgToSign, MultisigState};
-use crate::ContractError;
+use crate::{ContractError, Event};
 
 mod execute;
 mod migrations;

@@ -228,7 +228,7 @@ mod test {
     use router_api::{address, chain_name};
     use solana_sdk::signature::Signature;
     use tokio::sync::watch;
-    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, TxEventConfirmation};
 
     use super::*;
     use crate::handlers::test_utils::into_structured_event;
@@ -361,12 +361,13 @@ mod test {
 
         // Create an event with a different gateway address
         let mut event_data = poll_started_event(participants(Some(worker.clone())), 100);
-        if let PollStarted::Messages {
-            ref mut metadata, ..
+        if let VotingVerifierEvent::MessagesPollStarted {
+            ref mut source_gateway_address,
+            ..
         } = event_data
         {
             // Use a different gateway address
-            metadata.source_gateway_address = "DifferentGatewayAddress123456789".parse().unwrap();
+            *source_gateway_address = "DifferentGatewayAddress123456789".parse().unwrap();
         }
 
         let event = into_structured_event(event_data, &voting_verifier);
@@ -489,7 +490,7 @@ mod test {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> VotingVerifierEvent {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
         let inner_ix_group_index_1 = 1_u32;
         let inner_ix_index_1 = 10_u32;
@@ -502,18 +503,16 @@ mod test {
 
         let source_gateway_address = axelar_solana_gateway::ID;
 
-        PollStarted::Messages {
-            metadata: PollMetadata {
-                poll_id: "100".parse().unwrap(),
-                source_chain: chain_name!(SOLANA),
-                source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
-                confirmation_height: 15,
-                expires_at,
-                participants: participants
-                    .into_iter()
-                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
-                    .collect(),
-            },
+        VotingVerifierEvent::MessagesPollStarted {
+            poll_id: "100".parse().unwrap(),
+            source_chain: chain_name!(SOLANA),
+            source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
+            confirmation_height: 15,
+            expires_at,
+            participants: participants
+                .into_iter()
+                .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                .collect(),
             #[allow(deprecated)]
             messages: vec![
                 TxEventConfirmation {

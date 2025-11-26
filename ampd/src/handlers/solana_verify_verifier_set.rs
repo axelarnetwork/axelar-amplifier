@@ -225,7 +225,7 @@ mod tests {
     use solana_sdk::signature::Signature;
     use tokio::sync::watch;
     use tokio::test as async_test;
-    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
+    use voting_verifier::events::{Event as VotingVerifierEvent, VerifierSetConfirmation};
 
     use super::*;
     use crate::event_processor::EventHandler;
@@ -359,12 +359,13 @@ mod tests {
         // Create an event with a different gateway address
         let mut event_data =
             verifier_set_poll_started_event(participants(Some(worker.clone())), 100);
-        if let PollStarted::VerifierSet {
-            ref mut metadata, ..
+        if let VotingVerifierEvent::VerifierSetPollStarted {
+            ref mut source_gateway_address,
+            ..
         } = event_data
         {
             // Use a different gateway address
-            metadata.source_gateway_address = "DifferentGatewayAddress123456789".parse().unwrap();
+            *source_gateway_address = "DifferentGatewayAddress123456789".parse().unwrap();
         }
 
         let event = into_structured_event(event_data, &voting_verifier);
@@ -497,13 +498,12 @@ mod tests {
     fn verifier_set_poll_started_event(
         participants: Vec<TMAddress>,
         expires_at: u64,
-    ) -> PollStarted {
+    ) -> VotingVerifierEvent {
         let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
         let inner_ix_group_index_1 = 1_u32;
         let inner_ix_index_1 = 10_u32;
         let message_id_1 = format!("{signature_1}-{inner_ix_group_index_1}.{inner_ix_index_1}");
-        PollStarted::VerifierSet {
-            metadata: PollMetadata {
+        VotingVerifierEvent::VerifierSetPollStarted {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!(SOLANA),
                 source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
@@ -513,7 +513,6 @@ mod tests {
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
-            },
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 message_id: message_id_1
