@@ -53,7 +53,7 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &solana_multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
     assert!(response.is_err());

@@ -1,5 +1,6 @@
 mod abi;
 mod bcs;
+mod solana;
 mod stellar_xdr;
 
 use axelar_wasm_std::hash::Hash;
@@ -7,7 +8,7 @@ use cosmwasm_std::HexBinary;
 use error_stack::{bail, Result};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
-use multisig_prover_api::encoding::Encoder;
+use solana_multisig_prover_api::encoding::Encoder;
 
 use crate::error::ContractError;
 use crate::Payload;

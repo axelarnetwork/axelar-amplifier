@@ -8,9 +8,9 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
 use msgs_derive::Permissions;
 use multisig::key::KeyType;
-use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 use service_registry_api::Verifier;
+use solana_multisig_prover_api::encoding::Encoder;
 
 pub use crate::contract::MigrateMsg;
 

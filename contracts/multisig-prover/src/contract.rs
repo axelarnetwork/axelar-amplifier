@@ -128,9 +128,9 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use multisig_prover_api::encoding::Encoder;
     use prost::Message;
     use router_api::{cosmos_addr, CrossChainId};
+    use solana_multisig_prover_api::encoding::Encoder;
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;

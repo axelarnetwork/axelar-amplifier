@@ -100,22 +100,9 @@ pub enum Config {
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
     },
-    SolanaMsgVerifier {
-        chain_name: ChainName,
-        cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        rpc_url: Url,
-        gateway_address: String,
-        rpc_timeout: Option<Duration>,
-    },
-    SolanaVerifierSetVerifier {
-        chain_name: ChainName,
-        cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        rpc_url: Url,
-        gateway_address: String,
-        rpc_timeout: Option<Duration>,
-    },
+    // TODO: Solana handlers not yet implemented
+    // SolanaMsgVerifier { ... },
+    // SolanaVerifierSetVerifier { ... },
     StacksMsgVerifier {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
@@ -269,16 +256,6 @@ where
     )?;
     ensure_unique_config!(
         &configs,
-        Config::SolanaMsgVerifier,
-        "Solana message verifier"
-    )?;
-    ensure_unique_config!(
-        &configs,
-        Config::SolanaVerifierSetVerifier,
-        "Solana verifier set verifier"
-    )?;
-    ensure_unique_config!(
-        &configs,
         Config::StacksMsgVerifier,
         "Stacks message verifier"
     )?;
@@ -303,7 +280,6 @@ mod tests {
     use crate::url::Url;
     use crate::PREFIX;
 
-    const SOLANA: &str = "solana";
     const STACKS: &str = "stacks";
 
     #[test]
@@ -425,37 +401,9 @@ mod tests {
             )
         );
 
-        let sample_config = Config::SolanaMsgVerifier {
-            chain_name: chain_name!(SOLANA),
-            cosmwasm_contract: TMAddress::random(PREFIX),
-            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
-            rpc_timeout: None,
-            gateway_address: "11111111111111111111111111111112".to_string(),
-        };
-
-        let configs = vec![sample_config.clone(), sample_config];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Solana message verifier config is allowed")
-            )
-        );
-
-        let sample_config = Config::SolanaVerifierSetVerifier {
-            chain_name: chain_name!(SOLANA),
-            cosmwasm_contract: TMAddress::random(PREFIX),
-            rpc_url: Url::new_non_sensitive("http://localhost:8080/").unwrap(),
-            rpc_timeout: None,
-            gateway_address: "11111111111111111111111111111112".to_string(),
-        };
-
-        let configs = vec![sample_config.clone(), sample_config];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
-            )
-        );
+        // TODO: Solana tests disabled - handlers not yet implemented
+        // let sample_config = Config::SolanaMsgVerifier { ... };
+        // let sample_config = Config::SolanaVerifierSetVerifier { ... };
 
         let sample_config = Config::StacksMsgVerifier {
             chain_name: chain_name!(STACKS),

@@ -3,9 +3,9 @@ use axelar_wasm_std::Threshold;
 use cosmwasm_std::{Addr, DepsMut, Env};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
-use multisig_prover::contract::{execute, instantiate, query};
-use multisig_prover_api::encoding::Encoder;
 use router_api::cosmos_addr;
+use solana_multisig_prover::contract::{execute, instantiate, query};
+use solana_multisig_prover_api::encoding::Encoder;
 
 use crate::contract::Contract;
 use crate::protocol::{emptying_deps_mut, Protocol};
@@ -34,7 +34,7 @@ impl MultisigProverContract {
             .instantiate_contract(
                 code_id,
                 cosmos_addr!("anyone"),
-                &multisig_prover::msg::InstantiateMsg {
+                &solana_multisig_prover::msg::InstantiateMsg {
                     admin_address: admin_address.to_string(),
                     governance_address: protocol.governance_address.to_string(),
                     gateway_address: gateway_address.to_string(),
@@ -82,12 +82,12 @@ fn custom_reply(
     env: Env,
     msg: cosmwasm_std::Reply,
 ) -> Result<cosmwasm_std::Response, axelar_wasm_std::error::ContractError> {
-    multisig_prover::contract::reply(emptying_deps_mut(&mut deps), env, msg)
+    solana_multisig_prover::contract::reply(emptying_deps_mut(&mut deps), env, msg)
 }
 
 impl Contract for MultisigProverContract {
-    type QMsg = multisig_prover::msg::QueryMsg;
-    type ExMsg = multisig_prover::msg::ExecuteMsg;
+    type QMsg = solana_multisig_prover::msg::QueryMsg;
+    type ExMsg = solana_multisig_prover::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()

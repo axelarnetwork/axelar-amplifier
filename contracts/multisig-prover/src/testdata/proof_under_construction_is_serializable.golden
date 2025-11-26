@@ -14,7 +14,7 @@
       "value": "\"2\""
     },
     {
-      "key": "msg_ids",
+      "key": "message_ids",
       "value": "[{\"source_chain\":\"ethereum\",\"message_id\":\"some-id\"},{\"source_chain\":\"fantom\",\"message_id\":\"some-other-id\"}]"
     }
   ]

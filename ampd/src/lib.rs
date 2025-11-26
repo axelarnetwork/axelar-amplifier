@@ -18,7 +18,6 @@ pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
 mod mvx;
-mod solana;
 mod stacks;
 mod starknet;
 pub mod stellar;
@@ -46,8 +45,6 @@ use evm::json_rpc::EthereumClient;
 use lazy_static::lazy_static;
 use multiversx_sdk::gateway::GatewayProxy;
 use router_api::{chain_name, ChainName};
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
 use starknet_providers::jsonrpc::HttpTransport;
 use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
@@ -722,77 +719,9 @@ impl App {
                     ),
                 ))
             }
-            handlers::config::Config::SolanaMsgVerifier {
-                chain_name,
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-                gateway_address,
-            } => {
-                let task_name = "solana-msg-verifier".to_string();
-                Ok((
-                    task_name.clone(),
-                    self.create_handler_task(
-                        task_name,
-                        handlers::solana_verify_msg::Handler::new(
-                            chain_name.clone(),
-                            verifier.clone(),
-                            cosmwasm_contract.clone(),
-                            solana::Client::new(
-                                RpcClient::new_with_timeout_and_commitment(
-                                    rpc_url.as_str().to_string(),
-                                    rpc_timeout.unwrap_or(default_rpc_timeout),
-                                    CommitmentConfig::finalized(),
-                                ),
-                                self.monitoring_client.clone(),
-                                chain_name.clone(),
-                            ),
-                            self.block_height_monitor.latest_block_height(),
-                            self.monitoring_client.clone(),
-                            gateway_address,
-                        )
-                        .change_context(Error::Connection)?,
-                        event_processor_config.clone(),
-                        self.monitoring_client.clone(),
-                    ),
-                ))
-            }
-            handlers::config::Config::SolanaVerifierSetVerifier {
-                chain_name,
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-                gateway_address,
-            } => {
-                let task_name = "solana-verifier-set-verifier".to_string();
-                Ok((
-                    task_name.clone(),
-                    self.create_handler_task(
-                        task_name,
-                        handlers::solana_verify_verifier_set::Handler::new(
-                            chain_name.clone(),
-                            verifier.clone(),
-                            cosmwasm_contract.clone(),
-                            solana::Client::new(
-                                RpcClient::new_with_timeout_and_commitment(
-                                    rpc_url.as_str().to_string(),
-                                    rpc_timeout.unwrap_or(default_rpc_timeout),
-                                    CommitmentConfig::finalized(),
-                                ),
-                                self.monitoring_client.clone(),
-                                chain_name.clone(),
-                            ),
-                            self.block_height_monitor.latest_block_height(),
-                            self.monitoring_client.clone(),
-                            gateway_address,
-                        )
-                        .await
-                        .change_context(Error::Connection)?,
-                        event_processor_config.clone(),
-                        self.monitoring_client.clone(),
-                    ),
-                ))
-            }
+            // TODO: Solana handlers not yet implemented
+            // handlers::config::Config::SolanaMsgVerifier { .. } => { ... }
+            // handlers::config::Config::SolanaVerifierSetVerifier { .. } => { ... }
             handlers::config::Config::StacksMsgVerifier {
                 chain_name,
                 cosmwasm_contract,
