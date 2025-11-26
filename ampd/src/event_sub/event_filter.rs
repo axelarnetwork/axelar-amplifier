@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::nonempty;
 use error_stack::{report, Report, Result, ResultExt};
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
 use crate::types::{AxelarAddress, TMAddress};
 
@@ -12,11 +15,33 @@ pub enum Error {
     InvalidContractAddress(String),
 }
 
-#[derive(Clone, Debug)]
-pub enum EventFilter {
-    EventType(nonempty::String),
-    Contract(TMAddress),
-    EventTypeAndContract(nonempty::String, TMAddress),
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
+#[builder(build_method(vis = "", name = build_internal))]
+pub struct EventFilter {
+    #[builder(default)]
+    event_type: Option<nonempty::String>,
+    #[builder(default)]
+    contract: Option<TMAddress>,
+    #[builder(default)]
+    attributes: HashMap<String, serde_json::Value>,
+}
+
+impl<
+        E: ::typed_builder::Optional<Option<nonempty::String>>,
+        C: ::typed_builder::Optional<Option<TMAddress>>,
+        A: ::typed_builder::Optional<HashMap<String, serde_json::Value>>,
+    > EventFilterBuilder<(E, C, A)>
+{
+    pub fn build(self) -> Result<EventFilter, Error> {
+        let filter = self.build_internal();
+
+        if filter.event_type.is_none() && filter.contract.is_none() && filter.attributes.is_empty()
+        {
+            return Err(report!(Error::EmptyFilter));
+        }
+
+        Ok(filter)
+    }
 }
 
 impl TryFrom<ampd_proto::EventFilter> for EventFilter {
@@ -34,27 +59,43 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
 
             Some(contract.into()) // TODO: change to AxelarAddress
         };
+        let attributes: HashMap<_, _> = event_filter
+            .attributes
+            .into_iter()
+            .map(|(key, value)| {
+                (
+                    key,
+                    serde_json::from_str(&value).unwrap_or(serde_json::Value::String(value)),
+                )
+            })
+            .collect();
 
-        match (event_type, contract) {
-            (Some(event_type), Some(contract)) => {
-                Ok(EventFilter::EventTypeAndContract(event_type, contract))
-            }
-            (Some(event_type), None) => Ok(EventFilter::EventType(event_type)),
-            (None, Some(contract)) => Ok(EventFilter::Contract(contract)),
-            (None, None) => Err(report!(Error::EmptyFilter)),
-        }
+        EventFilter::builder()
+            .event_type(event_type)
+            .contract(contract)
+            .attributes(attributes)
+            .build()
     }
 }
 
 impl EventFilter {
-    pub fn filter(&self, event_type: &str, contract: Option<&TMAddress>) -> bool {
-        match self {
-            EventFilter::EventType(event_type_filter) => event_type_filter == event_type,
-            EventFilter::Contract(contract_filter) => Some(contract_filter) == contract,
-            EventFilter::EventTypeAndContract(event_type_filter, contract_filter) => {
-                event_type_filter == event_type && Some(contract_filter) == contract
-            }
-        }
+    pub fn filter(
+        &self,
+        event_type: &str,
+        contract: Option<&TMAddress>,
+        attributes: &serde_json::Map<String, serde_json::Value>,
+    ) -> bool {
+        self.event_type
+            .as_ref()
+            .is_none_or(|filter| filter == event_type)
+            && self
+                .contract
+                .as_ref()
+                .is_none_or(|filter| contract == Some(filter))
+            && self
+                .attributes
+                .iter()
+                .all(|(key, value)| attributes.get(key) == Some(value))
     }
 }
 
@@ -79,11 +120,19 @@ impl EventFilters {
             events::Event::BlockBegin(_) | events::Event::BlockEnd(_) => {
                 self.include_block_begin_end
             }
-            events::Event::Abci { event_type, .. } => self.filter_abci_event(event_type, contract),
+            events::Event::Abci {
+                event_type,
+                attributes,
+            } => self.filter_abci_event(event_type, contract, attributes),
         }
     }
 
-    fn filter_abci_event<T>(&self, event_type: &str, contract: Option<T>) -> bool
+    fn filter_abci_event<T>(
+        &self,
+        event_type: &str,
+        contract: Option<T>,
+        attributes: &serde_json::Map<String, serde_json::Value>,
+    ) -> bool
     where
         T: Into<TMAddress>,
     {
@@ -95,7 +144,7 @@ impl EventFilters {
 
         self.filters
             .iter()
-            .any(|filter| filter.filter(event_type, contract.as_ref()))
+            .any(|filter| filter.filter(event_type, contract.as_ref(), attributes))
     }
 }
 
@@ -124,36 +173,34 @@ mod tests {
     use crate::PREFIX;
 
     #[test]
-    fn event_filter_should_be_created_from_valid_event_type() {
+    fn event_filter_should_be_created_from_proto() {
+        let event_type = "test_event".to_string();
+        let contract = TMAddress::random(PREFIX);
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "chain_name".to_string(),
+            serde_json::Value::String("ethereum".to_string()),
+        );
+        attributes.insert("object".to_string(), serde_json::json!({ "key": "value" }));
+
         let proto_filter = ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: "".to_string(),
+            r#type: event_type.clone(),
+            contract: contract.to_string(),
+            attributes: attributes
+                .clone()
+                .into_iter()
+                .map(|(key, value)| (key, value.to_string()))
+                .collect(),
+        };
+
+        let expected_filter = EventFilter {
+            event_type: Some(event_type.parse().unwrap()),
+            contract: Some(contract),
+            attributes,
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(matches!(filter, EventFilter::EventType(_)));
-    }
-
-    #[test]
-    fn event_filter_should_be_created_from_valid_contract_address() {
-        let proto_filter = ampd_proto::EventFilter {
-            r#type: "".to_string(),
-            contract: TMAddress::random(PREFIX).to_string(),
-        };
-
-        let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(matches!(filter, EventFilter::Contract(_)));
-    }
-
-    #[test]
-    fn event_filter_should_be_created_from_valid_event_type_and_contract_address() {
-        let proto_filter = ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: TMAddress::random(PREFIX).to_string(),
-        };
-
-        let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(matches!(filter, EventFilter::EventTypeAndContract(_, _)));
+        assert_eq!(filter, expected_filter);
     }
 
     #[test]
@@ -169,6 +216,7 @@ mod tests {
         let proto_filter = ampd_proto::EventFilter {
             r#type: "".to_string(),
             contract: "invalid_address".to_string(),
+            attributes: HashMap::new(),
         };
 
         let result = EventFilter::try_from(proto_filter);
@@ -181,6 +229,7 @@ mod tests {
         let proto_filter = ampd_proto::EventFilter {
             r#type: "".to_string(),
             contract: address.to_string(),
+            attributes: HashMap::new(),
         };
 
         let result = EventFilter::try_from(proto_filter);
@@ -192,11 +241,12 @@ mod tests {
         let proto_filter = ampd_proto::EventFilter {
             r#type: "test_event".to_string(),
             contract: "".to_string(),
+            attributes: HashMap::new(),
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert!(filter.filter("test_event", None));
-        assert!(!filter.filter("other_event", None));
+        assert!(filter.filter("test_event", None, &serde_json::Map::new()));
+        assert!(!filter.filter("other_event", None, &serde_json::Map::new()));
     }
 
     #[test]
@@ -205,27 +255,79 @@ mod tests {
         let proto_filter = ampd_proto::EventFilter {
             r#type: "".to_string(),
             contract: address.to_string(),
+            attributes: HashMap::new(),
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
 
-        assert!(filter.filter("any_event", Some(&address)));
-        assert!(!filter.filter("any_event", Some(&TMAddress::random(PREFIX))));
-        assert!(!filter.filter("any_event", None));
+        assert!(filter.filter("any_event", Some(&address), &serde_json::Map::new()));
+        assert!(!filter.filter(
+            "any_event",
+            Some(&TMAddress::random(PREFIX)),
+            &serde_json::Map::new()
+        ));
+        assert!(!filter.filter("any_event", None, &serde_json::Map::new()));
     }
 
     #[test]
-    fn event_filter_should_match_by_both_event_type_and_contract() {
-        let address = TMAddress::random(PREFIX);
+    fn event_filter_should_match_by_attributes() {
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "chain_name".to_string(),
+            serde_json::Value::String("ethereum".to_string()),
+        );
+        attributes.insert("object".to_string(), serde_json::json!({ "key": "value" }));
         let proto_filter = ampd_proto::EventFilter {
-            r#type: "test_event".to_string(),
-            contract: address.to_string(),
+            r#type: "".to_string(),
+            contract: "".to_string(),
+            attributes: attributes
+                .clone()
+                .into_iter()
+                .map(|(key, value)| (key, value.to_string()))
+                .collect(),
         };
 
         let filter = EventFilter::try_from(proto_filter).unwrap();
 
-        assert!(filter.filter("test_event", Some(&address)));
-        assert!(!filter.filter("other_event", Some(&address)));
-        assert!(!filter.filter("test_event", Some(&TMAddress::random(PREFIX))));
+        let mut event_attributes = serde_json::Map::from_iter(attributes);
+        assert!(filter.filter("any_event", None, &event_attributes));
+        assert!(!filter.filter("any_event", None, &serde_json::Map::new()));
+
+        event_attributes.remove("chain_name");
+        assert!(!filter.filter("any_event", None, &event_attributes));
+    }
+
+    #[test]
+    fn event_filter_should_match_by_all_filters() {
+        let address = TMAddress::random(PREFIX);
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "chain_name".to_string(),
+            serde_json::Value::String("ethereum".to_string()),
+        );
+        attributes.insert("object".to_string(), serde_json::json!({ "key": "value" }));
+        let proto_filter = ampd_proto::EventFilter {
+            r#type: "test_event".to_string(),
+            contract: address.to_string(),
+            attributes: attributes
+                .clone()
+                .into_iter()
+                .map(|(key, value)| (key, value.to_string()))
+                .collect(),
+        };
+
+        let filter = EventFilter::try_from(proto_filter).unwrap();
+
+        let mut event_attributes = serde_json::Map::from_iter(attributes);
+        assert!(filter.filter("test_event", Some(&address), &event_attributes));
+        assert!(!filter.filter("other_event", Some(&address), &event_attributes));
+        assert!(!filter.filter(
+            "test_event",
+            Some(&TMAddress::random(PREFIX)),
+            &event_attributes
+        ));
+
+        event_attributes.remove("chain_name");
+        assert!(!filter.filter("test_event", Some(&address), &event_attributes));
     }
 }

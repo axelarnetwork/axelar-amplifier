@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 
 use axelar_wasm_std::nonempty;
@@ -16,6 +16,7 @@ const KEY_CONTRACT_ADDRESS: &str = "_contract_address";
 pub struct AbciEventTypeFilter {
     pub event_type: nonempty::String,
     pub contract: AccountId,
+    pub attributes: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
