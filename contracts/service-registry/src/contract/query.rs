@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use axelar_wasm_std::{address, nonempty};
+use axelar_wasm_std::address;
 use cosmwasm_std::{Addr, Deps, Env, Order};
 use error_stack::report;
 use itertools::Itertools;
@@ -126,14 +126,6 @@ pub fn service(
     chain_name: Option<ChainName>,
 ) -> error_stack::Result<Service, ContractError> {
     state::service(deps.storage, &service_name, chain_name.as_ref())
-}
-
-pub fn services(
-    deps: Deps,
-    service_name: Option<String>,
-    limit: nonempty::Usize,
-) -> error_stack::Result<Vec<Service>, ContractError> {
-    state::services(deps.storage, service_name.as_ref(), limit)
 }
 
 pub fn service_params_override(

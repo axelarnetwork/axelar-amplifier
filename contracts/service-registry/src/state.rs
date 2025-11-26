@@ -176,30 +176,25 @@ pub fn save_new_service(
 pub fn update_authorized_verifier_count(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
-) -> error_stack::Result<(), ContractError> {
+) -> error_stack::Result<u16, ContractError> {
     let verifier_count: usize = VERIFIERS
         .prefix(service_name)
         .range(storage, None, None, Order::Ascending)
         .filter_map(|v| match v {
-            Ok((_, ver)) => {
-                match ver.authorization_state {
-                    AuthorizationState::Authorized => Some(()),
-                    _ => None,
-                }
+            Ok((_, ver)) => match ver.authorization_state {
+                AuthorizationState::Authorized => Some(()),
+                _ => None,
             },
             _ => None,
         })
         .collect::<Vec<()>>()
         .len();
-    
-    let total = u16::try_from(verifier_count)
-        .map_err(|_| ContractError::TooManyVerifiers)?;
+
+    let total = u16::try_from(verifier_count).map_err(|_| ContractError::TooManyVerifiers)?;
 
     AUTHORIZED_VERIFIER_COUNT
         .update(storage, service_name, |_| Ok::<u16, ContractError>(total))
-        .change_context(ContractError::StorageError);
-
-    Ok(())
+        .change_context(ContractError::StorageError)
 }
 
 pub fn has_service(storage: &dyn Storage, service_name: &ServiceName) -> bool {
