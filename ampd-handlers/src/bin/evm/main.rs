@@ -122,17 +122,15 @@ async fn main() -> Result<(), Error> {
 
     let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
 
-    // Load combined EVM handler config
     let handler_config = config::Config::builder()
         .add_file_source("evm-handler-config.toml")
         .add_env_source("AMPD_EVM_HANDLER")
         .build::<EvmHandlerConfig>()
         .change_context(Error::HandlerStart)?;
 
-    // Error if no handlers are configured
     if handler_config.handlers_to_run.is_empty() {
         return Err(Error::HandlerStart)
-            .attach_printable("No handlers configured. The 'handlers_to_run' array in evm-handler-config.toml must contain at least one handler (gmp_voting or event_verification)");
+            .attach_printable("No handlers configured. The 'handlers_to_run' array must contain at least one handler (gmp_voting or event_verification)");
     }
 
     let token = CancellationToken::new();
@@ -144,7 +142,6 @@ async fn main() -> Result<(), Error> {
 
     let mut task_group = TaskGroup::new("evm-handlers");
 
-    // Build GMP handler task if requested
     if handler_config
         .handlers_to_run
         .contains(&HandlerType::GmpVoting)
@@ -168,7 +165,6 @@ async fn main() -> Result<(), Error> {
         info!("GMP voting handler configured and will be started");
     }
 
-    // Build event verifier handler task if requested
     if handler_config
         .handlers_to_run
         .contains(&HandlerType::EventVerification)
