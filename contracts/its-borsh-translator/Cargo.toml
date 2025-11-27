@@ -1,6 +1,6 @@
 [package]
-name = "its-abi-translator"
-version = "2.0.0"
+name = "its-borsh-translator"
+version = "1.0.0"
 edition = "2021"
 
 [lib]
@@ -12,9 +12,8 @@ library = []
 
 [dependencies]
 
-# ABI encoding dependencies
-alloy-primitives = { workspace = true }
-alloy-sol-types = { workspace = true }
+# Borsh/Solana dependencies
+borsh = { workspace = true }
 
 # Axelar dependencies
 axelar-wasm-std = { workspace = true }

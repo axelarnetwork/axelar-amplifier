@@ -682,7 +682,7 @@ mod tests {
     }
 
     //
-    // Snapshot tests for encoded format stability
+    // Snapshot tests
     //
 
     #[test]

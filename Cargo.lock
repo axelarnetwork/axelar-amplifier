@@ -5680,6 +5680,28 @@ dependencies = [
  "alloy-sol-types",
  "assert_ok",
  "axelar-wasm-std",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "error-stack",
+ "goldie",
+ "hex",
+ "interchain-token-service",
+ "interchain-token-service-std",
+ "its-msg-translator-api",
+ "router-api",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "its-borsh-translator"
+version = "1.0.0"
+dependencies = [
+ "assert_ok",
+ "axelar-wasm-std",
  "borsh 1.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
