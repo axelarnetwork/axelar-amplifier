@@ -56,7 +56,7 @@ itertools = { workspace = true }
 k256 = { workspace = true }
 lazy_static = "1.5.0"
 mockall = "0.11.3"
-move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.55.0" }
 multisig = { workspace = true, features = ["library"] }
 multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
@@ -92,8 +92,8 @@ stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true, features = ["serde_json"] }
 sui-gateway = { workspace = true }
-sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
-sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.55.0" }
+sui-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.55.0" }
 sysinfo = "0.36.1"
 tendermint = { workspace = true }
 tendermint-rpc = { version = "0.40.4", features = ["http-client"] }

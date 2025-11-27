@@ -121,7 +121,7 @@ temp-env = "0.3.6"
 tendermint = "0.40.4"
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
-tokio = "1.44.2"
+tokio = "1.48.0"
 tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 tracing = { version = "0.1.37", features = ["valuable", "log"] }

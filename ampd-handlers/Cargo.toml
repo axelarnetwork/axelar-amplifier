@@ -46,8 +46,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
 stellar-xdr = { workspace = true }
-sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
-sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.55.0" }
+sui-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.55.0" }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
