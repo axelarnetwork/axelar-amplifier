@@ -19,10 +19,10 @@ inputs:
   github_token:
     description: "GitHub token for pushing changes"
     required: true
-  create-handler-tags:
-    description: "Create individual handler tags for ampd-handlers"
+  tag-prefixes:
+    description: "Comma-separated list of tag prefixes to create additional tags for (e.g., 'evm-handler, sui-handler')"
     required: false
-    default: 'false'
+    default: ''
 
 runs:
   using: "composite"
@@ -118,7 +118,7 @@ runs:
           git push origin <branch-name>
 
           Create a PR from the new branch to the previous patch tag
-          hub pull-request -b <previous-latest-patch-tag>
+          gh pr create --base <previous-latest-patch-tag>
 
           Once the PR is approved, run the release workflow and choose the
           branch created above as the base branch. Note that this patch will not
@@ -249,6 +249,50 @@ runs:
           -p ${{ inputs.binary-to-release }} \
           ${{ steps.semantic-version.outputs.version_type }}
 
+    - name: Create additional tags from prefixes
+      shell: bash
+      if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true' && inputs.tag-prefixes != ''
+      run: |
+        version_tag="${{ steps.semantic-version.outputs.version_tag }}"
+        version="${{ steps.semantic-version.outputs.version }}"
+        commit_sha=$(git rev-parse "$version_tag")
+        
+        echo "Creating additional tags for version $version at commit $commit_sha"
+        
+        IFS=',' read -ra prefixes <<< "${{ inputs.tag-prefixes }}"
+        
+        if [ ${#prefixes[@]} -eq 0 ]; then
+          echo "Error: No tag prefixes provided"
+          exit 1
+        fi
+        
+        tags_created=0
+        for prefix in "${prefixes[@]}"; do
+          prefix=$(echo "$prefix" | xargs)
+          
+          if [ -z "$prefix" ]; then
+            continue
+          fi
+          
+          tag="${prefix}-v${version}"
+          
+          echo "Creating tag: $tag"
+          
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists, skipping"
+          else
+            git tag "$tag" "$commit_sha"
+            echo "Created tag: $tag"
+            tags_created=$((tags_created + 1))
+          fi
+        done
+        
+        if [ $tags_created -eq 0 ]; then
+          echo "No new tags were created (all tags already exist)"
+        else
+          echo "Successfully created $tags_created additional tag(s)"
+        fi
+        
     - name: Push changes of cargo release
       if:
         inputs.dry-run == 'false' &&
@@ -258,49 +302,3 @@ runs:
         github_token: ${{ inputs.github_token }}
         branch: ${{ github.ref }}
         tags: true
-        
-    - name: Create individual handler tags for ampd-handlers
-      shell: bash
-      if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true' && inputs.create-handler-tags == 'true'
-      run: |
-        version_tag="${{ steps.semantic-version.outputs.version_tag }}"
-        version="${{ steps.semantic-version.outputs.version }}"
-        commit_sha=$(git rev-parse "$version_tag")
-        
-        echo "Creating individual handler tags for version $version at commit $commit_sha"
-        
-        if [ -d "ampd-handlers/src/bin" ]; then
-          handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
-          echo "Found handlers: $handlers"
-          
-          if [ -z "$handlers" ]; then
-            echo "Error: No handler subdirectories found in ampd-handlers/src/bin/"
-            exit 1
-          fi
-          
-          tags_created=0
-          for handler in $handlers; do
-            handler_tag="${handler}-handler-v${version}"
-            
-            echo "Creating tag: $handler_tag"
-            
-            if git rev-parse "$handler_tag" >/dev/null 2>&1; then
-              echo "Tag $handler_tag already exists, skipping"
-            else
-              git tag -a "$handler_tag" -m "Release ${handler}-handler ${version}" "$commit_sha"
-              echo "Created tag: $handler_tag"
-              tags_created=$((tags_created + 1))
-            fi
-          done
-          
-          if [ $tags_created -eq 0 ]; then
-            echo "No new tags were created (all tags already exist)"
-            exit 0
-          fi
-          
-          git push origin --tags
-          echo "Successfully created and pushed $tags_created individual handler tag(s)"
-        else
-          echo "No handlers found in ampd-handlers/src/bin/"
-          exit 1
-        fi

@@ -72,6 +72,16 @@ jobs:
               echo "Unknown binary to release"
               exit 1
           fi
+          
+          if [[ "$binary" == "ampd-handlers" ]]; then
+            if [ -d "ampd-handlers/src/bin" ]; then
+              handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
+              if [ -n "$handlers" ]; then
+                tag_prefixes=$(echo "$handlers" | sed 's/$/-handler/' | tr '\n' ',' | sed 's/,$//')
+                echo "tag-prefixes=$tag_prefixes" >> "$GITHUB_OUTPUT"
+              fi
+            fi
+          fi
 
       - name: Release ${{ github.event.inputs.binary-to-release }}
         id: release
@@ -83,4 +93,4 @@ jobs:
           minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
           change-path: ${{ steps.setup-variables.outputs.change-path }}
           github_token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
-          create-handler-tags: ${{ github.event.inputs.binary-to-release == 'ampd-handlers' }}
+          tag-prefixes: ${{ steps.setup-variables.outputs.tag-prefixes }}
