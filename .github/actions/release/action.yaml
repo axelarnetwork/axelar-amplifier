@@ -20,7 +20,7 @@ inputs:
     description: "GitHub token for pushing changes"
     required: true
   tag-prefixes:
-    description: "Comma-separated list of tag prefixes to create additional tags for (e.g., 'evm-handler, sui-handler')"
+    description: "Comma-separated list of additional tag prefixes to use for the release commit (each prefix creates a {tag_prefix}-vX.X.X tag)"
     required: false
     default: ''
 
