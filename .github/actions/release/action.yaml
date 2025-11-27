@@ -276,7 +276,6 @@ runs:
         
         tags_created=0
         for prefix in "${filtered_prefixes[@]}"; do
-          
           tag="${prefix}-v${version}"
           
           echo "Creating tag: $tag"
