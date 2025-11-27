@@ -12,6 +12,9 @@ library = []
 
 [dependencies]
 
+# Borsh/Solana dependencies
+borsh = { workspace = true }
+
 # ABI encoding dependencies
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
