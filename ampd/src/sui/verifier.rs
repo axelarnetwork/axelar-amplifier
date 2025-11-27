@@ -400,7 +400,9 @@ mod tests {
                 type_params: vec![],
             },
             parsed_json: json!({}),
-            bcs: sui_json_rpc_types::BcsEvent::Base64 { bcs: bcs::to_bytes(&contract_call).unwrap() },
+            bcs: sui_json_rpc_types::BcsEvent::Base64 {
+                bcs: bcs::to_bytes(&contract_call).unwrap(),
+            },
             timestamp_ms: None,
         };
 
@@ -507,7 +509,9 @@ mod tests {
                 type_params: vec![],
             },
             parsed_json: json!({}),
-            bcs: sui_json_rpc_types::BcsEvent::Base64 { bcs: bcs::to_bytes(&signers_rotated).unwrap() },
+            bcs: sui_json_rpc_types::BcsEvent::Base64 {
+                bcs: bcs::to_bytes(&signers_rotated).unwrap(),
+            },
             timestamp_ms: None,
         };
 
