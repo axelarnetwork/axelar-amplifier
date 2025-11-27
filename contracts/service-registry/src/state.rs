@@ -190,7 +190,8 @@ pub fn update_authorized_verifier_count(
         .collect::<Vec<()>>()
         .len();
 
-    let total = u16::try_from(verifier_count).map_err(|_| ContractError::VerifierLimitExceeded)?;
+    let total = u16::try_from(verifier_count)
+        .change_context(ContractError::AuthorizedVerifiersIntegerOverflow)?;
 
     AUTHORIZED_VERIFIER_COUNT
         .update(storage, service_name, |_| Ok::<u16, ContractError>(total))
