@@ -696,8 +696,8 @@ mod tests {
                     destination_chain: remote_chain.clone(),
                     message: interchain_token_service_std::InterchainTransfer {
                         token_id: [0u8; 32].into(),
-                        source_address: from_hex("01"),
-                        destination_address: from_hex("02"),
+                        source_address: from_hex("00"),
+                        destination_address: from_hex("00"),
                         amount: 1u64.try_into().unwrap(),
                         data: None,
                     }
@@ -709,11 +709,11 @@ mod tests {
                 interchain_token_service_std::HubMessage::SendToHub {
                     destination_chain: remote_chain.clone(),
                     message: interchain_token_service_std::InterchainTransfer {
-                        token_id: [0u8; 32].into(),
-                        source_address: from_hex("01"),
-                        destination_address: from_hex("02"),
-                        amount: 1u64.try_into().unwrap(),
-                        data: Some(from_hex("03040506")),
+                        token_id: [255u8; 32].into(),
+                        source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                        destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                        amount: Uint256::MAX.try_into().unwrap(),
+                        data: Some(from_hex("abcd")),
                     }
                     .into(),
                 },
@@ -723,25 +723,57 @@ mod tests {
                 interchain_token_service_std::HubMessage::SendToHub {
                     destination_chain: remote_chain.clone(),
                     message: interchain_token_service_std::DeployInterchainToken {
-                        token_id: [1u8; 32].into(),
-                        name: "Test".try_into().unwrap(),
-                        symbol: "TST".try_into().unwrap(),
-                        decimals: 18,
+                        token_id: [0u8; 32].into(),
+                        name: "t".try_into().unwrap(),
+                        symbol: "T".try_into().unwrap(),
+                        decimals: 0,
                         minter: None,
                     }
                     .into(),
                 },
             ),
             (
-                "send_to_hub__deploy_token_minter",
+                "send_to_hub__deploy_token_with_minter",
                 interchain_token_service_std::HubMessage::SendToHub {
                     destination_chain: remote_chain.clone(),
                     message: interchain_token_service_std::DeployInterchainToken {
-                        token_id: [1u8; 32].into(),
-                        name: "Test".try_into().unwrap(),
-                        symbol: "TST".try_into().unwrap(),
-                        decimals: 18,
+                        token_id: [0u8; 32].into(),
+                        name: "Unicode Token 🪙".try_into().unwrap(),
+                        symbol: "UNI🔣".try_into().unwrap(),
+                        decimals: 255,
                         minter: Some(from_hex("abcd")),
+                    }
+                    .into(),
+                },
+            ),
+            (
+                "send_to_hub__link_token",
+                interchain_token_service_std::HubMessage::SendToHub {
+                    destination_chain: remote_chain.clone(),
+                    message: interchain_token_service_std::LinkToken {
+                        token_id: [0u8; 32].into(),
+                        token_manager_type: Uint256::from(0u64),
+                        source_token_address: from_hex("1111111111111111111111111111111111111111"),
+                        destination_token_address: from_hex(
+                            "2222222222222222222222222222222222222222",
+                        ),
+                        params: None,
+                    }
+                    .into(),
+                },
+            ),
+            (
+                "send_to_hub__link_token_params",
+                interchain_token_service_std::HubMessage::SendToHub {
+                    destination_chain: remote_chain.clone(),
+                    message: interchain_token_service_std::LinkToken {
+                        token_id: [255u8; 32].into(),
+                        token_manager_type: Uint256::MAX,
+                        source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                        destination_token_address: from_hex(
+                            "742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321",
+                        ),
+                        params: Some(from_hex("deadbeef")),
                     }
                     .into(),
                 },
@@ -779,11 +811,29 @@ mod tests {
                 interchain_token_service_std::HubMessage::ReceiveFromHub {
                     source_chain: remote_chain.clone(),
                     message: interchain_token_service_std::LinkToken {
-                        token_id: [2u8; 32].into(),
-                        token_manager_type: Uint256::from(1u64),
-                        source_token_address: from_hex("1111"),
-                        destination_token_address: from_hex("2222"),
+                        token_id: [0u8; 32].into(),
+                        token_manager_type: Uint256::from(0u64),
+                        source_token_address: from_hex("1111111111111111111111111111111111111111"),
+                        destination_token_address: from_hex(
+                            "2222222222222222222222222222222222222222",
+                        ),
                         params: None,
+                    }
+                    .into(),
+                },
+            ),
+            (
+                "receive_from_hub__link_token_params",
+                interchain_token_service_std::HubMessage::ReceiveFromHub {
+                    source_chain: remote_chain.clone(),
+                    message: interchain_token_service_std::LinkToken {
+                        token_id: [255u8; 32].into(),
+                        token_manager_type: Uint256::MAX,
+                        source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
+                        destination_token_address: from_hex(
+                            "742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321",
+                        ),
+                        params: Some(from_hex("deadbeef")),
                     }
                     .into(),
                 },
@@ -793,7 +843,7 @@ mod tests {
                 interchain_token_service_std::HubMessage::RegisterTokenMetadata(
                     interchain_token_service_std::RegisterTokenMetadata {
                         decimals: 6,
-                        token_address: from_hex("abcd"),
+                        token_address: from_hex("A0b86a33E6441d36C3ad4d96eD9b3E5D6e6bC7a0"),
                     },
                 ),
             ),
