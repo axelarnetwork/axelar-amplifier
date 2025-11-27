@@ -34,7 +34,7 @@ impl EventType {
 
 impl PartialEq<&Message> for &SuiEvent {
     fn eq(&self, msg: &&Message) -> bool {
-        match bcs::from_bytes::<ContractCall>(&self.bcs.bytes()) {
+        match bcs::from_bytes::<ContractCall>(self.bcs.bytes()) {
             Ok(ContractCall {
                 source_id,
                 destination_chain,
@@ -79,7 +79,7 @@ impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
             .chain(expected.created_at.to_be_bytes())
             .collect::<Vec<_>>();
 
-        match bcs::from_bytes::<SignersRotated>(&self.bcs.bytes()) {
+        match bcs::from_bytes::<SignersRotated>(self.bcs.bytes()) {
             Ok(SignersRotated {
                 signers:
                     WeightedSigners {
