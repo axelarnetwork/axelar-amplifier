@@ -273,6 +273,12 @@ runs:
           handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
           echo "Found handlers: $handlers"
           
+          if [ -z "$handlers" ]; then
+            echo "Error: No handler subdirectories found in ampd-handlers/src/bin/"
+            exit 1
+          fi
+          
+          tags_created=0
           for handler in $handlers; do
             handler_tag="${handler}-handler-v${version}"
             
@@ -283,11 +289,17 @@ runs:
             else
               git tag -a "$handler_tag" -m "Release ${handler}-handler ${version}" "$commit_sha"
               echo "Created tag: $handler_tag"
+              tags_created=$((tags_created + 1))
             fi
           done
           
+          if [ $tags_created -eq 0 ]; then
+            echo "No new tags were created (all tags already exist)"
+            exit 0
+          fi
+          
           git push origin --tags
-          echo "Successfully created and pushed individual handler tags"
+          echo "Successfully created and pushed $tags_created individual handler tag(s)"
         else
           echo "No handlers found in ampd-handlers/src/bin/"
           exit 1
