@@ -1,6 +1,8 @@
 use std::hash::Hash;
 use std::ops::Deref;
+
 use serde::Serialize;
+
 use crate::nonempty::Error;
 
 #[derive(Clone, Debug, Serialize)]

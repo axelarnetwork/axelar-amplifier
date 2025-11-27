@@ -176,8 +176,7 @@ where
 
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
-            vec![
-                EventFilter::builder()
+            vec![EventFilter::builder()
                 .event_type(SigningStartedEvent::event_type())
                 .contract(self.multisig.clone())
                 .build()],

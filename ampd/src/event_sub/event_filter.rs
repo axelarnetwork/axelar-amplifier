@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::nonempty;
 use error_stack::{report, Report, Result, ResultExt};
-use std::collections::HashMap;
 use serde::Serialize;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
@@ -233,22 +234,22 @@ mod tests {
 
     #[test]
     fn event_filter_should_be_created_from_proto() {
-            let proto_filter = ampd_proto::EventFilter {
-                r#type: "test_event".to_string(),
-                contract: "axelar1m7rj8s9ee46h3sx96z9jg4hznhx5jzfp7dwv2u".to_string(),
-                attributes: [
-                    ("chain_name".to_string(), r#""ethereum""#.to_string()),
-                    ("object".to_string(), r#"{"key":"value"}"#.to_string()),
-                ]
-                .into(),
-            };
+        let proto_filter = ampd_proto::EventFilter {
+            r#type: "test_event".to_string(),
+            contract: "axelar1m7rj8s9ee46h3sx96z9jg4hznhx5jzfp7dwv2u".to_string(),
+            attributes: [
+                ("chain_name".to_string(), r#""ethereum""#.to_string()),
+                ("object".to_string(), r#"{"key":"value"}"#.to_string()),
+            ]
+            .into(),
+        };
 
-            let filter = EventFilter::try_from(proto_filter);
-            assert!(filter.is_ok(), "{:?}", filter.unwrap_err());
+        let filter = EventFilter::try_from(proto_filter);
+        assert!(filter.is_ok(), "{:?}", filter.unwrap_err());
 
-            // This seems stable despite non-determistic ordering of HashMap entries.
-            // Should tests start to fail, this needs to be changed to a different type of test.
-            goldie::assert_json!(filter.unwrap());
+        // This seems stable despite non-determistic ordering of HashMap entries.
+        // Should tests start to fail, this needs to be changed to a different type of test.
+        goldie::assert_json!(filter.unwrap());
     }
 
     #[test]
