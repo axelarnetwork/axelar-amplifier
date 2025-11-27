@@ -5562,7 +5562,6 @@ name = "interchain-token-service-std"
 version = "1.0.0"
 dependencies = [
  "axelar-wasm-std",
- "borsh 1.6.0",
  "client",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -5705,17 +5704,12 @@ dependencies = [
  "borsh 1.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
  "cw2",
  "error-stack",
  "goldie",
- "hex",
- "interchain-token-service",
  "interchain-token-service-std",
  "its-msg-translator-api",
  "router-api",
- "serde",
- "serde_json",
  "thiserror 1.0.69",
 ]
 

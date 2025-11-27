@@ -10,7 +10,6 @@ exclude = ["contract.wasm", "hash.txt"]
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
-borsh = { workspace = true }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
