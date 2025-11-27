@@ -83,41 +83,4 @@ jobs:
           minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
           change-path: ${{ steps.setup-variables.outputs.change-path }}
           github_token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
-
-      - name: Create individual handler tags for ampd-handlers
-        if: ${{ github.event.inputs.binary-to-release == 'ampd-handlers' && github.event.inputs.dry-run == 'false' }}
-        shell: bash
-        run: |
-          version_tag=$(git describe --tags --match "ampd-handlers-v*" --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$version_tag" ]; then
-            echo "Error: Could not find ampd-handlers version tag"
-            exit 1
-          fi
-          
-          version=$(echo "$version_tag" | sed 's/ampd-handlers-v//')
-          echo "Found version tag: $version_tag (version: $version)"
-          
-          if [ -d "ampd-handlers/src/bin" ]; then
-            handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
-            echo "Found handlers: $handlers"
-            
-            commit_sha=$(git rev-parse "$version_tag")
-            for handler in $handlers; do
-              handler_tag="${handler}-handler-v${version}"
-              echo "Creating tag: $handler_tag pointing to commit $commit_sha"
-              git config --global user.email "devops@interoplabs.io"
-              git config --global user.name "Interop Labs CI"
-
-              if git rev-parse "$handler_tag" >/dev/null 2>&1; then
-                echo "Tag $handler_tag already exists, skipping"
-              else
-                git tag -a "$handler_tag" -m "Release ${handler}-handler ${version}" "$commit_sha"
-              fi
-            done
-            
-            git push origin --tags
-            echo "Successfully created and pushed individual handler tags"
-          else
-            echo "No handlers found in ampd-handlers/src/bin/"
-            exit 1
-          fi
+          create-handler-tags: ${{ github.event.inputs.binary-to-release == 'ampd-handlers' }}

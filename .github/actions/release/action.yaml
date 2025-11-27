@@ -19,6 +19,10 @@ inputs:
   github_token:
     description: "GitHub token for pushing changes"
     required: true
+  create-handler-tags:
+    description: "Create individual handler tags for ampd-handlers"
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -70,6 +74,13 @@ runs:
           ${{ steps.semantic-version.outputs.changed }}"
         echo "PREVIOUS-VERSION:
           ${{ steps.semantic-version.outputs.previous_version }}"
+
+    - name: Configure git for releases
+      shell: bash
+      if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true'
+      run: |
+        git config --global user.email "devops@interoplabs.io"
+        git config --global user.name "Interop Labs CI"
 
     - name: Check if tag already exists (possible collision with an orphaned
         commit tagged as patch)
@@ -232,8 +243,6 @@ runs:
         inputs.dry-run == 'false' &&
         steps.semantic-version.outputs.changed == 'true'
       run: |
-        git config --global user.email "devops@interoplabs.io"
-        git config --global user.name "Interop Labs CI"
         cargo release -x \
           --no-confirm \
           --no-push \
@@ -249,3 +258,37 @@ runs:
         github_token: ${{ inputs.github_token }}
         branch: ${{ github.ref }}
         tags: true
+        
+    - name: Create individual handler tags for ampd-handlers
+      shell: bash
+      if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true' && inputs.create-handler-tags == 'true'
+      run: |
+        version_tag="${{ steps.semantic-version.outputs.version_tag }}"
+        version="${{ steps.semantic-version.outputs.version }}"
+        commit_sha=$(git rev-parse "$version_tag")
+        
+        echo "Creating individual handler tags for version $version at commit $commit_sha"
+        
+        if [ -d "ampd-handlers/src/bin" ]; then
+          handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
+          echo "Found handlers: $handlers"
+          
+          for handler in $handlers; do
+            handler_tag="${handler}-handler-v${version}"
+            
+            echo "Creating tag: $handler_tag"
+            
+            if git rev-parse "$handler_tag" >/dev/null 2>&1; then
+              echo "Tag $handler_tag already exists, skipping"
+            else
+              git tag -a "$handler_tag" -m "Release ${handler}-handler ${version}" "$commit_sha"
+              echo "Created tag: $handler_tag"
+            fi
+          done
+          
+          git push origin --tags
+          echo "Successfully created and pushed individual handler tags"
+        else
+          echo "No handlers found in ampd-handlers/src/bin/"
+          exit 1
+        fi
