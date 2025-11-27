@@ -261,18 +261,21 @@ runs:
         
         IFS=',' read -ra prefixes <<< "${{ inputs.tag-prefixes }}"
         
-        if [ ${#prefixes[@]} -eq 0 ]; then
-          echo "Error: No tag prefixes provided"
+        filtered_prefixes=()
+        for prefix in "${prefixes[@]}"; do
+          prefix=$(echo "$prefix" | xargs)
+          if [ -n "$prefix" ]; then
+            filtered_prefixes+=("$prefix")
+          fi
+        done
+        
+        if [ ${#filtered_prefixes[@]} -eq 0 ]; then
+          echo "Error: No valid tag prefixes provided after filtering"
           exit 1
         fi
         
         tags_created=0
-        for prefix in "${prefixes[@]}"; do
-          prefix=$(echo "$prefix" | xargs)
-          
-          if [ -z "$prefix" ]; then
-            continue
-          fi
+        for prefix in "${filtered_prefixes[@]}"; do
           
           tag="${prefix}-v${version}"
           
