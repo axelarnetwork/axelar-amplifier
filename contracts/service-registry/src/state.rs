@@ -190,7 +190,7 @@ pub fn update_authorized_verifier_count(
         .collect::<Vec<()>>()
         .len();
 
-    let total = u16::try_from(verifier_count).map_err(|_| ContractError::TooManyVerifiers)?;
+    let total = u16::try_from(verifier_count).map_err(|_| ContractError::VerifierLimitExceeded)?;
 
     AUTHORIZED_VERIFIER_COUNT
         .update(storage, service_name, |_| Ok::<u16, ContractError>(total))
@@ -1416,5 +1416,283 @@ mod tests {
 
         let result = apply_authorized_count_change(deps.as_mut().storage, &service.name, 1);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_services_returns_empty_list_when_no_services() {
+        let deps = mock_dependencies();
+        let limit = nonempty::Usize::try_from(10).unwrap();
+
+        let result = services(deps.as_ref().storage, None, limit);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_services_returns_single_service() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+        let limit = nonempty::Usize::try_from(10).unwrap();
+
+        let result = services(deps.as_ref().storage, None, limit);
+        assert!(result.is_ok());
+
+        let service_list = result.unwrap();
+        assert_eq!(service_list.len(), 1);
+        assert_eq!(service_list[0], service);
+    }
+
+    #[test]
+    fn test_services_returns_multiple_services() {
+        let mut deps = mock_dependencies();
+        let limit = nonempty::Usize::try_from(10).unwrap();
+
+        // Create multiple services
+        let service1 = Service {
+            name: "service1".to_string(),
+            coordinator_contract: cosmos_addr!("coordinator"),
+            min_num_verifiers: 1,
+            max_num_verifiers: Some(10),
+            min_verifier_bond: Uint128::from(100u32).try_into().unwrap(),
+            bond_denom: "uaxl".to_string(),
+            unbonding_period_days: 1,
+            description: "description1".to_string(),
+        };
+
+        let service2 = Service {
+            name: "service2".to_string(),
+            coordinator_contract: cosmos_addr!("coordinator"),
+            min_num_verifiers: 2,
+            max_num_verifiers: Some(20),
+            min_verifier_bond: Uint128::from(200u32).try_into().unwrap(),
+            bond_denom: "uaxl".to_string(),
+            unbonding_period_days: 2,
+            description: "description2".to_string(),
+        };
+
+        save_new_service(deps.as_mut().storage, &service1.name, service1.clone()).unwrap();
+        save_new_service(deps.as_mut().storage, &service2.name, service2.clone()).unwrap();
+
+        let result = services(deps.as_ref().storage, None, limit);
+        assert!(result.is_ok());
+
+        let service_list = result.unwrap();
+        assert_eq!(service_list.len(), 2);
+        assert_eq!(service_list[0], service1);
+        assert_eq!(service_list[1], service2);
+    }
+
+    #[test]
+    fn test_services_respects_limit() {
+        let mut deps = mock_dependencies();
+        let limit = nonempty::Usize::try_from(2).unwrap();
+
+        // Create 3 services
+        for i in 1..=3 {
+            let service = Service {
+                name: format!("service{}", i),
+                coordinator_contract: cosmos_addr!("coordinator"),
+                min_num_verifiers: 1,
+                max_num_verifiers: Some(10),
+                min_verifier_bond: Uint128::from(100u32).try_into().unwrap(),
+                bond_denom: "uaxl".to_string(),
+                unbonding_period_days: 1,
+                description: format!("description{}", i),
+            };
+            let service_name = service.name.clone();
+            save_new_service(deps.as_mut().storage, &service_name, service).unwrap();
+        }
+
+        let result = services(deps.as_ref().storage, None, limit);
+        assert!(result.is_ok());
+
+        let service_list = result.unwrap();
+        assert_eq!(service_list.len(), 2);
+    }
+
+    #[test]
+    fn test_services_pagination_with_start() {
+        let mut deps = mock_dependencies();
+        let limit = nonempty::Usize::try_from(10).unwrap();
+
+        // Create 3 services
+        for i in 1..=3 {
+            let service = Service {
+                name: format!("service{}", i),
+                coordinator_contract: cosmos_addr!("coordinator"),
+                min_num_verifiers: 1,
+                max_num_verifiers: Some(10),
+                min_verifier_bond: Uint128::from(100u32).try_into().unwrap(),
+                bond_denom: "uaxl".to_string(),
+                unbonding_period_days: 1,
+                description: format!("description{}", i),
+            };
+            let service_name = service.name.clone();
+            save_new_service(deps.as_mut().storage, &service_name, service).unwrap();
+        }
+
+        let start_name = "service1".to_string();
+        let result = services(deps.as_ref().storage, Some(&start_name), limit);
+        assert!(result.is_ok());
+
+        let service_list = result.unwrap();
+        // Should return service2 and service3 (excluding service1)
+        assert_eq!(service_list.len(), 2);
+        assert_eq!(service_list[0].name, "service2");
+        assert_eq!(service_list[1].name, "service3");
+    }
+
+    #[test]
+    fn test_update_authorized_verifier_count_with_no_verifiers() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        let result = update_authorized_verifier_count(deps.as_mut().storage, &service.name);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_update_authorized_verifier_count_with_authorized_verifiers() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        // Create and authorize verifiers
+        let verifiers: Vec<Addr> = (0..5)
+            .map(|i| MockApi::default().addr_make(&format!("verifier{}", i)))
+            .collect();
+
+        for verifier in &verifiers {
+            let v = Verifier {
+                address: verifier.clone(),
+                bonding_state: BondingState::Unbonded,
+                authorization_state: AuthorizationState::Authorized,
+                service_name: service.name.clone(),
+            };
+            VERIFIERS
+                .save(deps.as_mut().storage, (&service.name, verifier), &v)
+                .unwrap();
+        }
+
+        let result = update_authorized_verifier_count(deps.as_mut().storage, &service.name);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 5);
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 5);
+    }
+
+    #[test]
+    fn test_update_authorized_verifier_count_excludes_not_authorized() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        // Create 3 authorized and 2 not authorized verifiers
+        for i in 0..3 {
+            let verifier = MockApi::default().addr_make(&format!("authorized{}", i));
+            let v = Verifier {
+                address: verifier.clone(),
+                bonding_state: BondingState::Unbonded,
+                authorization_state: AuthorizationState::Authorized,
+                service_name: service.name.clone(),
+            };
+            VERIFIERS
+                .save(deps.as_mut().storage, (&service.name, &verifier), &v)
+                .unwrap();
+        }
+
+        for i in 0..2 {
+            let verifier = MockApi::default().addr_make(&format!("notauthorized{}", i));
+            let v = Verifier {
+                address: verifier.clone(),
+                bonding_state: BondingState::Unbonded,
+                authorization_state: AuthorizationState::NotAuthorized,
+                service_name: service.name.clone(),
+            };
+            VERIFIERS
+                .save(deps.as_mut().storage, (&service.name, &verifier), &v)
+                .unwrap();
+        }
+
+        let result = update_authorized_verifier_count(deps.as_mut().storage, &service.name);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 3);
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_update_authorized_verifier_count_excludes_jailed() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        // Create 2 authorized and 1 jailed verifier
+        for i in 0..2 {
+            let verifier = MockApi::default().addr_make(&format!("authorized{}", i));
+            let v = Verifier {
+                address: verifier.clone(),
+                bonding_state: BondingState::Unbonded,
+                authorization_state: AuthorizationState::Authorized,
+                service_name: service.name.clone(),
+            };
+            VERIFIERS
+                .save(deps.as_mut().storage, (&service.name, &verifier), &v)
+                .unwrap();
+        }
+
+        let jailed_verifier = MockApi::default().addr_make("jailed");
+        let v = Verifier {
+            address: jailed_verifier.clone(),
+            bonding_state: BondingState::Unbonded,
+            authorization_state: AuthorizationState::Jailed,
+            service_name: service.name.clone(),
+        };
+        VERIFIERS
+            .save(deps.as_mut().storage, (&service.name, &jailed_verifier), &v)
+            .unwrap();
+
+        let result = update_authorized_verifier_count(deps.as_mut().storage, &service.name);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2);
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_update_authorized_verifier_count_corrects_stale_count() {
+        let mut deps = mock_dependencies();
+        let service = save_mock_service(deps.as_mut().storage);
+
+        // Manually set a stale count
+        AUTHORIZED_VERIFIER_COUNT
+            .save(deps.as_mut().storage, &service.name, &100u16)
+            .unwrap();
+
+        // Add only 3 actual authorized verifiers
+        for i in 0..3 {
+            let verifier = MockApi::default().addr_make(&format!("verifier{}", i));
+            let v = Verifier {
+                address: verifier.clone(),
+                bonding_state: BondingState::Unbonded,
+                authorization_state: AuthorizationState::Authorized,
+                service_name: service.name.clone(),
+            };
+            VERIFIERS
+                .save(deps.as_mut().storage, (&service.name, &verifier), &v)
+                .unwrap();
+        }
+
+        // Update should correct the count
+        let result = update_authorized_verifier_count(deps.as_mut().storage, &service.name);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 3);
+
+        let count = number_of_authorized_verifiers(deps.as_ref().storage, &service.name).unwrap();
+        assert_eq!(count, 3);
     }
 }

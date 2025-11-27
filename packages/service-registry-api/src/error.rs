@@ -43,8 +43,6 @@ pub enum ContractError {
     VerifierJailed,
     #[error("failed to unbond verifier")]
     FailedToUnbondVerifier,
-    #[error("too many verifiers")]
-    TooManyVerifiers,
 
     // Generic error to wrap cw_storage_plus errors
     // This should only be used for things that shouldn't happen, such as encountering
