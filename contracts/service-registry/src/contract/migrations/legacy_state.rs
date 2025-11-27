@@ -6,7 +6,7 @@ use service_registry_api::Service;
 
 type ServiceName = String;
 
-pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
+const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 
 pub fn save_new_service(
     storage: &mut dyn Storage,
