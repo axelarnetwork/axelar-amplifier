@@ -1,4 +1,4 @@
-mod asyncutil;
+pub mod asyncutil;
 mod block_height_monitor;
 mod broadcast;
 #[cfg(feature = "commands")]
@@ -21,7 +21,7 @@ mod mvx;
 mod solana;
 mod stacks;
 mod starknet;
-mod stellar;
+pub mod stellar;
 pub mod sui;
 mod tm_client;
 mod tofnd;

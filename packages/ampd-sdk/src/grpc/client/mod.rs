@@ -230,6 +230,11 @@ impl HandlerTaskClient for GrpcClient {
                 .map(|filter| ampd_proto::EventFilter {
                     r#type: filter.event_type.into(),
                     contract: filter.contract.to_string(),
+                    attributes: filter
+                        .attributes
+                        .into_iter()
+                        .map(|(key, value)| (key, value.to_string()))
+                        .collect(),
                 })
                 .collect(),
             include_block_begin_end,
@@ -736,6 +741,10 @@ pub mod tests {
         let expected_contracts = sample_contracts();
         let mock_response = ContractsResponse {
             voting_verifier: expected_contracts.voting_verifier.to_string(),
+            event_verifier: expected_contracts
+                .event_verifier
+                .as_ref()
+                .map(|addr| addr.to_string()),
             multisig_prover: expected_contracts.multisig_prover.to_string(),
             service_registry: expected_contracts.service_registry.to_string(),
             rewards: expected_contracts.rewards.to_string(),
@@ -765,6 +774,7 @@ pub mod tests {
                     service_registry: "".to_string(),
                     rewards: "".to_string(),
                     multisig: "".to_string(),
+                    event_verifier: None,
                 }))
             });
 
@@ -1062,6 +1072,7 @@ pub mod tests {
             service_registry: sample_account_id(),
             rewards: sample_account_id(),
             multisig: sample_account_id(),
+            event_verifier: None,
         }
     }
 

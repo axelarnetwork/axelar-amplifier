@@ -26,7 +26,7 @@ pub enum Error {
 }
 
 #[non_exhaustive] // prevents creating the runtime using struct expression from outside this crate
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HandlerRuntime {
     pub monitoring_client: monitoring::Client,
     pub grpc_client: GrpcClient,
@@ -83,7 +83,7 @@ impl HandlerRuntime {
 
     /// Use the started runtime to create and run the handler task
     pub async fn run_handler<H>(
-        mut self,
+        &self,
         handler: H,
         config: Config,
         token: CancellationToken,
@@ -98,7 +98,9 @@ impl HandlerRuntime {
             .config(config.event_handler)
             .build();
 
-        task.run(&mut self.grpc_client, token)
+        // Clone the gRPC client so multiple handlers can share the same runtime
+        let mut grpc_client = self.grpc_client.clone();
+        task.run(&mut grpc_client, token)
             .await
             .change_context(Error::HandlerRun)?;
 
@@ -158,6 +160,7 @@ fn start_shutdown_signal_monitor(token: CancellationToken) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -201,6 +204,7 @@ mod tests {
                     .to_string(),
                 multisig: "axelar19jxy26z0qnnspa45y5nru0l5rmy9d637z5km2ndjxthfxf5qaswst9290r"
                     .to_string(),
+                event_verifier: None,
             }))
         });
 
@@ -259,6 +263,7 @@ mod tests {
                         "axelar1252ahkw208d08ls64atp2pql4cnl9naxy7ahhq3lrthvq3spseys26l8xj",
                     )
                     .unwrap(),
+                    attributes: HashMap::new(),
                 }],
                 true,
             )
