@@ -59,7 +59,10 @@ jobs:
             exit 1
           fi
           echo "Tag is okay"
-          aws s3 ls s3://axelar-releases/ampd-handlers/"$HANDLER"/"$SEMVER"/ && echo "tag already exists, use a new one" && exit 1
+          if aws s3 ls s3://axelar-releases/ampd-handlers/"$HANDLER"/"$SEMVER"/ | grep -q .; then
+            echo "tag already exists, use a new one"
+            exit 1
+          fi
 
   release-binaries:
     runs-on: ubuntu-22.04
