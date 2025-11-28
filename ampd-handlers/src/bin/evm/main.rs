@@ -22,13 +22,6 @@ use tracing::{info, Level};
 
 use crate::error::Error;
 
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-enum HandlerType {
-    Gmp,
-    EventVerification,
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct EvmHandlerConfig {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
@@ -41,7 +34,14 @@ struct EvmHandlerConfig {
     // confirmation height is only used for event verification, and only required if finalization is ConfirmationHeight
     // can be omitted for GMP handler, or if finalization is RPCFinalizedBlock
     confirmation_height: Option<u64>,
-    handlers_to_run: Vec<HandlerType>,
+    #[serde(default = "default_gmp_handler_enabled")]
+    gmp_handler_enabled: bool,
+    #[serde(default)]
+    event_verifier_handler_enabled: bool,
+}
+
+fn default_gmp_handler_enabled() -> bool {
+    true
 }
 
 fn default_rpc_timeout() -> Duration {
@@ -194,9 +194,9 @@ async fn main() -> Result<(), Error> {
         .build::<EvmHandlerConfig>()
         .change_context(Error::HandlerStart)?;
 
-    if handler_config.handlers_to_run.is_empty() {
+    if !(handler_config.gmp_handler_enabled || handler_config.event_verifier_handler_enabled) {
         return Err(Error::HandlerStart)
-            .attach_printable("No handlers configured. The 'handlers_to_run' array must contain at least one handler (gmp_voting or event_verification)");
+            .attach_printable("No handlers configured. Either 'gmp_handler_enabled' or 'event_verifier_handler_enabled' must be true");
     }
 
     let token = CancellationToken::new();
@@ -208,7 +208,7 @@ async fn main() -> Result<(), Error> {
 
     let mut task_group = TaskGroup::new("evm-handlers");
 
-    if handler_config.handlers_to_run.contains(&HandlerType::Gmp) {
+    if handler_config.gmp_handler_enabled {
         task_group = task_group.add_task(
             "gmp-voting-handler",
             gmp_voting_task(&runtime, &base_config, &handler_config),
@@ -222,10 +222,7 @@ async fn main() -> Result<(), Error> {
         info!("GMP voting and multisig handlers configured and will be started");
     }
 
-    if handler_config
-        .handlers_to_run
-        .contains(&HandlerType::EventVerification)
-    {
+    if handler_config.event_verifier_handler_enabled {
         task_group = task_group.add_task(
             "event-verifier-handler",
             event_verifier_task(&runtime, &base_config, &handler_config),
