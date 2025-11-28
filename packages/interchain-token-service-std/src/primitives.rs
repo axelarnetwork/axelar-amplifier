@@ -103,7 +103,6 @@ impl From<LinkToken> for Message {
 /// A message sent between ITS edge contracts and the ITS hub contract (defined in this crate).
 /// `HubMessage` is used to route an ITS [`Message`] between ITS edge contracts on different chains via the ITS Hub.
 #[cw_serde]
-#[derive(Eq)]
 pub enum HubMessage {
     /// ITS edge source contract -> ITS Hub
     SendToHub {
