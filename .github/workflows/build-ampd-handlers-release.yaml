@@ -16,6 +16,10 @@ jobs:
   extract-semver:
     runs-on: ubuntu-22.04
     name: Validate tag and extract semver
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
     outputs:
       semver: ${{ steps.extract_semver.outputs.semver }}
       version: ${{ steps.extract_semver.outputs.version }}
@@ -234,7 +238,5 @@ jobs:
       - name: Sign the images with GitHub OIDC
         run: cosign sign -y --oidc-issuer https://token.actions.githubusercontent.com ${TAGS}
         env:
-          HANDLER: ${{ needs.extract-semver.outputs.handler }}
-          SEMVER: ${{ needs.extract-semver.outputs.semver }}
-          TAGS: axelarnet/axelar-ampd-${HANDLER}-handler:${SEMVER}
+          TAGS: axelarnet/axelar-ampd-${{ needs.extract-semver.outputs.handler }}-handler:${{ needs.extract-semver.outputs.semver }}
           COSIGN_EXPERIMENTAL: 1
