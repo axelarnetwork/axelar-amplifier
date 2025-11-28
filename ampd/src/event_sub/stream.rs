@@ -530,13 +530,53 @@ mod tests {
     use error_stack::report;
     use events::Event;
     use futures::{stream, StreamExt};
+    use random_string::generate;
+    use tendermint::abci;
     use tendermint::block;
 
-    use super::super::tests::{block_results_response, random_event};
     use crate::asyncutil::future::RetryPolicy;
     use crate::event_sub::stream::{blocks, events};
     use crate::event_sub::Error;
     use crate::tm_client::{self, MockTmClient, TmClient};
+
+    fn random_event() -> abci::Event {
+        let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+        abci::Event::new(
+            generate(10, charset),
+            vec![abci::EventAttribute::V037(abci::v0_37::EventAttribute {
+                key: generate(10, charset),
+                value: generate(10, charset),
+                index: false,
+            })],
+        )
+    }
+
+    fn block_results_response(
+        height: block::Height,
+        begin_block_events: Vec<abci::Event>,
+        end_block_events: Vec<abci::Event>,
+        txs_events: Vec<abci::Event>,
+    ) -> tm_client::BlockResultsResponse {
+        tm_client::BlockResultsResponse {
+            height,
+            begin_block_events: Some(begin_block_events),
+            end_block_events: Some(end_block_events),
+            consensus_param_updates: None,
+            txs_results: Some(
+                txs_events
+                    .into_iter()
+                    .map(|event| abci::types::ExecTxResult {
+                        events: vec![event],
+                        ..Default::default()
+                    })
+                    .collect(),
+            ),
+            validator_updates: vec![],
+            app_hash: Default::default(),
+            finalize_block_events: vec![],
+        }
+    }
 
     #[tokio::test(start_paused = true)]
     async fn blocks_stream_adheres_to_poll_interval_to_get_new_blocks() {
