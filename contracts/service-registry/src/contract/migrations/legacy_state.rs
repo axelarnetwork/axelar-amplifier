@@ -8,6 +8,13 @@ type ServiceName = String;
 
 const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 
+// Although the SERVICES struct has not changed, it is private, so
+// the migration cannot manipulate it directly. We need to test that
+// this migration can get the contract out of an invalid state
+// where an entry that exists in SERVICES, does not exist in
+// AUTHORIZED_VERIFIER_COUNT. This function allows us to get into
+// that invalid state (since we cannot get into it using the regular
+// interfaces).
 pub fn save_new_service(
     storage: &mut dyn Storage,
     service_name: &ServiceName,
