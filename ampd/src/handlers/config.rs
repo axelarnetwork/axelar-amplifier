@@ -28,12 +28,14 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     MultisigSigner {
@@ -44,12 +46,14 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     SuiVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     XRPLMsgVerifier {
@@ -57,6 +61,7 @@ pub enum Config {
         chain_name: ChainName,
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         chain_rpc_url: Url,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     XRPLMultisigSigner {
@@ -99,6 +104,7 @@ pub enum Config {
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
         gateway_address: String,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     SolanaVerifierSetVerifier {
@@ -107,6 +113,7 @@ pub enum Config {
         #[serde(deserialize_with = "Url::deserialize_sensitive")]
         rpc_url: Url,
         gateway_address: String,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     StacksMsgVerifier {
@@ -114,6 +121,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
         rpc_url: Url,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
     StacksVerifierSetVerifier {
@@ -121,6 +129,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(deserialize_with = "Url::deserialize_non_sensitive")]
         rpc_url: Url,
+        #[serde(default, with = "humantime_serde::option")]
         rpc_timeout: Option<Duration>,
     },
 }
