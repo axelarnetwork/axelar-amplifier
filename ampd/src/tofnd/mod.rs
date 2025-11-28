@@ -37,6 +37,7 @@ pub struct Config {
     pub url: Url,
     pub party_uid: String,
     pub key_uid: String,
+    #[serde(with = "humantime_serde")]
     pub timeout: Duration,
 }
 
