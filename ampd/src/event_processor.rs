@@ -151,9 +151,7 @@ fn is_xrpl_evm_handler(handler_label: &str) -> bool {
 fn is_sui_handler(handler_label: &str) -> bool {
     let sui_handlers = ["sui-msg-verifier", "sui-verifier-set-verifier"];
 
-    sui_handlers
-        .iter()
-        .any(|handler| handler_label == *handler)
+    sui_handlers.iter().any(|handler| handler_label == *handler)
 }
 
 #[instrument(fields(event = %event), skip_all)]
