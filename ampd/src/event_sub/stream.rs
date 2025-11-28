@@ -531,8 +531,7 @@ mod tests {
     use events::Event;
     use futures::{stream, StreamExt};
     use random_string::generate;
-    use tendermint::abci;
-    use tendermint::block;
+    use tendermint::{abci, block};
 
     use crate::asyncutil::future::RetryPolicy;
     use crate::event_sub::stream::{blocks, events};
