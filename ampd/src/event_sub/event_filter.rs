@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::nonempty;
 use error_stack::{report, Report, Result, ResultExt};
+use serde::Serialize;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 
@@ -15,32 +16,83 @@ pub enum Error {
     InvalidContractAddress(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
-#[builder(build_method(vis = "", name = build_internal))]
-pub struct EventFilter {
-    #[builder(default)]
-    event_type: Option<nonempty::String>,
-    #[builder(default)]
-    contract: Option<TMAddress>,
-    #[builder(default)]
-    attributes: HashMap<String, serde_json::Value>,
+/// Marker trait for typed_builder typestate tuples where at least one field is set.
+/// Used to ensure `EventFilter::build()` can only be called when at least one
+/// filter criterion has been specified.
+pub trait AtLeastOne {}
+
+/// Generates `AtLeastOne` implementations for all typestate tuple combinations
+/// where at least one field is set.
+///
+/// typed_builder represents each field's state as either `()` (unset) or `(T,)` (set).
+/// This macro generates impls for all 2^n - 1 valid combinations (excluding all-unset).
+///
+/// # Example
+///
+/// ```ignore
+/// at_least_one!(A, B);
+/// ```
+///
+/// Expands to:
+///
+/// ```ignore
+/// impl AtLeastOne for ((A,), (B,)) {}  // both set
+/// impl AtLeastOne for ((A,), ())   {}  // first set
+/// impl AtLeastOne for ((), (B,))   {}  // second set
+/// // ((), ()) is excluded - nothing set
+/// ```
+#[macro_export]
+macro_rules! at_least_one {
+    ($($field_ty:ty),+) => {
+        at_least_one!(@impls AtLeastOne; (); $($field_ty),+);
+    };
+
+    // Recursive case: for each field, branch into set `($head,)` and unset `()`
+    // Example: at_least_one!(@impls T; (); A, B)
+    //   -> at_least_one!(@impls T; ((A,),); B)  // A set
+    //   -> at_least_one!(@impls T; ((),); B)    // A unset
+    (@impls $trait:ident; ($($acc:tt)*); $head:ty $(, $tail:ty)*) => {
+        at_least_one!(@impls $trait; ($($acc)* ($head,),); $($tail),*);
+        at_least_one!(@impls $trait; ($($acc)* (),); $($tail),*);
+    };
+
+    // Base case: all fields unset - do not emit impl
+    // Example: ((), ()) matches ($((),)*) - no impl generated
+    (@impls $trait:ident; ($((),)*); ) => {};
+
+    // Base case: at least one field set - emit impl
+    // Example: ((A,), ()) -> impl AtLeastOne for ((A,), ()) {}
+    (@impls $trait:ident; ($($tuple:tt)*); ) => {
+        impl $trait for ($($tuple)*) {}
+    };
 }
 
-impl<
-        E: ::typed_builder::Optional<Option<nonempty::String>>,
-        C: ::typed_builder::Optional<Option<TMAddress>>,
-        A: ::typed_builder::Optional<HashMap<String, serde_json::Value>>,
-    > EventFilterBuilder<(E, C, A)>
+at_least_one!(
+    Option<nonempty::String>,
+    Option<TMAddress>,
+    Option<nonempty::HashMap<String, serde_json::Value>>
+);
+
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Serialize)]
+#[builder(build_method(vis = "", name = build_internal))]
+pub struct EventFilter {
+    #[builder(default, setter(strip_option))]
+    event_type: Option<nonempty::String>,
+    #[builder(default, setter(strip_option))]
+    contract: Option<TMAddress>,
+    #[builder(default, setter(strip_option))]
+    attributes: Option<nonempty::HashMap<String, serde_json::Value>>,
+}
+
+impl<E, C, A> EventFilterBuilder<(E, C, A)>
+where
+    E: ::typed_builder::Optional<Option<nonempty::String>>,
+    C: ::typed_builder::Optional<Option<TMAddress>>,
+    A: ::typed_builder::Optional<Option<nonempty::HashMap<String, serde_json::Value>>>,
+    (E, C, A): AtLeastOne,
 {
-    pub fn build(self) -> Result<EventFilter, Error> {
-        let filter = self.build_internal();
-
-        if filter.event_type.is_none() && filter.contract.is_none() && filter.attributes.is_empty()
-        {
-            return Err(report!(Error::EmptyFilter));
-        }
-
-        Ok(filter)
+    pub fn build(self) -> EventFilter {
+        self.build_internal()
     }
 }
 
@@ -59,7 +111,7 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
 
             Some(contract.into()) // TODO: change to AxelarAddress
         };
-        let attributes: HashMap<_, _> = event_filter
+        let attributes = event_filter
             .attributes
             .into_iter()
             .map(|(key, value)| {
@@ -68,13 +120,20 @@ impl TryFrom<ampd_proto::EventFilter> for EventFilter {
                     serde_json::from_str(&value).unwrap_or(serde_json::Value::String(value)),
                 )
             })
-            .collect();
+            .collect::<HashMap<_, _>>()
+            .try_into()
+            .ok();
 
-        EventFilter::builder()
-            .event_type(event_type)
-            .contract(contract)
-            .attributes(attributes)
-            .build()
+        if event_type.is_none() && contract.is_none() && attributes.is_none() {
+            return Err(report!(Error::EmptyFilter));
+        }
+
+        // outside of this try_from function the builder should be used to make sure the type is valid at compile-time
+        Ok(Self {
+            event_type,
+            contract,
+            attributes,
+        })
     }
 }
 
@@ -92,10 +151,11 @@ impl EventFilter {
                 .contract
                 .as_ref()
                 .is_none_or(|filter| contract == Some(filter))
-            && self
-                .attributes
-                .iter()
-                .all(|(key, value)| attributes.get(key) == Some(value))
+            && self.attributes.as_ref().is_none_or(|attrs| {
+                attrs
+                    .iter()
+                    .all(|(key, value)| attributes.get(key) == Some(value))
+            })
     }
 }
 
@@ -174,33 +234,22 @@ mod tests {
 
     #[test]
     fn event_filter_should_be_created_from_proto() {
-        let event_type = "test_event".to_string();
-        let contract = TMAddress::random(PREFIX);
-        let mut attributes = HashMap::new();
-        attributes.insert(
-            "chain_name".to_string(),
-            serde_json::Value::String("ethereum".to_string()),
-        );
-        attributes.insert("object".to_string(), serde_json::json!({ "key": "value" }));
-
         let proto_filter = ampd_proto::EventFilter {
-            r#type: event_type.clone(),
-            contract: contract.to_string(),
-            attributes: attributes
-                .clone()
-                .into_iter()
-                .map(|(key, value)| (key, value.to_string()))
-                .collect(),
+            r#type: "test_event".to_string(),
+            contract: "axelar1m7rj8s9ee46h3sx96z9jg4hznhx5jzfp7dwv2u".to_string(),
+            attributes: [
+                ("chain_name".to_string(), r#""ethereum""#.to_string()),
+                ("object".to_string(), r#"{"key":"value"}"#.to_string()),
+            ]
+            .into(),
         };
 
-        let expected_filter = EventFilter {
-            event_type: Some(event_type.parse().unwrap()),
-            contract: Some(contract),
-            attributes,
-        };
+        let filter = EventFilter::try_from(proto_filter);
+        assert!(filter.is_ok(), "{:?}", filter.unwrap_err());
 
-        let filter = EventFilter::try_from(proto_filter).unwrap();
-        assert_eq!(filter, expected_filter);
+        // This seems stable despite non-determistic ordering of HashMap entries.
+        // Should tests start to fail, this needs to be changed to a different type of test.
+        goldie::assert_json!(filter.unwrap());
     }
 
     #[test]

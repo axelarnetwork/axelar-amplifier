@@ -109,7 +109,7 @@ tracing = { workspace = true }
 tracing-core = { workspace = true }
 tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
-typed-builder = "0.18.2"
+typed-builder = { workspace = true }
 url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }

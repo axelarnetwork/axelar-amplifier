@@ -185,11 +185,9 @@ where
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
             vec![EventFilter::builder()
-                .event_type(Some(SigningStartedEvent::event_type()))
-                .contract(Some(self.multisig.clone()))
-                .attributes(HashMap::new())
-                .build()
-                .expect("event filter should be valid")],
+                .event_type(SigningStartedEvent::event_type())
+                .contract(self.multisig.clone())
+                .build()],
             true,
         )
     }
