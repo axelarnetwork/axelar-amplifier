@@ -9,6 +9,7 @@ on:
         options:
           - ampd
           - ampd-sdk
+          - ampd-handlers
           - router
           - gateway
           - multisig
@@ -46,6 +47,7 @@ jobs:
           declare -A binaries_data=(
             ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
             ["ampd-sdk"]="ampd-sdk,/\(major\)|\(major-ampd-sdk\)/,/\(minor\)|\(minor-ampd-sdk\)/,packages/ampd-sdk"
+            ["ampd-handlers"]="ampd-handlers,/\(major\)|\(major-ampd-handlers\)/,/\(minor\)|\(minor-ampd-handlers\)/,ampd-handlers packages/ampd-sdk"
             ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
             ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
             ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
@@ -70,8 +72,19 @@ jobs:
               echo "Unknown binary to release"
               exit 1
           fi
+          
+          if [[ "$binary" == "ampd-handlers" ]]; then
+            if [ -d "ampd-handlers/src/bin" ]; then
+              handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
+              if [ -n "$handlers" ]; then
+                tag_prefixes=$(echo "$handlers" | sed 's/$/-handler/' | tr '\n' ',' | sed 's/,$//')
+                echo "tag-prefixes=$tag_prefixes" >> "$GITHUB_OUTPUT"
+              fi
+            fi
+          fi
 
       - name: Release ${{ github.event.inputs.binary-to-release }}
+        id: release
         uses: ./.github/actions/release
         with:
           binary-to-release: ${{ steps.setup-variables.outputs.binary-to-release }}
@@ -80,3 +93,4 @@ jobs:
           minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
           change-path: ${{ steps.setup-variables.outputs.change-path }}
           github_token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
+          tag-prefixes: ${{ steps.setup-variables.outputs.tag-prefixes }}
