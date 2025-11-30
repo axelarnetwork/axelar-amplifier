@@ -119,7 +119,7 @@ fn build_event_verifier_handler(
     Ok(handler)
 }
 
-fn gmp_voting_task(
+fn gmp_voting_handler_task(
     runtime: &HandlerRuntime,
     base_config: &config::Config,
     handler_config: &EvmHandlerConfig,
@@ -141,7 +141,7 @@ fn gmp_voting_task(
     })
 }
 
-fn gmp_multisig_task(
+fn gmp_multisig_handler_task(
     runtime: &HandlerRuntime,
     base_config: &config::Config,
 ) -> CancellableTask<Result<(), Error>> {
@@ -211,12 +211,12 @@ async fn main() -> Result<(), Error> {
     if handler_config.gmp_handler_enabled {
         task_group = task_group.add_task(
             "gmp-voting-handler",
-            gmp_voting_task(&runtime, &base_config, &handler_config),
+            gmp_voting_handler_task(&runtime, &base_config, &handler_config),
         );
 
         task_group = task_group.add_task(
             "gmp-multisig-handler",
-            gmp_multisig_task(&runtime, &base_config),
+            gmp_multisig_handler_task(&runtime, &base_config),
         );
 
         info!("GMP voting and multisig handlers configured and will be started");
