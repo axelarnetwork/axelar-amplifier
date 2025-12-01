@@ -256,7 +256,7 @@ mod tests {
                 signature: *_signature,
                 inner_instructions: vec![],
                 err: None,
-                account_keys: vec![axelar_solana_gateway::ID],
+                account_keys: vec![solana_axelar_gateway::ID],
             })
         }
 
@@ -293,7 +293,7 @@ mod tests {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -317,7 +317,7 @@ mod tests {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -342,7 +342,7 @@ mod tests {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -378,7 +378,7 @@ mod tests {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -412,7 +412,7 @@ mod tests {
             ValidResponseSolanaRpc,
             rx,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -446,7 +446,7 @@ mod tests {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -475,7 +475,7 @@ mod tests {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .await
         .unwrap();
@@ -506,7 +506,7 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!(SOLANA),
-                source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
+                source_gateway_address: solana_axelar_gateway::ID.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants

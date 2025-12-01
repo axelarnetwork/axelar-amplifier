@@ -36,6 +36,7 @@ assert_ok = "1.0"
 async-trait = "0.1.59"
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
 solana-axelar-std = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "main", default-features = false }
+solana-axelar-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "main", default-features = false, features = ["devnet-amplifier"] }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
@@ -56,7 +57,7 @@ cw-storage-plus = { version = "2.0.0", features = ["iterator", "macro"] }
 cw-utils = "2.0.0"
 cw2 = "2.0.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
-ed25519-zebra = { version = ">=4.0.3, <4.1.0" }
+ed25519-zebra = { version = "=4.0.3", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre", "spantrace"] }
 ethers-contract = { version = "2.0.14", default-features = false, features = [
   "abigen",
@@ -155,6 +156,3 @@ debug-assertions = false
 codegen-units = 1
 incremental = false
 overflow-checks = true
-
-[patch.crates-io]
-ed25519-zebra = { git = "https://github.com/ZcashFoundation/ed25519-zebra", tag = "4.0.3" }

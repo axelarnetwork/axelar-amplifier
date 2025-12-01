@@ -745,6 +745,7 @@ pub mod tests {
             service_registry: expected_contracts.service_registry.to_string(),
             rewards: expected_contracts.rewards.to_string(),
             multisig: expected_contracts.multisig.to_string(),
+            event_verifier: expected_contracts.event_verifier.as_ref().map(|a| a.to_string()),
         };
 
         mock_blockchain
@@ -770,6 +771,7 @@ pub mod tests {
                     service_registry: "".to_string(),
                     rewards: "".to_string(),
                     multisig: "".to_string(),
+                    event_verifier: None,
                 }))
             });
 
@@ -1067,6 +1069,7 @@ pub mod tests {
             service_registry: sample_account_id(),
             rewards: sample_account_id(),
             multisig: sample_account_id(),
+            event_verifier: None,
         }
     }
 

@@ -259,7 +259,7 @@ mod test {
                 signature: *signature,
                 inner_instructions: vec![],
                 err: None,
-                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
+                account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
             })
         }
 
@@ -297,7 +297,7 @@ mod test {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -321,7 +321,7 @@ mod test {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -346,7 +346,7 @@ mod test {
             EmptyResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -380,7 +380,7 @@ mod test {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -407,7 +407,7 @@ mod test {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -434,7 +434,7 @@ mod test {
             ValidResponseSolanaRpc,
             watch::channel(0).1,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -475,7 +475,7 @@ mod test {
             ValidResponseSolanaRpc,
             rx,
             monitoring_client,
-            &axelar_solana_gateway::ID.to_string(),
+            &solana_axelar_gateway::ID.to_string(),
         )
         .unwrap();
 
@@ -500,7 +500,7 @@ mod test {
         let inner_ix_index_2 = 88_u32;
         let message_id_2 = format!("{signature_2}-{inner_ix_group_index_2}.{inner_ix_index_2}");
 
-        let source_gateway_address = axelar_solana_gateway::ID;
+        let source_gateway_address = solana_axelar_gateway::ID;
 
         PollStarted::Messages {
             metadata: PollMetadata {

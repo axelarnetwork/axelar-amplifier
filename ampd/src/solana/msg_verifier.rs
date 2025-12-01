@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
-use axelar_solana_gateway::events::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use router_api::ChainName;
 use solana_sdk::pubkey::Pubkey;
 use tracing::error;
 
-use super::verify;
+use super::{verify, GatewayEvent};
 use crate::handlers::solana_verify_msg::Message;
 use crate::solana::SolanaTransaction;
 
@@ -43,9 +42,9 @@ pub fn verify_message(tx: &SolanaTransaction, message: &Message, gateway_address
 mod tests {
     use std::str::FromStr;
 
-    use axelar_solana_gateway::events::CallContractEvent;
-    use event_cpi::Discriminator;
+    use anchor_lang::Discriminator;
     use router_api::chain_name;
+    use solana_axelar_gateway::events::CallContractEvent;
     use solana_sdk::pubkey::Pubkey;
     use solana_transaction_status::option_serializer::OptionSerializer;
     use solana_transaction_status::UiInstruction;
@@ -57,7 +56,7 @@ mod tests {
         dbg!(&tx);
         assert_eq!(
             Vote::SucceededOnChain,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -67,7 +66,7 @@ mod tests {
         msg.message_id.inner_ix_index = 100.try_into().unwrap();
         assert_eq!(
             Vote::NotFound,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -77,7 +76,7 @@ mod tests {
         msg.destination_chain = chain_name!("badchain");
         assert_eq!(
             Vote::NotFound,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -87,7 +86,7 @@ mod tests {
         msg.source_address = Pubkey::from([13; 32]);
         assert_eq!(
             Vote::NotFound,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -97,7 +96,7 @@ mod tests {
         msg.destination_address = "bad_address".to_string();
         assert_eq!(
             Vote::NotFound,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -107,7 +106,7 @@ mod tests {
         msg.payload_hash = [1; 32].into();
         assert_eq!(
             Vote::NotFound,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -118,7 +117,7 @@ mod tests {
         tx.account_keys = vec![Pubkey::new_unique()];
         assert_eq!(
             Vote::NotFound,
-            verify_message(&tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -135,7 +134,7 @@ mod tests {
 
         assert_eq!(
             Vote::FailedOnChain,
-            verify_message(&failed_tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&failed_tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -172,12 +171,12 @@ mod tests {
 
         // Create instructions for both events
         let mut instruction_data1 = Vec::new();
-        instruction_data1.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data1.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
         instruction_data1.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data1.extend_from_slice(&borsh::to_vec(&call_contract_event1).unwrap());
 
         let mut instruction_data2 = Vec::new();
-        instruction_data2.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data2.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
         instruction_data2.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data2.extend_from_slice(&borsh::to_vec(&call_contract_event2).unwrap());
 
@@ -210,12 +209,12 @@ mod tests {
             signature,
             inner_instructions,
             err: None,
-            account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
+            account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
         };
 
         assert_eq!(
             Vote::SucceededOnChain,
-            verify_message(&solana_tx, &msg, &axelar_solana_gateway::ID)
+            verify_message(&solana_tx, &msg, &solana_axelar_gateway::ID)
         );
     }
 
@@ -264,10 +263,10 @@ mod tests {
     ) -> (crate::solana::SolanaTransaction, CallContractEvent, Message) {
         let (base64_data, event) = fixture_call_contract_log();
         let logs = vec![
-            format!("Program {} invoke [1]", axelar_solana_gateway::ID), // Invocation 1 starts
+            format!("Program {} invoke [1]", solana_axelar_gateway::ID), // Invocation 1 starts
             "Program log: Instruction: Call Contract".to_owned(),
             format!("Program data: {}", base64_data),
-            format!("Program {} success", axelar_solana_gateway::ID), // Invocation 1 succeeds
+            format!("Program {} success", solana_axelar_gateway::ID), // Invocation 1 succeeds
         ];
 
         let msg = create_msg_counterpart(&event, 1, 1); // Use 1-based indexing for both indices
@@ -278,7 +277,7 @@ mod tests {
             signature,
             inner_instructions: tx_meta.inner_instructions.as_ref().unwrap().clone(),
             err: None,
-            account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
+            account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
         };
 
         (solana_tx, event, msg)
@@ -305,7 +304,7 @@ mod tests {
 
         // Serialize the event with discriminators
         let mut instruction_data = Vec::new();
-        instruction_data.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
         instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&call_contract_event).unwrap());
 
@@ -337,6 +336,7 @@ mod tests {
             loaded_addresses: OptionSerializer::None,
             return_data: OptionSerializer::None,
             compute_units_consumed: OptionSerializer::None,
+            cost_units: OptionSerializer::None,
         }
     }
 }

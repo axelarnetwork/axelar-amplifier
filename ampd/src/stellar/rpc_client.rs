@@ -266,6 +266,7 @@ mod tests {
                 diagnostic_events: vec![],
                 transaction_events: vec![],
             },
+            ledger: Default::default(),
         }
     }
 
@@ -295,6 +296,7 @@ mod tests {
                 diagnostic_events: vec![],
                 transaction_events: vec![],
             },
+            ledger: Default::default(),
         }
     }
 
