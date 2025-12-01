@@ -97,6 +97,11 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: build and sign linux binary
         env:
           SEMVER: ${{ needs.extract-semver.outputs.semver }}
@@ -104,8 +109,6 @@ jobs:
         run: |
           OS="linux"
           ARCH="amd64"
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
 
           cargo build --release --bin ${HANDLER}-handler
           if [ $? -ne 0 ]; then
@@ -148,7 +151,6 @@ jobs:
           do
             shasum -a 256 $i | awk '{print $1}' > $i.sha256
             zip $i.zip $i
-            shasum -a 256 $i.zip | awk '{print $1}' > $i.zip.sha256
           done
 
       - name: Upload binaries to release
@@ -170,7 +172,7 @@ jobs:
         run: |
           aws s3 cp ./handlerbin ${S3_PATH}/ --recursive
 
-      - name: Prepare source directory structure for r2 upload
+      - name: Prepare source directory structure for R2 upload
         id: prepare-r2-release
         env:
           HANDLER: ${{ needs.extract-semver.outputs.handler }}
