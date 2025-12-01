@@ -6,7 +6,6 @@ on:
       tag:
         description: Github handler tag to release binaries for (e.g., evm-handler-v1.0.0, sui-handler-v1.0.0)
         required: true
-        default: latest
       dry-run:
         description: Run in dry-run mode (set to false to actually release)
         required: true
@@ -170,6 +169,28 @@ jobs:
           S3_PATH: s3://axelar-releases/ampd-handlers/${HANDLER}/${SEMVER}
         run: |
           aws s3 cp ./handlerbin ${S3_PATH}/ --recursive
+
+      - name: Prepare source directory structure for r2 upload
+        id: prepare-r2-release
+        env:
+          HANDLER: ${{ needs.extract-semver.outputs.handler }}
+        run: |
+          version="${{ needs.extract-semver.outputs.version }}"
+          mkdir -p "./${version}"
+          cp -R ./handlerbin/. "./${version}/"
+          echo "release-dir=./${version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/ampd-handlers/${HANDLER}" >> $GITHUB_OUTPUT
+
+      - name: Upload to R2
+        if: github.event.inputs.dry-run == 'false'
+        uses: ryand56/r2-upload-action@31453780fdaaf43c8eff7231dd521f8669b48621 # v1.3.2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
+          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
 
   release-docker:
     runs-on: ubuntu-22.04
