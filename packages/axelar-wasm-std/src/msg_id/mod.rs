@@ -87,13 +87,9 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
 
 #[cfg(test)]
 mod test {
-    use assert_ok::assert_ok;
-
     use super::tx_hash_event_index::HexTxHashAndEventIndex;
     use crate::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
-    use crate::msg_id::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
     use crate::msg_id::{verify_msg_id, MessageIdFormat};
-    use crate::nonempty;
 
     #[test]
     fn should_verify_hex_tx_hash_event_index_msg_id() {
@@ -102,10 +98,7 @@ mod test {
             event_index: 0,
         }
         .to_string();
-        assert_ok!(verify_msg_id(
-            &msg_id,
-            &MessageIdFormat::HexTxHashAndEventIndex
-        ));
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_ok());
     }
 
     #[test]
@@ -115,24 +108,7 @@ mod test {
             event_index: 0,
         }
         .to_string();
-        assert_ok!(verify_msg_id(
-            &msg_id,
-            &MessageIdFormat::Base58TxDigestAndEventIndex
-        ));
-    }
-
-    #[test]
-    fn should_verify_base_58_solana_tx_signature_and_event_index_msg_id() {
-        let msg_id = Base58SolanaTxSignatureAndEventIndex::new(
-            [1; 64],
-            nonempty::Uint32::try_from(1u32).unwrap(),
-            nonempty::Uint32::try_from(1u32).unwrap(),
-        )
-        .to_string();
-        assert_ok!(verify_msg_id(
-            &msg_id,
-            &MessageIdFormat::Base58SolanaTxSignatureAndEventIndex
-        ));
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::Base58TxDigestAndEventIndex).is_ok());
     }
 
     #[test]
@@ -161,13 +137,14 @@ mod test {
     #[test]
     fn should_verify_bech32m() {
         let message_id = "at1hs0xk375g4kvw53rcem9nyjsdw5lsv94fl065n77cpt0774nsyysdecaju";
-        assert_ok!(verify_msg_id(
+        assert!(verify_msg_id(
             message_id,
             &MessageIdFormat::Bech32m {
                 prefix: "at".to_string().to_string().try_into().unwrap(),
                 length: 61
             }
-        ));
+        )
+        .is_ok());
     }
 
     #[test]

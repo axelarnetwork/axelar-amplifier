@@ -67,12 +67,7 @@ PollStartedEvent {
                 188,
                 8,
             ],
-            inner_ix_group_index: Uint32(
-                1,
-            ),
-            inner_ix_index: Uint32(
-                10,
-            ),
+            event_index: 10,
         },
         verifier_set: VerifierSet {
             signers: {
@@ -124,7 +119,6 @@ PollStartedEvent {
     source_chain: ChainName(
         "solana",
     ),
-    source_gateway_address: "gtwi5T9x6rTWPtuuz6DA7ia1VmH8bdazm9QfDdi6DVp",
     expires_at: 100,
     participants: [
         TMAddress(

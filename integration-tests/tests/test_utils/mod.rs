@@ -23,13 +23,13 @@ use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use k256::ecdsa;
 use multisig::key::{KeyType, PublicKey};
 use multisig::verifier_set::VerifierSet;
-use multisig_prover::msg::VerifierSetResponse;
 use rewards::PoolId;
 use router_api::{
     chain_name, cosmos_addr, Address, ChainName, CrossChainId, GatewayDirection, Message,
 };
 use service_registry_api::msg::ExecuteMsg;
 use sha3::{Digest, Keccak256};
+use solana_multisig_prover::msg::VerifierSetResponse;
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -205,7 +205,7 @@ pub fn construct_proof_and_sign(
     let response = multisig_prover.execute(
         &mut protocol.app,
         cosmos_addr!(RELAYER),
-        &multisig_prover::msg::ExecuteMsg::ConstructProof(
+        &solana_multisig_prover::msg::ExecuteMsg::ConstructProof(
             messages.iter().map(|msg| msg.cc_id.clone()).collect(),
         ),
     );
@@ -297,11 +297,11 @@ pub fn proof(
     app: &mut AxelarApp,
     multisig_prover: &MultisigProverContract,
     multisig_session_id: &Uint64,
-) -> multisig_prover::msg::ProofResponse {
-    let query_response: Result<multisig_prover::msg::ProofResponse, StdError> = multisig_prover
-        .query(
+) -> solana_multisig_prover::msg::ProofResponse {
+    let query_response: Result<solana_multisig_prover::msg::ProofResponse, StdError> =
+        multisig_prover.query(
             app,
-            &multisig_prover::msg::QueryMsg::Proof {
+            &solana_multisig_prover::msg::QueryMsg::Proof {
                 multisig_session_id: *multisig_session_id,
             },
         );
@@ -314,8 +314,11 @@ pub fn verifier_set_from_prover(
     app: &mut AxelarApp,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
-    let query_response: Result<Option<VerifierSetResponse>, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::CurrentVerifierSet);
+    let query_response: Result<Option<VerifierSetResponse>, StdError> = multisig_prover_contract
+        .query(
+            app,
+            &solana_multisig_prover::msg::QueryMsg::CurrentVerifierSet,
+        );
     assert!(query_response.is_ok());
 
     query_response.unwrap().unwrap().verifier_set
@@ -565,7 +568,7 @@ pub fn confirm_verifier_set(
     let response = multisig_prover.execute(
         app,
         relayer_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
+        &solana_multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
     );
     assert!(response.is_ok());
 }
@@ -677,7 +680,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
     let response = chain_multisig_prover.execute(
         &mut protocol.app,
         cosmos_addr!(RELAYER),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &solana_multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
     sign_proof(protocol, current_verifiers, response.unwrap())
@@ -756,7 +759,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &solana_multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -874,7 +877,7 @@ pub fn rotate_active_verifier_set(
     let response = chain.multisig_prover.execute(
         &mut protocol.app,
         chain.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &solana_multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -883,7 +886,7 @@ pub fn rotate_active_verifier_set(
     let proof = proof(&mut protocol.app, &chain.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
-        multisig_prover::msg::ProofStatus::Completed { .. }
+        solana_multisig_prover::msg::ProofStatus::Completed { .. }
     ));
     assert_eq!(proof.message_ids.len(), 0);
 

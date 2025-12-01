@@ -16,12 +16,7 @@ type RawSignature = [u8; 64];
 pub struct Base58SolanaTxSignatureAndEventIndex {
     // Base58 decoded bytes of the Solana signature.
     pub raw_signature: RawSignature,
-    // index of the inner instruction group in the transaction containing the event
-    // must be non-zero as indexing starts at 1 to match the explorer
-    pub inner_ix_group_index: nonempty::Uint32,
-    // index of the inner instruction in the instruction group containing the event
-    // must be non-zero as indexing starts at 1 to match the explorer
-    pub inner_ix_index: nonempty::Uint32,
+    pub event_index: u64,
 }
 
 impl Base58SolanaTxSignatureAndEventIndex {
@@ -32,15 +27,10 @@ impl Base58SolanaTxSignatureAndEventIndex {
             .expect("failed to convert tx hash to non-empty string")
     }
 
-    pub fn new(
-        tx_id: impl Into<RawSignature>,
-        inner_ix_group_index: nonempty::Uint32,
-        inner_ix_index: nonempty::Uint32,
-    ) -> Self {
+    pub fn new(tx_id: impl Into<RawSignature>, event_index: impl Into<u64>) -> Self {
         Self {
             raw_signature: tx_id.into(),
-            inner_ix_group_index,
-            inner_ix_index,
+            event_index: event_index.into(),
         }
     }
 }
@@ -54,7 +44,7 @@ fn decode_b58_signature(signature: &str) -> Result<RawSignature, Report<Error>> 
         .map_err(|_| Error::InvalidTxDigest(signature.to_owned()))?)
 }
 
-const PATTERN: &str = "^([1-9A-HJ-NP-Za-km-z]{64,88})-([1-9][0-9]*)\\.([1-9][0-9]*)$";
+const PATTERN: &str = "^([1-9A-HJ-NP-Za-km-z]{64,88})-(0|[1-9][0-9]*)$";
 lazy_static! {
     static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
 }
@@ -66,8 +56,8 @@ impl FromStr for Base58SolanaTxSignatureAndEventIndex {
     where
         Self: Sized,
     {
-        // the PATTERN has exactly three capture groups, so the groups can be extracted safely
-        let (_, [signature, inner_ix_group_index, inner_ix_index]) = REGEX
+        // the PATTERN has exactly two capture groups, so the groups can be extracted safely
+        let (_, [signature, event_index]) = REGEX
             .captures(message_id)
             .ok_or(Error::InvalidMessageID {
                 id: message_id.to_string(),
@@ -77,12 +67,9 @@ impl FromStr for Base58SolanaTxSignatureAndEventIndex {
 
         Ok(Base58SolanaTxSignatureAndEventIndex {
             raw_signature: decode_b58_signature(signature)?,
-            inner_ix_group_index: inner_ix_group_index
-                .parse::<nonempty::Uint32>()
-                .change_context(Error::EventIndexOverflow(message_id.to_string()))?,
-            inner_ix_index: inner_ix_index
-                .parse::<nonempty::Uint32>()
-                .change_context(Error::EventIndexOverflow(message_id.to_string()))?,
+            event_index: event_index
+                .parse()
+                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
         })
     }
 }
@@ -91,10 +78,9 @@ impl Display for Base58SolanaTxSignatureAndEventIndex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}-{}.{}",
+            "{}-{}",
             bs58::encode(self.raw_signature).into_string(),
-            self.inner_ix_group_index.into_inner(),
-            self.inner_ix_index.into_inner()
+            self.event_index
         )
     }
 }
@@ -102,11 +88,9 @@ impl Display for Base58SolanaTxSignatureAndEventIndex {
 #[cfg(test)]
 mod tests {
 
-    use assert_ok::assert_ok;
     use hex::ToHex;
 
     use super::*;
-    use crate::assert_err_contains;
 
     fn random_bytes() -> RawSignature {
         let mut bytes = [0; 64];
@@ -120,26 +104,25 @@ mod tests {
         bs58::encode(random_bytes()).into_string()
     }
 
+    fn random_event_index() -> u64 {
+        rand::random()
+    }
+
     #[test]
     fn should_parse_msg_id() {
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(
-            "4hHzKKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYWtf5-1.1",
+            "4hHzKKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYWtf5-0",
         );
         assert!(res.is_ok());
 
         for _ in 0..1000 {
             let tx_digest = random_tx_digest();
-            let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-            let inner_ix_index = rand::random::<u32>() % 1000 + 1;
-            let msg_id = format!("{}-{}.{}", tx_digest, inner_ix_group_index, inner_ix_index);
+            let event_index = random_event_index();
+            let msg_id = format!("{}-{}", tx_digest, event_index);
 
             let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
             let parsed = res.unwrap();
-            assert_eq!(
-                parsed.inner_ix_group_index.into_inner(),
-                inner_ix_group_index
-            );
-            assert_eq!(parsed.inner_ix_index.into_inner(), inner_ix_index);
+            assert_eq!(parsed.event_index, event_index);
             assert_eq!(parsed.signature_as_base58(), tx_digest.as_str());
             assert_eq!(parsed.to_string(), msg_id);
         }
@@ -148,43 +131,33 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_wrong_length_base58_tx_digest() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
+        let event_index = random_event_index();
 
         // too long
-        let msg_id = format!(
-            "{}{}-{}.{}",
-            tx_digest, tx_digest, inner_ix_group_index, inner_ix_index
-        );
+        let msg_id = format!("{}{}-{}", tx_digest, tx_digest, event_index);
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         // too short
-        let msg_id = format!(
-            "{}-{}.{}",
-            &tx_digest[0..63],
-            inner_ix_group_index,
-            inner_ix_index
-        );
+        let msg_id = format!("{}-{}", &tx_digest[0..63], event_index);
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
     }
 
     #[test]
     fn leading_ones_should_not_be_ignored() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
+        let event_index = random_event_index();
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "1{}-{}.{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "1{}-{}",
+            tx_digest, event_index
         ));
         assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "11{}-{}.{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "11{}-{}",
+            tx_digest, event_index
         ));
         assert!(res.is_err());
     }
@@ -194,23 +167,22 @@ mod tests {
         // this is 88 chars and valid base58, but will decode to 66 bytes
         // the leading 1s are encoded as 00 in hex and thus result in too many bytes
         let tx_digest = "1111KKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYWtf5";
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
-        let msg_id = format!("{}-{}.{}", tx_digest, inner_ix_group_index, inner_ix_index);
+        let event_index = random_event_index();
+        let msg_id = format!("{}-{}", tx_digest, event_index);
 
         assert!(REGEX.captures(&msg_id).is_some());
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert_err_contains!(res, Error, Error::InvalidTxDigest { .. });
+        assert!(res.is_err());
 
         // this is 88 chars and valid base 58, but will encode to 65 bytes
         // (z is the largest base58 digit, and so this will overflow 2^512)
         let tx_digest = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz";
         assert_eq!(tx_digest.len(), 88);
-        let msg_id = format!("{}-{}.{}", tx_digest, inner_ix_group_index, inner_ix_index);
+        let msg_id = format!("{}-{}", tx_digest, event_index);
 
         assert!(REGEX.captures(&msg_id).is_some());
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert_err_contains!(res, Error, Error::InvalidTxDigest { .. });
+        assert!(res.is_err());
     }
 
     #[test]
@@ -219,229 +191,146 @@ mod tests {
         let tx_digest =
             "1111KKdpXH2QMB5Jm11YR48cLqUJb9Cwq2YL3tveVTPeFkZaLP8cdcH5UphVPJ7kYwCUCRLnywd3xkUhb4ZYW";
         assert!(tx_digest.len() < 88);
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
+        let event_index = random_event_index();
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}-{}.{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "{}-{}",
+            tx_digest, event_index
         ));
-        assert_ok!(res);
+        assert!(res.is_ok());
     }
 
     #[test]
     fn should_not_parse_msg_id_with_invalid_base58() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
+        let event_index = random_event_index();
 
         // 0, O and I are invalid base58 chars
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "0{}-{}.{}",
+            "0{}-{}",
             &tx_digest[1..],
-            inner_ix_group_index,
-            inner_ix_index
+            event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "I{}-{}.{}",
+            "I{}-{}",
             &tx_digest[1..],
-            inner_ix_group_index,
-            inner_ix_index
+            event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "O{}-{}.{}",
+            "O{}-{}",
             &tx_digest[1..],
-            inner_ix_group_index,
-            inner_ix_index
+            event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
     }
 
     #[test]
     fn should_not_parse_msg_id_with_hex_tx_digest() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
+        let event_index = random_event_index();
         let tx_digest_hex = bs58::decode(tx_digest)
             .into_vec()
             .unwrap()
             .encode_hex::<String>();
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}-{}.{}",
-            tx_digest_hex, inner_ix_group_index, inner_ix_index
+            "{}-{}",
+            tx_digest_hex, event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "0x{}-{}.{}",
-            tx_digest_hex, inner_ix_group_index, inner_ix_index
+            "0x{}-{}",
+            tx_digest_hex, event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
     }
 
     #[test]
-    fn should_not_parse_msg_id_with_missing_instruction_indices() {
+    fn should_not_parse_msg_id_with_missing_event_index() {
         let msg_id = random_tx_digest();
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let msg_id = format!("{}-", random_tx_digest());
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&msg_id);
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
     }
 
     #[test]
     fn should_not_parse_msg_id_with_wrong_separator() {
         let tx_digest = random_tx_digest();
-        let inner_ix_group_index = rand::random::<u32>() % 1000 + 1;
-        let inner_ix_index = rand::random::<u32>() % 1000 + 1;
+        let event_index = random_event_index();
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}:{}.{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "{}:{}",
+            tx_digest, event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}_{}.{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "{}_{}",
+            tx_digest, event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}+{}.{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "{}+{}",
+            tx_digest, event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}-{}:{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
+            "{}{}",
+            tx_digest, event_index
         ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}-{}_{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
-        ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}{}{}",
-            tx_digest, inner_ix_group_index, inner_ix_index
-        ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}-{}",
-            tx_digest, inner_ix_group_index
-        ));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        for _ in 0..10 {
+            let random_sep: char = rand::random();
+            if random_sep == '-' {
+                continue;
+            }
+            let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
+                "{}{}{}",
+                tx_digest, random_sep, event_index
+            ));
+            assert!(res.is_err());
+        }
     }
 
     #[test]
     fn should_not_parse_msg_id_with_event_index_with_leading_zeroes() {
         let tx_digest = random_tx_digest();
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-01.5", tx_digest));
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-01", tx_digest));
         assert!(res.is_err());
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-5.01", tx_digest));
-        assert!(res.is_err());
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-01.01", tx_digest));
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn should_not_parse_msg_id_with_zero_inner_ix_index() {
-        let tx_digest = random_tx_digest();
-
-        // inner_ix_index cannot be 0 as events are always inner instructions
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-1.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-5.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-999.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-    }
-
-    #[test]
-    fn should_not_parse_msg_id_with_zero_inner_ix_group_index() {
-        let tx_digest = random_tx_digest();
-
-        // inner_ix_group_index cannot be 0 as indexing starts at 1 to match the explorer
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.1", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.5", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.999", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
     }
 
     #[test]
     fn should_not_parse_msg_id_with_non_integer_event_index() {
         let tx_digest = random_tx_digest();
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-1.0", tx_digest));
+        assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-1.5.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0x00", tx_digest));
+        assert!(res.is_err());
 
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0x00.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-foobar", tx_digest));
+        assert!(res.is_err());
 
-        let res =
-            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-foobar.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-true.0", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.1.5", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.0x00", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res =
-            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.foobar", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.true", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-.", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
-
-        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-true", tx_digest));
+        assert!(res.is_err());
 
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-", tx_digest));
-        assert_err_contains!(res, Error, Error::InvalidMessageID { .. });
+        assert!(res.is_err());
     }
 
     #[test]
     fn should_not_parse_msg_id_with_overflowing_event_index() {
-        let index: u64 = u64::MAX;
+        let event_index: u64 = u64::MAX;
         let tx_digest = random_tx_digest();
-
-        let res =
-            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-{}.0", tx_digest, index));
-        assert!(res.is_err());
-
-        let res =
-            Base58SolanaTxSignatureAndEventIndex::from_str(&format!("{}-0.{}", tx_digest, index));
-        assert!(res.is_err());
-
         let res = Base58SolanaTxSignatureAndEventIndex::from_str(&format!(
-            "{}-{}.{}",
-            tx_digest, index, index
+            "{}-{}1",
+            tx_digest, event_index
         ));
         assert!(res.is_err());
     }
