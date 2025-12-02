@@ -10,10 +10,6 @@ name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
 [[bin]]
-name = "multisig-handler"
-path = "src/bin/multisig/main.rs"
-
-[[bin]]
 name = "stellar-handler"
 path = "src/bin/stellar/main.rs"
 

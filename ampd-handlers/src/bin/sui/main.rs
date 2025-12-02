@@ -3,8 +3,10 @@ mod handler;
 
 use std::time::Duration;
 
+use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd::json_rpc;
 use ampd::url::Url;
+use ampd_handlers::multisig;
 use ampd_handlers::tracing::init_tracing;
 use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;
@@ -20,7 +22,7 @@ use tracing::Level;
 use crate::error::Error;
 use crate::handler::Handler;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct SuiHandlerConfig {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     rpc_url: Url,
@@ -60,8 +62,38 @@ fn build_handler(
     Ok(handler)
 }
 
+fn voting_handler_task(
+    runtime: HandlerRuntime,
+    base_config: config::Config,
+    handler_config: SuiHandlerConfig,
+) -> CancellableTask<Result<(), Error>> {
+    CancellableTask::create(move |token| async move {
+        let handler = build_handler(&runtime, base_config.chain_name.clone(), handler_config)?;
+
+        runtime
+            .run_handler(handler, base_config, token)
+            .await
+            .change_context(Error::HandlerTask)
+    })
+}
+
+fn multisig_handler_task(
+    runtime: HandlerRuntime,
+    base_config: config::Config,
+) -> CancellableTask<Result<(), Error>> {
+    CancellableTask::create(move |token| async move {
+        let handler = multisig::Handler::new(&runtime, base_config.chain_name.clone());
+
+        runtime
+            .run_handler(handler, base_config, token)
+            .await
+            .change_context(Error::HandlerTask)
+    })
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // Load environment variables from .env files in debug builds
     #[cfg(debug_assertions)]
     dotenv_flow().ok();
 
@@ -80,12 +112,21 @@ async fn main() -> Result<(), Error> {
         .await
         .change_context(Error::HandlerStart)?;
 
-    let handler = build_handler(&runtime, base_config.chain_name.clone(), handler_config)?;
+    let mut task_group = TaskGroup::new("sui-handlers");
 
-    runtime
-        .run_handler(handler, base_config, token)
+    task_group = task_group.add_task(
+        "voting-handler",
+        voting_handler_task(runtime.clone(), base_config.clone(), handler_config.clone()),
+    );
+    task_group = task_group.add_task(
+        "multisig-handler",
+        multisig_handler_task(runtime, base_config),
+    );
+
+    task_group
+        .run(token)
         .await
-        .change_context(Error::HandlerTask)?;
+        .change_context(Error::TaskGroup)?;
 
     Ok(())
 }

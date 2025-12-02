@@ -4,6 +4,7 @@ use ampd::types::{PublicKey, TMAddress};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::types::{Key, KeyAlgorithm};
 use ampd_sdk::grpc::client::EventHandlerClient;
+use ampd_sdk::runtime::HandlerRuntime;
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::nonempty;
@@ -21,7 +22,7 @@ use serde::{Deserialize, Deserializer};
 use tracing::info;
 use typed_builder::TypedBuilder;
 
-use crate::error::Error;
+use super::error::Error;
 
 pub type Result<T> = error_stack::Result<T, Error>;
 
@@ -59,6 +60,14 @@ pub struct Handler {
 }
 
 impl Handler {
+    pub fn new(runtime: &HandlerRuntime, chain_name: ChainName) -> Self {
+        Self::builder()
+            .verifier(runtime.verifier.clone().into())
+            .multisig(runtime.contracts.multisig.clone().into())
+            .chain(chain_name)
+            .build()
+    }
+
     fn submit_signature_msg(
         &self,
         session_id: impl Into<Uint64>,
