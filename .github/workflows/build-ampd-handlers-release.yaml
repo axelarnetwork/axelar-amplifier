@@ -153,15 +153,15 @@ jobs:
             zip $i.zip $i
           done
 
-      # - name: Upload binaries to release
-      #   if: github.event.inputs.dry-run == 'false'
-      #   uses: svenstaro/upload-release-action@81c65b7cd4de9b2570615ce3aad67a41de5b1a13 # v2
-      #   with:
-      #     repo_token: ${{ secrets.GITHUB_TOKEN }}
-      #     file: ./handlerbin/*
-      #     tag: ${{ github.event.inputs.tag }}
-      #     overwrite: true
-      #     file_glob: true
+      - name: Upload binaries to release
+        if: github.event.inputs.dry-run == 'false'
+        uses: svenstaro/upload-release-action@81c65b7cd4de9b2570615ce3aad67a41de5b1a13 # v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./handlerbin/*
+          tag: ${{ github.event.inputs.tag }}
+          overwrite: true
+          file_glob: true
 
       - name: Upload binaries to S3
         if: github.event.inputs.dry-run == 'false'
@@ -172,97 +172,97 @@ jobs:
         run: |
           aws s3 cp ./handlerbin ${S3_PATH}/ --recursive
 
-      # - name: Prepare source directory structure for R2 upload
-      #   id: prepare-r2-release
-      #   env:
-      #     HANDLER: ${{ needs.extract-semver.outputs.handler }}
-      #   run: |
-      #     version="${{ needs.extract-semver.outputs.version }}"
-      #     mkdir -p "./${version}"
-      #     cp -R ./handlerbin/. "./${version}/"
-      #     echo "release-dir=./${version}" >> $GITHUB_OUTPUT
-      #     echo "r2-destination-dir=./releases/ampd-handlers/${HANDLER}" >> $GITHUB_OUTPUT
+      - name: Prepare source directory structure for R2 upload
+        id: prepare-r2-release
+        env:
+          HANDLER: ${{ needs.extract-semver.outputs.handler }}
+        run: |
+          version="${{ needs.extract-semver.outputs.version }}"
+          mkdir -p "./${version}"
+          cp -R ./handlerbin/. "./${version}/"
+          echo "release-dir=./${version}" >> $GITHUB_OUTPUT
+          echo "r2-destination-dir=./releases/ampd-handlers/${HANDLER}" >> $GITHUB_OUTPUT
 
-      # - name: Upload to R2
-      #   if: github.event.inputs.dry-run == 'false'
-      #   uses: ryand56/r2-upload-action@31453780fdaaf43c8eff7231dd521f8669b48621 # v1.3.2
-      #   with:
-      #     r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
-      #     r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
-      #     r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
-      #     r2-bucket: ${{ secrets.R2_BUCKET }}
-      #     source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
-      #     destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
+      - name: Upload to R2
+        if: github.event.inputs.dry-run == 'false'
+        uses: ryand56/r2-upload-action@31453780fdaaf43c8eff7231dd521f8669b48621 # v1.3.2
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_CF }}
+          r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: ${{ steps.prepare-r2-release.outputs.release-dir }}
+          destination-dir: ${{ steps.prepare-r2-release.outputs.r2-destination-dir }}
 
-  # release-docker:
-  #   runs-on: ubuntu-22.04
-  #   needs: extract-semver
-  #   permissions:
-  #     contents: write
-  #     packages: write
-  #     id-token: write
-  #   if: github.event.inputs.dry-run == 'false'
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-  #       with:
-  #         fetch-depth: '0'
-  #         ref: ${{ github.event.inputs.tag }}
-  #         submodules: recursive
+  release-docker:
+    runs-on: ubuntu-22.04
+    needs: extract-semver
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    if: github.event.inputs.dry-run == 'false'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: '0'
+          ref: ${{ github.event.inputs.tag }}
+          submodules: recursive
 
-  #     - name: Set up Docker Buildx
-  #       id: buildx
-  #       uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
 
-  #     - name: Login to DockerHub
-  #       uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
-  #       with:
-  #         username: ${{ secrets.DOCKER_HUB_USERNAME }}
-  #         password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Login to DockerHub
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-  #     - name: Build and push docker image
-  #       env:
-  #         PLATFORM: linux/amd64
-  #         SEMVER: ${{ needs.extract-semver.outputs.semver }}
-  #         HANDLER: ${{ needs.extract-semver.outputs.handler }}
-  #       run: |
-  #         DOCKER_BUILDKIT=1 docker buildx build \
-  #           --platform ${PLATFORM} \
-  #           --output "type=image,push=true" \
-  #           --build-arg HANDLER=${HANDLER} \
-  #           -f ampd-handlers/Dockerfile \
-  #           -t axelarnet/axelar-ampd-${HANDLER}-handler-linux-amd64:${SEMVER} --provenance=false .
+      - name: Build and push docker image
+        env:
+          PLATFORM: linux/amd64
+          SEMVER: ${{ needs.extract-semver.outputs.semver }}
+          HANDLER: ${{ needs.extract-semver.outputs.handler }}
+        run: |
+          DOCKER_BUILDKIT=1 docker buildx build \
+            --platform ${PLATFORM} \
+            --output "type=image,push=true" \
+            --build-arg HANDLER=${HANDLER} \
+            -f ampd-handlers/Dockerfile \
+            -t axelarnet/axelar-ampd-${HANDLER}-handler-linux-amd64:${SEMVER} --provenance=false .
 
-  # combine-sign:
-  #   needs: [ release-docker, extract-semver ]
-  #   runs-on: ubuntu-22.04
-  #   permissions:
-  #     contents: write
-  #     packages: write
-  #     id-token: write
-  #   if: github.event.inputs.dry-run == 'false'
-  #   steps:
-  #     - name: Install Cosign
-  #       uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # 3.3.0
-  #       with:
-  #         cosign-release: 'v2.2.2'
+  combine-sign:
+    needs: [ release-docker, extract-semver ]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    if: github.event.inputs.dry-run == 'false'
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # 3.3.0
+        with:
+          cosign-release: 'v2.2.2'
 
-  #     - name: Login to DockerHub
-  #       uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
-  #       with:
-  #         username: ${{ secrets.DOCKER_HUB_USERNAME }}
-  #         password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Login to DockerHub
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-  #     - name: Create multiarch manifest
-  #       env:
-  #         SEMVER: ${{ needs.extract-semver.outputs.semver }}
-  #         HANDLER: ${{ needs.extract-semver.outputs.handler }}
-  #       run: |
-  #         docker buildx imagetools create -t axelarnet/axelar-ampd-${HANDLER}-handler:${SEMVER} \
-  #           axelarnet/axelar-ampd-${HANDLER}-handler-linux-amd64:${SEMVER}
+      - name: Create multiarch manifest
+        env:
+          SEMVER: ${{ needs.extract-semver.outputs.semver }}
+          HANDLER: ${{ needs.extract-semver.outputs.handler }}
+        run: |
+          docker buildx imagetools create -t axelarnet/axelar-ampd-${HANDLER}-handler:${SEMVER} \
+            axelarnet/axelar-ampd-${HANDLER}-handler-linux-amd64:${SEMVER}
 
-  #     - name: Sign the images with GitHub OIDC
-  #       run: cosign sign -y --oidc-issuer https://token.actions.githubusercontent.com ${TAGS}
-  #       env:
-  #         TAGS: axelarnet/axelar-ampd-${{ needs.extract-semver.outputs.handler }}-handler:${{ needs.extract-semver.outputs.semver }}
-  #         COSIGN_EXPERIMENTAL: 1
+      - name: Sign the images with GitHub OIDC
+        run: cosign sign -y --oidc-issuer https://token.actions.githubusercontent.com ${TAGS}
+        env:
+          TAGS: axelarnet/axelar-ampd-${{ needs.extract-semver.outputs.handler }}-handler:${{ needs.extract-semver.outputs.semver }}
+          COSIGN_EXPERIMENTAL: 1
