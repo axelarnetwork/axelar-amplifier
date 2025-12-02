@@ -338,7 +338,7 @@ dependencies = [
 
 [[package]]
 name = "ampd-handlers"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "ampd",
  "ampd-sdk",
@@ -9830,7 +9830,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "axelar-wasm-std",
  "client",
