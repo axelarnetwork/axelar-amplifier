@@ -19,6 +19,10 @@ inputs:
   github_token:
     description: "GitHub token for pushing changes"
     required: true
+  tag-prefixes:
+    description: "Comma-separated list of additional tag prefixes to use for the release commit (each prefix creates a {tag_prefix}-vX.X.X tag)"
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -71,6 +75,13 @@ runs:
         echo "PREVIOUS-VERSION:
           ${{ steps.semantic-version.outputs.previous_version }}"
 
+    - name: Configure git for releases
+      shell: bash
+      if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true'
+      run: |
+        git config --global user.email "devops@interoplabs.io"
+        git config --global user.name "Interop Labs CI"
+
     - name: Check if tag already exists (possible collision with an orphaned
         commit tagged as patch)
       id: validate-tag
@@ -107,7 +118,7 @@ runs:
           git push origin <branch-name>
 
           Create a PR from the new branch to the previous patch tag
-          hub pull-request -b <previous-latest-patch-tag>
+          gh pr create --base <previous-latest-patch-tag>
 
           Once the PR is approved, run the release workflow and choose the
           branch created above as the base branch. Note that this patch will not
@@ -232,14 +243,58 @@ runs:
         inputs.dry-run == 'false' &&
         steps.semantic-version.outputs.changed == 'true'
       run: |
-        git config --global user.email "devops@interoplabs.io"
-        git config --global user.name "Interop Labs CI"
         cargo release -x \
           --no-confirm \
           --no-push \
           -p ${{ inputs.binary-to-release }} \
           ${{ steps.semantic-version.outputs.version_type }}
 
+    - name: Create additional tags from prefixes
+      shell: bash
+      if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true' && inputs.tag-prefixes != ''
+      run: |
+        version_tag="${{ steps.semantic-version.outputs.version_tag }}"
+        version="${{ steps.semantic-version.outputs.version }}"
+        commit_sha=$(git rev-parse "$version_tag")
+        
+        echo "Creating additional tags for version $version at commit $commit_sha"
+        
+        IFS=',' read -ra prefixes <<< "${{ inputs.tag-prefixes }}"
+        
+        filtered_prefixes=()
+        for prefix in "${prefixes[@]}"; do
+          prefix=$(echo "$prefix" | xargs)
+          if [ -n "$prefix" ]; then
+            filtered_prefixes+=("$prefix")
+          fi
+        done
+        
+        if [ ${#filtered_prefixes[@]} -eq 0 ]; then
+          echo "Error: No valid tag prefixes provided after filtering"
+          exit 1
+        fi
+        
+        tags_created=0
+        for prefix in "${filtered_prefixes[@]}"; do
+          tag="${prefix}-v${version}"
+          
+          echo "Creating tag: $tag"
+          
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists, skipping"
+          else
+            git tag "$tag" "$commit_sha"
+            echo "Created tag: $tag"
+            tags_created=$((tags_created + 1))
+          fi
+        done
+        
+        if [ $tags_created -eq 0 ]; then
+          echo "No new tags were created (all tags already exist)"
+        else
+          echo "Successfully created $tags_created additional tag(s)"
+        fi
+        
     - name: Push changes of cargo release
       if:
         inputs.dry-run == 'false' &&
