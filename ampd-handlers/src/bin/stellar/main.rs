@@ -49,38 +49,29 @@ fn build_handler(
 }
 
 fn voting_handler_task(
-    runtime: &HandlerRuntime,
-    base_config: &config::Config,
-    handler_config: &StellarHandlerConfig,
+    runtime: HandlerRuntime,
+    base_config: config::Config,
+    handler_config: StellarHandlerConfig,
 ) -> CancellableTask<Result<(), Error>> {
-    let runtime = runtime.clone();
-    let base_config_clone = base_config.clone();
-    let handler_config_clone = handler_config.clone();
     CancellableTask::create(move |token| async move {
-        let handler = build_handler(
-            &runtime,
-            base_config_clone.chain_name.clone(),
-            handler_config_clone,
-        )?;
+        let handler = build_handler(&runtime, base_config.chain_name.clone(), handler_config)?;
 
         runtime
-            .run_handler(handler, base_config_clone, token)
+            .run_handler(handler, base_config, token)
             .await
             .change_context(Error::HandlerTask)
     })
 }
 
 fn multisig_handler_task(
-    runtime: &HandlerRuntime,
-    base_config: &config::Config,
+    runtime: HandlerRuntime,
+    base_config: config::Config,
 ) -> CancellableTask<Result<(), Error>> {
-    let runtime = runtime.clone();
-    let base_config_clone = base_config.clone();
     CancellableTask::create(move |token| async move {
-        let handler = multisig::Handler::new(&runtime, base_config_clone.chain_name.clone());
+        let handler = multisig::Handler::new(&runtime, base_config.chain_name.clone());
 
         runtime
-            .run_handler(handler, base_config_clone, token)
+            .run_handler(handler, base_config, token)
             .await
             .change_context(Error::HandlerTask)
     })
@@ -111,11 +102,11 @@ async fn main() -> Result<(), Error> {
 
     task_group = task_group.add_task(
         "voting-handler",
-        voting_handler_task(&runtime, &base_config, &handler_config),
+        voting_handler_task(runtime.clone(), base_config.clone(), handler_config.clone()),
     );
     task_group = task_group.add_task(
         "multisig-handler",
-        multisig_handler_task(&runtime, &base_config),
+        multisig_handler_task(runtime, base_config),
     );
 
     task_group

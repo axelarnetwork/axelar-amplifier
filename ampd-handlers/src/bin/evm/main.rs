@@ -120,60 +120,49 @@ fn build_event_verifier_handler(
 }
 
 fn gmp_voting_handler_task(
-    runtime: &HandlerRuntime,
-    base_config: &config::Config,
-    handler_config: &EvmHandlerConfig,
+    runtime: HandlerRuntime,
+    base_config: config::Config,
+    handler_config: EvmHandlerConfig,
 ) -> CancellableTask<Result<(), Error>> {
-    let runtime = runtime.clone();
-    let base_config_clone = base_config.clone();
-    let handler_config_clone = handler_config.clone();
     CancellableTask::create(move |token| async move {
-        let handler = build_gmp_voting_handler(
-            &runtime,
-            base_config_clone.chain_name.clone(),
-            &handler_config_clone,
-        )?;
+        let handler =
+            build_gmp_voting_handler(&runtime, base_config.chain_name.clone(), &handler_config)?;
 
         runtime
-            .run_handler(handler, base_config_clone, token)
+            .run_handler(handler, base_config, token)
             .await
             .change_context(Error::HandlerTask)
     })
 }
 
 fn gmp_multisig_handler_task(
-    runtime: &HandlerRuntime,
-    base_config: &config::Config,
+    runtime: HandlerRuntime,
+    base_config: config::Config,
 ) -> CancellableTask<Result<(), Error>> {
-    let runtime = runtime.clone();
-    let base_config_clone = base_config.clone();
     CancellableTask::create(move |token| async move {
-        let handler = multisig::Handler::new(&runtime, base_config_clone.chain_name.clone());
+        let handler = multisig::Handler::new(&runtime, base_config.chain_name.clone());
 
         runtime
-            .run_handler(handler, base_config_clone, token)
+            .run_handler(handler, base_config, token)
             .await
             .change_context(Error::HandlerTask)
     })
 }
 
 fn event_verifier_task(
-    runtime: &HandlerRuntime,
-    base_config: &config::Config,
-    handler_config: &EvmHandlerConfig,
+    runtime: HandlerRuntime,
+    base_config: config::Config,
+    handler_config: EvmHandlerConfig,
 ) -> CancellableTask<Result<(), Error>> {
-    let runtime = runtime.clone();
-    let base_config_clone = base_config.clone();
-    let handler_config_clone = handler_config.clone();
     CancellableTask::create(move |token| async move {
         let handler = build_event_verifier_handler(
             &runtime,
-            base_config_clone.chain_name.clone(),
-            &handler_config_clone,
+            base_config.chain_name.clone(),
+            &handler_config,
         )?;
 
         runtime
-            .run_handler(handler, base_config_clone, token)
+            .run_handler(handler, base_config, token)
             .await
             .change_context(Error::HandlerTask)
     })
@@ -211,12 +200,12 @@ async fn main() -> Result<(), Error> {
     if handler_config.gmp_handler_enabled {
         task_group = task_group.add_task(
             "gmp-voting-handler",
-            gmp_voting_handler_task(&runtime, &base_config, &handler_config),
+            gmp_voting_handler_task(runtime.clone(), base_config.clone(), handler_config.clone()),
         );
 
         task_group = task_group.add_task(
             "gmp-multisig-handler",
-            gmp_multisig_handler_task(&runtime, &base_config),
+            gmp_multisig_handler_task(runtime.clone(), base_config.clone()),
         );
 
         info!("GMP voting and multisig handlers configured and will be started");
@@ -225,7 +214,7 @@ async fn main() -> Result<(), Error> {
     if handler_config.event_verifier_handler_enabled {
         task_group = task_group.add_task(
             "event-verifier-handler",
-            event_verifier_task(&runtime, &base_config, &handler_config),
+            event_verifier_task(runtime, base_config, handler_config),
         );
         info!("Event verifier handler configured and will be started");
     }
