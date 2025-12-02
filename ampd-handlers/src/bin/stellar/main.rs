@@ -79,6 +79,7 @@ fn multisig_handler_task(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // Load environment variables from .env files in debug builds
     #[cfg(debug_assertions)]
     dotenv_flow().ok();
 
