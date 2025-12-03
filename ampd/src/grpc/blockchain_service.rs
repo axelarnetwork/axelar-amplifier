@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::pin::Pin;
-#[cfg(not(feature = "dummy-grpc-broadcast"))]
 use std::sync::Arc;
 
 use ampd_proto::blockchain_service_server::BlockchainService;
@@ -11,19 +10,14 @@ use ampd_proto::{
 };
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
-#[cfg(not(feature = "dummy-grpc-broadcast"))]
 use axelar_wasm_std::FnExt;
-#[cfg(not(feature = "dummy-grpc-broadcast"))]
-use futures::TryFutureExt;
-use futures::{Stream, TryStreamExt};
+use futures::{Stream, TryFutureExt, TryStreamExt};
 use monitoring::metrics::Msg;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
-use tracing::instrument;
-#[cfg(feature = "dummy-grpc-broadcast")]
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
@@ -96,8 +90,7 @@ where
         )))
     }
 
-    // TODO: Remove the feature flag when analysis is complete and restore original broadcast
-    #[cfg_attr(not(feature = "dummy-grpc-broadcast"), instrument)]
+    #[instrument]
     async fn broadcast(
         &self,
         req: Request<BroadcastRequest>,
@@ -107,53 +100,42 @@ where
             .inspect_err(status::log("invalid broadcast request"))
             .map_err(status::StatusExt::into_status)?;
 
-        #[cfg(feature = "dummy-grpc-broadcast")]
-        {
-            match broadcast::deserialize_protobuf(&msg.value) {
-                Ok(deserialized_values) => {
-                    info!(
-                        msg_type_url = %msg.type_url,
-                        msg_value_plain = ?msg.value,
-                        msg_value_deserialized = %deserialized_values,
-                        msg_value_hex = %hex::encode(&msg.value),
-                        "gRPC EVM handler message details"
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        msg_type_url = %msg.type_url,
-                        msg_value_plain = ?msg.value,
-                        msg_value_hex = %hex::encode(&msg.value),
-                        error = %e,
-                        "failed to parse gRPC EVM handler protobuf structure, showing raw data"
-                    );
-                }
+        match broadcast::deserialize_protobuf(&msg.value) {
+            Ok(deserialized_values) => {
+                info!(
+                    msg_type_url = %msg.type_url,
+                    msg_value_plain = ?msg.value,
+                    msg_value_deserialized = %deserialized_values,
+                    msg_value_hex = %hex::encode(&msg.value),
+                    "gRPC EVM handler message details"
+                );
             }
-
-            Ok(Response::new(BroadcastResponse {
-                tx_hash: "dummy_tx_hash_for_testing".to_string(),
-                index: 0,
-            }))
+            Err(e) => {
+                warn!(
+                    msg_type_url = %msg.type_url,
+                    msg_value_plain = ?msg.value,
+                    msg_value_hex = %hex::encode(&msg.value),
+                    error = %e,
+                    "failed to parse gRPC EVM handler protobuf structure, showing raw data"
+                );
+            }
         }
 
-        #[cfg(not(feature = "dummy-grpc-broadcast"))]
-        {
-            self.msg_queue_client
-                .clone()
-                .enqueue(msg)
-                .inspect_err(|_| {
-                    self.monitoring_client
-                        .metrics()
-                        .record_metric(Msg::MessageEnqueueError);
-                })
-                .map_err(Arc::new)
-                .and_then(|rx| rx)
-                .await
-                .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
-                .map(Response::new)
-                .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
-                .map_err(|err| status::StatusExt::into_status(err.as_ref()))
-        }
+        self.msg_queue_client
+            .clone()
+            .enqueue(msg)
+            .inspect_err(|_| {
+                self.monitoring_client
+                    .metrics()
+                    .record_metric(Msg::MessageEnqueueError);
+            })
+            .map_err(Arc::new)
+            .and_then(|rx| rx)
+            .await
+            .map(|(tx_hash, index)| BroadcastResponse { tx_hash, index })
+            .map(Response::new)
+            .inspect_err(|err| err.as_ref().then(status::log("message broadcast error")))
+            .map_err(|err| status::StatusExt::into_status(err.as_ref()))
     }
 
     #[instrument]
@@ -787,7 +769,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_error_if_enqueue_failed() {
         let (service, _) = TestBuilder::default()
             .with_simulate_error(Status::internal("simulate error"))
@@ -798,7 +779,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_error_if_broadcast_failed() {
         let simulate_response = SimulateResponse {
             gas_info: Some(GasInfo {
@@ -821,7 +801,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn broadcast_should_return_tx_hash_and_index() {
         let tx_hash = "0x7cedbb3799cd99636045c84c5c55aef8a138f107ac8ba53a08cad1070ba4385b";
         let msg_count = 10;
@@ -1113,7 +1092,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg_attr(feature = "dummy-grpc-broadcast", ignore)]
     async fn should_record_enqueue_err_when_simulate_failed() {
         let (monitoring_client, mut metrics_rx) = test_utils::monitoring_client();
         let (service, _) = TestBuilder::default()
