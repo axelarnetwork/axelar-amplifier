@@ -166,8 +166,6 @@ jobs:
       - name: Upload binaries to S3
         if: github.event.inputs.dry-run == 'false'
         env:
-          HANDLER: ${{ needs.extract-semver.outputs.handler }}
-          SEMVER: ${{ needs.extract-semver.outputs.semver }}
           S3_PATH: s3://axelar-releases/ampd-handlers/${{ needs.extract-semver.outputs.handler }}/${{ needs.extract-semver.outputs.semver }}
         run: |
           aws s3 cp ./handlerbin ${S3_PATH}/ --recursive
