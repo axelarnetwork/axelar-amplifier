@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -172,11 +171,9 @@ where
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
             vec![EventFilter::builder()
-                .event_type(Some(PollStartedEvent::event_type()))
-                .contract(Some(self.voting_verifier.clone()))
-                .attributes(HashMap::new())
-                .build()
-                .expect("event filter should be valid")],
+                .event_type(PollStartedEvent::event_type())
+                .contract(self.voting_verifier.clone())
+                .build()],
             true,
         )
     }
