@@ -1,3 +1,10 @@
+//! Borsh serialization/deserialization for interchain_token_service_std types
+//! These types are currently mirrored in `axelarnetwork/axelar-amplifier-solana`
+//! due to incompatibilities between CosmWasm and Anchor Borsh versions.
+//!
+//! WARNING: These mirrors must be kept in sync with the Solana programs!
+//! https://github.com/axelarnetwork/axelar-amplifier-solana/blob/main/programs/solana-axelar-its/src/encoding.rs
+
 use axelar_wasm_std::{nonempty, IntoContractError};
 use borsh::{BorshDeserialize, BorshSerialize};
 use cosmwasm_std::{HexBinary, Uint256};
