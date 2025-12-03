@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
-use tracing::{info, instrument, warn};
+use tracing::{debug, instrument, warn};
 use typed_builder::TypedBuilder;
 
 use crate::grpc::reqs::Validate;
@@ -102,7 +102,7 @@ where
 
         match broadcast::deserialize_protobuf(&msg.value) {
             Ok(deserialized_values) => {
-                info!(
+                debug!(
                     msg_type_url = %msg.type_url,
                     msg_value_plain = ?msg.value,
                     msg_value_deserialized = %deserialized_values,
