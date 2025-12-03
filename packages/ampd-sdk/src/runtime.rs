@@ -202,6 +202,7 @@ mod tests {
                     .to_string(),
                 multisig: "axelar19jxy26z0qnnspa45y5nru0l5rmy9d637z5km2ndjxthfxf5qaswst9290r"
                     .to_string(),
+                event_verifier: None,
             }))
         });
 

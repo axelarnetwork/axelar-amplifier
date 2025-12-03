@@ -19,13 +19,15 @@ ampd-proto = { workspace = true }
 anchor-lang = "0.31.1"
 async-trait = { workspace = true }
 solana-axelar-std = { workspace = true }
+solana-axelar-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = { workspace = true }
 bcs = { workspace = true }
 bech32 = "0.11.0"
-borsh = "1.5.1"
+borsh = "0.10"
 bs58 = { workspace = true }
+bytemuck = "1.14"
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = { workspace = true }
@@ -76,6 +78,10 @@ serde_json = { workspace = true }
 serde_with = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
+solana-client = "~2.3"
+solana-sdk = "~2.3"
+solana-transaction-status = "~2.3"
+solana-zk-token-sdk = "~2.3"
 starknet-checked-felt = { workspace = true }
 
 starknet-core = { workspace = true }
@@ -108,6 +114,10 @@ valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 xrpl-types = { workspace = true }
 xrpl_http_client = { version = "0.15.0" }
+
+# Pin ed25519-zebra to 4.0.3 to match cosmwasm-crypto requirements
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ed25519-zebra = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.13.0"

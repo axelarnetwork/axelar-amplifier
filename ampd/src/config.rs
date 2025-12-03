@@ -77,6 +77,7 @@ mod tests {
     use crate::{grpc, monitoring};
 
     const PREFIX: &str = "axelar";
+    const SOLANA: &str = "solana";
     const STACKS: &str = "stacks";
 
     #[test]
@@ -367,6 +368,8 @@ mod tests {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
@@ -638,6 +641,20 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
+                        },
+                        grpc::BlockchainServiceChainConfig {
+                            chain_name: chain_name!("solana"),
+                            voting_verifier: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig_prover: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            multisig: TMAddress::from(
+                                AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                            ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("flow"),
@@ -650,6 +667,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                     ],
                 },

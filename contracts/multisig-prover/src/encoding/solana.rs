@@ -1,6 +1,3 @@
-// TODO: Solana encoding not yet wired up - suppress dead_code warnings
-#![allow(dead_code)]
-
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 
