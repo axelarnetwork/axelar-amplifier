@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Order, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, KeyDeserialize, Map, MultiIndex};
 use error_stack::{bail, report, ResultExt as _};
 use report::ResultExt;
@@ -152,6 +152,43 @@ pub fn save_new_service(
             _ => Err(ContractError::ServiceAlreadyExists),
         })
         .into_report()
+}
+
+// This function is used only when migrating the service registry
+// from v1.2.0 to v1.2.1. It should be removed after migration.
+pub fn update_authorized_verifier_count(
+    storage: &mut dyn Storage,
+) -> error_stack::Result<(), ContractError> {
+    let services: Vec<Service> = SERVICES
+        .range(storage, None, None, Order::Ascending)
+        .filter_map(|res| match res {
+            Ok((_, res)) => Some(res),
+            _ => None,
+        })
+        .collect();
+
+    for s in services {
+        let verifier_count: usize = VERIFIERS
+            .prefix(&s.name)
+            .range(storage, None, None, Order::Ascending)
+            .filter_map(|v| match v {
+                Ok((_, ver)) => match ver.authorization_state {
+                    AuthorizationState::Authorized => Some(()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .count();
+
+        let total = u16::try_from(verifier_count)
+            .change_context(ContractError::AuthorizedVerifiersIntegerOverflow)?;
+
+        AUTHORIZED_VERIFIER_COUNT
+            .update(storage, &s.name, |_| Ok::<u16, ContractError>(total))
+            .change_context(ContractError::StorageError)?;
+    }
+
+    Ok(())
 }
 
 pub fn has_service(storage: &dyn Storage, service_name: &ServiceName) -> bool {

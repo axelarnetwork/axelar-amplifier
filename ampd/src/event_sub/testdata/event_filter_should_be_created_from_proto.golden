@@ -1,0 +1,10 @@
+{
+  "event_type": "test_event",
+  "contract": "axelar1m7rj8s9ee46h3sx96z9jg4hznhx5jzfp7dwv2u",
+  "attributes": {
+    "object": {
+      "key": "value"
+    },
+    "chain_name": "ethereum"
+  }
+}

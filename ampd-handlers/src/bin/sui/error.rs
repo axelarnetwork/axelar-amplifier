@@ -6,4 +6,6 @@ pub enum Error {
     HandlerStart,
     #[error("handler task failed")]
     HandlerTask,
+    #[error("task group execution failed")]
+    TaskGroup,
 }

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::str::FromStr;
 
@@ -198,11 +197,9 @@ impl<C: SolanaRpcClientProxy> EventHandler for Handler<C> {
     fn event_filters(&self) -> EventFilters {
         EventFilters::new(
             vec![EventFilter::builder()
-                .event_type(Some(PollStartedEvent::event_type()))
-                .contract(Some(self.voting_verifier_contract.clone()))
-                .attributes(HashMap::new())
-                .build()
-                .expect("event filter should be valid")],
+                .event_type(PollStartedEvent::event_type())
+                .contract(self.voting_verifier_contract.clone())
+                .build()],
             true,
         )
     }
