@@ -22,6 +22,8 @@ pub enum Error {
     InvalidChainName,
     #[error(transparent)]
     NonEmpty(#[from] nonempty::Error),
+    #[error("token manager type does not fit in u8")]
+    TokenManagerTypeOverflow,
 }
 
 /// Borsh-serializable mirror of interchain_token_service_std::InterchainTransfer
@@ -48,7 +50,7 @@ pub struct DeployInterchainToken {
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub struct LinkToken {
     pub token_id: [u8; 32],
-    pub token_manager_type: [u8; 32], // Uint256 as 32-byte little-endian
+    pub token_manager_type: u8,
     pub source_token_address: Vec<u8>,
     pub destination_token_address: Vec<u8>,
     pub params: Option<Vec<u8>>,
@@ -112,15 +114,23 @@ impl From<interchain_token_service_std::DeployInterchainToken> for DeployInterch
     }
 }
 
-impl From<interchain_token_service_std::LinkToken> for LinkToken {
-    fn from(l: interchain_token_service_std::LinkToken) -> Self {
-        Self {
+impl TryFrom<interchain_token_service_std::LinkToken> for LinkToken {
+    type Error = Error;
+
+    fn try_from(l: interchain_token_service_std::LinkToken) -> Result<Self, Self::Error> {
+        let bytes = l.token_manager_type.to_le_bytes();
+        // Check that all bytes except the first are zero (i.e., value fits in u8)
+        if bytes[1..].iter().any(|&b| b != 0) {
+            return Err(Error::TokenManagerTypeOverflow);
+        }
+        let token_manager_type = bytes[0];
+        Ok(Self {
             token_id: l.token_id.into(),
-            token_manager_type: l.token_manager_type.to_le_bytes(),
+            token_manager_type,
             source_token_address: l.source_token_address.into(),
             destination_token_address: l.destination_token_address.into(),
             params: l.params.map(Into::into),
-        }
+        })
     }
 }
 
@@ -133,41 +143,47 @@ impl From<interchain_token_service_std::RegisterTokenMetadata> for RegisterToken
     }
 }
 
-impl From<interchain_token_service_std::Message> for Message {
-    fn from(msg: interchain_token_service_std::Message) -> Self {
-        match msg {
+impl TryFrom<interchain_token_service_std::Message> for Message {
+    type Error = Error;
+
+    fn try_from(msg: interchain_token_service_std::Message) -> Result<Self, Self::Error> {
+        Ok(match msg {
             interchain_token_service_std::Message::InterchainTransfer(t) => {
                 Message::InterchainTransfer(t.into())
             }
             interchain_token_service_std::Message::DeployInterchainToken(d) => {
                 Message::DeployInterchainToken(d.into())
             }
-            interchain_token_service_std::Message::LinkToken(l) => Message::LinkToken(l.into()),
-        }
+            interchain_token_service_std::Message::LinkToken(l) => {
+                Message::LinkToken(l.try_into()?)
+            }
+        })
     }
 }
 
-impl From<interchain_token_service_std::HubMessage> for HubMessage {
-    fn from(msg: interchain_token_service_std::HubMessage) -> Self {
-        match msg {
+impl TryFrom<interchain_token_service_std::HubMessage> for HubMessage {
+    type Error = Error;
+
+    fn try_from(msg: interchain_token_service_std::HubMessage) -> Result<Self, Self::Error> {
+        Ok(match msg {
             interchain_token_service_std::HubMessage::SendToHub {
                 destination_chain,
                 message,
             } => HubMessage::SendToHub {
                 destination_chain: destination_chain.into(),
-                message: message.into(),
+                message: message.try_into()?,
             },
             interchain_token_service_std::HubMessage::ReceiveFromHub {
                 source_chain,
                 message,
             } => HubMessage::ReceiveFromHub {
                 source_chain: source_chain.into(),
-                message: message.into(),
+                message: message.try_into()?,
             },
             interchain_token_service_std::HubMessage::RegisterTokenMetadata(r) => {
                 HubMessage::RegisterTokenMetadata(r.into())
             }
-        }
+        })
     }
 }
 
@@ -209,7 +225,7 @@ impl TryFrom<LinkToken> for interchain_token_service_std::LinkToken {
     fn try_from(l: LinkToken) -> Result<Self, Self::Error> {
         Ok(Self {
             token_id: TokenId::new(l.token_id),
-            token_manager_type: Uint256::from_le_bytes(l.token_manager_type),
+            token_manager_type: Uint256::from(l.token_manager_type),
             source_token_address: l.source_token_address.try_into()?,
             destination_token_address: l.destination_token_address.try_into()?,
             params: l.params.map(|p| p.try_into()).transpose()?,
@@ -286,7 +302,7 @@ impl TryFrom<HubMessage> for interchain_token_service_std::HubMessage {
 pub fn hub_message_encode(
     hub_message: interchain_token_service_std::HubMessage,
 ) -> Result<HexBinary, Report<Error>> {
-    let borsh_msg: HubMessage = hub_message.into();
+    let borsh_msg: HubMessage = hub_message.try_into()?;
     borsh::to_vec(&borsh_msg)
         .map(Into::into)
         .map_err(|_| Report::new(Error::SerializationFailed))
@@ -303,7 +319,7 @@ pub fn hub_message_decode(
 pub fn message_encode(
     message: interchain_token_service_std::Message,
 ) -> Result<HexBinary, Report<Error>> {
-    let borsh_msg: Message = message.into();
+    let borsh_msg: Message = message.try_into()?;
     borsh::to_vec(&borsh_msg)
         .map(Into::into)
         .map_err(|_| Report::new(Error::SerializationFailed))
@@ -474,7 +490,7 @@ mod tests {
                 destination_chain: remote_chain.clone(),
                 message: interchain_token_service_std::LinkToken {
                     token_id: [255u8; 32].into(),
-                    token_manager_type: Uint256::MAX,
+                    token_manager_type: Uint256::from(255u8),
                     source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_token_address: from_hex("742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321"),
                     params: Some(from_hex("deadbeef")),
@@ -775,7 +791,7 @@ mod tests {
                     destination_chain: remote_chain.clone(),
                     message: interchain_token_service_std::LinkToken {
                         token_id: [255u8; 32].into(),
-                        token_manager_type: Uint256::MAX,
+                        token_manager_type: Uint256::from(u8::MAX),
                         source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                         destination_token_address: from_hex(
                             "742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321",
@@ -835,7 +851,7 @@ mod tests {
                     source_chain: remote_chain.clone(),
                     message: interchain_token_service_std::LinkToken {
                         token_id: [255u8; 32].into(),
-                        token_manager_type: Uint256::MAX,
+                        token_manager_type: Uint256::from(u8::MAX),
                         source_token_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                         destination_token_address: from_hex(
                             "742d35Cc6639C25B1CdBd1b8b3731b0b2E8f4321",

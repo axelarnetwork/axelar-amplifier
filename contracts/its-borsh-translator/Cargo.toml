@@ -12,11 +12,9 @@ library = []
 
 [dependencies]
 
-# Borsh/Solana dependencies
-borsh = { workspace = true }
-
 # Axelar dependencies
 axelar-wasm-std = { workspace = true }
+borsh = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw2 = { workspace = true }
