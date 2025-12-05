@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use ampd::monitoring;
 use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
@@ -25,8 +27,9 @@ pub enum Error {
 /// ```rust
 /// # use ampd_sdk::config::Config;
 /// # use std::error::Error;
+/// # use std::path::PathBuf;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = Config::from_default_sources();
+/// let config = Config::from_default_sources(PathBuf::from("./"));
 /// # Ok(())
 /// # }
 /// ```
@@ -35,9 +38,10 @@ pub enum Error {
 /// ```rust
 /// # use ampd_sdk::config::Config;
 /// # use std::error::Error;
+/// # use std::path::PathBuf;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// let config = Config::builder()
-///     .add_file_source("custom_config.toml")
+///     .add_file_source(PathBuf::from("custom_config.toml"))
 ///     .add_env_source("MY_HANDLER")
 ///     .build::<Config>();
 /// # Ok(())
@@ -81,18 +85,18 @@ impl Config {
         ConfigBuilder::new()
     }
 
-    /// Loads the config from the default sources.
+    /// Loads the config from the default sources in the given directory.
     ///
     /// The default sources are added in the following order:
-    /// - `config.toml` in the current directory
+    /// - `config.toml` in the given directory
     /// - `AMPD_HANDLERS_*` environment variables
     ///
     /// Configuration loaded from the environment variables will override the configuration loaded from the file.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
-    pub fn from_default_sources() -> Result<Self, Error> {
+    pub fn from_default_sources(dir: PathBuf) -> Result<Self, Error> {
         Self::builder()
-            .add_file_source(DEFAULT_CONFIG_FILE)
+            .add_file_source(dir.join(DEFAULT_CONFIG_FILE))
             .add_env_source(DEFAULT_CONFIG_PREFIX)
             .build()
     }
@@ -121,10 +125,10 @@ impl ConfigBuilder {
     }
 
     /// Adds a file source to the config builder.
-    pub fn add_file_source(self, base_file: &str) -> Self {
+    pub fn add_file_source(self, base_file: PathBuf) -> Self {
         Self(
             self.0
-                .add_source(config::File::with_name(base_file).required(false)),
+                .add_source(config::File::from(base_file).required(false)),
         )
     }
 
@@ -173,7 +177,7 @@ mod tests {
                 ),
             ],
             || {
-                let config = Config::from_default_sources().unwrap();
+                let config = Config::from_default_sources(PathBuf::from("./")).unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -220,7 +224,7 @@ mod tests {
         fs::write(&config_path, content).unwrap();
 
         let config = Config::builder()
-            .add_file_source(config_path.to_str().unwrap())
+            .add_file_source(config_path)
             .build::<Config>()
             .unwrap();
 
@@ -250,7 +254,7 @@ mod tests {
 
                 tokio::spawn(async move {
                     let config = Config::builder()
-                        .add_file_source(config_path_clone.to_str().unwrap())
+                        .add_file_source(config_path_clone)
                         .build::<Config>()
                         .unwrap();
 
@@ -279,7 +283,7 @@ mod tests {
         fs::write(&config_path, content).unwrap();
 
         let res = Config::builder()
-            .add_file_source(config_path.to_str().unwrap())
+            .add_file_source(config_path)
             .build::<Config>();
 
         assert_err_contains!(res, Error, Error::Build);
@@ -299,7 +303,7 @@ mod tests {
         fs::write(&config_path, content).unwrap();
 
         let config = Config::builder()
-            .add_file_source(config_path.to_str().unwrap())
+            .add_file_source(config_path)
             .build::<Config>()
             .unwrap();
 
