@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use ampd::monitoring;
@@ -42,10 +43,10 @@ pub enum Error {
 /// # use std::error::Error;
 /// # use std::path::PathBuf;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = builder()
+/// let config = builder::<Config>()
 ///     .add_file_source(PathBuf::from("custom_config.toml"))
 ///     .add_env_source("MY_HANDLER")
-///     .build::<Config>();
+///     .build();
 /// # Ok(())
 /// # }
 /// ```
@@ -116,44 +117,51 @@ impl TryFrom<cfg::Config> for Config {
 /// The order in which the sources are added is important. If a field is set in multiple sources,
 /// the last added source will override the previous ones.
 #[derive(Default)]
-pub struct ConfigBuilder(cfg::ConfigBuilder<cfg::builder::DefaultState>);
+pub struct ConfigBuilder<T> {
+    inner: cfg::ConfigBuilder<cfg::builder::DefaultState>,
+    _phantom: PhantomData<T>,
+}
 
-impl ConfigBuilder {
-    fn new() -> Self {
-        Self(cfg::Config::builder())
-    }
-
+impl<T> ConfigBuilder<T> {
     /// Adds a file source to the config builder.
     pub fn add_file_source(self, base_file: PathBuf) -> Self {
-        Self(
-            self.0
+        Self {
+            inner: self
+                .inner
                 .add_source(cfg::File::from(base_file).required(false)),
-        )
+            _phantom: self._phantom,
+        }
     }
 
     /// Adds an environment source with the given prefix to the config builder.
     /// For example, if the prefix is "AMPD_HANDLERS", the environment variable AMPD_HANDLERS_AMPD_URL
     /// will be used to set the ampd_url field in the config.
     pub fn add_env_source(self, prefix: &str) -> Self {
-        Self(self.0.add_source(cfg::Environment::with_prefix(prefix)))
+        Self {
+            inner: self.inner.add_source(cfg::Environment::with_prefix(prefix)),
+            _phantom: self._phantom,
+        }
     }
 
     /// Builds the config from the sources.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
-    pub fn build<T>(self) -> Result<T, Error>
+    pub fn build(self) -> Result<T, Error>
     where
         T: serde::de::DeserializeOwned,
     {
-        self.0
+        self.inner
             .build()
             .and_then(|config| config.try_deserialize::<T>())
             .change_context(Error::Build)
     }
 }
 
-pub fn builder() -> ConfigBuilder {
-    ConfigBuilder::new()
+pub fn builder<T>() -> ConfigBuilder<T> {
+    ConfigBuilder {
+        inner: cfg::Config::builder(),
+        _phantom: PhantomData,
+    }
 }
 
 #[cfg(test)]
@@ -200,7 +208,7 @@ mod tests {
                 (format!("{prefix}_CHAIN_NAME"), Some(chain_name)),
             ],
             || {
-                let config = builder().add_env_source(prefix).build::<Config>().unwrap();
+                let config = builder::<Config>().add_env_source(prefix).build().unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -223,9 +231,9 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let config = builder()
+        let config = builder::<Config>()
             .add_file_source(config_path)
-            .build::<Config>()
+            .build()
             .unwrap();
 
         assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
@@ -253,9 +261,9 @@ mod tests {
                 let config_path_clone = config_path.clone();
 
                 tokio::spawn(async move {
-                    let config = builder()
+                    let config = builder::<Config>()
                         .add_file_source(config_path_clone)
-                        .build::<Config>()
+                        .build()
                         .unwrap();
 
                     assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
@@ -282,7 +290,7 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let res = builder().add_file_source(config_path).build::<Config>();
+        let res = builder::<Config>().add_file_source(config_path).build();
 
         assert_err_contains!(res, Error, Error::Build);
     }
@@ -300,9 +308,9 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let config = builder()
+        let config = builder::<Config>()
             .add_file_source(config_path)
-            .build::<Config>()
+            .build()
             .unwrap();
 
         assert_eq!(config.ampd_url, default_ampd_url());

@@ -103,10 +103,10 @@ async fn main() -> Result<(), Error> {
 
     let base_config = config::Config::from_default_sources(args.config_dir.clone())
         .change_context(Error::HandlerStart)?;
-    let handler_config = config::builder()
+    let handler_config = config::builder::<SuiHandlerConfig>()
         .add_file_source(args.config_dir.join("sui-handler-config.toml"))
         .add_env_source("AMPD_SUI_HANDLER")
-        .build::<SuiHandlerConfig>()
+        .build()
         .change_context(Error::HandlerStart)?;
 
     let token = CancellationToken::new();

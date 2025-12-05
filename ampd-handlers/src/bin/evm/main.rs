@@ -181,10 +181,10 @@ async fn main() -> Result<(), Error> {
     let base_config = config::Config::from_default_sources(args.config_dir.clone())
         .change_context(Error::HandlerStart)?;
 
-    let handler_config = config::builder()
+    let handler_config = config::builder::<EvmHandlerConfig>()
         .add_file_source(args.config_dir.join("evm-handler-config.toml"))
         .add_env_source("AMPD_EVM_HANDLER")
-        .build::<EvmHandlerConfig>()
+        .build()
         .change_context(Error::HandlerStart)?;
 
     if !(handler_config.gmp_handler_enabled || handler_config.event_verifier_handler_enabled) {
