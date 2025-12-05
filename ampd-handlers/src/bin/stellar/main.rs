@@ -90,7 +90,7 @@ async fn main() -> Result<(), Error> {
     let base_config = config::Config::from_default_sources(args.config_dir.clone())
         .change_context(Error::HandlerStart)?;
 
-    let handler_config = config::Config::builder()
+    let handler_config = config::builder()
         .add_file_source(args.config_dir.join("stellar-handler-config.toml"))
         .add_env_source("AMPD_STELLAR_HANDLER")
         .build::<StellarHandlerConfig>()

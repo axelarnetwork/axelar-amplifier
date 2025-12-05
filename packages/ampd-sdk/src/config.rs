@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use ampd::monitoring;
 use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
+use config as cfg;
 use error_stack::{Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use serde_aux::field_attributes::deserialize_default_from_empty_object;
@@ -36,11 +37,12 @@ pub enum Error {
 ///
 /// ## From custom sources
 /// ```rust
+/// # use ampd_sdk::config::builder;
 /// # use ampd_sdk::config::Config;
 /// # use std::error::Error;
 /// # use std::path::PathBuf;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = Config::builder()
+/// let config = builder()
 ///     .add_file_source(PathBuf::from("custom_config.toml"))
 ///     .add_env_source("MY_HANDLER")
 ///     .build::<Config>();
@@ -51,11 +53,12 @@ pub enum Error {
 /// ## Using `config` crate
 /// ```rust
 /// # use ampd_sdk::config::Config;
+/// # use config as cfg;
 /// # use std::error::Error;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = config::Config::builder()
-///     .add_source(config::File::with_name("custom_config.toml").required(false))
-///     .add_source(config::Environment::with_prefix("MY_HANDLER"))
+/// let config = cfg::Config::builder()
+///     .add_source(cfg::File::with_name("custom_config.toml").required(false))
+///     .add_source(cfg::Environment::with_prefix("MY_HANDLER"))
 ///     .build()?;
 /// let config = Config::try_from(config);
 /// # Ok(())
@@ -81,10 +84,6 @@ fn default_ampd_url() -> Url {
 }
 
 impl Config {
-    pub fn builder() -> ConfigBuilder {
-        ConfigBuilder::new()
-    }
-
     /// Loads the config from the default sources in the given directory.
     ///
     /// The default sources are added in the following order:
@@ -95,17 +94,17 @@ impl Config {
     ///
     /// The config is deserialized from the sources into a `Config` struct.
     pub fn from_default_sources(dir: PathBuf) -> Result<Self, Error> {
-        Self::builder()
+        builder()
             .add_file_source(dir.join(DEFAULT_CONFIG_FILE))
             .add_env_source(DEFAULT_CONFIG_PREFIX)
             .build()
     }
 }
 
-impl TryFrom<config::Config> for Config {
+impl TryFrom<cfg::Config> for Config {
     type Error = Report<Error>;
 
-    fn try_from(config: config::Config) -> Result<Config, Error> {
+    fn try_from(config: cfg::Config) -> Result<Config, Error> {
         config
             .try_deserialize::<Config>()
             .change_context(Error::Build)
@@ -117,18 +116,18 @@ impl TryFrom<config::Config> for Config {
 /// The order in which the sources are added is important. If a field is set in multiple sources,
 /// the last added source will override the previous ones.
 #[derive(Default)]
-pub struct ConfigBuilder(config::ConfigBuilder<config::builder::DefaultState>);
+pub struct ConfigBuilder(cfg::ConfigBuilder<cfg::builder::DefaultState>);
 
 impl ConfigBuilder {
     fn new() -> Self {
-        Self(config::Config::builder())
+        Self(cfg::Config::builder())
     }
 
     /// Adds a file source to the config builder.
     pub fn add_file_source(self, base_file: PathBuf) -> Self {
         Self(
             self.0
-                .add_source(config::File::from(base_file).required(false)),
+                .add_source(cfg::File::from(base_file).required(false)),
         )
     }
 
@@ -136,7 +135,7 @@ impl ConfigBuilder {
     /// For example, if the prefix is "AMPD_HANDLERS", the environment variable AMPD_HANDLERS_AMPD_URL
     /// will be used to set the ampd_url field in the config.
     pub fn add_env_source(self, prefix: &str) -> Self {
-        Self(self.0.add_source(config::Environment::with_prefix(prefix)))
+        Self(self.0.add_source(cfg::Environment::with_prefix(prefix)))
     }
 
     /// Builds the config from the sources.
@@ -151,6 +150,10 @@ impl ConfigBuilder {
             .and_then(|config| config.try_deserialize::<T>())
             .change_context(Error::Build)
     }
+}
+
+pub fn builder() -> ConfigBuilder {
+    ConfigBuilder::new()
 }
 
 #[cfg(test)]
@@ -197,10 +200,7 @@ mod tests {
                 (format!("{prefix}_CHAIN_NAME"), Some(chain_name)),
             ],
             || {
-                let config = Config::builder()
-                    .add_env_source(prefix)
-                    .build::<Config>()
-                    .unwrap();
+                let config = builder().add_env_source(prefix).build::<Config>().unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -223,7 +223,7 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let config = Config::builder()
+        let config = builder()
             .add_file_source(config_path)
             .build::<Config>()
             .unwrap();
@@ -253,7 +253,7 @@ mod tests {
                 let config_path_clone = config_path.clone();
 
                 tokio::spawn(async move {
-                    let config = Config::builder()
+                    let config = builder()
                         .add_file_source(config_path_clone)
                         .build::<Config>()
                         .unwrap();
@@ -282,9 +282,7 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let res = Config::builder()
-            .add_file_source(config_path)
-            .build::<Config>();
+        let res = builder().add_file_source(config_path).build::<Config>();
 
         assert_err_contains!(res, Error, Error::Build);
     }
@@ -302,7 +300,7 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let config = Config::builder()
+        let config = builder()
             .add_file_source(config_path)
             .build::<Config>()
             .unwrap();
