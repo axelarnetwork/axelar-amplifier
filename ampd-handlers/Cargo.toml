@@ -22,6 +22,7 @@ ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
+clap = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
 dotenv = "0.15.0"

@@ -354,6 +354,7 @@ dependencies = [
  "async-trait",
  "axelar-wasm-std",
  "base64 0.21.7",
+ "clap",
  "cosmrs",
  "cosmwasm-std",
  "dotenv",
