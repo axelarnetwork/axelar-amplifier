@@ -113,7 +113,6 @@ where
         match event {
             StreamStatus::Ok(event) => {
                 handle_event(
-                    &handler_label,
                     &handler,
                     &msg_queue_client,
                     &event,
@@ -136,21 +135,8 @@ where
     Ok(())
 }
 
-fn is_xrpl_evm_handler(handler_label: &str) -> bool {
-    let xrpl_handlers = [
-        "xrpl-evm-msg-verifier",
-        "xrpl-evm-verifier-set-verifier",
-        "xrpl-evm-multisig-signer",
-    ];
-
-    xrpl_handlers
-        .iter()
-        .any(|handler| handler_label == *handler)
-}
-
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
-    handler_label: &str,
     handler: &H,
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
@@ -173,35 +159,6 @@ where
 
     match res {
         Ok(msgs) => {
-            if is_xrpl_evm_handler(handler_label) {
-                for (i, msg) in msgs.iter().enumerate() {
-                    match broadcast::deserialize_protobuf(&msg.value) {
-                        Ok(deserialized_values) => {
-                            info!(
-                                handler = %handler_label,
-                                msg_index = i,
-                                msg_type_url = %msg.type_url,
-                                msg_value_plain = ?msg.value,
-                                msg_value_deserialized = %deserialized_values,
-                                msg_value_hex = %hex::encode(&msg.value),
-                                "AMPD EVM handler message details"
-                            );
-                        }
-                        Err(e) => {
-                            warn!(
-                                handler = %handler_label,
-                                msg_index = i,
-                                msg_type_url = %msg.type_url,
-                                msg_value_plain = ?msg.value,
-                                msg_value_hex = %hex::encode(&msg.value),
-                                error = %e,
-                                "failed to parse AMPD EVM handler protobuf structure, showing raw data"
-                            );
-                        }
-                    }
-                }
-            }
-
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
                 .buffered(tx_broadcast_buffer_size)
