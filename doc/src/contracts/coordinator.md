@@ -11,6 +11,8 @@ Each blockchain the amplifier suppors requires its own set of contracts (gateway
 1. **Coordinates Active Verifier Sets**: Allows provers to update their active verifier sets and query verifier status across chains
 1. **Enables Safe Unbonding**: Verifies whether verifiers can safely unbond by checking if they're active on any chain
 
+We split 
+
 ## Key Features
 
 ### Contract Instantiation & Registration
@@ -61,6 +63,8 @@ The coordinator maintains active verifier sets for each chain, enabling:
 | `Instantiate2Address` | `Addr` | Calculate the address that would result from an instantiate2 operation |
 
 ## Usage Flow
+
+We split usage into three stepss: protocol contract initialization, contract instantiation, and chain deployment. The router and multisig contracts require the coordinator's address when being instantiated. To avoid having to predict these addresses in advance, we first instantiate the coordinator, and only afterward provide the router and multisig addresses back to it. The service registry address is also given for convenience. Additionally, we keep contract instantiation and deployment as separate steps so that chain operators have the chance to review and adjust contract parameters before the contracts are fully integrated into the protocol.
 
 ```mermaid
 sequenceDiagram
