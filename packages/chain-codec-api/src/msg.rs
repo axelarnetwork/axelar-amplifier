@@ -56,7 +56,7 @@ pub enum QueryMsg {
 pub enum FullMessagePayloads {
     /// Indicates that the multisig-prover contract does not have the
     /// `expect_full_message_payloads` flag enabled and therefore no message payloads were sent.
-    /// 
+    ///
     /// If you receive this, but require the full message payload, that indicates a mistake during deployment.
     NotSupported,
     /// Indicates that there are no full message payloads because this is a verifier set update.

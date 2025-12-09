@@ -17,7 +17,7 @@ use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
 use crate::error::ContractError;
-use crate::flags::{query_payload_digest, check_and_store_full_payloads};
+use crate::flags::{check_and_store_full_payloads, query_payload_digest};
 use crate::state::{
     Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER,
 };
@@ -80,7 +80,7 @@ pub fn construct_proof(
 
             FullMessagePayloads::Payloads(full_message_payloads)
         }
-        (None, false) => FullMessagePayloads::NotSupported
+        (None, false) => FullMessagePayloads::NotSupported,
     };
 
     let digest = query_payload_digest(

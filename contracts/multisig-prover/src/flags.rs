@@ -62,7 +62,7 @@ pub fn check_and_store_full_payloads(
             .save(deps.storage, &payload_id, full_message_payloads)
             .map_err(ContractError::from)?;
     }
-    
+
     Ok(())
 }
 
