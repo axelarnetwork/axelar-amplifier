@@ -7,8 +7,8 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
-use events::try_from;
 use events::Error::EventTypeMismatch;
+use events::{try_from, EventType};
 use futures::future::join_all;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -20,6 +20,7 @@ use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
@@ -166,6 +167,16 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::builder()
+                .event_type(PollStartedEvent::event_type())
+                .contract(self.voting_verifier.clone())
+                .build()],
+            true,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -173,8 +184,6 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::voting::Vote;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use ethers_core::types::H256;
     use events::Event;
     use mockall::predicate::eq;
@@ -490,9 +499,7 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .unwrap()
@@ -517,14 +524,10 @@ mod tests {
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0"
                             .parse()
                             .unwrap(),
-                    event_index: 0,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -539,14 +542,10 @@ mod tests {
                 },
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000002"
                     ),
@@ -582,14 +581,10 @@ mod tests {
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x035410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439e-0"
                             .parse()
                             .unwrap(),
-                    event_index: 0,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -604,14 +599,10 @@ mod tests {
                 },
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -647,14 +638,10 @@ mod tests {
             messages: vec![
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),
@@ -669,14 +656,10 @@ mod tests {
                 },
                 #[allow(deprecated)] // TODO: Use message_id, on deprecating tx_id and event_index
                 TxEventConfirmation {
-                    tx_id: "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f"
-                        .parse()
-                        .unwrap(),
                     message_id:
                         "0x045410be6f4bf3f67f7c1bb4a93119d9d410b2f981bfafbf5dbbf5d37ae7439f-1"
                             .parse()
                             .unwrap(),
-                    event_index: 1,
                     source_address: address!(
                         "0x0000000000000000000000000000000000000000000000000000000000000001"
                     ),

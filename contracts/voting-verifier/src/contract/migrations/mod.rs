@@ -17,7 +17,7 @@ pub struct MigrateMsg {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[migrate_from_version("1.1")]
+#[migrate_from_version("2.0")]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,

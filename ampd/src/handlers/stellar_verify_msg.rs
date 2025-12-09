@@ -9,7 +9,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::{try_from, Event};
+use events::{try_from, Event, EventType};
 use lazy_static::lazy_static;
 use router_api::{chain_name, ChainName};
 use serde::Deserialize;
@@ -21,11 +21,12 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::monitoring;
 use crate::monitoring::metrics;
-use crate::stellar::rpc_client::Client;
+use crate::stellar::rpc_client::{Client, StellarClient};
 use crate::stellar::verifier::verify_message;
 use crate::types::TMAddress;
 
@@ -58,19 +59,19 @@ struct PollStartedEvent {
 }
 
 #[derive(Debug)]
-pub struct Handler {
+pub struct Handler<C = Client> {
     verifier: TMAddress,
     voting_verifier_contract: TMAddress,
-    http_client: Client,
+    http_client: C,
     latest_block_height: Receiver<u64>,
     monitoring_client: monitoring::Client,
 }
 
-impl Handler {
+impl<C: StellarClient + Send + Sync> Handler<C> {
     pub fn new(
         verifier: TMAddress,
         voting_verifier_contract: TMAddress,
-        http_client: Client,
+        http_client: C,
         latest_block_height: Receiver<u64>,
         monitoring_client: monitoring::Client,
     ) -> Self {
@@ -95,7 +96,7 @@ impl Handler {
 }
 
 #[async_trait]
-impl EventHandler for Handler {
+impl<C: StellarClient + Send + Sync> EventHandler for Handler<C> {
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> error_stack::Result<Vec<Any>, Self::Err> {
@@ -182,6 +183,16 @@ impl EventHandler for Handler {
             .into_any()
             .expect("vote msg should serialize")])
     }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::builder()
+                .event_type(PollStartedEvent::event_type())
+                .contract(self.voting_verifier_contract.clone())
+                .build()],
+            true,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -205,9 +216,9 @@ mod tests {
 
     use super::{PollStartedEvent, STELLAR_CHAIN_NAME};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
-    use crate::stellar::rpc_client::Client;
+    use crate::stellar::rpc_client::MockStellarClient;
     use crate::types::TMAddress;
     use crate::PREFIX;
 
@@ -278,7 +289,7 @@ mod tests {
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
-            Client::faux(),
+            MockStellarClient::new(),
             watch::channel(0).1,
             monitoring_client,
         );
@@ -299,7 +310,7 @@ mod tests {
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
             voting_verifier,
-            Client::faux(),
+            MockStellarClient::new(),
             watch::channel(0).1,
             monitoring_client,
         );
@@ -309,8 +320,10 @@ mod tests {
 
     #[async_test]
     async fn should_vote_correctly() {
-        let mut client = Client::faux();
-        faux::when!(client.transaction_responses).then(|_| Ok(HashMap::new()));
+        let mut client = MockStellarClient::new();
+        client
+            .expect_transaction_responses()
+            .returning(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -336,8 +349,10 @@ mod tests {
 
     #[async_test]
     async fn should_record_verification_vote_metric() {
-        let mut client = Client::faux();
-        faux::when!(client.transaction_responses).then(|_| Ok(HashMap::new()));
+        let mut client = MockStellarClient::new();
+        client
+            .expect_transaction_responses()
+            .returning(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -396,8 +411,6 @@ mod tests {
                     #[allow(deprecated)]
                     // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
                     TxEventConfirmation {
-                        tx_id: msg_id.tx_hash_as_hex(),
-                        event_index: u32::try_from(msg_id.event_index).unwrap(),
                         message_id: msg_id.to_string().parse().unwrap(),
                         source_address: ScAddress::Contract(
                             stellar_xdr::curr::Hash::from([2; 32]).into(),

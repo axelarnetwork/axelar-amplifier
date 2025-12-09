@@ -317,6 +317,7 @@ mod tests {
             chain_name = 'solana'
             cosmwasm_contract = '{}'
             rpc_url = 'http://127.0.0.1'
+            gateway_address = '11111111111111111111111111111112'
 
             [handlers.rpc_timeout]
             secs = 3
@@ -327,6 +328,7 @@ mod tests {
             chain_name = 'solana'
             cosmwasm_contract = '{}'
             rpc_url = 'http://127.0.0.1'
+            gateway_address = '11111111111111111111111111111112'
 
             [handlers.rpc_timeout]
             secs = 3
@@ -596,6 +598,7 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    gateway_address: "11111111111111111111111111111112".to_string(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::SolanaVerifierSetVerifier {
@@ -604,6 +607,7 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
+                    gateway_address: "11111111111111111111111111111112".to_string(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::StacksMsgVerifier {
@@ -637,6 +641,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("solana"),
@@ -649,6 +654,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("flow"),
@@ -661,6 +667,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                     ],
                 },

@@ -8,7 +8,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::{try_from, Event};
+use events::{try_from, Event, EventType};
 use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
 use multiversx_sdk::data::address::Address;
@@ -20,6 +20,7 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::monitoring;
 use crate::monitoring::metrics;
@@ -166,6 +167,16 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::builder()
+                .event_type(PollStartedEvent::event_type())
+                .contract(self.voting_verifier_contract.clone())
+                .build()],
+            true,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -189,7 +200,7 @@ mod tests {
 
     use super::{PollStartedEvent, MULTIVERSX_CHAIN_NAME};
     use crate::event_processor::EventHandler;
-    use crate::handlers::tests::{into_structured_event, participants};
+    use crate::handlers::test_utils::{into_structured_event, participants};
     use crate::monitoring::{metrics, test_utils};
     use crate::mvx::proxy::MockMvxProxy;
     use crate::types::TMAddress;
@@ -407,10 +418,6 @@ mod tests {
             },
             #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
-                tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
-                    .parse()
-                    .unwrap(),
-                event_index: 1,
                 message_id: "0xdfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312-1"
                     .to_string()
                     .try_into()

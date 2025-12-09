@@ -1,5 +1,10 @@
+use std::marker::PhantomData;
+use std::path::PathBuf;
+
+use ampd::monitoring;
 use ampd::url::Url;
 use axelar_wasm_std::chain::ChainName;
+use config as cfg;
 use error_stack::{Report, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use serde_aux::field_attributes::deserialize_default_from_empty_object;
@@ -24,19 +29,22 @@ pub enum Error {
 /// ```rust
 /// # use ampd_sdk::config::Config;
 /// # use std::error::Error;
+/// # use std::path::PathBuf;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = Config::from_default_sources();
+/// let config = Config::from_default_sources(PathBuf::from("./"));
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// ## From custom sources
 /// ```rust
+/// # use ampd_sdk::config::builder;
 /// # use ampd_sdk::config::Config;
 /// # use std::error::Error;
+/// # use std::path::PathBuf;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = Config::builder()
-///     .add_file_source("custom_config.toml")
+/// let config = builder::<Config>()
+///     .add_file_source(PathBuf::from("custom_config.toml"))
 ///     .add_env_source("MY_HANDLER")
 ///     .build();
 /// # Ok(())
@@ -46,17 +54,18 @@ pub enum Error {
 /// ## Using `config` crate
 /// ```rust
 /// # use ampd_sdk::config::Config;
+/// # use config as cfg;
 /// # use std::error::Error;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// let config = config::Config::builder()
-///     .add_source(config::File::with_name("custom_config.toml").required(false))
-///     .add_source(config::Environment::with_prefix("MY_HANDLER"))
+/// let config = cfg::Config::builder()
+///     .add_source(cfg::File::with_name("custom_config.toml").required(false))
+///     .add_source(cfg::Environment::with_prefix("MY_HANDLER"))
 ///     .build()?;
 /// let config = Config::try_from(config);
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     #[serde(default = "default_ampd_url")]
@@ -66,6 +75,9 @@ pub struct Config {
     // Using `serde_aux` to be able to use `default` together with `flatten`. See https://github.com/serde-rs/serde/issues/1626
     #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
     pub event_handler: event::event_handler::Config,
+
+    #[serde(default)]
+    pub monitoring_server: monitoring::Config,
 }
 
 fn default_ampd_url() -> Url {
@@ -73,31 +85,27 @@ fn default_ampd_url() -> Url {
 }
 
 impl Config {
-    pub fn builder() -> ConfigBuilder {
-        ConfigBuilder::new()
-    }
-
-    /// Loads the config from the default sources.
+    /// Loads the config from the default sources in the given directory.
     ///
     /// The default sources are added in the following order:
-    /// - `config.toml` in the current directory
+    /// - `config.toml` in the given directory
     /// - `AMPD_HANDLERS_*` environment variables
     ///
     /// Configuration loaded from the environment variables will override the configuration loaded from the file.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
-    pub fn from_default_sources() -> Result<Self, Error> {
-        Self::builder()
-            .add_file_source(DEFAULT_CONFIG_FILE)
+    pub fn from_default_sources(dir: PathBuf) -> Result<Self, Error> {
+        builder()
+            .add_file_source(dir.join(DEFAULT_CONFIG_FILE))
             .add_env_source(DEFAULT_CONFIG_PREFIX)
             .build()
     }
 }
 
-impl TryFrom<config::Config> for Config {
+impl TryFrom<cfg::Config> for Config {
     type Error = Report<Error>;
 
-    fn try_from(config: config::Config) -> Result<Config, Error> {
+    fn try_from(config: cfg::Config) -> Result<Config, Error> {
         config
             .try_deserialize::<Config>()
             .change_context(Error::Build)
@@ -109,36 +117,50 @@ impl TryFrom<config::Config> for Config {
 /// The order in which the sources are added is important. If a field is set in multiple sources,
 /// the last added source will override the previous ones.
 #[derive(Default)]
-pub struct ConfigBuilder(config::ConfigBuilder<config::builder::DefaultState>);
+pub struct ConfigBuilder<T> {
+    inner: cfg::ConfigBuilder<cfg::builder::DefaultState>,
+    _phantom: PhantomData<T>,
+}
 
-impl ConfigBuilder {
-    fn new() -> Self {
-        Self(config::Config::builder())
-    }
-
+impl<T> ConfigBuilder<T> {
     /// Adds a file source to the config builder.
-    pub fn add_file_source(self, base_file: &str) -> Self {
-        Self(
-            self.0
-                .add_source(config::File::with_name(base_file).required(false)),
-        )
+    pub fn add_file_source(self, base_file: PathBuf) -> Self {
+        Self {
+            inner: self
+                .inner
+                .add_source(cfg::File::from(base_file).required(false)),
+            _phantom: self._phantom,
+        }
     }
 
     /// Adds an environment source with the given prefix to the config builder.
     /// For example, if the prefix is "AMPD_HANDLERS", the environment variable AMPD_HANDLERS_AMPD_URL
     /// will be used to set the ampd_url field in the config.
     pub fn add_env_source(self, prefix: &str) -> Self {
-        Self(self.0.add_source(config::Environment::with_prefix(prefix)))
+        Self {
+            inner: self.inner.add_source(cfg::Environment::with_prefix(prefix)),
+            _phantom: self._phantom,
+        }
     }
 
     /// Builds the config from the sources.
     ///
     /// The config is deserialized from the sources into a `Config` struct.
-    pub fn build(self) -> Result<Config, Error> {
-        self.0
+    pub fn build(self) -> Result<T, Error>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.inner
             .build()
-            .and_then(|config| config.try_deserialize::<Config>())
+            .and_then(|config| config.try_deserialize::<T>())
             .change_context(Error::Build)
+    }
+}
+
+pub fn builder<T>() -> ConfigBuilder<T> {
+    ConfigBuilder {
+        inner: cfg::Config::builder(),
+        _phantom: PhantomData,
     }
 }
 
@@ -166,7 +188,7 @@ mod tests {
                 ),
             ],
             || {
-                let config = Config::from_default_sources().unwrap();
+                let config = Config::from_default_sources(PathBuf::from("./")).unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -186,7 +208,7 @@ mod tests {
                 (format!("{prefix}_CHAIN_NAME"), Some(chain_name)),
             ],
             || {
-                let config = Config::builder().add_env_source(prefix).build().unwrap();
+                let config = builder::<Config>().add_env_source(prefix).build().unwrap();
 
                 assert_eq!(config.ampd_url, Url::new_sensitive(ampd_url).unwrap());
                 assert_eq!(config.chain_name, ChainName::from_str(chain_name).unwrap());
@@ -209,8 +231,8 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let config = Config::builder()
-            .add_file_source(config_path.to_str().unwrap())
+        let config = builder::<Config>()
+            .add_file_source(config_path)
             .build()
             .unwrap();
 
@@ -239,8 +261,8 @@ mod tests {
                 let config_path_clone = config_path.clone();
 
                 tokio::spawn(async move {
-                    let config = Config::builder()
-                        .add_file_source(config_path_clone.to_str().unwrap())
+                    let config = builder::<Config>()
+                        .add_file_source(config_path_clone)
                         .build()
                         .unwrap();
 
@@ -268,9 +290,7 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let res = Config::builder()
-            .add_file_source(config_path.to_str().unwrap())
-            .build();
+        let res = builder::<Config>().add_file_source(config_path).build();
 
         assert_err_contains!(res, Error, Error::Build);
     }
@@ -288,8 +308,8 @@ mod tests {
         );
         fs::write(&config_path, content).unwrap();
 
-        let config = Config::builder()
-            .add_file_source(config_path.to_str().unwrap())
+        let config = builder::<Config>()
+            .add_file_source(config_path)
             .build()
             .unwrap();
 

@@ -8,7 +8,6 @@ use router_api::ChainName;
 
 pub use crate::contract::MigrateMsg;
 use crate::key::{KeyType, PublicKey, Signature};
-use crate::multisig::Multisig;
 use crate::verifier_set::VerifierSet;
 
 #[cw_serde]
@@ -56,6 +55,9 @@ pub enum ExecuteMsg {
         signed_sender_address: HexBinary,
     },
     /// Authorizes a set of contracts to call StartSigningSession.
+    /// WARNING: This message should only be executed by governance when
+    /// rescuing the protocol from a faulty prover. Do not use when
+    /// registering new chains.
     #[permission(Governance, Proxy(coordinator))]
     AuthorizeCallers {
         contracts: HashMap<String, ChainName>,
@@ -71,12 +73,25 @@ pub enum ExecuteMsg {
     /// Resumes routing after an emergency shutdown
     #[permission(Elevated)]
     EnableSigning,
+
+    /// Update signing parameters. Callable only by governance.
+    /// Each parameter is optional - `None` values keep the current configuration unchanged.
+    /// This allows updating parameters individually or in combination.
+    /// Updates only apply to future signing sessions, not currently active ones.
+    /// Note: This endpoint is kept general to allow for future parameter additions
+    /// while maintaining backward compatibility.
+    #[permission(Governance)]
+    UpdateSigningParameters {
+        /// Number of blocks after which a signing session expires.
+        /// `None` keeps current block expiry.
+        block_expiry: Option<nonempty::Uint64>,
+    },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Multisig)]
+    #[returns(crate::multisig::Multisig)]
     Multisig { session_id: Uint64 },
 
     #[returns(VerifierSet)]
@@ -96,6 +111,14 @@ pub enum QueryMsg {
 
     #[returns(Addr)]
     AuthorizedCaller { chain_name: ChainName },
+
+    #[returns(SigningParameters)]
+    SigningParameters,
+}
+
+#[cw_serde]
+pub struct SigningParameters {
+    pub block_expiry: nonempty::Uint64,
 }
 
 #[cw_serde]

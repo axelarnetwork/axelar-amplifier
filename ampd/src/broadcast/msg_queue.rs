@@ -247,20 +247,20 @@ impl MsgQueue {
         gas_cap: Gas,
         duration: time::Duration,
         monitoring_client: monitoring::Client,
-    ) -> (Pin<Box<MsgQueue>>, MsgQueueClient<T>)
+    ) -> (MsgQueue, MsgQueueClient<T>)
     where
         T: cosmos::CosmosClient,
     {
         let (tx, rx) = mpsc::channel(msg_cap);
 
         (
-            Box::pin(MsgQueue {
+            MsgQueue {
                 stream: ReceiverStream::new(rx).fuse(),
                 deadline: time::sleep(duration),
                 queue: Queue::new(gas_cap),
                 duration,
                 monitoring_client,
-            }),
+            },
             MsgQueueClient { broadcaster, tx },
         )
     }
@@ -528,13 +528,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
@@ -578,13 +579,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
@@ -648,13 +650,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         let handles: Vec<_> = (0..client_count)
             .map(|_| {
@@ -739,13 +742,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let _ = msg_queue.next().await;
@@ -784,13 +788,14 @@ mod tests {
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
         let timeout = time::Duration::from_secs(3);
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             timeout,
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
@@ -841,14 +846,17 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
             monitoring_client,
         );
+
         let handle = tokio::spawn(async move {
+            tokio::pin!(msg_queue);
+
             let actual = msg_queue.next().await.unwrap();
             assert_eq!(actual.as_ref().len(), 10);
             for msg in actual.as_ref() {
@@ -900,7 +908,7 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
@@ -910,6 +918,7 @@ mod tests {
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let handle = tokio::spawn(async move {
+            tokio::pin!(msg_queue);
             assert!(msg_queue.next().await.is_none());
         });
 
@@ -949,14 +958,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
-
+        tokio::pin!(msg_queue);
         msg_queue_client
             .enqueue_and_forget(dummy_msg())
             .await
@@ -1020,13 +1029,14 @@ mod tests {
 
         let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         msg_queue_client
             .enqueue_and_forget(dummy_msg())

@@ -1,10 +1,6 @@
-use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::msg_id::{
-    Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, Bech32mFormat,
-    FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
-};
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use cosmwasm_schema::cw_serde;
@@ -137,72 +133,8 @@ impl From<PollStarted> for Event {
 
 #[cw_serde]
 pub struct VerifierSetConfirmation {
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub tx_id: nonempty::String,
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub event_index: u32,
     pub message_id: nonempty::String,
     pub verifier_set: VerifierSet,
-}
-
-/// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
-#[deprecated(since = "1.1.0", note = "don't parse message id, just emit as is")]
-fn parse_message_id(
-    message_id: &str,
-    msg_id_format: &MessageIdFormat,
-) -> Result<(nonempty::String, u32), ContractError> {
-    match msg_id_format {
-        MessageIdFormat::Base58TxDigestAndEventIndex => {
-            let id = Base58TxDigestAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-            Ok((
-                id.tx_digest_as_base58(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::FieldElementAndEventIndex => {
-            let id = FieldElementAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-
-            Ok((
-                id.tx_hash_as_hex(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::HexTxHashAndEventIndex => {
-            let id = HexTxHashAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-
-            Ok((
-                id.tx_hash_as_hex(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
-            let id = Base58SolanaTxSignatureAndEventIndex::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
-
-            Ok((
-                id.signature_as_base58(),
-                u32::try_from(id.event_index)
-                    .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-            ))
-        }
-        MessageIdFormat::HexTxHash => {
-            let id = HexTxHash::from_str(message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
-
-            Ok((id.tx_hash_as_hex(), 0))
-        }
-        MessageIdFormat::Bech32m { prefix, length } => {
-            let bech32m_message_id = Bech32mFormat::from_str(prefix, *length as usize, message_id)
-                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
-            Ok((bech32m_message_id.to_string().try_into()?, 0))
-        }
-    }
 }
 
 impl VerifierSetConfirmation {
@@ -211,14 +143,11 @@ impl VerifierSetConfirmation {
         msg_id_format: MessageIdFormat,
         verifier_set: VerifierSet,
     ) -> Result<Self, ContractError> {
-        #[allow(deprecated)]
-        let (tx_id, event_index) = parse_message_id(&message_id, &msg_id_format)?;
+        // Verify the message ID format
+        axelar_wasm_std::msg_id::verify_msg_id(&message_id, &msg_id_format)
+            .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?;
 
-        #[allow(deprecated)]
-        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(Self {
-            tx_id,
-            event_index,
             message_id,
             verifier_set,
         })
@@ -227,10 +156,6 @@ impl VerifierSetConfirmation {
 
 #[cw_serde]
 pub struct TxEventConfirmation {
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub tx_id: nonempty::String,
-    #[deprecated(since = "1.1.0", note = "use message_id field instead")]
-    pub event_index: u32,
     pub message_id: nonempty::String,
     pub destination_address: Address,
     pub destination_chain: ChainName,
@@ -245,14 +170,11 @@ pub struct TxEventConfirmation {
 impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
     fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
-        #[allow(deprecated)]
-        let (tx_id, event_index) = parse_message_id(&msg.cc_id.message_id, msg_id_format)?;
+        // Verify the message ID format
+        axelar_wasm_std::msg_id::verify_msg_id(&msg.cc_id.message_id, msg_id_format)
+            .map_err(|_| ContractError::InvalidMessageID(msg.cc_id.message_id.to_string()))?;
 
-        #[allow(deprecated)]
-        // TODO: remove this attribute when tx_id and event_index are removed from the event
         Ok(TxEventConfirmation {
-            tx_id,
-            event_index,
             message_id: msg.cc_id.message_id,
             destination_address: msg.destination_address,
             destination_chain: msg.destination_chain,
@@ -555,8 +477,6 @@ mod test {
         let event_messages_poll_started: cosmwasm_std::Event = PollStarted::Messages {
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: "txId1".try_into().unwrap(),
-                    event_index: 1,
                     message_id: "messageId".try_into().unwrap(),
                     destination_address: address!("destinationAddress1"),
                     destination_chain: chain_name!("destinationChain"),
@@ -564,8 +484,6 @@ mod test {
                     payload_hash: [0; 32],
                 },
                 TxEventConfirmation {
-                    tx_id: "txId2".try_into().unwrap(),
-                    event_index: 2,
                     message_id: "messageId".try_into().unwrap(),
                     destination_address: address!("destinationAddress2"),
                     destination_chain: chain_name!("destinationChain"),
@@ -590,8 +508,6 @@ mod test {
 
         let event_verifier_set_poll_started: cosmwasm_std::Event = PollStarted::VerifierSet {
             verifier_set: VerifierSetConfirmation {
-                tx_id: "txId".try_into().unwrap(),
-                event_index: 1,
                 message_id: "messageId".try_into().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },

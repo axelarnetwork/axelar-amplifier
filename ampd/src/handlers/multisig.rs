@@ -7,7 +7,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use cosmwasm_std::{HexBinary, Uint64};
 use error_stack::ResultExt;
-use events::try_from;
+use events::{try_from, EventType};
 use hex::encode;
 use multisig::msg::ExecuteMsg;
 use multisig::types::MsgToSign;
@@ -18,6 +18,7 @@ use tokio::sync::watch::Receiver;
 use tracing::info;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error::{self, DeserializeEvent, MessageToSign};
 use crate::tofnd::{self, Multisig};
 use crate::types::{PublicKey, TMAddress};
@@ -172,6 +173,16 @@ where
             }
         }
     }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::builder()
+                .event_type(SigningStartedEvent::event_type())
+                .contract(self.multisig.clone())
+                .build()],
+            true,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -179,8 +190,6 @@ mod test {
     use std::collections::HashMap;
     use std::convert::{TryFrom, TryInto};
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use error_stack::{Report, Result};
@@ -236,9 +245,7 @@ mod test {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         ))
         .unwrap()
     }
@@ -268,9 +275,7 @@ mod test {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         ))
         .unwrap()
     }

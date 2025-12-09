@@ -114,6 +114,9 @@ pub fn execute(
         }
         ExecuteMsg::DisableSigning => execute::disable_signing(deps),
         ExecuteMsg::EnableSigning => execute::enable_signing(deps),
+        ExecuteMsg::UpdateSigningParameters { block_expiry } => {
+            Ok(execute::update_signing_parameters(deps, block_expiry)?)
+        }
     }?
     .then(Ok)
 }
@@ -181,6 +184,7 @@ pub fn query(
         QueryMsg::AuthorizedCaller { chain_name } => {
             to_json_binary(&query::prover_for_chain(deps, chain_name)?)?
         }
+        QueryMsg::SigningParameters => to_json_binary(&query::signing_parameters(deps)?)?,
     }
     .then(Ok)
 }
@@ -1418,5 +1422,63 @@ mod tests {
         let res = query::prover_for_chain(deps.as_ref(), chain_name!("chain2"));
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), cosmos_addr!("addr2"));
+    }
+
+    #[test]
+    fn update_signing_parameters() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        // Query initial parameters
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::SigningParameters).unwrap();
+        let initial_params: crate::msg::SigningParameters = from_json(res).unwrap();
+        assert_eq!(
+            initial_params.block_expiry,
+            SIGNATURE_BLOCK_EXPIRY.try_into().unwrap()
+        );
+
+        // Update block_expiry
+        let new_block_expiry: axelar_wasm_std::nonempty::Uint64 =
+            (SIGNATURE_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateSigningParameters {
+                block_expiry: Some(new_block_expiry),
+            }
+            .into(),
+        )
+        .unwrap();
+
+        // Verify parameter was updated
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::SigningParameters).unwrap();
+        let params: crate::msg::SigningParameters = from_json(res).unwrap();
+        assert_eq!(params.block_expiry, new_block_expiry);
+    }
+
+    #[test]
+    fn update_signing_parameters_with_none_keeps_existing() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        // Query initial parameters
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::SigningParameters).unwrap();
+        let initial_params: crate::msg::SigningParameters = from_json(res).unwrap();
+
+        // Update with None - should keep existing value
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateSigningParameters { block_expiry: None }.into(),
+        )
+        .unwrap();
+
+        // Verify parameter stayed the same
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::SigningParameters).unwrap();
+        let params: crate::msg::SigningParameters = from_json(res).unwrap();
+        assert_eq!(params.block_expiry, initial_params.block_expiry);
     }
 }

@@ -23,15 +23,21 @@ use crate::state::{
     self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
 
-pub fn update_voting_threshold(
+pub fn update_voting_parameters(
     deps: DepsMut,
-    new_voting_threshold: MajorityThreshold,
+    voting_threshold: Option<MajorityThreshold>,
+    block_expiry: Option<nonempty::Uint64>,
+    confirmation_height: Option<u64>,
 ) -> Result<Response, ContractError> {
     CONFIG
         .update(
             deps.storage,
             |mut config| -> Result<_, cosmwasm_std::StdError> {
-                config.voting_threshold = new_voting_threshold;
+                config.voting_threshold = voting_threshold.unwrap_or(config.voting_threshold);
+                config.block_expiry = block_expiry.unwrap_or(config.block_expiry);
+                config.confirmation_height =
+                    confirmation_height.unwrap_or(config.confirmation_height);
+
                 Ok(config)
             },
         )

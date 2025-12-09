@@ -12,7 +12,7 @@ use cosmrs::tx::Msg;
 use cosmrs::Any;
 use error_stack::ResultExt;
 use events::Error::EventTypeMismatch;
-use events::{try_from, Event};
+use events::{try_from, Event, EventType};
 use lazy_static::lazy_static;
 use multisig::verifier_set::VerifierSet;
 use router_api::{chain_name, ChainName};
@@ -23,6 +23,7 @@ use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::event_sub::event_filter::{EventFilter, EventFilters};
 use crate::handlers::errors::Error;
 use crate::monitoring;
 use crate::monitoring::metrics;
@@ -174,6 +175,16 @@ where
             .into_any()
             .expect("vote msg should serialize")])
     }
+
+    fn event_filters(&self) -> EventFilters {
+        EventFilters::new(
+            vec![EventFilter::builder()
+                .event_type(PollStartedEvent::event_type())
+                .contract(self.voting_verifier_contract.clone())
+                .build()],
+            true,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -183,8 +194,6 @@ mod tests {
 
     use axelar_wasm_std::msg_id::FieldElementAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use error_stack::Result;
     use ethers_core::types::U256;
     use events::Event;
@@ -308,8 +317,6 @@ mod tests {
         PollStarted::VerifierSet {
             #[allow(deprecated)]
             verifier_set: VerifierSetConfirmation {
-                tx_id: msg_id.tx_hash_as_hex(),
-                event_index: u32::try_from(msg_id.event_index).unwrap(),
                 message_id: msg_id.to_string().parse().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
@@ -341,9 +348,7 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
+                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
         )
         .try_into()
         .unwrap()

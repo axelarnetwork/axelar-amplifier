@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{
+    address, killswitch, nonempty, permission_control, FnExt, IntoContractError,
+};
 use axelarnet_gateway::AxelarExecutableMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -52,10 +54,14 @@ pub enum Error {
     QueryTokenInstance,
     #[error("failed to query the token config")]
     QueryTokenConfig,
+    #[error("failed to query custom token metadata")]
+    QueryCustomTokenMetadata,
     #[error("failed to query the status of contract")]
     QueryContractStatus,
     #[error("failed to query chain configs")]
     QueryAllChainConfigs,
+    #[error("invalid limit")]
+    InvalidLimit,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -176,14 +182,24 @@ pub fn query(deps: Deps, _: Env, msg: QueryMsg) -> Result<Binary, ContractError>
             filter,
             start_after,
             limit,
-        } => query::its_chains(deps, filter, start_after, limit)
-            .change_context(Error::QueryAllChainConfigs),
+        } => query::its_chains(
+            deps,
+            filter,
+            start_after,
+            nonempty::Uint32::try_from(limit).change_context(Error::InvalidLimit)?,
+        )
+        .change_context(Error::QueryAllChainConfigs),
         QueryMsg::TokenInstance { chain, token_id } => {
             query::token_instance(deps, chain, token_id).change_context(Error::QueryTokenInstance)
         }
         QueryMsg::TokenConfig { token_id } => {
             query::token_config(deps, token_id).change_context(Error::QueryTokenConfig)
         }
+        QueryMsg::CustomTokenMetadata {
+            chain,
+            token_address,
+        } => query::custom_token_metadata(deps, chain, token_address)
+            .change_context(Error::QueryCustomTokenMetadata),
         QueryMsg::IsEnabled => {
             query::is_contract_enabled(deps).change_context(Error::QueryContractStatus)
         }

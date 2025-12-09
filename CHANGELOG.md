@@ -2,7 +2,21 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.2..HEAD)
+
+## [v1.12.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.2) (2025-10-03)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.1..ampd-v1.12.2)
+
+- add cancellation token to confirmer and broadcaster [#1056](https://github.com/axelarnetwork/axelar-amplifier/pull/1056)
+- add name to task runs [#1055](https://github.com/axelarnetwork/axelar-amplifier/pull/1055)
+- rotate out blastapi rpcs [#1054](https://github.com/axelarnetwork/axelar-amplifier/pull/1054)
+
+## [v1.12.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.1) (2025-09-25)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.0..ampd-v1.12.1)
+
+- add event filtering to event handlers [#1049](https://github.com/axelarnetwork/axelar-amplifier/pull/1049)
 
 ## [v1.12.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.0) (2025-09-19)
 

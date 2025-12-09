@@ -59,4 +59,6 @@ pub enum Error {
     RouterClient,
     #[error("address {0} has incorrect format")]
     InvalidAddress(String),
+    #[error("invalid limit")]
+    InvalidLimit,
 }

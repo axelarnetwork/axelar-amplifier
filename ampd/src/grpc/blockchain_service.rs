@@ -44,6 +44,8 @@ pub struct ChainConfig {
     pub voting_verifier: TMAddress,
     pub multisig_prover: TMAddress,
     pub multisig: TMAddress,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_verifier: Option<TMAddress>,
 }
 
 #[derive(Debug, TypedBuilder)]
@@ -210,6 +212,10 @@ where
             service_registry: self.service_registry.to_string(),
             rewards: self.rewards.to_string(),
             multisig: chain_config.multisig.to_string(),
+            event_verifier: chain_config
+                .event_verifier
+                .as_ref()
+                .map(|addr| addr.to_string()),
         }))
     }
 
@@ -225,6 +231,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -478,6 +485,7 @@ mod tests {
                         voting_verifier: TMAddress::random(PREFIX),
                         multisig_prover: TMAddress::random(PREFIX),
                         multisig: TMAddress::random(PREFIX),
+                        event_verifier: None,
                     }],
                 })
                 .monitoring_client(self.monitoring_client)
@@ -680,6 +688,7 @@ mod tests {
         let filter = ampd_proto::EventFilter {
             r#type: "test_event".to_string(),
             contract: expected.contract_address().unwrap().to_string(),
+            attributes: HashMap::new(),
         };
         let (service, _) = TestBuilder::default()
             .with_expected_events(events)
@@ -799,11 +808,14 @@ mod tests {
             result: None,
         };
 
-        let (service, mut msg_queue) = TestBuilder::default()
+        let (service, msg_queue) = TestBuilder::default()
             .with_expected_simulate_response(simulate_response)
             .build()
             .await;
-        tokio::spawn(async move { while msg_queue.next().await.is_some() {} });
+        tokio::spawn(async move {
+            tokio::pin!(msg_queue);
+            while msg_queue.next().await.is_some() {}
+        });
         let res = service.broadcast(broadcast_req(Some(dummy_msg()))).await;
         assert!(res.is_err_and(|status| status.code() == Code::InvalidArgument));
     }
@@ -822,7 +834,7 @@ mod tests {
             result: None,
         };
 
-        let (service, mut msg_queue) = TestBuilder::default()
+        let (service, msg_queue) = TestBuilder::default()
             .with_expected_simulate_response(simulate_response)
             .build()
             .await;
@@ -845,6 +857,7 @@ mod tests {
                 .collect::<Vec<_>>(),
         );
 
+        tokio::pin!(msg_queue);
         let msgs: Vec<_> = msg_queue.next().await.unwrap().into();
         assert_eq!(msgs.len(), msg_count);
         for (i, msg) in msgs.into_iter().enumerate() {

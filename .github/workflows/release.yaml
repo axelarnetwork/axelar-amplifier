@@ -9,6 +9,7 @@ on:
         options:
           - ampd
           - ampd-sdk
+          - ampd-handlers
           - router
           - gateway
           - multisig
@@ -20,6 +21,7 @@ on:
           - axelarnet-gateway
           - interchain-token-service
           - its-abi-translator
+          - event-verifier
       dry-run:
         description: Dry run
         type: boolean
@@ -45,6 +47,7 @@ jobs:
           declare -A binaries_data=(
             ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
             ["ampd-sdk"]="ampd-sdk,/\(major\)|\(major-ampd-sdk\)/,/\(minor\)|\(minor-ampd-sdk\)/,packages/ampd-sdk"
+            ["ampd-handlers"]="ampd-handlers,/\(major\)|\(major-ampd-handlers\)/,/\(minor\)|\(minor-ampd-handlers\)/,ampd-handlers packages/ampd-sdk"
             ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
             ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
             ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
@@ -57,6 +60,7 @@ jobs:
             ["chain-codec"]="chain-codec,/\(major\)|\(major-chain-codec\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec\)|\(minor-contracts\)/,contracts/chain-codec packages"
             ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
             ["its-abi-translator"]="its-abi-translator,/\(major\)|\(major-its-abi-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-abi-translator\)|\(minor-contracts\)/,contracts/its-abi-translator packages"
+            ["event-verifier"]="event-verifier,/\(major\)|\(major-event-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-event-verifier\)|\(minor-contracts\)/,contracts/event-verifier packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then
@@ -69,8 +73,19 @@ jobs:
               echo "Unknown binary to release"
               exit 1
           fi
+          
+          if [[ "$binary" == "ampd-handlers" ]]; then
+            if [ -d "ampd-handlers/src/bin" ]; then
+              handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
+              if [ -n "$handlers" ]; then
+                tag_prefixes=$(echo "$handlers" | sed 's/$/-handler/' | tr '\n' ',' | sed 's/,$//')
+                echo "tag-prefixes=$tag_prefixes" >> "$GITHUB_OUTPUT"
+              fi
+            fi
+          fi
 
       - name: Release ${{ github.event.inputs.binary-to-release }}
+        id: release
         uses: ./.github/actions/release
         with:
           binary-to-release: ${{ steps.setup-variables.outputs.binary-to-release }}
@@ -79,3 +94,4 @@ jobs:
           minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
           change-path: ${{ steps.setup-variables.outputs.change-path }}
           github_token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
+          tag-prefixes: ${{ steps.setup-variables.outputs.tag-prefixes }}

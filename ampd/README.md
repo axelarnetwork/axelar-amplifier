@@ -125,7 +125,7 @@ chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
 type = 'StarknetMsgVerifier'
 cosmwasm_contract = 'axelar1f7qqgp0zk8489s69xxszut07kxse7y5j6j5tune36x75dc9ftfsssdkf2u'
 chain = 'starknet-devnet-v1'
-rpc_url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
+rpc_url = "https://starknet-sepolia.drpc.org"
 
 [[handlers]]
 type = 'EvmVerifierSetVerifier'

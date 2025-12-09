@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 
@@ -35,6 +37,14 @@ impl<T> From<Vec<T>> for std::vec::Vec<T> {
 
 impl<T> AsRef<std::vec::Vec<T>> for Vec<T> {
     fn as_ref(&self) -> &std::vec::Vec<T> {
+        &self.0
+    }
+}
+
+impl<T> Deref for Vec<T> {
+    type Target = std::vec::Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }

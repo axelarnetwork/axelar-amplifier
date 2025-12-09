@@ -1,6 +1,7 @@
 use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
-use ethers_core::types::{Log, TransactionReceipt, H256};
+use ethers_core::types::{Log, Transaction, TransactionReceipt, H160, H256};
+use event_verifier_api::evm::{Event, EvmEvent, TransactionDetails};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use router_api::ChainName;
 use tracing::debug;
@@ -131,22 +132,100 @@ pub fn verify_verifier_set(
     )
 }
 
+pub fn verify_events(
+    tx_receipt: &TransactionReceipt,
+    tx: Option<&Transaction>,
+    event_data: &EvmEvent,
+) -> Vote {
+    if has_failed(tx_receipt) {
+        return Vote::FailedOnChain;
+    }
+
+    let expected_tx_hash: H256 = event_data.transaction_hash.to_array().into();
+
+    if tx_receipt.transaction_hash != expected_tx_hash {
+        return Vote::NotFound;
+    }
+
+    // Verify transaction details if provided
+    if let Some(expected_details) = &event_data.transaction_details {
+        if !tx.is_some_and(|tx| verify_transaction_details(tx, expected_details)) {
+            return Vote::NotFound;
+        }
+    }
+
+    // Verify events match the logs in the transaction receipt
+    if !verify_events_match_logs(&tx_receipt.logs, &event_data.events) {
+        return Vote::NotFound;
+    }
+
+    Vote::SucceededOnChain
+}
+
+fn verify_transaction_details(
+    actual_tx: &Transaction,
+    expected_details: &TransactionDetails,
+) -> bool {
+    let expected_from: H160 = expected_details.from.to_array().into();
+    let expected_to: Option<H160> = expected_details
+        .to
+        .as_ref()
+        .map(|addr| addr.to_array().into());
+
+    let expected_value =
+        ethers_core::types::U256::from_big_endian(&expected_details.value.to_be_bytes());
+
+    // Compare transaction fields
+    actual_tx.from == expected_from
+        && actual_tx.to == expected_to
+        && actual_tx.value == expected_value
+        && actual_tx.input.as_ref() == expected_details.calldata.as_ref()
+}
+
+fn verify_events_match_logs(logs: &[Log], expected_events: &[Event]) -> bool {
+    // event logs are expected to be ordered by event index
+    expected_events.iter().all(|expected_event| {
+        usize::try_from(expected_event.event_index)
+            .ok()
+            .and_then(|idx| logs.get(idx))
+            .is_some_and(|log| verify_event_matches_log(log, expected_event))
+    })
+}
+
+fn verify_event_matches_log(log: &Log, expected_event: &Event) -> bool {
+    let expected_contract_address: H160 = expected_event.contract_address.to_array().into();
+
+    log.address == expected_contract_address
+        && log.topics.len() == expected_event.topics.len()
+        && log
+            .topics
+            .iter()
+            .zip(expected_event.topics.iter())
+            .all(|(actual_topic, expected_topic)| actual_topic.as_ref() == expected_topic.as_ref())
+        && log.data.as_ref() == expected_event.data.as_ref()
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
+    use axelar_wasm_std::fixed_size;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std::Uint128;
+    use cosmwasm_std::{HexBinary, Uint128, Uint256};
     use ethers_contract::EthEvent;
     use ethers_core::abi::{encode, Token};
-    use ethers_core::types::{Log, TransactionReceipt, H256};
+    use ethers_core::types::{Bytes, Log, Transaction, TransactionReceipt, H256, U256, U64};
+    use event_verifier_api::evm::{Event, EvmEvent, TransactionDetails};
     use evm_gateway::i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter};
     use evm_gateway::WeightedSigners;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
 
-    use super::{verify_message, verify_verifier_set};
+    use super::{
+        verify_event_matches_log, verify_events, verify_events_match_logs, verify_message,
+        verify_transaction_details, verify_verifier_set,
+    };
     use crate::handlers::evm_verify_msg::Message;
     use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
     use crate::types::{EVMAddress, Hash};
@@ -457,5 +536,686 @@ mod tests {
         let tx_receipt = mock_tx_receipt("Ethereum-2", gateway_address, &msg);
 
         (gateway_address, tx_receipt, msg)
+    }
+
+    // Helper function to create a mock transaction
+    fn mock_transaction() -> Transaction {
+        Transaction {
+            hash: H256::random(),
+            nonce: U256::from(1),
+            block_hash: Some(H256::random()),
+            block_number: Some(U64::from(12345)),
+            transaction_index: Some(U64::from(0)),
+            from: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8"
+                .parse()
+                .unwrap(),
+            to: Some(
+                "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8"
+                    .parse()
+                    .unwrap(),
+            ),
+            value: U256::from(1000),
+            gas_price: Some(U256::from(20_000_000_000u64)),
+            gas: U256::from(21000),
+            input: Bytes::from(vec![0x12, 0x34, 0x56, 0x78]),
+            v: U64::from(27),
+            r: U256::from(1),
+            s: U256::from(1),
+            transaction_type: None,
+            access_list: None,
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            chain_id: None,
+            other: ethers_core::types::OtherFields::default(),
+        }
+    }
+
+    // Helper function to create a mock EvmEvent
+    fn mock_evm_event(tx_hash: H256, include_tx_details: bool) -> EvmEvent {
+        let tx_details = if include_tx_details {
+            Some(TransactionDetails {
+                from: cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8")
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                to: Some(
+                    cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8")
+                        .unwrap()
+                        .try_into()
+                        .unwrap(),
+                ),
+                value: cosmwasm_std::Uint256::from(1000u64),
+                calldata: HexBinary::from(vec![0x12, 0x34, 0x56, 0x78]),
+            })
+        } else {
+            None
+        };
+
+        EvmEvent {
+            transaction_hash: tx_hash.as_bytes().try_into().unwrap(),
+            transaction_details: tx_details,
+            events: vec![Event {
+                contract_address: cosmwasm_std::HexBinary::from_hex(
+                    "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                event_index: 0,
+                topics: vec![cosmwasm_std::HexBinary::from_hex(
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap()],
+                data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+            }],
+        }
+    }
+
+    // Helper function to create a matching transaction receipt
+    fn mock_tx_receipt_for_events(tx_hash: H256) -> TransactionReceipt {
+        let log = Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            block_hash: Some(H256::random()),
+            block_number: Some(U64::from(12345)),
+            transaction_hash: Some(tx_hash),
+            transaction_index: Some(U64::from(0)),
+            log_index: Some(U256::from(0)),
+            transaction_log_index: Some(U256::from(0)),
+            log_type: None,
+            removed: Some(false),
+        };
+
+        TransactionReceipt {
+            transaction_hash: tx_hash,
+            transaction_index: U64::from(0),
+            block_hash: Some(H256::random()),
+            block_number: Some(U64::from(12345)),
+            from: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8"
+                .parse()
+                .unwrap(),
+            to: Some(
+                "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8"
+                    .parse()
+                    .unwrap(),
+            ),
+            cumulative_gas_used: U256::from(21000),
+            gas_used: Some(U256::from(21000)),
+            contract_address: None,
+            logs: vec![log],
+            status: Some(U64::from(1)), // Success
+            root: None,
+            logs_bloom: ethers_core::types::Bloom::default(),
+            transaction_type: None,
+            effective_gas_price: None,
+            other: ethers_core::types::OtherFields::default(),
+        }
+    }
+
+    #[test]
+    fn should_verify_events_when_transaction_details_match() {
+        let tx_hash = H256::random();
+        let tx = mock_transaction();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = mock_evm_event(tx_hash, true);
+
+        let result = verify_events(&tx_receipt, Some(&tx), &event_data);
+        assert_eq!(result, Vote::SucceededOnChain);
+    }
+
+    #[test]
+    fn should_verify_events_when_no_transaction_details_provided() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = mock_evm_event(tx_hash, false);
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::SucceededOnChain);
+    }
+
+    #[test]
+    fn should_return_failed_on_chain_when_transaction_failed() {
+        let tx_hash = H256::random();
+        let mut tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        tx_receipt.status = Some(U64::from(0)); // Failed transaction
+        let event_data = mock_evm_event(tx_hash, false);
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::FailedOnChain);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_transaction_hash_mismatches() {
+        let tx_hash = H256::random();
+        let different_tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = mock_evm_event(different_tx_hash, false);
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_transaction_details_mismatch() {
+        let tx_hash = H256::random();
+        let mut tx = mock_transaction();
+        tx.from = "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0"
+            .parse()
+            .unwrap(); // Different from address
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = mock_evm_event(tx_hash, true);
+
+        let result = verify_events(&tx_receipt, Some(&tx), &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_transaction_details_expected_but_not_provided() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = mock_evm_event(tx_hash, true); // Expects transaction details
+
+        let result = verify_events(&tx_receipt, None, &event_data); // But no transaction provided
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_event_data_mismatches() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let mut event_data = mock_evm_event(tx_hash, false);
+
+        // Change the event data to not match
+        event_data.events[0].data = HexBinary::from(vec![0x11, 0x22, 0x33]);
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_event_index_is_wrong() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let mut event_data = mock_evm_event(tx_hash, false);
+
+        // Change the event index to not match
+        event_data.events[0].event_index = 1; // Receipt only has event at index 0
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_contract_address_is_wrong() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let mut event_data = mock_evm_event(tx_hash, false);
+
+        // Change the contract address to not match
+        event_data.events[0].contract_address =
+            cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0")
+                .unwrap()
+                .try_into()
+                .unwrap();
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_when_topics_are_wrong() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let mut event_data = mock_evm_event(tx_hash, false);
+
+        // Change the topics to not match
+        event_data.events[0].topics = vec![cosmwasm_std::HexBinary::from_hex(
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap()
+        .try_into()
+        .unwrap()];
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    // Tests for helper functions
+    #[test]
+    fn should_verify_transaction_details_when_all_fields_match() {
+        let tx = mock_transaction();
+        let tx_details = TransactionDetails {
+            calldata: HexBinary::from(tx.input.to_vec()),
+            from: fixed_size::HexBinary::<20>::try_from(tx.from.as_bytes()).unwrap(),
+            to: Some(fixed_size::HexBinary::<20>::try_from(tx.to.unwrap().as_bytes()).unwrap()),
+            value: tx.value.as_u128().into(),
+        };
+
+        assert!(verify_transaction_details(&tx, &tx_details));
+    }
+
+    #[test]
+    fn should_not_verify_transaction_details_when_from_address_is_wrong() {
+        let tx = mock_transaction();
+        let tx_details = TransactionDetails {
+            calldata: HexBinary::from(tx.input.to_vec()),
+            from: cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0")
+                .unwrap()
+                .try_into()
+                .unwrap(), // Different
+            to: Some(fixed_size::HexBinary::<20>::try_from(tx.to.unwrap().as_bytes()).unwrap()),
+            value: tx.value.as_u128().into(),
+        };
+
+        assert!(!verify_transaction_details(&tx, &tx_details));
+    }
+
+    #[test]
+    fn should_not_verify_transaction_details_when_to_address_is_wrong() {
+        let tx = mock_transaction();
+        let tx_details = TransactionDetails {
+            calldata: HexBinary::from(tx.input.to_vec()),
+            from: fixed_size::HexBinary::<20>::try_from(tx.from.as_bytes()).unwrap(),
+            to: Some(
+                cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0")
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+            ), // Different
+            value: tx.value.as_u128().into(),
+        };
+
+        assert!(!verify_transaction_details(&tx, &tx_details));
+    }
+
+    #[test]
+    fn should_not_verify_transaction_details_when_value_is_wrong() {
+        let tx = mock_transaction();
+        let tx_details = TransactionDetails {
+            calldata: HexBinary::from(vec![0x12, 0x34, 0x56, 0x78]),
+            from: fixed_size::HexBinary::<20>::try_from(tx.from.as_bytes()).unwrap(),
+            to: Some(fixed_size::HexBinary::<20>::try_from(tx.to.unwrap().as_bytes()).unwrap()),
+            value: Uint256::from(999u128), // Different value
+        };
+
+        assert!(!verify_transaction_details(&tx, &tx_details));
+    }
+
+    #[test]
+    fn should_not_verify_transaction_details_when_calldata_is_wrong() {
+        let tx = mock_transaction();
+        let tx_details = TransactionDetails {
+            calldata: HexBinary::from(vec![0x11, 0x22, 0x33, 0x44]), // Different
+            from: fixed_size::HexBinary::<20>::try_from(tx.from.as_bytes()).unwrap(),
+            to: Some(fixed_size::HexBinary::<20>::try_from(tx.to.unwrap().as_bytes()).unwrap()),
+            value: tx.value.as_u128().into(),
+        };
+
+        assert!(!verify_transaction_details(&tx, &tx_details));
+    }
+
+    #[test]
+    fn should_not_verify_transaction_details_when_to_address_is_none_but_actual_has_to() {
+        let tx = mock_transaction(); // This has a to address
+        let tx_details_to_verify = TransactionDetails {
+            from: cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8")
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            to: None, // Expected no to address
+            value: cosmwasm_std::Uint256::from(1000u64),
+            calldata: HexBinary::from(vec![0x12, 0x34, 0x56, 0x78]),
+        };
+
+        // Should fail because expected.to is None but actual.to is Some(address)
+        assert!(!verify_transaction_details(&tx, &tx_details_to_verify));
+    }
+
+    #[test]
+    fn should_verify_transaction_details_when_to_address_is_none() {
+        let mut tx = mock_transaction();
+        tx.to = None; // Contract creation transaction
+        let tx_details_to_verify = TransactionDetails {
+            from: cosmwasm_std::HexBinary::from_hex("742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b8")
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            to: None, // No specific to address expected
+            value: cosmwasm_std::Uint256::from(1000u64),
+            calldata: HexBinary::from(vec![0x12, 0x34, 0x56, 0x78]),
+        };
+
+        assert!(verify_transaction_details(&tx, &tx_details_to_verify));
+    }
+
+    #[test]
+    fn should_verify_event_matches_log_when_all_fields_match() {
+        let log = Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        };
+
+        let event = Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+            event_index: 0,
+            topics: vec![cosmwasm_std::HexBinary::from_hex(
+                "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap()],
+            data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+        };
+
+        assert!(verify_event_matches_log(&log, &event));
+    }
+
+    #[test]
+    fn should_not_verify_event_matches_log_when_address_is_wrong() {
+        let log = Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        };
+
+        let event = Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(), // Different
+            event_index: 0,
+            topics: vec![cosmwasm_std::HexBinary::from_hex(
+                "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap()],
+            data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+        };
+
+        assert!(!verify_event_matches_log(&log, &event));
+    }
+
+    #[test]
+    fn should_not_verify_event_matches_log_when_topics_count_is_wrong() {
+        let log = Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        };
+
+        let event = Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+            event_index: 0,
+            topics: vec![
+                cosmwasm_std::HexBinary::from_hex(
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                cosmwasm_std::HexBinary::from_hex(
+                    "0000000000000000000000000000000000000000000000000000000000000001",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(), // Extra topic
+            ],
+            data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+        };
+
+        assert!(!verify_event_matches_log(&log, &event));
+    }
+
+    #[test]
+    fn should_not_verify_event_matches_log_when_topic_value_is_wrong() {
+        let log = Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        };
+
+        let event = Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+            event_index: 0,
+            topics: vec![
+                cosmwasm_std::HexBinary::from_hex(
+                    "0000000000000000000000000000000000000000000000000000000000000000",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(), // Different topic
+            ],
+            data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+        };
+
+        assert!(!verify_event_matches_log(&log, &event));
+    }
+
+    #[test]
+    fn should_not_verify_event_matches_log_when_data_is_wrong() {
+        let log = Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        };
+
+        let event = Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+            event_index: 0,
+            topics: vec![cosmwasm_std::HexBinary::from_hex(
+                "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap()],
+            data: HexBinary::from(vec![0x11, 0x22, 0x33]), // Different data
+        };
+
+        assert!(!verify_event_matches_log(&log, &event));
+    }
+
+    #[test]
+    fn should_verify_events_match_logs_when_all_events_match() {
+        let logs = vec![Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        }];
+
+        let events = vec![Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+            event_index: 0,
+            topics: vec![cosmwasm_std::HexBinary::from_hex(
+                "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap()],
+            data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+        }];
+
+        assert!(verify_events_match_logs(&logs, &events));
+    }
+
+    #[test]
+    fn should_not_verify_events_match_logs_when_event_index_is_wrong() {
+        let logs = vec![Log {
+            address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                .parse()
+                .unwrap(),
+            topics: vec![
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                    .parse()
+                    .unwrap(),
+            ],
+            data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+            ..Default::default()
+        }];
+
+        let events = vec![Event {
+            contract_address: cosmwasm_std::HexBinary::from_hex(
+                "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap(),
+            event_index: 1, // Wrong index - logs only has index 0
+            topics: vec![cosmwasm_std::HexBinary::from_hex(
+                "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            )
+            .unwrap()
+            .try_into()
+            .unwrap()],
+            data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+        }];
+
+        assert!(!verify_events_match_logs(&logs, &events));
+    }
+
+    #[test]
+    fn should_verify_events_match_logs_with_multiple_events() {
+        let logs = vec![
+            Log {
+                address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9"
+                    .parse()
+                    .unwrap(),
+                topics: vec![
+                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                        .parse()
+                        .unwrap(),
+                ],
+                data: Bytes::from(vec![0xab, 0xcd, 0xef]),
+                ..Default::default()
+            },
+            Log {
+                address: "0x742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0"
+                    .parse()
+                    .unwrap(),
+                topics: vec![
+                    "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925"
+                        .parse()
+                        .unwrap(),
+                ],
+                data: Bytes::from(vec![0x12, 0x34, 0x56]),
+                ..Default::default()
+            },
+        ];
+
+        let events = vec![
+            Event {
+                contract_address: cosmwasm_std::HexBinary::from_hex(
+                    "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b9",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                event_index: 0,
+                topics: vec![cosmwasm_std::HexBinary::from_hex(
+                    "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap()],
+                data: HexBinary::from(vec![0xab, 0xcd, 0xef]),
+            },
+            Event {
+                contract_address: cosmwasm_std::HexBinary::from_hex(
+                    "742d35Cc6635C0532925a3b8D5C9C8b8b8b8b8b0",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                event_index: 1,
+                topics: vec![cosmwasm_std::HexBinary::from_hex(
+                    "8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap()],
+                data: HexBinary::from(vec![0x12, 0x34, 0x56]),
+            },
+        ];
+
+        assert!(verify_events_match_logs(&logs, &events));
     }
 }
