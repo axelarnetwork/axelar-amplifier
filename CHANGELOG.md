@@ -2,7 +2,30 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.2..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.0..HEAD)
+
+## [v1.14.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.0) (2025-12-10)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.0..ampd-v1.14.0)
+
+- enable modular handler broadcasting [#1113](https://github.com/axelarnetwork/axelar-amplifier/pull/1113)
+- add config dir argument to binaries [#1114](https://github.com/axelarnetwork/axelar-amplifier/pull/1114)
+- use typestate pattern to enforce valid EventFilter at compile-time [#1104](https://github.com/axelarnetwork/axelar-amplifier/pull/1104)
+- add event verifier [#1098](https://github.com/axelarnetwork/axelar-amplifier/pull/1098)
+- add attributes to event filter [#1095](https://github.com/axelarnetwork/axelar-amplifier/pull/1095)
+- stellar ampd handler migration [#1091](https://github.com/axelarnetwork/axelar-amplifier/pull/1091)
+- sui ampd handler migration [#1099](https://github.com/axelarnetwork/axelar-amplifier/pull/1099)
+- support for SDK 0.50 upgrade for ampd (backport of #1089) [#1090](https://github.com/axelarnetwork/axelar-amplifier/pull/1090)
+- add multisig module handler [#1083](https://github.com/axelarnetwork/axelar-amplifier/pull/1083)
+- add multisig handler to `is_xrpl_evm_handler` [#1084](https://github.com/axelarnetwork/axelar-amplifier/pull/1084)
+- prevents gRPC server from hanging during shut down [#1080](https://github.com/axelarnetwork/axelar-amplifier/pull/1080)
+- unify both modular EVM handlers [#1078](https://github.com/axelarnetwork/axelar-amplifier/pull/1078)
+- add confirmation height to event verifier config [#1075](https://github.com/axelarnetwork/axelar-amplifier/pull/1075)
+- add evm msg verifier handler [#1039](https://github.com/axelarnetwork/axelar-amplifier/pull/1039)
+- expose ampd and ampd-sdk test-utils [#1072](https://github.com/axelarnetwork/axelar-amplifier/pull/1072)
+- replace avalanche with xrpl-evm [#1071](https://github.com/axelarnetwork/axelar-amplifier/pull/1071)
+- add event verifier handler [#1036](https://github.com/axelarnetwork/axelar-amplifier/pull/1036)
+- add contract-release.md [#1068](https://github.com/axelarnetwork/axelar-amplifier/pull/1068)
 
 ## [v1.12.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.2) (2025-10-03)
 
