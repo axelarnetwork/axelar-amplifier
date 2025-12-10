@@ -6,7 +6,25 @@
 
 ## [v1.14.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.0) (2025-12-10)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.0..ampd-v1.14.0)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.2..ampd-v1.14.0)
+
+## [v1.13.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.13.2) (2025-11-28)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.1..ampd-v1.13.2)
+
+- update config defaults for 1s block time and improve documentation [#1108](https://github.com/axelarnetwork/axelar-amplifier/pull/1108)
+
+## [v1.13.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.13.1) (2025-11-24)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.0..ampd-v1.13.1)
+
+- support for SDK 0.50 upgrade for ampd 1.13 [#1089](https://github.com/axelarnetwork/axelar-amplifier/pull/1089)
+
+## [v1.13.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.13.0) (2025-10-15)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.2..ampd-v1.13.0)
+
+- update solana handler to parse events via CPI [#1048](https://github.com/axelarnetwork/axelar-amplifier/pull/1048)
 
 - enable modular handler broadcasting [#1113](https://github.com/axelarnetwork/axelar-amplifier/pull/1113)
 - add config dir argument to binaries [#1114](https://github.com/axelarnetwork/axelar-amplifier/pull/1114)
