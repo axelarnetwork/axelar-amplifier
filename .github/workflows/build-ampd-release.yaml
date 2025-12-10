@@ -73,6 +73,11 @@ jobs:
         with:
           cache-key: "cache-release-${{ matrix.os }}-${{ matrix.arch }}"
 
+      - name: Install protoc
+        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6
@@ -87,8 +92,6 @@ jobs:
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
-
-          brew install protobuf
 
           if [ "$ARCH" == "arm64" ]
           then
@@ -111,7 +114,6 @@ jobs:
         run: |
           OS="linux"
           ARCH="${{ matrix.arch }}"
-          sudo apt-get install protobuf-compiler
 
           if [ "$ARCH" == "arm64" ]
           then
