@@ -11,8 +11,6 @@ Each blockchain the amplifier suppors requires its own set of contracts (gateway
 1. **Coordinates Active Verifier Sets**: Allows provers to update their active verifier sets and query verifier status across chains
 1. **Enables Safe Unbonding**: Verifies whether verifiers can safely unbond by checking if they're active on any chain
 
-We split 
-
 ## Key Features
 
 ### Contract Instantiation & Registration
