@@ -316,25 +316,6 @@ pub fn hub_message_decode(
     borsh_msg.try_into()
 }
 
-pub fn message_encode(
-    message: interchain_token_service_std::Message,
-) -> Result<HexBinary, Report<Error>> {
-    let borsh_msg: Message = message.try_into()?;
-    borsh::to_vec(&borsh_msg)
-        .map(Into::into)
-        .map_err(|_| Report::new(Error::SerializationFailed))
-}
-
-pub fn message_decode(
-    payload: &[u8],
-) -> Result<interchain_token_service_std::Message, Report<Error>> {
-    let borsh_msg: Message =
-        borsh::from_slice(payload).map_err(|_| Error::DeserializationFailed)?;
-    interchain_token_service_std::Message::try_from(borsh_msg)
-        .map_err(Error::NonEmpty)
-        .map_err(Report::new)
-}
-
 #[cfg(test)]
 mod tests {
     use assert_ok::assert_ok;
