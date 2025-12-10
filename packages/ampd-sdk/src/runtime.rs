@@ -47,11 +47,12 @@ impl HandlerRuntime {
     /// use ampd_sdk::config;
     /// use ampd_sdk::runtime::HandlerRuntime;
     /// # use std::error::Error;
+    /// # use std::path::PathBuf;
     /// use tokio_util::sync::CancellationToken;
     ///
     /// # #[tokio::main]
     /// async fn main() {
-    ///     let config = config::Config::from_default_sources().unwrap();
+    ///     let config = config::Config::from_default_sources(PathBuf::from("./")).unwrap();
     ///     let token = CancellationToken::new();
     ///
     ///     let runtime = HandlerRuntime::start(&config, token).await.unwrap();
@@ -161,6 +162,7 @@ fn start_shutdown_signal_monitor(token: CancellationToken) {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::path::PathBuf;
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -249,7 +251,7 @@ mod tests {
                     Some(chain_name.to_string()),
                 ),
             ],
-            || config::Config::from_default_sources().unwrap(),
+            || config::Config::from_default_sources(PathBuf::from("./")).unwrap(),
         )
     }
 

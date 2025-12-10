@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.13.0"
+version = "1.14.0"
 dependencies = [
  "ampd-proto",
  "anchor-lang",
@@ -347,13 +347,14 @@ dependencies = [
 
 [[package]]
 name = "ampd-handlers"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "ampd",
  "ampd-sdk",
  "async-trait",
  "axelar-wasm-std",
  "base64 0.21.7",
+ "clap",
  "cosmrs",
  "cosmwasm-std",
  "dotenv",
