@@ -1,0 +1,15 @@
+name: Initialize Containers
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  initialize-containers:
+    runs-on:
+      - blacksmith-staging
+      - bs-dev-maru
+    steps:
+      - name: Initialize Containers
+        run: /usr/bin/docker pull docker.io/fjeanneau/cortexm-dev:0.1
