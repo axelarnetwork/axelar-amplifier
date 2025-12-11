@@ -77,7 +77,8 @@ fn voting_handler_task(
     handler_config: SolanaHandlerConfig,
 ) -> CancellableTask<Result<(), Error>> {
     CancellableTask::create(move |token| async move {
-        let handler = build_handler(&runtime, base_config.chain_name.clone(), handler_config).await?;
+        let handler =
+            build_handler(&runtime, base_config.chain_name.clone(), handler_config).await?;
 
         runtime
             .run_handler(handler, base_config, token)

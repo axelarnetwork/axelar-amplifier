@@ -10,9 +10,9 @@ use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::chain::ChainName;
 use cosmrs::AccountId;
 use error_stack::{Report, ResultExt};
 use events::{try_from, Event, EventType};
@@ -62,7 +62,9 @@ impl voting::PollEventData for PollEventData {
     fn tx_hash(&self) -> Self::Digest {
         match self {
             PollEventData::Message(message) => message.message_id.raw_signature.into(),
-            PollEventData::VerifierSet(verifier_set) => verifier_set.message_id.raw_signature.into(),
+            PollEventData::VerifierSet(verifier_set) => {
+                verifier_set.message_id.raw_signature.into()
+            }
         }
     }
 
@@ -73,11 +75,7 @@ impl voting::PollEventData for PollEventData {
         }
     }
 
-    fn verify(
-        &self,
-        source_gateway_address: &Pubkey,
-        tx_receipt: &SolanaTransaction,
-    ) -> Vote {
+    fn verify(&self, source_gateway_address: &Pubkey, tx_receipt: &SolanaTransaction) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(tx_receipt, message, source_gateway_address)
@@ -85,7 +83,7 @@ impl voting::PollEventData for PollEventData {
             PollEventData::VerifierSet(verifier_set) => {
                 // TODO: fix domain_separator
                 let domain_separator: [u8; 32] = [42; 32];
-                
+
                 verify_verifier_set(
                     tx_receipt,
                     &verifier_set,
@@ -139,7 +137,6 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                 participants: message_event.participants,
             },
             PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
-                
                 poll_data: vec![PollEventData::VerifierSet(verifier_set_event.verifier_set)],
                 poll_id: verifier_set_event.poll_id,
                 source_chain: verifier_set_event.source_chain,
@@ -205,12 +202,13 @@ where
                 .map(|tx| (signature, tx))
         });
 
-        let finalized_tx_receipts: HashMap<Signature, SolanaTransaction> = futures::future::join_all(tx_calls)
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<HashMap<Signature, SolanaTransaction>>();
-        
+        let finalized_tx_receipts: HashMap<Signature, SolanaTransaction> =
+            futures::future::join_all(tx_calls)
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<HashMap<Signature, SolanaTransaction>>();
+
         Ok(finalized_tx_receipts)
     }
 }
@@ -233,7 +231,7 @@ where
 
     fn subscription_params(&self) -> SubscriptionParams {
         use events::AbciEventTypeFilter;
-        
+
         SubscriptionParams::new(
             vec![
                 AbciEventTypeFilter {
