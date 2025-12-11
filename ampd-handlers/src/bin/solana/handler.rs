@@ -152,7 +152,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
     }
 }
 
-#[derive(Debug, TypedBuilder)]
+#[derive(TypedBuilder)]
 pub struct Handler<C>
 where
     C: SolanaRpcClientProxy,
