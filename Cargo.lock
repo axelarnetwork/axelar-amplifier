@@ -391,6 +391,8 @@ dependencies = [
  "typed-builder",
  "valuable",
  "voting-verifier",
+ "xrpl-types",
+ "xrpl_http_client",
 ]
 
 [[package]]
