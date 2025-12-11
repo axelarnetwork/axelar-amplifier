@@ -13,9 +13,13 @@ pub type BlockResultsResponse = tendermint_rpc::endpoint::block_results::Respons
 pub type BlockResponse = tendermint_rpc::endpoint::block::Response;
 pub type Error = tendermint_rpc::Error;
 
+/// Configuration for the Tendermint client.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
+    /// Maximum number of retry attempts for Tendermint RPC calls.
     pub max_retries: u64,
+
+    /// Duration to wait before retrying a failed Tendermint RPC call.
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
 }
