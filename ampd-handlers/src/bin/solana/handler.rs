@@ -88,7 +88,7 @@ impl voting::PollEventData for PollEventData {
 
                 verify_verifier_set(
                     tx_receipt,
-                    &verifier_set,
+                    verifier_set,
                     &domain_separator,
                     source_gateway_address,
                 )
