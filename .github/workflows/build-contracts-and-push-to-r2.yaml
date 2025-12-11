@@ -123,37 +123,19 @@ jobs:
           cd ${{ steps.compile-contracts.outputs.wasm-directory }}
           crate_name="${{ steps.check-release.outputs.crate-name }}"
           crate_version="${{ steps.check-release.outputs.crate-version }}"
-
-          # if crate_name is chain-codec, we need to handle all wasm files with the prefix chain_codec-
-          # otherwise, we look for the wasm file matching the crate name
-          WASMS=()
-          if [[ $crate_name == "chain-codec" ]]; then
-            WASMS=($(find . -name "chain_codec-*.wasm"))
-          else
-            WASMS=($(find . -name "${crate_name//-/_}.wasm"))
-          fi
-
+          wasm_file=$(find . -name "${crate_name//-/_}.wasm")
           checksum_file=$(find . -name "checksums.txt")
 
-          # if WASMS is empty, exit with error
-          if [ ${#WASMS[@]} -eq 0 ]; then
+          if [ -z "$wasm_file" ]; then
             echo "Error: Could not find .wasm file for $crate_name"
             exit 1
           fi
 
           mkdir -p "../${crate_version}"
-
-          # copy all wasm files and checksum file there
-          for wasm_file in "${WASMS[@]}"; do
-            echo "Copying $wasm_file to ../${crate_version}/"
-            cp "$wasm_file" "../${crate_version}/"
-          done
+          cp "$wasm_file" "../${crate_version}/${crate_name//-/_}.wasm"
           cp "$checksum_file" "../${crate_version}/"
 
-          # sign all wasm files and checksum file
-          for wasm_file in ../${crate_version}/*.wasm; do
-            gpg --armor --detach-sign  "$wasm_file"
-          done
+          gpg --armor --detach-sign  ../${crate_version}/${crate_name//-/_}.wasm
           gpg --armor --detach-sign  ../${crate_version}/checksums.txt
 
           echo "release-artifacts-dir=./${crate_version}" >> $GITHUB_OUTPUT
