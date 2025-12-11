@@ -7,7 +7,7 @@
 
 use axelar_wasm_std::{nonempty, IntoContractError};
 use borsh::{BorshDeserialize, BorshSerialize};
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use error_stack::{Report, ResultExt};
 use interchain_token_service_std::TokenId;
 use router_api::ChainNameRaw;
@@ -32,7 +32,7 @@ pub struct InterchainTransfer {
     pub token_id: [u8; 32],
     pub source_address: Vec<u8>,
     pub destination_address: Vec<u8>,
-    pub amount: [u8; 32], // Uint256 as 32-byte little-endian
+    pub amount: u64,
     pub data: Option<Vec<u8>>,
 }
 
@@ -90,15 +90,23 @@ pub enum HubMessage {
 // Conversion: Domain Types -> Borsh Types
 //
 
-impl From<interchain_token_service_std::InterchainTransfer> for InterchainTransfer {
-    fn from(t: interchain_token_service_std::InterchainTransfer) -> Self {
-        Self {
+impl TryFrom<interchain_token_service_std::InterchainTransfer> for InterchainTransfer {
+    type Error = Error;
+
+    fn try_from(t: interchain_token_service_std::InterchainTransfer) -> Result<Self, Self::Error> {
+        let amount: Uint64 = t
+            .amount
+            .into_inner()
+            .try_into()
+            .map_err(|_| Error::SerializationFailed)?;
+
+        Ok(Self {
             token_id: t.token_id.into(),
             source_address: t.source_address.into(),
             destination_address: t.destination_address.into(),
-            amount: Uint256::from(t.amount).to_le_bytes(),
+            amount: amount.u64(),
             data: t.data.map(Into::into),
-        }
+        })
     }
 }
 
@@ -149,7 +157,7 @@ impl TryFrom<interchain_token_service_std::Message> for Message {
     fn try_from(msg: interchain_token_service_std::Message) -> Result<Self, Self::Error> {
         Ok(match msg {
             interchain_token_service_std::Message::InterchainTransfer(t) => {
-                Message::InterchainTransfer(t.into())
+                Message::InterchainTransfer(t.try_into()?)
             }
             interchain_token_service_std::Message::DeployInterchainToken(d) => {
                 Message::DeployInterchainToken(d.into())
@@ -199,7 +207,7 @@ impl TryFrom<InterchainTransfer> for interchain_token_service_std::InterchainTra
             token_id: TokenId::new(t.token_id),
             source_address: t.source_address.try_into()?,
             destination_address: t.destination_address.try_into()?,
-            amount: Uint256::from_le_bytes(t.amount).try_into()?,
+            amount: Uint256::from(t.amount).try_into()?,
             data: t.data.map(|d| d.try_into()).transpose()?,
         })
     }
@@ -355,7 +363,7 @@ mod tests {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
-                    amount: Uint256::MAX.try_into().unwrap(),
+                    amount: Uint256::from(u64::MAX).try_into().unwrap(),
                     data: Some(from_hex("abcd")),
                 }
                 .into(),
@@ -377,7 +385,7 @@ mod tests {
                     token_id: [255u8; 32].into(),
                     source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                     destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
-                    amount: Uint256::MAX.try_into().unwrap(),
+                    amount: Uint256::from(u64::MAX).try_into().unwrap(),
                     data: Some(from_hex("abcd")),
                 }
                 .into(),
@@ -532,8 +540,7 @@ mod tests {
     fn uint256_boundary_values_preserved() {
         let test_amounts = vec![
             Uint256::from(1u128),
-            Uint256::from(u128::MAX),
-            Uint256::MAX,
+            Uint256::from(u64::MAX),
             // Test a value that would be different in big-endian vs little-endian
             Uint256::from(0x0102030405060708u128),
         ];
@@ -547,7 +554,7 @@ mod tests {
                 data: None,
             };
 
-            let borsh_type: InterchainTransfer = original.clone().into();
+            let borsh_type: InterchainTransfer = original.clone().try_into().unwrap();
             let recovered: interchain_token_service_std::InterchainTransfer =
                 assert_ok!(borsh_type.try_into());
 
@@ -591,7 +598,7 @@ mod tests {
             token_id: [1u8; 32],
             source_address: vec![], // Empty - should fail
             destination_address: vec![1, 2],
-            amount: Uint256::from(1u128).to_le_bytes(),
+            amount: 1,
             data: None,
         };
 
@@ -604,7 +611,7 @@ mod tests {
             token_id: [1u8; 32],
             source_address: vec![1, 2],
             destination_address: vec![], // Empty - should fail
-            amount: Uint256::from(1u128).to_le_bytes(),
+            amount: 1,
             data: None,
         };
 
@@ -617,7 +624,7 @@ mod tests {
             token_id: [1u8; 32],
             source_address: vec![1, 2],
             destination_address: vec![3, 4],
-            amount: Uint256::from(0u128).to_le_bytes(), // Zero - should fail
+            amount: 0, // Zero - should fail
             data: None,
         };
 
@@ -663,7 +670,7 @@ mod tests {
                 token_id: [0u8; 32],
                 source_address: vec![1],
                 destination_address: vec![2],
-                amount: Uint256::from(1u128).to_le_bytes(),
+                amount: 1,
                 data: None,
             }),
         };
@@ -716,7 +723,7 @@ mod tests {
                         token_id: [255u8; 32].into(),
                         source_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
                         destination_address: from_hex("4F4495243837681061C4743b74B3eEdf548D56A5"),
-                        amount: Uint256::MAX.try_into().unwrap(),
+                        amount: Uint256::from(u64::MAX).try_into().unwrap(),
                         data: Some(from_hex("abcd")),
                     }
                     .into(),
