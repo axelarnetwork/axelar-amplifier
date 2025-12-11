@@ -17,6 +17,10 @@ path = "src/bin/stellar/main.rs"
 name = "sui-handler"
 path = "src/bin/sui/main.rs"
 
+[[bin]]
+name = "solana-handler"
+path = "src/bin/solana/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
@@ -42,6 +46,8 @@ reqwest = { version = "0.11.24", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
+solana-sdk = "=2.1.21"
+solana-client = "=2.1.21"
 stellar-xdr = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }

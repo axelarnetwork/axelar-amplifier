@@ -30,7 +30,7 @@ use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
     pub message_id: Base58SolanaTxSignatureAndEventIndex,
     pub verifier_set: VerifierSet,
