@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
-use std::collections::HashMap;
 
 use ampd::handlers::solana_verify_msg::Message;
 use ampd::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
@@ -254,7 +254,7 @@ where
     }
 }
 
-impl<C> Debug for Handler<C> 
+impl<C> Debug for Handler<C>
 where
     C: SolanaRpcClientProxy + Send + Sync,
 {
