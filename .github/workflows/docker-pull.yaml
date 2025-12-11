@@ -7,9 +7,7 @@ on:
 
 jobs:
   initialize-containers:
-    runs-on:
-      - blacksmith-staging
-      - bs-dev-maru
+    runs-on: [blacksmith-staging, bs-dev-maru]
     steps:
       - name: Initialize Containers
         run: /usr/bin/docker pull docker.io/fjeanneau/cortexm-dev:0.1
