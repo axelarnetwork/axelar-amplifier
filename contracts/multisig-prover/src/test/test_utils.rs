@@ -175,19 +175,22 @@ fn voting_verifier_mock_querier_handler(status: VerificationStatus) -> QuerierRe
 }
 
 fn chain_codec_mock_querier_handler(msg: chain_codec_api::msg::QueryMsg) -> QuerierResult {
-    let result = match msg {
+    match msg {
         chain_codec_api::msg::QueryMsg::EncodeExecData { .. } => {
-            to_json_binary(&HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap())
+            Ok(to_json_binary(&HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap()).into())
+                .into()
         }
         chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
-            to_json_binary(&validate_address(&address, &AddressFormat::Eip55).is_ok())
+            Ok(validate_address(&address, &AddressFormat::Eip55)
+                .map(|_| cosmwasm_std::to_json_binary(&cosmwasm_std::Empty {}).unwrap())
+                .into())
+            .into()
         }
         chain_codec_api::msg::QueryMsg::PayloadDigest {
             domain_separator: _,
             verifier_set: _,
             payload: _,
             full_message_payloads: _,
-        } => to_json_binary(&HexBinary::from_hex("deadbeef").unwrap()),
-    };
-    Ok(result.into()).into()
+        } => Ok(to_json_binary(&HexBinary::from_hex("deadbeef").unwrap()).into()).into(),
+    }
 }
