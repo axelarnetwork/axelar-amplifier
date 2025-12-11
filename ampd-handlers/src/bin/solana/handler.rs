@@ -263,6 +263,7 @@ where
             .field("verifier", &self.verifier)
             .field("voting_verifier_contract", &self.voting_verifier_contract)
             .field("gateway_address", &self.gateway_address)
+            .field("rpc_client", &"WARN: Solana sdk does impl Debug")
             .field("monitoring_client", &self.monitoring_client)
             .finish()
     }
