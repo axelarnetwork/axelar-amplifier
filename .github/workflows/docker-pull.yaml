@@ -12,4 +12,6 @@ jobs:
       - bs-dev-maru
     steps:
       - name: Initialize Containers
-        run: /usr/bin/docker pull docker.io/fjeanneau/cortexm-dev:0.1
+        run: |
+          /usr/bin/docker pull docker.io/fjeanneau/cortexm-dev:0.1
+          /usr/bin/docker pull docker.io/library/alpine:latest
