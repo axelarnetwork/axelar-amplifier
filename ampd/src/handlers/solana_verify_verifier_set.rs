@@ -512,10 +512,7 @@ mod tests {
                     .collect(),
             },
             verifier_set: VerifierSetConfirmation {
-                message_id: message_id_1
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                message_id: message_id_1.to_string().try_into().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }
