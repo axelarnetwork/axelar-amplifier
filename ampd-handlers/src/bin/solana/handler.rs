@@ -280,6 +280,8 @@ mod tests {
     use ampd::types::{Hash, TMAddress};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::{chain_name};
+    use cosmrs::cosmwasm::MsgExecuteContract;
+    use cosmrs::tx::Msg;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::address;
@@ -512,5 +514,45 @@ mod tests {
             .unwrap();
     }
 
-    
+    #[async_test]
+    async fn should_vote_correctly() {
+        let gateway_address = axelar_solana_gateway::ID;
+        let domain_separator: [u8; 32] = [42; 32];
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let rpc_client = Client::new(
+            mock_rpc_client(),
+            monitoring_client.clone(),
+            chain_name!("solana"),
+        );
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("solana"))
+            .rpc_client(rpc_client)
+            .gateway_address(gateway_address)
+            .domain_separator(domain_separator)
+            .monitoring_client(monitoring_client)
+            .build();
+        
+        let mut client = mock_handler_client(expiration - 1);
+
+        let res = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+
+        assert_eq!(res.len(), 1);
+        assert!(MsgExecuteContract::from_any(res.first().unwrap()).is_ok());
+    }
 }
