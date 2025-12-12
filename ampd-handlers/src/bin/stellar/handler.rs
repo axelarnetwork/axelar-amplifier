@@ -260,10 +260,10 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring;
     use ampd::stellar::rpc_client::MockStellarClient;
     use ampd::types::TMAddress;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;

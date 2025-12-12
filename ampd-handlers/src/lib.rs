@@ -2,6 +2,9 @@ pub mod multisig;
 pub mod tracing;
 pub mod voting;
 
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
+
 use std::path::PathBuf;
 
 use clap::{command, Parser};

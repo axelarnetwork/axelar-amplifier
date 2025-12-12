@@ -21,8 +21,13 @@ path = "src/bin/sui/main.rs"
 name = "xrpl-handler"
 path = "src/bin/xrpl/main.rs"
 
+[features]
+default = []
+test-utils = []
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
+ampd-handlers = { path = ".", features = ["test-utils"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }

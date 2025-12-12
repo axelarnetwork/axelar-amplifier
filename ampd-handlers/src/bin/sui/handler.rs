@@ -240,10 +240,10 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring::{metrics, test_utils};
     use ampd::sui::json_rpc::MockSuiClient;
     use ampd::types::TMAddress;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
     use cosmrs::cosmwasm::MsgExecuteContract;
