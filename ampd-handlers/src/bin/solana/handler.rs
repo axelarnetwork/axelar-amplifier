@@ -484,7 +484,7 @@ mod tests {
     // Should not handle event if source gateway address doesn't match configured gateway
     #[async_test]
     #[should_panic]
-    async fn should_fail_poll_with_mismatched_gateway_address() {
+    async fn should_fail_message_poll_with_mismatched_gateway_address() {
         let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
@@ -494,6 +494,57 @@ mod tests {
         // Create an event with a different gateway address
         let mut event_data = message_poll_started_event(participants(5, Some(verifier.clone())), 100);
         if let PollStarted::Messages {
+            ref mut metadata, ..
+        } = event_data
+        {
+            // Use a different gateway address
+            metadata.source_gateway_address = "1111111111111111111111111111111111111111111".parse().unwrap();
+        }
+
+        let event = into_structured_event(event_data, &voting_verifier);
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let rpc_client = Client::new(
+            mock_rpc_client(),
+            monitoring_client.clone(),
+            chain_name!("solana"),
+        );
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("solana"))
+            .rpc_client(rpc_client)
+            .gateway_address(gateway_address)
+            .domain_separator(domain_separator)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        // Expected panic: 'event does not match event type 
+        // `wasm-messages_poll_started/wasm-verifier_set_poll_started`
+        // due to gateway address mismatch'
+        handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+    }
+
+    // Should not handle event if source gateway address doesn't match configured gateway
+    #[async_test]
+    #[should_panic]
+    async fn should_fail_verifier_poll_with_mismatched_gateway_address() {
+        let gateway_address = axelar_solana_gateway::ID;
+        let domain_separator: [u8; 32] = [42; 32];
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        // Create an event with a different gateway address
+        let mut event_data = verifier_set_poll_started_event(participants(5, Some(verifier.clone())), 100);
+        if let PollStarted::VerifierSet {
             ref mut metadata, ..
         } = event_data
         {
