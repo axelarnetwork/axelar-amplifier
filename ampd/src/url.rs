@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
 use serde::de::Error;
@@ -7,10 +8,63 @@ use url::ParseError;
 
 use crate::types::debug::REDACTED_VALUE;
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+/// A URL wrapper that supports sensitivity-aware display and logging.
+///
+/// URLs often contain sensitive information like API keys, credentials, or internal
+/// hostnames that should not appear in logs or error messages. This type wraps a
+/// standard [`url::Url`] with a sensitivity flag that controls how the URL is displayed.
+///
+/// # Sensitivity Behavior
+///
+/// - **Sensitive URLs**: Created via [`Url::new_sensitive`] or deserialized with
+///   [`Url::deserialize_sensitive`]. When displayed (via `Display` or `Debug`), these
+///   show a redacted placeholder instead of the actual URL.
+///
+/// - **Non-sensitive URLs**: Created via [`Url::new_non_sensitive`] or deserialized with
+///   [`Url::deserialize_non_sensitive`]. These display the full URL normally.
+///
+/// # Serialization
+///
+/// Serialization **always preserves the full URL** regardless of sensitivity. This ensures
+/// config files are written correctly. Only display/debug output is affected by sensitivity.
+///
+/// # Equality
+///
+/// Two URLs are considered equal if their URL content matches, regardless of their
+/// sensitivity flags. The sensitivity flag is metadata for display purposes, not part
+/// of the URL's identity.
+///
+/// # Example
+///
+/// ```ignore
+/// // In config structs, use deserialize_sensitive for URLs that may contain secrets:
+/// #[derive(Deserialize)]
+/// struct Config {
+///     #[serde(deserialize_with = "Url::deserialize_sensitive")]
+///     rpc_url: Url,  // Will show as "redacted" in logs
+/// }
+/// ```
+#[derive(Eq, Clone)]
 pub struct Url {
     inner: url::Url,
     is_sensitive: bool,
+}
+
+impl PartialEq for Url {
+    fn eq(&self, other: &Self) -> bool {
+        // Only compare the URL content, not the sensitivity flag.
+        // The sensitivity flag is metadata for display/logging purposes,
+        // not part of the URL's identity.
+        self.inner == other.inner
+    }
+}
+
+// Hash needs to be implemented explicitly, because the implication of url1 == url2 => hash(url1) == hash(url2) must be true
+// The derived hasher would take the sensitivity flag into account so this would not be true anymore.
+impl Hash for Url {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
 }
 
 impl Deref for Url {
@@ -22,6 +76,9 @@ impl Deref for Url {
 }
 
 impl Url {
+    /// Creates a new sensitive URL that will be redacted in logs and display output.
+    ///
+    /// Use this for URLs that may contain API keys, credentials, or other secrets.
     pub fn new_sensitive(s: &str) -> Result<Self, ParseError> {
         url::Url::parse(s).map(|url| Self {
             inner: url,
@@ -29,6 +86,9 @@ impl Url {
         })
     }
 
+    /// Creates a new non-sensitive URL that will display normally.
+    ///
+    /// Use this for public URLs that are safe to show in logs.
     pub fn new_non_sensitive(s: &str) -> Result<Self, ParseError> {
         url::Url::parse(s).map(|url| Self {
             inner: url,
@@ -36,6 +96,10 @@ impl Url {
         })
     }
 
+    /// Deserializes a URL and marks it as sensitive.
+    ///
+    /// Use with `#[serde(deserialize_with = "Url::deserialize_sensitive")]` on config fields
+    /// where the URL may contain secrets (e.g., RPC endpoints with API keys).
     pub fn deserialize_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -44,6 +108,10 @@ impl Url {
         Url::new_sensitive(&url_str).map_err(|err| D::Error::custom(err.to_string()))
     }
 
+    /// Deserializes a URL and marks it as non-sensitive.
+    ///
+    /// Use with `#[serde(deserialize_with = "Url::deserialize_non_sensitive")]` on config fields
+    /// where the URL is safe to display in logs.
     pub fn deserialize_non_sensitive<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -53,9 +121,10 @@ impl Url {
     }
 
     #[allow(clippy::inherent_to_string_shadow_display)]
-    /// This is an explicit shadowing of the `to_string` method to avoid confusion with the `Display` implementation.
-    /// If the `Url` is sensitive, it returns a redacted value; otherwise, it returns the full URL as a string.
-    /// For the unredacted URL string (even when it's marked as sensitive), use the [`url::Url::as_str()`] method instead.
+    /// Converts the URL to a string, respecting sensitivity.
+    ///
+    /// If the URL is sensitive, returns a redacted placeholder; otherwise returns the full URL.
+    /// For the unredacted URL (even when sensitive), use [`url::Url::as_str()`] via deref.
     pub fn to_string(&self) -> String {
         ToString::to_string(&self)
     }
