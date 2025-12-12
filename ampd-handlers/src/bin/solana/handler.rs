@@ -702,6 +702,62 @@ mod tests {
     }
 
     #[async_test]
+    async fn should_record_verifier_set_verification_vote_metric() {
+        let solana_chain_name = chain_name!("solana");
+        let gateway_address = axelar_solana_gateway::ID;
+        let domain_separator: [u8; 32] = [42; 32];
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            verifier_set_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(solana_chain_name.clone())
+            .rpc_client(ValidResponseSolanaRpc)
+            .gateway_address(gateway_address)
+            .domain_separator(domain_separator)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        let res = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await;
+        assert!(res.is_ok());
+
+        let metric = receiver.recv().await.unwrap();
+
+        assert_eq!(
+            metric,
+            metrics::Msg::VerificationVote {
+                vote_decision: Vote::NotFound,
+                chain_name: solana_chain_name,
+            }
+        );
+
+        // for _ in 0..2 {
+        //     let msg = receiver.recv().await.unwrap();
+        //     assert_eq!(
+        //         msg,
+        //         metrics::Msg::VerificationVote {
+        //             vote_decision: Vote::NotFound,
+        //             chain_name: solana_chain_name.clone(),
+        //         }
+        //     );
+        // }
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[async_test]
     async fn should_skip_expired_message_poll() {
         let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
