@@ -511,7 +511,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)] // TODO: The below event uses the deprecated tx_id and event_index fields. Remove this attribute when those fields are removed
             verifier_set: VerifierSetConfirmation {
                 message_id: message_id_1
                     .to_string()
