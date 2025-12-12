@@ -744,16 +744,6 @@ mod tests {
             }
         );
 
-        // for _ in 0..2 {
-        //     let msg = receiver.recv().await.unwrap();
-        //     assert_eq!(
-        //         msg,
-        //         metrics::Msg::VerificationVote {
-        //             vote_decision: Vote::NotFound,
-        //             chain_name: solana_chain_name.clone(),
-        //         }
-        //     );
-        // }
         assert!(receiver.try_recv().is_err());
     }
 
