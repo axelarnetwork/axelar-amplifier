@@ -268,3 +268,93 @@ where
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use ampd::handlers::test_utils::{into_structured_event, participants};
+    use ampd::types::{Hash, TMAddress};
+    use axelar_wasm_std::{chain_name};
+    use router_api::address;
+    use voting_verifier::events::{
+        PollMetadata, PollStarted, TxEventConfirmation,
+    };
+
+    use super::{
+        PollStartedEvent, Pubkey, 
+    };
+
+    const PREFIX: &str = "axelar";
+
+    fn message_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
+        let inner_ix_group_index_1 = 1_u32;
+        let inner_ix_index_1 = 10_u32;
+        let message_id_1 = format!("{signature_1}-{inner_ix_group_index_1}.{inner_ix_index_1}");
+
+        let signature_2 = "41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT";
+        let inner_ix_group_index_2 = 2_u32;
+        let inner_ix_index_2 = 88_u32;
+        let message_id_2 = format!("{signature_2}-{inner_ix_group_index_2}.{inner_ix_index_2}");
+
+        let source_gateway_address = axelar_solana_gateway::ID;
+
+        PollStarted::Messages {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!("solana"),
+                source_gateway_address: source_gateway_address.to_string().parse().unwrap(),
+                confirmation_height: 15,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            #[allow(deprecated)]
+            messages: vec![
+                TxEventConfirmation {
+                    source_address: Pubkey::from_str(
+                        "9Tp4XJZLQKdM82BHYfNAG6V3RWpLC7Y5mXo1UqKZFTJ3",
+                    )
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                    message_id: message_id_1.parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"),
+                    payload_hash: Hash::from_slice(&[1; 32]).to_fixed_bytes(),
+                },
+                TxEventConfirmation {
+                    source_address: Pubkey::from_str(
+                        "H1QLZVpX7B4WMNY5UqKZG3RFTJ9M82BXoLQF26TJCY5N",
+                    )
+                    .unwrap()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+                    message_id: message_id_2.parse().unwrap(),
+                    destination_chain: chain_name!("ethereum"),
+                    destination_address: address!("0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab2"),
+                    payload_hash: Hash::from_slice(&[2; 32]).to_fixed_bytes(),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn solana_verify_msg_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
+            message_poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into()
+        .unwrap();
+
+        goldie::assert_debug!(event);
+    }
+
+
+}

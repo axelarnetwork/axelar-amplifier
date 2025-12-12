@@ -51,8 +51,9 @@ async fn build_handler(
         chain_name.clone(),
     );
 
-    // TODO: remove unwraps
-    let gateway_address = Pubkey::from_str(&config.gateway_address).unwrap();
+    let gateway_address = Pubkey::from_str(&config.gateway_address).unwrap_or(axelar_solana_gateway::ID);
+
+    // TODO: remove unwrap
     let domain_separator = rpc_client
         .domain_separator(&gateway_address)
         .await
