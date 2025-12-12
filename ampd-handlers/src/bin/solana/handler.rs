@@ -276,13 +276,15 @@ mod tests {
     use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::types::{Hash, TMAddress};
     use axelar_wasm_std::{chain_name};
+    use multisig::key::KeyType;
+    use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::address;
     use voting_verifier::events::{
-        PollMetadata, PollStarted, TxEventConfirmation,
+        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation
     };
 
     use super::{
-        PollStartedEvent, Pubkey, 
+        PollStartedEvent, Pubkey,
     };
 
     const PREFIX: &str = "axelar";
@@ -344,6 +346,36 @@ mod tests {
         }
     }
 
+    fn verifier_set_poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+    ) -> PollStarted {
+        let signature_1 = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP";
+        let inner_ix_group_index_1 = 1_u32;
+        let inner_ix_index_1 = 10_u32;
+        let message_id_1 = format!("{signature_1}-{inner_ix_group_index_1}.{inner_ix_index_1}");
+        PollStarted::VerifierSet {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: chain_name!("solana"),
+                source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
+                confirmation_height: 15,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            verifier_set: VerifierSetConfirmation {
+                message_id: message_id_1
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
+            },
+        }
+    }
+
     #[test]
     fn solana_verify_msg_should_deserialize_correct_event() {
         let event: PollStartedEvent = into_structured_event(
@@ -356,5 +388,16 @@ mod tests {
         goldie::assert_debug!(event);
     }
 
+    #[test]
+    fn solana_verify_verifier_set_should_deserialize_correct_event() {
+        let event: PollStartedEvent = into_structured_event(
+            verifier_set_poll_started_event(participants(5, None), 100),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into()
+        .unwrap();
+
+        goldie::assert_debug!(event);
+    }
 
 }
