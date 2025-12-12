@@ -54,7 +54,7 @@ where
     pub source_chain: ChainName,
     pub source_gateway_address: A,
     pub expires_at: u64,
-    pub confirmation_height: u64,
+    pub confirmation_height: Option<u64>,
     pub participants: Vec<AccountId>,
 }
 
@@ -172,9 +172,7 @@ pub trait VotingHandler: EventHandler {
             return Ok(vec![]);
         }
 
-        let finalized_tx_receipts = self
-            .finalized_txs(&poll_data, Some(confirmation_height))
-            .await?;
+        let finalized_tx_receipts = self.finalized_txs(&poll_data, confirmation_height).await?;
 
         let poll_id_str: String = poll_id.to_string();
         let source_chain_str: String = source_chain.to_string();

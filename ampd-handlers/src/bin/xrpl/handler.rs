@@ -32,7 +32,6 @@ pub struct MessagesPollStarted {
     source_gateway_address: XRPLAccountId,
     expires_at: u64,
     messages: Vec<XRPLMessage>,
-    confirmation_height: u64,
     participants: Vec<AccountId>,
 }
 
@@ -82,7 +81,7 @@ impl From<MessagesPollStarted> for voting::PollStartedEvent<PollEventData, XRPLA
             source_chain: event.source_chain,
             source_gateway_address: event.source_gateway_address,
             expires_at: event.expires_at,
-            confirmation_height: event.confirmation_height,
+            confirmation_height: None,
             participants: event.participants,
         }
     }
