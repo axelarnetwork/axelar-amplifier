@@ -523,9 +523,8 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        // Expected panic: 'event does not match event type
-        // `wasm-messages_poll_started/wasm-verifier_set_poll_started`
-        // due to gateway address mismatch'
+        // panic: event does not match event type `wasm-messages_poll_started/wasm-verifier_set_poll_started`
+        // due to gateway address mismatch
         handler
             .handle(event.try_into().unwrap(), &mut client)
             .await
@@ -577,9 +576,8 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        // Expected panic: 'event does not match event type
-        // `wasm-messages_poll_started/wasm-verifier_set_poll_started`
-        // due to gateway address mismatch'
+        // panic: event does not match event type `wasm-messages_poll_started/wasm-verifier_set_poll_started`
+        // due to gateway address mismatch
         handler
             .handle(event.try_into().unwrap(), &mut client)
             .await
