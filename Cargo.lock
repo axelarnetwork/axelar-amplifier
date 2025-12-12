@@ -5696,7 +5696,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "its-borsh-translator"
+name = "its-msg-translator-api"
+version = "1.0.0"
+dependencies = [
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "interchain-token-service-std",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "its-solana-translator"
 version = "1.0.0"
 dependencies = [
  "assert_ok",
@@ -5710,18 +5722,6 @@ dependencies = [
  "interchain-token-service-std",
  "its-msg-translator-api",
  "router-api",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "its-msg-translator-api"
-version = "1.0.0"
-dependencies = [
- "client",
- "cosmwasm-schema",
- "cosmwasm-std",
- "error-stack",
- "interchain-token-service-std",
  "thiserror 1.0.69",
 ]
 

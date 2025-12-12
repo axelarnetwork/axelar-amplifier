@@ -1,5 +1,5 @@
 [package]
-name = "its-borsh-translator"
+name = "its-solana-translator"
 version = "1.0.0"
 edition = "2021"
 
