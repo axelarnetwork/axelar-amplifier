@@ -279,7 +279,7 @@ mod tests {
     use ampd::solana::Client;
     use ampd::types::{Hash, TMAddress};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
-    use axelar_wasm_std::{chain_name};
+    use axelar_wasm_std::chain_name;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
     use multisig::key::KeyType;
@@ -612,5 +612,52 @@ mod tests {
             );
         }
         assert!(receiver.try_recv().is_err());
+    }
+
+    #[async_test]
+    async fn should_skip_expired_message_poll() {
+        let gateway_address = axelar_solana_gateway::ID;
+        let domain_separator: [u8; 32] = [42; 32];
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("solana"))
+            .rpc_client(ValidResponseSolanaRpc)
+            .gateway_address(gateway_address)
+            .domain_separator(domain_separator)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+
+        // poll is not expired yet, should hit proxy
+        let res = handler
+            .handle(event.clone().try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+        assert_eq!(res.len(), 1);
+
+        let mut client = mock_handler_client(expiration + 1);
+
+        // poll is expired
+        assert_eq!(
+            handler
+                .handle(event.try_into().unwrap(), &mut client)
+                .await
+                .unwrap(),
+            vec![]
+        );
     }
 }

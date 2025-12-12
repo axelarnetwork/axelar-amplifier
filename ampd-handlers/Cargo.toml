@@ -10,16 +10,16 @@ name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
 [[bin]]
+name = "solana-handler"
+path = "src/bin/solana/main.rs"
+
+[[bin]]
 name = "stellar-handler"
 path = "src/bin/stellar/main.rs"
 
 [[bin]]
 name = "sui-handler"
 path = "src/bin/sui/main.rs"
-
-[[bin]]
-name = "solana-handler"
-path = "src/bin/solana/main.rs"
 
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
