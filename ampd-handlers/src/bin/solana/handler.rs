@@ -271,20 +271,27 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
 
     use ampd::handlers::test_utils::{into_structured_event, participants};
+    use ampd::monitoring::{test_utils};
+    use ampd::solana::{Client, SolanaRpcClientProxy};
     use ampd::types::{Hash, TMAddress};
+    use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::{chain_name};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::address;
+    use solana_client::nonblocking::rpc_client::RpcClient;
+    use tokio::test as async_test;
     use voting_verifier::events::{
         PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation
     };
 
     use super::{
-        PollStartedEvent, Pubkey,
+        Handler, EventHandler, PollStartedEvent, Pubkey, Signature, 
+        SolanaTransaction,
     };
 
     const PREFIX: &str = "axelar";
@@ -376,6 +383,19 @@ mod tests {
         }
     }
 
+    fn mock_rpc_client() -> RpcClient {
+        let mocks = HashMap::new();
+        RpcClient::new_mock_with_mocks("http://mock.example".to_string(), mocks)
+    }
+
+    fn mock_handler_client(latest_block_height: u64) -> MockHandlerTaskClient {
+        let mut client = MockHandlerTaskClient::new();
+        client
+            .expect_latest_block_height()
+            .returning(move || Ok(latest_block_height));
+        client
+    }
+
     #[test]
     fn solana_verify_msg_should_deserialize_correct_event() {
         let event: PollStartedEvent = into_structured_event(
@@ -398,6 +418,48 @@ mod tests {
         .unwrap();
 
         goldie::assert_debug!(event);
+    }
+
+    // Should not handle event if it is not emitted from voting verifier
+    #[async_test]
+    async fn contract_is_not_voting_verifier() {
+        let gateway_address = axelar_solana_gateway::ID;
+        let domain_separator: [u8; 32] = [42; 32];
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            message_poll_started_event(participants(5, None), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let rpc_client = Client::new(
+            mock_rpc_client(),
+            monitoring_client.clone(),
+            chain_name!("solana"),
+        );
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("solana"))
+            .rpc_client(rpc_client)
+            .gateway_address(gateway_address)
+            .domain_separator(domain_separator)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        let res = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+
+        assert_eq!(res, vec![]);
     }
 
 }
