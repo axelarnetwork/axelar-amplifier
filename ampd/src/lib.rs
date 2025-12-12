@@ -30,7 +30,7 @@ pub mod types;
 pub mod url;
 #[cfg(not(feature = "url"))]
 mod url;
-mod xrpl;
+pub mod xrpl;
 
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
