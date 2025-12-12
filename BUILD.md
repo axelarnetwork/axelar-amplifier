@@ -80,9 +80,29 @@ cargo build --bin ampd
 ```
 
 ### Run
+
+First, start the main ampd daemon:
 ```bash
 ./target/debug/ampd --config my_ampd_config.toml
 ```
+Be sure the daemon's config has an entry for each handler that will be run under 
+`grpc.blockchain_service.chains`.
+
+Next, start each handler you would like to run:
+```bash
+./target/debug/ampd evm-handler --config-dir my_handler_config_folder
+```
+The specified config folder must contain both a config.toml, and an evm-handler-config.toml file. One handler must be run for each chain supported, each utilizing separate config folders.
+
+The daemon can run without any handlers connected, but the handlers cannot run without the daemon, and will crash if unable to connect. To ensure continuous up time, both the daemon and each handler should be set to auto restart by whatever orchestration policy that is being used.
+For example, when using systemd, under the `Service` section, set
+```
+[Service]
+Restart=always
+RestartSec=5s
+
+```
+The daemon and each running handler should be orchestrated as separate services.
 
 ## Troubleshooting
 
