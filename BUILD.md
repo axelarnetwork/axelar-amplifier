@@ -86,7 +86,7 @@ First, start the main ampd daemon:
 ./target/debug/ampd --config my_ampd_config.toml
 ```
 Be sure the daemon's config has an entry for each handler that will be run under 
-`grpc.blockchain_service.chains`.
+`grpc.blockchain_service.chains`. See [config_template.toml](ampd/src/tests/config_template.toml) for an example.
 
 Next, start each handler you would like to run:
 ```bash
@@ -100,7 +100,6 @@ For example, when using systemd, under the `Service` section, set
 [Service]
 Restart=always
 RestartSec=5s
-
 ```
 The daemon and each running handler should be orchestrated as separate services.
 
