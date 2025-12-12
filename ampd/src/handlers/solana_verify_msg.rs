@@ -31,7 +31,7 @@ use crate::types::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct Message {
     pub message_id: Base58SolanaTxSignatureAndEventIndex,
     pub destination_address: String,

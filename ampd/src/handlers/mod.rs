@@ -1,5 +1,5 @@
 pub mod config;
-mod errors;
+pub mod errors;
 pub mod evm_verify_event;
 pub mod evm_verify_msg;
 pub mod evm_verify_verifier_set;
