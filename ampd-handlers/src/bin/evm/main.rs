@@ -5,7 +5,8 @@ mod gmp;
 use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
-use ampd::evm::finalizer::Finalization;
+use ampd::evm::finalizer::{pick, Finalization};
+use ampd::evm::json_rpc::EthereumClient;
 use ampd::json_rpc;
 use ampd::url::Url;
 use ampd_handlers::{multisig, Args};
@@ -49,7 +50,23 @@ fn default_rpc_timeout() -> Duration {
     Duration::from_secs(3)
 }
 
-fn build_gmp_voting_handler(
+async fn check_finalizer<C>(
+    chain_name: &ChainName,
+    finalization: &Finalization,
+    rpc_client: &C,
+) -> Result<(), Error>
+where
+    C: EthereumClient + Send + Sync,
+{
+    let _ = pick(finalization, rpc_client, 0)
+        .latest_finalized_block_height()
+        .await
+        .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
+
+    Ok(())
+}
+
+async fn build_gmp_voting_handler(
     runtime: &HandlerRuntime,
     chain_name: ChainName,
     config: &EvmHandlerConfig,
@@ -64,6 +81,8 @@ fn build_gmp_voting_handler(
         runtime.monitoring_client.clone(),
         chain_name.clone(),
     );
+
+    check_finalizer(&chain_name, &config.finalization, &rpc_client).await?;
 
     let handler = gmp::Handler::builder()
         .verifier(runtime.verifier.clone())
@@ -127,7 +146,8 @@ fn gmp_voting_handler_task(
 ) -> CancellableTask<Result<(), Error>> {
     CancellableTask::create(move |token| async move {
         let handler =
-            build_gmp_voting_handler(&runtime, base_config.chain_name.clone(), &handler_config)?;
+            build_gmp_voting_handler(&runtime, base_config.chain_name.clone(), &handler_config)
+                .await?;
 
         runtime
             .run_handler(handler, base_config, token)

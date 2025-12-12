@@ -1,3 +1,4 @@
+use axelar_wasm_std::chain::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,4 +13,6 @@ pub enum Error {
     HandlerTask,
     #[error("task group execution failed")]
     TaskGroup,
+    #[error("invalid finalizer type for chain {0}")]
+    InvalidFinalizerType(ChainName),
 }

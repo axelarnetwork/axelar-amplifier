@@ -70,6 +70,29 @@ pub struct Config {
     /// After this many consecutive failures, the operation is aborted.
     /// Total maximum wait time before giving up = `retry_delay * retry_max_attempts`.
     pub retry_max_attempts: u64,
+
+    /// Buffer size for the event stream.
+    ///
+    /// Maximum number of events to buffer before applying backpressure.
+    #[serde(default = "default_stream_buffer_size")]
+    pub stream_buffer_size: usize,
+
+    /// Delay between processing consecutive blocks.
+    ///
+    /// To avoid inconsistencies (e.g. the block can be streamed but subsequent queries
+    /// for the state show the block doesn't exist yet, especially when using load-balancers)
+    /// blocks processing can be delayed by this parameter.
+    #[serde(with = "humantime_serde")]
+    #[serde(default = "default_delay")]
+    pub delay: Duration,
+}
+
+fn default_stream_buffer_size() -> usize {
+    100000
+}
+
+fn default_delay() -> Duration {
+    Duration::from_secs(1)
 }
 
 impl Default for Config {
@@ -79,6 +102,8 @@ impl Default for Config {
             poll_interval: Duration::from_secs(1),
             retry_delay: Duration::from_secs(3),
             retry_max_attempts: 3,
+            stream_buffer_size: 100000,
+            delay: Duration::from_secs(1),
         }
     }
 }
