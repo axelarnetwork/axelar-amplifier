@@ -484,7 +484,7 @@ mod tests {
     // Should not handle event if source gateway address doesn't match configured gateway
     #[async_test]
     #[should_panic]
-    async fn should_skip_poll_with_mismatched_gateway_address() {
+    async fn should_fail_poll_with_mismatched_gateway_address() {
         let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
