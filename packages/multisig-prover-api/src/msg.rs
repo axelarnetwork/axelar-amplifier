@@ -1,9 +1,12 @@
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::MajorityThreshold;
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{HexBinary, Uint64};
+use msgs_derive::Permissions;
 use multisig::key::KeyType;
+use router_api::CrossChainId;
 
-use crate::encoding::Encoder;
+use crate::payload::Payload;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -26,6 +29,9 @@ pub struct InstantiateMsg {
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
     /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
     pub voting_verifier_address: String,
+    /// Address of the chain codec contract on axelar associated with the destination chain.
+    /// This is the contract that encodes the execute data for the target chain that the relayer will submit.
+    pub chain_codec_address: String,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
@@ -38,10 +44,6 @@ pub struct InstantiateMsg {
     /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
     /// will fail unless the registered verifier set and active verifier set differ by more than 1.
     pub verifier_set_diff_threshold: u32,
-    /// Type of encoding to use for signed payload. Blockchains can encode their execution payloads in various ways (ABI, BCS, etc).
-    /// This defines the specific encoding type to use for this prover, which should correspond to the encoding type used by the gateway
-    /// deployed on the destination chain.
-    pub encoder: Encoder,
     /// Public key type verifiers use for signing payload. Different blockchains support different cryptographic signature algorithms (ECDSA, Ed25519, etc).
     /// This defines the specific signature algorithm to use for this prover, which should correspond to the signature algorithm used by the gateway
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
@@ -52,4 +54,130 @@ pub struct InstantiateMsg {
     #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub domain_separator: Hash,
+    /// Whether to send the `NotifySigningSession` message to the chain-codec contract after a signing session is created.
+    /// Disabling this will save some gas.
+    pub notify_signing_session: bool,
+    /// Whether to expect the full message payloads during proof construction. Disable this if your relayer does not send the full message payloads.
+    pub expect_full_message_payloads: bool,
+    /// Address of a contract responsible for signature verification.
+    /// For detailed information, see [`multisig::msg::ExecuteMsg::StartSigningSession::sig_verifier`]
+    pub sig_verifier_address: Option<String>,
+}
+
+#[cw_serde]
+#[serde(untagged)]
+pub enum ConstructProofMsg {
+    /// This variant is the default one and is used by most prover contracts.
+    Messages(Vec<CrossChainId>),
+    /// This variant was introduced for external integrations that need to receive the full message payloads in their chain-codec contract.
+    WithFullPayloads {
+        message_ids: Vec<CrossChainId>,
+        full_message_payloads: Vec<HexBinary>,
+    },
+}
+
+impl ConstructProofMsg {
+    pub fn ids_and_payloads(self) -> (Vec<CrossChainId>, Option<Vec<HexBinary>>) {
+        match self {
+            ConstructProofMsg::Messages(message_ids) => (message_ids, None),
+            ConstructProofMsg::WithFullPayloads {
+                message_ids,
+                full_message_payloads,
+            } => (message_ids, Some(full_message_payloads)),
+        }
+    }
+}
+
+#[cw_serde]
+#[derive(Permissions)]
+pub enum ExecuteMsg {
+    // Start building a proof that includes specified messages
+    // Queries the gateway for actual message contents
+    #[permission(Any)]
+    ConstructProof(ConstructProofMsg),
+
+    #[permission(Elevated)]
+    UpdateVerifierSet,
+
+    #[permission(Any)]
+    ConfirmVerifierSet,
+    // Updates the signing threshold. The threshold currently in use does not change.
+    // The verifier set must be updated and confirmed for the change to take effect.
+    #[permission(Governance)]
+    UpdateSigningThreshold {
+        new_signing_threshold: MajorityThreshold,
+    },
+    #[permission(Governance)]
+    UpdateAdmin { new_admin_address: String },
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(ProofResponse)]
+    Proof { multisig_session_id: Uint64 },
+
+    /// Returns a `VerifierSetResponse` with the current verifier set id and the verifier set itself.
+    #[returns(Option<VerifierSetResponse>)]
+    CurrentVerifierSet,
+
+    /// Returns a `VerifierSetResponse` with the next verifier set id and the verifier set itself.
+    #[returns(Option<VerifierSetResponse>)]
+    NextVerifierSet,
+}
+
+#[cw_serde]
+pub enum ProofStatus {
+    Pending,
+    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
+}
+
+#[cw_serde]
+pub struct ProofResponse {
+    pub multisig_session_id: Uint64,
+    pub message_ids: Vec<CrossChainId>,
+    pub payload: Payload,
+    pub status: ProofStatus,
+}
+
+#[cw_serde]
+pub struct VerifierSetResponse {
+    pub id: String,
+    pub verifier_set: multisig::verifier_set::VerifierSet,
+}
+
+impl From<multisig::verifier_set::VerifierSet> for VerifierSetResponse {
+    fn from(set: multisig::verifier_set::VerifierSet) -> Self {
+        VerifierSetResponse {
+            id: set.id(),
+            verifier_set: set,
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_construct_proof_backwards_compatibility() {
+        // This is what the ConstructProof variant looked like in a previous version of the contract.
+        #[cw_serde]
+        enum OldExecMsg {
+            ConstructProof(Vec<CrossChainId>),
+        }
+
+        // serialize the old msg
+        let message_ids = vec![CrossChainId::new("test".to_string(), "test".to_string()).unwrap()];
+        let old_exec_msg_json =
+            cosmwasm_std::to_json_string(&OldExecMsg::ConstructProof(message_ids.clone())).unwrap();
+
+        // ExecuteMsg should be able to deserialize the old json
+        let construct_proof_msg = ConstructProofMsg::Messages(message_ids);
+        let new_exec_msg = cosmwasm_std::from_json::<ExecuteMsg>(&old_exec_msg_json).unwrap();
+        assert_eq!(
+            new_exec_msg,
+            ExecuteMsg::ConstructProof(construct_proof_msg)
+        );
+    }
 }

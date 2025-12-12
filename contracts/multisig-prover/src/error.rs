@@ -1,7 +1,8 @@
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::StdError;
 use cw_utils::ParseReplyError;
-use router_api::ChainName;
+use router_api::{ChainName, CrossChainId};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -40,9 +41,6 @@ pub enum ContractError {
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
-    #[error(transparent)]
-    BcsError(#[from] bcs::Error),
-
     #[error("verifier set has not changed sufficiently since last update")]
     VerifierSetUnchanged,
 
@@ -79,8 +77,24 @@ pub enum ContractError {
     #[error("payload does not match the stored value")]
     PayloadMismatch,
 
-    #[error("failed to serialize data for the external gateway")]
-    SerializeData,
+    #[error(
+        "payload hash mismatch for message {message_id}: expected {expected:?}, actual {actual:?}"
+    )]
+    PayloadHashMismatch {
+        message_id: CrossChainId,
+        expected: Hash,
+        actual: Hash,
+    },
+
+    #[error("expected same amount of full message payloads and messages, got {full_message_payloads} payloads and {messages} messages")]
+    PayloadBytesMismatch {
+        full_message_payloads: usize,
+        messages: usize,
+    },
+    #[error("received full message payloads even though none were expected")]
+    UnexpectedFullMessagePayloads,
+    #[error("expected full message payloads, but none were provided")]
+    MissingFullMessagePayloads,
 
     #[error("failed to get outgoing messages from gateway")]
     FailedToGetMessages,
@@ -97,12 +111,15 @@ pub enum ContractError {
     #[error("failed to create wasm execute msg")]
     FailedToCreateWasmExecuteMsg,
 
+    #[error("failed to query chain codec contract")]
+    FailedToQueryChainCodec,
+
     // Generic error to wrap cw_storage_plus errors
     // This should only be used for things that shouldn't happen, such as encountering
     // an error when loading data that should always load successfully.
     #[error("storage error")]
     StorageError,
 
-    #[error("encoder is not implemented")]
-    EncoderNotImplemented,
+    #[error(transparent)]
+    ChainCodecError(#[from] chain_codec_api::ClientError),
 }
