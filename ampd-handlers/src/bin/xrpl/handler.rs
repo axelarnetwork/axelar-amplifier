@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
 
 use ampd::monitoring;
 use ampd::xrpl::json_rpc::XRPLClient;
@@ -134,24 +133,21 @@ where
     ) -> Result<HashMap<Self::Digest, Self::Receipt>> {
         let tx_ids: HashSet<_> = poll_data.iter().map(|data| data.tx_hash()).collect();
 
-        let txs = join_all(
-            tx_ids
-                .into_iter()
-                .map(|tx_id| self.rpc_client.tx(tx_id.tx_hash)),
-        )
+        let txs = join_all(tx_ids.into_iter().map(|tx_id| async move {
+            let result = self.rpc_client.tx(tx_id.tx_hash).await;
+            (tx_id, result)
+        }))
         .await
         .into_iter()
-        .filter_map(std::result::Result::unwrap_or_default)
-        .filter_map(|tx_res| {
+        .filter_map(|(hex_tx_hash, result)| {
+            let tx_res = result.ok().flatten()?;
             let tx = tx_res.tx;
             let tx_common = tx.common();
-            let tx_hash = tx_common.hash.clone()?;
 
             if tx_common.validated != Some(true) {
                 return None;
             }
 
-            let hex_tx_hash = HexTxHash::from_str(&format!("0x{}", tx_hash.to_lowercase())).ok()?;
             Some((hex_tx_hash, tx))
         })
         .collect();
