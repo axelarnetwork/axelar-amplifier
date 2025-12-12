@@ -462,7 +462,7 @@ mod tests {
     }
 
     // Should not handle event if source gateway address doesn't match configured gateway
-    #[tokio::test]
+    #[async_test]
     #[should_panic]
     async fn should_skip_poll_with_mismatched_gateway_address() {
         let gateway_address = axelar_solana_gateway::ID;
