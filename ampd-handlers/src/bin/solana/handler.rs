@@ -288,12 +288,12 @@ mod tests {
     use solana_client::nonblocking::rpc_client::RpcClient;
     use tokio::test as async_test;
     use voting_verifier::events::{
-        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation
+        PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation,
     };
 
     use super::{
-        Handler, EventHandler, PollStartedEvent, Pubkey,
-        Signature, SolanaRpcClientProxy, SolanaTransaction, Vote,
+        EventHandler, Handler, PollStartedEvent, Pubkey, Signature, SolanaRpcClientProxy,
+        SolanaTransaction, Vote,
     };
 
     const PREFIX: &str = "axelar";
@@ -376,10 +376,7 @@ mod tests {
                     .collect(),
             },
             verifier_set: VerifierSetConfirmation {
-                message_id: message_id_1
-                    .to_string()
-                    .try_into()
-                    .unwrap(),
+                message_id: message_id_1.to_string().try_into().unwrap(),
                 verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }
@@ -492,13 +489,16 @@ mod tests {
         let expiration = 100u64;
 
         // Create an event with a different gateway address
-        let mut event_data = message_poll_started_event(participants(5, Some(verifier.clone())), 100);
+        let mut event_data =
+            message_poll_started_event(participants(5, Some(verifier.clone())), 100);
         if let PollStarted::Messages {
             ref mut metadata, ..
         } = event_data
         {
             // Use a different gateway address
-            metadata.source_gateway_address = "1111111111111111111111111111111111111111111".parse().unwrap();
+            metadata.source_gateway_address = "1111111111111111111111111111111111111111111"
+                .parse()
+                .unwrap();
         }
 
         let event = into_structured_event(event_data, &voting_verifier);
@@ -523,7 +523,7 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        // Expected panic: 'event does not match event type 
+        // Expected panic: 'event does not match event type
         // `wasm-messages_poll_started/wasm-verifier_set_poll_started`
         // due to gateway address mismatch'
         handler
@@ -543,13 +543,16 @@ mod tests {
         let expiration = 100u64;
 
         // Create an event with a different gateway address
-        let mut event_data = verifier_set_poll_started_event(participants(5, Some(verifier.clone())), 100);
+        let mut event_data =
+            verifier_set_poll_started_event(participants(5, Some(verifier.clone())), 100);
         if let PollStarted::VerifierSet {
             ref mut metadata, ..
         } = event_data
         {
             // Use a different gateway address
-            metadata.source_gateway_address = "1111111111111111111111111111111111111111111".parse().unwrap();
+            metadata.source_gateway_address = "1111111111111111111111111111111111111111111"
+                .parse()
+                .unwrap();
         }
 
         let event = into_structured_event(event_data, &voting_verifier);
@@ -574,7 +577,7 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        // Expected panic: 'event does not match event type 
+        // Expected panic: 'event does not match event type
         // `wasm-messages_poll_started/wasm-verifier_set_poll_started`
         // due to gateway address mismatch'
         handler
@@ -607,7 +610,7 @@ mod tests {
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
-        
+
         let mut client = mock_handler_client(expiration - 1);
 
         let res = handler
@@ -643,7 +646,7 @@ mod tests {
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
-        
+
         let mut client = mock_handler_client(expiration - 1);
 
         let res = handler
@@ -683,9 +686,7 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        let res = handler
-            .handle(event.try_into().unwrap(), &mut client)
-            .await;
+        let res = handler.handle(event.try_into().unwrap(), &mut client).await;
         assert!(res.is_ok());
 
         for _ in 0..2 {
@@ -729,9 +730,7 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        let res = handler
-            .handle(event.try_into().unwrap(), &mut client)
-            .await;
+        let res = handler.handle(event.try_into().unwrap(), &mut client).await;
         assert!(res.is_ok());
 
         let metric = receiver.recv().await.unwrap();
@@ -773,7 +772,6 @@ mod tests {
             .build();
 
         let mut client = mock_handler_client(expiration - 1);
-
 
         // poll is not expired yet, should hit proxy
         let res = handler
@@ -820,7 +818,6 @@ mod tests {
             .build();
 
         let mut client = mock_handler_client(expiration - 1);
-
 
         // poll is not expired yet, should hit proxy
         let res = handler
