@@ -9,7 +9,6 @@ Messages(
             "sui",
         ),
         source_gateway_address: 0x0303030303030303030303030303030303030303030303030303030303030303,
-        confirmation_height: 15,
         expires_at: 100,
         messages: [
             Message {

@@ -29,7 +29,6 @@ pub struct MessagesPollStarted {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: SuiAddress,
-    confirmation_height: u64,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<AccountId>,
@@ -43,7 +42,6 @@ pub struct VerifierSetPollStarted {
     source_chain: ChainName,
     source_gateway_address: SuiAddress,
     expires_at: u64,
-    confirmation_height: u64,
     participants: Vec<AccountId>,
 }
 
@@ -124,7 +122,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, SuiAddre
                 source_chain: message_event.source_chain,
                 source_gateway_address: message_event.source_gateway_address,
                 expires_at: message_event.expires_at,
-                confirmation_height: message_event.confirmation_height,
+                confirmation_height: None,
                 participants: message_event.participants,
             },
             PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
@@ -133,7 +131,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, SuiAddre
                 source_chain: verifier_set_event.source_chain,
                 source_gateway_address: verifier_set_event.source_gateway_address,
                 expires_at: verifier_set_event.expires_at,
-                confirmation_height: verifier_set_event.confirmation_height,
+                confirmation_height: None,
                 participants: verifier_set_event.participants,
             },
         }
