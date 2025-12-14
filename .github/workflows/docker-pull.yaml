@@ -1,0 +1,29 @@
+name: Initialize Containers
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  initialize-containers:
+    runs-on: [blacksmith-staging, bs-dev-maru]
+    steps:
+      - name: Initialize Containers
+        run: |
+          /usr/bin/docker pull docker.io/fjeanneau/cortexm-dev:0.1
+          /usr/bin/docker pull docker.io/library/alpine:latest
+
+      - name: Mount Sticky Disk
+        uses: useblacksmith/stickydisk@v1
+        with:
+          key: ${{ github.repository }}-test-stickydisk
+          path: /tmp/stickydisk
+
+      - name: Store a file in Sticky Disk
+        run: |
+          echo "Hello from stickydisk test" > /tmp/stickydisk/test-file.txt
+
+      - name: Verify file exists in Sticky Disk
+        run: |
+          ls -la /tmp/stickydisk/
