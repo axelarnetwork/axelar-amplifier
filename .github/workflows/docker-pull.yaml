@@ -7,7 +7,7 @@ on:
 
 jobs:
   initialize-containers:
-    runs-on: [blacksmith]
+    runs-on: [blacksmith-staging, bs-dev-maru]
     steps:
       - name: Initialize Containers
         run: |
