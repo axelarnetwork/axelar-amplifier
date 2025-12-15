@@ -54,9 +54,7 @@ async fn build_handler(
     let gateway_address =
         Pubkey::from_str(&config.gateway_address).unwrap_or(axelar_solana_gateway::ID);
 
-    let domain_separator: Option<[u8; 32]> = rpc_client
-        .domain_separator(&gateway_address)
-        .await;
+    let domain_separator: Option<[u8; 32]> = rpc_client.domain_separator(&gateway_address).await;
 
     if let Some(separator) = domain_separator {
         let handler = Handler::builder()
