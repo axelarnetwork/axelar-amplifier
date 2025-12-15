@@ -133,7 +133,10 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                     .collect(),
                 poll_id: message_event.poll_id,
                 source_chain: message_event.source_chain,
-                source_gateway_address: message_event.source_gateway_address.parse().unwrap_or_default(),
+                source_gateway_address: message_event
+                    .source_gateway_address
+                    .parse()
+                    .unwrap_or_default(),
                 expires_at: message_event.expires_at,
                 confirmation_height: message_event.confirmation_height,
                 participants: message_event.participants,
@@ -142,7 +145,10 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                 poll_data: vec![PollEventData::VerifierSet(verifier_set_event.verifier_set)],
                 poll_id: verifier_set_event.poll_id,
                 source_chain: verifier_set_event.source_chain,
-                source_gateway_address: verifier_set_event.source_gateway_address.parse().unwrap_or_default(),
+                source_gateway_address: verifier_set_event
+                    .source_gateway_address
+                    .parse()
+                    .unwrap_or_default(),
                 expires_at: verifier_set_event.expires_at,
                 confirmation_height: verifier_set_event.confirmation_height,
                 participants: verifier_set_event.participants,
