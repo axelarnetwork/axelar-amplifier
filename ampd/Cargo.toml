@@ -28,7 +28,6 @@ bech32 = "0.11.0"
 borsh = "1.5.1"
 bs58 = { workspace = true }
 clap = { workspace = true }
-clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = { workspace = true }
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
@@ -57,7 +56,6 @@ lazy_static = "1.5.0"
 mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
-multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
 openssl = { version = "0.10.72", features = [
   "vendored",
@@ -83,10 +81,6 @@ solana-client = "=2.1.21"
 solana-sdk = "=2.1.21"
 solana-transaction-status = "=2.1.21"
 solana-zk-token-sdk = "=2.1.21"
-starknet-checked-felt = { workspace = true }
-
-starknet-core = { workspace = true }
-starknet-providers = { workspace = true }
 stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true, features = ["serde_json"] }

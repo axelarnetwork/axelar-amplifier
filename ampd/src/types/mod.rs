@@ -14,7 +14,6 @@ use crate::PREFIX;
 
 pub mod debug;
 mod key;
-pub(crate) mod starknet;
 #[cfg(test)]
 pub use key::test_utils::random_cosmos_public_key;
 pub use key::{CosmosPublicKey, PublicKey};
