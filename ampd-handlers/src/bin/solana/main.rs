@@ -5,7 +5,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
-use ampd::handlers::errors::Error as AmpdError;
 use ampd::solana::{Client, SolanaRpcClientProxy};
 use ampd::url::Url;
 use ampd_handlers::tracing::init_tracing;
