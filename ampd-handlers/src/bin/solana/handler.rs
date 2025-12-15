@@ -157,7 +157,6 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
     }
 }
 
-#[allow(dead_code)]
 #[derive(TypedBuilder)]
 pub struct Handler<C>
 where
@@ -167,7 +166,6 @@ where
     pub voting_verifier_contract: AccountId,
     pub chain: ChainName,
     pub gateway_address: Pubkey,
-    // #[allow(dead_code)] TODO: fix domain separator
     pub domain_separator: [u8; 32],
     pub rpc_client: C,
     pub monitoring_client: monitoring::Client,
@@ -269,6 +267,7 @@ where
             .field("verifier", &self.verifier)
             .field("voting_verifier_contract", &self.voting_verifier_contract)
             .field("gateway_address", &self.gateway_address)
+            .field("domain_separator", &self.domain_separator)
             .field("rpc_client", &"WARN: Solana sdk does impl Debug")
             .field("monitoring_client", &self.monitoring_client)
             .finish()
