@@ -9,10 +9,70 @@ jobs:
   initialize-containers:
     runs-on: [blacksmith-staging, bs-dev-maru]
     steps:
-      - name: Initialize Containers
+      - name: Pull Container Images
         run: |
           /usr/bin/docker pull docker.io/fjeanneau/cortexm-dev:0.1
           /usr/bin/docker pull docker.io/library/alpine:latest
+
+      - name: Create Docker Networks
+        run: |
+          docker network create test-network-1
+          docker network create test-network-2
+          docker network create --driver bridge custom-bridge-network
+          docker network ls
+
+      - name: Create Docker Volumes
+        run: |
+          docker volume create test-volume-1
+          docker volume create test-volume-2
+          docker volume create data-volume
+          docker volume ls
+
+      - name: Run Test Containers
+        run: |
+          # Run some containers that will be left running
+          docker run -d --name test-container-1 --network test-network-1 alpine:latest sleep 3600
+          docker run -d --name test-container-2 --network test-network-2 alpine:latest sleep 3600
+          docker run -d --name volume-test-container -v test-volume-1:/data alpine:latest sleep 3600
+
+          # Run a container with multiple volumes attached
+          docker run -d --name multi-volume-container \
+            -v test-volume-2:/data1 \
+            -v data-volume:/data2 \
+            --network custom-bridge-network \
+            alpine:latest sleep 3600
+
+          docker ps
+
+      - name: Write Data to Volumes
+        run: |
+          docker exec volume-test-container sh -c "echo 'test data 1' > /data/file1.txt"
+          docker exec multi-volume-container sh -c "echo 'test data 2' > /data1/file2.txt"
+          docker exec multi-volume-container sh -c "echo 'test data 3' > /data2/file3.txt"
+
+      - name: Create Stopped Containers
+        run: |
+          # Create some exited containers
+          docker run --name exited-container-1 alpine:latest echo "done"
+          docker run --name exited-container-2 alpine:latest echo "finished"
+          docker ps -a
+
+      - name: Show Docker Resources Before Cleanup
+        run: |
+          echo "=== Running Containers ==="
+          docker ps
+          echo ""
+          echo "=== All Containers ==="
+          docker ps -a
+          echo ""
+          echo "=== Networks ==="
+          docker network ls
+          echo ""
+          echo "=== Volumes ==="
+          docker volume ls
+          echo ""
+          echo "=== Disk Usage ==="
+          docker system df
 
       - name: Mount Sticky Disk
         uses: useblacksmith/stickydisk@v1
