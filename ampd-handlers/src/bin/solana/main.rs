@@ -54,24 +54,25 @@ async fn build_handler(
     let gateway_address =
         Pubkey::from_str(&config.gateway_address).unwrap_or(axelar_solana_gateway::ID);
 
-    // TODO: remove unwrap
-    let domain_separator = rpc_client
+    let domain_separator: Option<[u8; 32]> = rpc_client
         .domain_separator(&gateway_address)
-        .await
-        .ok_or_else(|| report!(AmpdError::FetchSolanaAccount))
-        .unwrap();
+        .await;
 
-    let handler = Handler::builder()
-        .verifier(runtime.verifier.clone())
-        .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
-        .chain(chain_name)
-        .gateway_address(gateway_address)
-        .domain_separator(domain_separator)
-        .rpc_client(rpc_client)
-        .monitoring_client(runtime.monitoring_client.clone())
-        .build();
+    if let Some(separator) = domain_separator {
+        let handler = Handler::builder()
+            .verifier(runtime.verifier.clone())
+            .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
+            .chain(chain_name)
+            .gateway_address(gateway_address)
+            .domain_separator(separator)
+            .rpc_client(rpc_client)
+            .monitoring_client(runtime.monitoring_client.clone())
+            .build();
 
-    Ok(handler)
+        Ok(handler)
+    } else {
+        Err(report!(Error::DomainSeparator))
+    }
 }
 
 fn voting_handler_task(

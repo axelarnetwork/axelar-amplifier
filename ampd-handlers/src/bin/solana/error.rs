@@ -8,4 +8,6 @@ pub enum Error {
     HandlerTask,
     #[error("task group execution failed")]
     TaskGroup,
+    #[error("Error fetching domain separator")]
+    DomainSeparator,
 }
