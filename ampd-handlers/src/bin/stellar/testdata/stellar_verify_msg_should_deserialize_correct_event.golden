@@ -12,7 +12,6 @@ MessagesPollStarted {
             Hash(0101010101010101010101010101010101010101010101010101010101010101),
         ),
     ),
-    confirmation_height: 15,
     expires_at: 100,
     messages: [
         Message {
