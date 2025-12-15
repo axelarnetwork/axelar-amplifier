@@ -1,3 +1,4 @@
+use ampd::types::EVMAddress;
 use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, Transaction, TransactionReceipt, H160, H256};
@@ -6,9 +7,8 @@ use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use router_api::ChainName;
 use tracing::debug;
 
-use crate::handlers::evm_verify_msg::Message;
-use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
-use crate::types::EVMAddress;
+use crate::evm::types::Message;
+use crate::evm::types::VerifierSetConfirmation;
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
 
@@ -209,6 +209,7 @@ fn verify_event_matches_log(log: &Log, expected_event: &Event) -> bool {
 mod tests {
     use std::str::FromStr;
 
+    use ampd::types::{EVMAddress, Hash};
     use axelar_wasm_std::fixed_size;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -226,9 +227,8 @@ mod tests {
         verify_event_matches_log, verify_events, verify_events_match_logs, verify_message,
         verify_transaction_details, verify_verifier_set,
     };
-    use crate::handlers::evm_verify_msg::Message;
-    use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
-    use crate::types::{EVMAddress, Hash};
+    use crate::evm::types::Message;
+    use crate::evm::types::VerifierSetConfirmation;
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {

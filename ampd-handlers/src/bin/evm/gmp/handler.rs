@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use ampd::evm::finalizer;
-use ampd::evm::finalizer::Finalization;
-use ampd::evm::json_rpc::EthereumClient;
-use ampd::evm::verifier::{verify_message, verify_verifier_set};
-use ampd::handlers::evm_verify_msg::Message;
-use ampd::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
 use ampd::types::EVMAddress;
+use ampd_handlers::evm::finalizer;
+use ampd_handlers::evm::finalizer::Finalization;
+use ampd_handlers::evm::json_rpc::EthereumClient;
+use ampd_handlers::evm::types::{Message, VerifierSetConfirmation};
+use ampd_handlers::evm::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -258,10 +257,10 @@ where
 mod tests {
     use std::convert::TryInto;
 
-    use ampd::evm::finalizer::Finalization;
-    use ampd::evm::json_rpc::MockEthereumClient;
     use ampd::monitoring;
     use ampd::types::{Hash, TMAddress};
+    use ampd_handlers::evm::finalizer::Finalization;
+    use ampd_handlers::evm::json_rpc::MockEthereumClient;
     use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;

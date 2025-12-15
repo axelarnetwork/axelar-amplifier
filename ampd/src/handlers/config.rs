@@ -1,50 +1,18 @@
 use std::fmt::Debug;
 use std::time::Duration;
 
-use itertools::Itertools;
 use router_api::ChainName;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
-use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
-
-#[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub struct Chain {
-    pub name: ChainName,
-    #[serde(deserialize_with = "Url::deserialize_sensitive")]
-    pub rpc_url: Url,
-    #[serde(default)]
-    pub finalization: Finalization,
-}
 
 with_prefix!(chain "chain_");
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Config {
-    EvmMsgVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(flatten, with = "chain")]
-        chain: Chain,
-        #[serde(default, with = "humantime_serde::option")]
-        rpc_timeout: Option<Duration>,
-    },
-    EvmEventVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(flatten, with = "chain")]
-        chain: Chain,
-        rpc_timeout: Option<Duration>,
-        confirmation_height: Option<u64>,
-    },
-    EvmVerifierSetVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(flatten, with = "chain")]
-        chain: Chain,
-        #[serde(default, with = "humantime_serde::option")]
-        rpc_timeout: Option<Duration>,
-    },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
         chain_name: ChainName,
@@ -105,75 +73,6 @@ pub enum Config {
     },
 }
 
-fn validate_evm_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    if !configs
-        .iter()
-        .filter_map(|config| match config {
-            Config::EvmVerifierSetVerifier {
-                chain: Chain { name, .. },
-                ..
-            } => Some(name),
-            _ => None,
-        })
-        .all_unique()
-    {
-        return Err(de::Error::custom(
-            "the chain name EVM verifier set verifier configs must be unique",
-        ));
-    }
-
-    Ok(())
-}
-
-fn validate_evm_msg_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    if !configs
-        .iter()
-        .filter_map(|config| match config {
-            Config::EvmMsgVerifier {
-                chain: Chain { name, .. },
-                ..
-            } => Some(name),
-            _ => None,
-        })
-        .all_unique()
-    {
-        return Err(de::Error::custom(
-            "the chain name EVM msg verifier configs must be unique",
-        ));
-    }
-
-    Ok(())
-}
-
-fn validate_evm_event_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
-where
-    D: Deserializer<'de>,
-{
-    if !configs
-        .iter()
-        .filter_map(|config| match config {
-            Config::EvmEventVerifier {
-                chain: Chain { name, .. },
-                ..
-            } => Some(name),
-            _ => None,
-        })
-        .all_unique()
-    {
-        return Err(de::Error::custom(
-            "the chain name EVM event verifier configs must be unique",
-        ));
-    }
-
-    Ok(())
-}
-
 macro_rules! ensure_unique_config {
     ($configs:expr, $config_type:path, $config_name:expr) => {
         match $configs
@@ -195,10 +94,6 @@ where
     D: Deserializer<'de>,
 {
     let configs: Vec<Config> = Deserialize::deserialize(deserializer)?;
-
-    validate_evm_msg_verifier_configs::<D>(&configs)?;
-    validate_evm_event_verifier_configs::<D>(&configs)?;
-    validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
 
     ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
@@ -236,25 +131,13 @@ mod tests {
     use router_api::chain_name;
     use serde_json::to_value;
 
-    use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::{deserialize_handler_configs, Chain, Config};
+    use crate::handlers::config::{deserialize_handler_configs, Config};
     use crate::types::debug::REDACTED_VALUE;
     use crate::types::TMAddress;
     use crate::url::Url;
     use crate::PREFIX;
 
     const SOLANA: &str = "solana";
-
-    #[test]
-    fn finalizer_should_default_to_ethereum() {
-        let chain_config_toml = "
-        name = 'polygon'
-        rpc_url = 'http://127.0.0.1/'
-        ";
-
-        let chain_config: Chain = toml::from_str(chain_config_toml).unwrap();
-        assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
-    }
 
     #[test]
     fn unique_config_validation() {
@@ -361,18 +244,5 @@ mod tests {
                 Err(e) if e.to_string().contains("only one Solana verifier set verifier config is allowed")
             )
         );
-    }
-    #[test]
-    fn test_chain_struct_debug_redacts_url() {
-        let chain = Chain {
-            name: chain_name!("ethereum"),
-            rpc_url: Url::new_sensitive("http://localhost:7545/API_KEY").unwrap(),
-            finalization: Finalization::RPCFinalizedBlock,
-        };
-        let debug_output = format!("{:?}", chain);
-        assert!(debug_output.contains("ethereum"));
-        assert!(debug_output.contains(REDACTED_VALUE));
-        assert!(!debug_output.contains("API_KEY"));
-        assert!(debug_output.contains("RPCFinalizedBlock"));
     }
 }

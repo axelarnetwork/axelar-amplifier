@@ -5,10 +5,10 @@ mod gmp;
 use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
-use ampd::evm::finalizer::{pick, Finalization};
-use ampd::evm::json_rpc::EthereumClient;
 use ampd::json_rpc;
 use ampd::url::Url;
+use ampd_handlers::evm::finalizer::{pick, Finalization};
+use ampd_handlers::evm::json_rpc::EthereumClient;
 use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;

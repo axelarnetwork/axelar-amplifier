@@ -12,7 +12,6 @@ mod config;
 mod cosmos;
 mod event_processor;
 pub mod event_sub;
-pub mod evm;
 mod grpc;
 pub mod handlers;
 pub mod json_rpc;
