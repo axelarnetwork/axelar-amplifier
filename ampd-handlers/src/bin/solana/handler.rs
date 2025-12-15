@@ -138,7 +138,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                     .parse()
                     .unwrap_or_default(),
                 expires_at: message_event.expires_at,
-                confirmation_height: message_event.confirmation_height,
+                confirmation_height: Some(message_event.confirmation_height),
                 participants: message_event.participants,
             },
             PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
@@ -150,7 +150,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                     .parse()
                     .unwrap_or_default(),
                 expires_at: verifier_set_event.expires_at,
-                confirmation_height: verifier_set_event.confirmation_height,
+                confirmation_height: Some(verifier_set_event.confirmation_height),
                 participants: verifier_set_event.participants,
             },
         }
