@@ -86,6 +86,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = HexTxHashAndEventIndex;
     type ChainAddress = ScAddress;
     type Receipt = TxResponse;
+    type ContextData = ();
 
     fn tx_hash(&self) -> Self::Digest {
         match self {
@@ -105,6 +106,7 @@ impl voting::PollEventData for PollEventData {
         &self,
         source_gateway_address: &Self::ChainAddress,
         tx_receipt: &Self::Receipt,
+        _: &Self::ContextData,
     ) -> Vote {
         match self {
             PollEventData::Message(message) => {
@@ -167,10 +169,13 @@ where
     type Receipt = TxResponse;
     type ChainAddress = ScAddress;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
     }
+
+    fn context_data(&self) -> &Self::ContextData { &() }
 
     fn verifier(&self) -> &AccountId {
         &self.verifier

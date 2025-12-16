@@ -56,6 +56,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = Base58TxDigestAndEventIndex;
     type ChainAddress = SuiAddress;
     type Receipt = SuiTransactionBlockResponse;
+    type ContextData = ();
 
     fn tx_hash(&self) -> TransactionDigest {
         self.message_id().tx_digest.into()
@@ -72,6 +73,7 @@ impl voting::PollEventData for PollEventData {
         &self,
         source_gateway_address: &SuiAddress,
         tx_receipt: &SuiTransactionBlockResponse,
+        _: &Self::ContextData,
     ) -> Vote {
         match self {
             PollEventData::Message(message) => {
@@ -159,10 +161,13 @@ where
     type Receipt = SuiTransactionBlockResponse;
     type ChainAddress = SuiAddress;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
     }
+
+    fn context_data(&self) -> &Self::ContextData { &() }
 
     fn verifier(&self) -> &AccountId {
         &self.verifier

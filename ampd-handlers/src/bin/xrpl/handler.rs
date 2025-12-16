@@ -55,6 +55,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = nonempty::String;
     type ChainAddress = XRPLAccountId;
     type Receipt = Transaction;
+    type ContextData = ();
 
     fn tx_hash(&self) -> Self::Digest {
         self.message.tx_id()
@@ -68,6 +69,7 @@ impl voting::PollEventData for PollEventData {
         &self,
         source_gateway_address: &Self::ChainAddress,
         tx_receipt: &Self::Receipt,
+        _: &Self::ContextData,
     ) -> Vote {
         verify_message(source_gateway_address, tx_receipt, &self.message)
     }
@@ -108,10 +110,13 @@ where
     type Receipt = Transaction;
     type ChainAddress = XRPLAccountId;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
     }
+
+    fn context_data(&self) -> &Self::ContextData { &() }
 
     fn verifier(&self) -> &AccountId {
         &self.verifier

@@ -33,6 +33,7 @@ pub trait PollEventData: Clone + Debug + Send + Sync {
     type MessageId: Display;
     type ChainAddress;
     type Receipt;
+    type ContextData;
 
     fn tx_hash(&self) -> Self::Digest;
     fn message_id(&self) -> &Self::MessageId;
@@ -40,6 +41,7 @@ pub trait PollEventData: Clone + Debug + Send + Sync {
         &self,
         source_gateway_address: &Self::ChainAddress,
         tx_receipt: &Self::Receipt,
+        context: &Self::ContextData,
     ) -> Vote;
 }
 
@@ -63,13 +65,16 @@ pub trait VotingHandler: EventHandler {
     type Digest: Eq + Hash;
     type Receipt;
     type ChainAddress: Clone + Debug + Send + Sync;
+    type ContextData;
     type EventData: PollEventData<
         Digest = Self::Digest,
         Receipt = Self::Receipt,
         ChainAddress = Self::ChainAddress,
+        ContextData = Self::ContextData,
     >;
 
     fn chain(&self) -> &ChainName;
+    fn context_data(&self) -> &Self::ContextData;
     fn verifier(&self) -> &AccountId;
     fn voting_verifier_contract(&self) -> &AccountId;
     fn monitoring_client(&self) -> &monitoring::Client;
@@ -196,7 +201,7 @@ pub trait VotingHandler: EventHandler {
                     finalized_tx_receipts
                         .get(&data.tx_hash())
                         .map_or(Vote::NotFound, |tx_receipt| {
-                            data.verify(&source_gateway_address, tx_receipt)
+                            data.verify(&source_gateway_address, tx_receipt, self.context_data())
                         })
                 })
                 .inspect(|vote| {
