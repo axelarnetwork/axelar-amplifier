@@ -1,5 +1,5 @@
 mod error;
-mod handler;
+mod handlers;
 
 use std::time::Duration;
 
@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::Level;
 
 use crate::error::Error;
-use crate::handler::Handler;
+use crate::handlers::{multisig, voting};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct XrplHandlerConfig {
@@ -34,11 +34,11 @@ fn default_rpc_timeout() -> Duration {
     Duration::from_secs(3)
 }
 
-fn build_handler(
+fn build_voting_handler(
     runtime: &HandlerRuntime,
     chain_name: ChainName,
     config: XrplHandlerConfig,
-) -> Result<Handler<xrpl::json_rpc::Client>, Error> {
+) -> Result<voting::Handler<xrpl::json_rpc::Client>, Error> {
     let xrpl_http_client = xrpl_http_client::Client::builder()
         .base_url(config.rpc_url.as_str())
         .http_client(
@@ -56,7 +56,7 @@ fn build_handler(
         chain_name.clone(),
     );
 
-    let handler = Handler::builder()
+    let handler = voting::Handler::builder()
         .verifier(runtime.verifier.clone())
         .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
         .chain(chain_name)
@@ -73,7 +73,22 @@ fn voting_handler_task(
     handler_config: XrplHandlerConfig,
 ) -> CancellableTask<Result<(), Error>> {
     CancellableTask::create(move |token| async move {
-        let handler = build_handler(&runtime, base_config.chain_name.clone(), handler_config)?;
+        let handler =
+            build_voting_handler(&runtime, base_config.chain_name.clone(), handler_config)?;
+
+        runtime
+            .run_handler(handler, base_config, token)
+            .await
+            .change_context(Error::HandlerTask)
+    })
+}
+
+fn multisig_handler_task(
+    runtime: HandlerRuntime,
+    base_config: config::Config,
+) -> CancellableTask<Result<(), Error>> {
+    CancellableTask::create(move |token| async move {
+        let handler = multisig::Handler::new(&runtime, base_config.chain_name.clone());
 
         runtime
             .run_handler(handler, base_config, token)
@@ -111,6 +126,11 @@ async fn main() -> Result<(), Error> {
     task_group = task_group.add_task(
         "voting-handler",
         voting_handler_task(runtime.clone(), base_config.clone(), handler_config.clone()),
+    );
+
+    task_group = task_group.add_task(
+        "multisig-handler",
+        multisig_handler_task(runtime, base_config),
     );
 
     task_group
