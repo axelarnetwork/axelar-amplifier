@@ -55,6 +55,7 @@ reqwest = { version = "0.11.24", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
+sha3 = { workspace = true }
 stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }

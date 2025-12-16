@@ -2,8 +2,6 @@ pub mod config;
 mod errors;
 pub mod solana_verify_msg;
 pub mod solana_verify_verifier_set;
-pub mod xrpl_multisig;
-pub mod xrpl_verify_msg;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils {

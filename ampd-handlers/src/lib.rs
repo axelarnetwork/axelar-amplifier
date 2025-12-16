@@ -4,6 +4,7 @@ pub mod stellar;
 pub mod sui;
 pub mod tracing;
 pub mod voting;
+pub mod xrpl;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;

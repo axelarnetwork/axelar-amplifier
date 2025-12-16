@@ -17,18 +17,6 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         chain_name: ChainName,
     },
-    XRPLMsgVerifier {
-        cosmwasm_contract: TMAddress,
-        chain_name: ChainName,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        chain_rpc_url: Url,
-        #[serde(default, with = "humantime_serde::option")]
-        rpc_timeout: Option<Duration>,
-    },
-    XRPLMultisigSigner {
-        cosmwasm_contract: TMAddress,
-        chain_name: ChainName,
-    },
     SolanaMsgVerifier {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
@@ -71,7 +59,6 @@ where
 {
     let configs: Vec<Config> = Deserialize::deserialize(deserializer)?;
 
-    ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
     ensure_unique_config!(
         &configs,
         Config::SolanaMsgVerifier,

@@ -1,11 +1,10 @@
+use ampd::monitoring;
+use ampd::monitoring::metrics::Msg;
 use async_trait::async_trait;
+use axelar_wasm_std::chain::ChainName;
 use cosmwasm_std::HexBinary;
 use mockall::automock;
-use router_api::ChainName;
 use xrpl_http_client::{error, Client as XrplHttpClient, TxRequest, TxResponse};
-
-use crate::monitoring;
-use crate::monitoring::metrics::Msg;
 
 type Result<T> = error_stack::Result<T, error::Error>;
 
@@ -60,12 +59,12 @@ impl XRPLClient for Client {
 mod test {
     use std::str::FromStr;
 
-    use router_api::ChainName;
+    use axelar_wasm_std::chain::ChainName;
     use xrpl_http_client::Client as XrplHttpClient;
 
     use super::{Client, XRPLClient};
-    use crate::monitoring::metrics::Msg;
-    use crate::monitoring::test_utils;
+    use ampd::monitoring::metrics::Msg;
+    use ampd::monitoring::test_utils;
 
     #[tokio::test]
     async fn should_record_rpc_failure_metrics_successfully() {
