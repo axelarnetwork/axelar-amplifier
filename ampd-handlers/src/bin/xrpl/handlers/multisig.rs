@@ -102,17 +102,8 @@ impl EventHandler for Handler {
             pub_keys,
             msg,
             expires_at,
-            chain,
+            chain: _chain,
         } = event;
-
-        if !chain.eq(&self.chain) {
-            info!(
-                chain = chain.to_string(),
-                handler_chain = self.chain.to_string(),
-                "chain mismatch, skipping event"
-            );
-            return Ok(vec![]);
-        }
 
         let latest_block_height = client
             .latest_block_height()
@@ -343,30 +334,6 @@ mod tests {
                 MULTISIG_ADDRESS.parse::<AccountId>().unwrap(),
             ))
             .chain(chain_name!("xrpl"))
-            .build();
-
-        let res = handler
-            .handle(event.try_into().unwrap(), &mut client)
-            .await
-            .unwrap();
-
-        assert_eq!(res, vec![]);
-    }
-
-    #[async_test]
-    async fn should_skip_wrong_chain() {
-        let expiration = 100u64;
-        let mut client = mock_handler_client(expiration - 1);
-
-        let event = signing_started_event(expiration);
-        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
-        let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
-        let handler = Handler::builder()
-            .verifier(verifier)
-            .multisig(TMAddress::from(
-                MULTISIG_ADDRESS.parse::<AccountId>().unwrap(),
-            ))
-            .chain(chain_name!("not-xrpl"))
             .build();
 
         let res = handler
