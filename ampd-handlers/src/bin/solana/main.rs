@@ -50,8 +50,12 @@ async fn build_handler(
         chain_name.clone(),
     );
 
-    let gateway_address =
-        Pubkey::from_str(&config.gateway_address).unwrap_or(axelar_solana_gateway::ID);
+    let gateway = Pubkey::from_str(&config.gateway_address);
+    let gateway_address: Pubkey = if let Ok(parsed_address) = gateway {
+        parsed_address
+    } else {
+        return Err(report!(Error::GatewayAddress));
+    };
 
     let domain_separator: Option<[u8; 32]> = rpc_client.domain_separator(&gateway_address).await;
 

@@ -10,4 +10,6 @@ pub enum Error {
     TaskGroup,
     #[error("Error fetching domain separator")]
     DomainSeparator,
+    #[error("Error parsing gateway address")]
+    GatewayAddress,
 }
