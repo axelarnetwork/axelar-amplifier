@@ -17,7 +17,6 @@ pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
 mod solana;
-pub mod stellar;
 pub mod sui;
 mod tm_client;
 mod tofnd;
@@ -47,9 +46,6 @@ const PREFIX: &str = "axelar";
 
 lazy_static! {
     static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
-    static ref MULTIVERSX_CHAIN_NAME: ChainName = chain_name!("multiversx");
-    static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
-    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
 }
 
 #[cfg(feature = "config")]

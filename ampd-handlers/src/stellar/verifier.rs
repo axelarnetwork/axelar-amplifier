@@ -6,9 +6,9 @@ use stellar::WeightedSigners;
 use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
 use tracing::debug;
 
-use crate::handlers::stellar_verify_msg::Message;
-use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use crate::stellar::rpc_client::TxResponse;
+use crate::stellar::types::Message;
+use crate::stellar::types::VerifierSetConfirmation;
 
 const TOPIC_CONTRACT_CALLED: &str = "contract_called";
 const TOPIC_SIGNERS_ROTATED: &str = "signers_rotated";
@@ -158,14 +158,15 @@ mod test {
         PublicKey, ScAddress, ScBytes, ScString, ScSymbol, ScVal, StringM, Uint256,
     };
 
-    use crate::handlers::stellar_verify_msg::Message;
-    use crate::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
     use crate::stellar::rpc_client::TxResponse;
+    use crate::stellar::types::Message;
+    use crate::stellar::types::VerifierSetConfirmation;
     use crate::stellar::verifier::{
         verify_message, verify_verifier_set, TOPIC_CONTRACT_CALLED, TOPIC_SIGNERS_ROTATED,
     };
-    use crate::types::{CosmosPublicKey, EVMAddress, Hash};
-    use crate::PREFIX;
+    use ampd::types::{CosmosPublicKey, EVMAddress, Hash};
+
+    const PREFIX: &str = "axelar";
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {

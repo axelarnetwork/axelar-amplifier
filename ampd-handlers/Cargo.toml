@@ -54,6 +54,8 @@ router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
+stellar = { workspace = true }
+stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
@@ -78,6 +80,7 @@ ampd-handlers = { path = ".", features = ["test-utils"] }
 ampd-sdk = { workspace = true, features = ["test-utils"] }
 base64 = { workspace = true }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
+ed25519-dalek = { workspace = true }
 event-verifier = { workspace = true }
 goldie = { workspace = true }
 k256 = { workspace = true }

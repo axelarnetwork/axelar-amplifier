@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
+use ampd::monitoring;
+use ampd::monitoring::metrics::Msg;
+use ampd::url::Url;
 use async_trait::async_trait;
 use error_stack::{report, ResultExt};
 use futures::future::join_all;
@@ -10,10 +13,6 @@ use stellar_rpc_client::GetTransactionResponse;
 use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta};
 use thiserror::Error;
 use tracing::warn;
-
-use crate::monitoring;
-use crate::monitoring::metrics::Msg;
-use crate::url::Url;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -226,7 +225,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::monitoring::test_utils;
+    use ampd::monitoring::test_utils;
 
     fn create_mock_contract_event(data: u32) -> ContractEvent {
         ContractEvent {

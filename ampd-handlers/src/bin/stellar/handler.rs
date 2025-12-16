@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use ampd::handlers::stellar_verify_msg::Message;
-use ampd::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::stellar::rpc_client::{StellarClient, TxResponse};
-use ampd::stellar::verifier::{verify_message, verify_verifier_set};
+use ampd_handlers::stellar::rpc_client::{StellarClient, TxResponse};
+use ampd_handlers::stellar::types::Message;
+use ampd_handlers::stellar::types::VerifierSetConfirmation;
+use ampd_handlers::stellar::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -261,8 +261,8 @@ mod tests {
     use std::convert::TryInto;
 
     use ampd::monitoring;
-    use ampd::stellar::rpc_client::MockStellarClient;
     use ampd::types::TMAddress;
+    use ampd_handlers::stellar::rpc_client::MockStellarClient;
     use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
@@ -394,7 +394,7 @@ mod tests {
         let mut rpc_client = MockStellarClient::new();
         rpc_client
             .expect_transaction_responses()
-            .returning(|_| Err(ampd::stellar::rpc_client::Error::TxHash.into()));
+            .returning(|_| Err(ampd_handlers::stellar::rpc_client::Error::TxHash.into()));
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -495,7 +495,7 @@ mod tests {
         let mut rpc_client = MockStellarClient::new();
         rpc_client
             .expect_transaction_responses()
-            .returning(|_| Err(ampd::stellar::rpc_client::Error::TxHash.into()));
+            .returning(|_| Err(ampd_handlers::stellar::rpc_client::Error::TxHash.into()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);

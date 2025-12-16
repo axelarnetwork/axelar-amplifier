@@ -43,16 +43,6 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         chain_name: ChainName,
     },
-    StellarMsgVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        rpc_url: Url,
-    },
-    StellarVerifierSetVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        rpc_url: Url,
-    },
     SolanaMsgVerifier {
         chain_name: ChainName,
         cosmwasm_contract: TMAddress,
@@ -101,16 +91,6 @@ where
         &configs,
         Config::SuiVerifierSetVerifier,
         "Sui verifier set verifier"
-    )?;
-    ensure_unique_config!(
-        &configs,
-        Config::StellarMsgVerifier,
-        "Stellar message verifier"
-    )?;
-    ensure_unique_config!(
-        &configs,
-        Config::StellarVerifierSetVerifier,
-        "Stellar verifier set verifier"
     )?;
     ensure_unique_config!(
         &configs,
@@ -176,40 +156,6 @@ mod tests {
         assert!(
             matches!(deserialize_handler_configs(to_value(configs).unwrap()),
                 Err(e) if e.to_string().contains("only one Sui verifier set verifier config is allowed")
-            )
-        );
-
-        let configs = vec![
-            Config::StellarMsgVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-            },
-            Config::StellarMsgVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Stellar message verifier config is allowed")
-            )
-        );
-
-        let configs = vec![
-            Config::StellarVerifierSetVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-            },
-            Config::StellarVerifierSetVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Stellar verifier set verifier config is allowed")
             )
         );
 
