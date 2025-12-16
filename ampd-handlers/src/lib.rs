@@ -1,6 +1,7 @@
 pub mod evm;
 pub mod multisig;
 pub mod stellar;
+pub mod sui;
 pub mod tracing;
 pub mod voting;
 

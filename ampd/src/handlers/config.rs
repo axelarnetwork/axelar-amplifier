@@ -17,20 +17,6 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         chain_name: ChainName,
     },
-    SuiMsgVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        rpc_url: Url,
-        #[serde(default, with = "humantime_serde::option")]
-        rpc_timeout: Option<Duration>,
-    },
-    SuiVerifierSetVerifier {
-        cosmwasm_contract: TMAddress,
-        #[serde(deserialize_with = "Url::deserialize_sensitive")]
-        rpc_url: Url,
-        #[serde(default, with = "humantime_serde::option")]
-        rpc_timeout: Option<Duration>,
-    },
     XRPLMsgVerifier {
         cosmwasm_contract: TMAddress,
         chain_name: ChainName,
@@ -86,12 +72,6 @@ where
     let configs: Vec<Config> = Deserialize::deserialize(deserializer)?;
 
     ensure_unique_config!(&configs, Config::XRPLMsgVerifier, "XRPL message verifier")?;
-    ensure_unique_config!(&configs, Config::SuiMsgVerifier, "Sui message verifier")?;
-    ensure_unique_config!(
-        &configs,
-        Config::SuiVerifierSetVerifier,
-        "Sui verifier set verifier"
-    )?;
     ensure_unique_config!(
         &configs,
         Config::SolanaMsgVerifier,
@@ -121,44 +101,6 @@ mod tests {
 
     #[test]
     fn unique_config_validation() {
-        let configs = vec![
-            Config::SuiMsgVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-                rpc_timeout: None,
-            },
-            Config::SuiMsgVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-                rpc_timeout: None,
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Sui message verifier config is allowed")
-            )
-        );
-
-        let configs = vec![
-            Config::SuiVerifierSetVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-                rpc_timeout: None,
-            },
-            Config::SuiVerifierSetVerifier {
-                cosmwasm_contract: TMAddress::random(PREFIX),
-                rpc_url: Url::new_non_sensitive("http://localhost:7545/").unwrap(),
-                rpc_timeout: None,
-            },
-        ];
-
-        assert!(
-            matches!(deserialize_handler_configs(to_value(configs).unwrap()),
-                Err(e) if e.to_string().contains("only one Sui verifier set verifier config is allowed")
-            )
-        );
-
         let sample_config = Config::SolanaMsgVerifier {
             chain_name: chain_name!(SOLANA),
             cosmwasm_contract: TMAddress::random(PREFIX),

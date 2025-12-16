@@ -1,12 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use ampd::json_rpc::Client;
 use async_trait::async_trait;
 use ethers_providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
 use sui_json_rpc_types::{SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions};
 use sui_types::digests::TransactionDigest;
-
-use crate::json_rpc::Client;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
 

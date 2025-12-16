@@ -17,7 +17,6 @@ pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
 mod solana;
-pub mod sui;
 mod tm_client;
 mod tofnd;
 pub mod types;
@@ -31,7 +30,6 @@ use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcast::MsgQueue;
 use error_stack::{FutureExt, Result, ResultExt};
-use lazy_static::lazy_static;
 use router_api::{chain_name, ChainName};
 use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
@@ -43,10 +41,6 @@ use types::CosmosPublicKey;
 use crate::config::Config;
 
 const PREFIX: &str = "axelar";
-
-lazy_static! {
-    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
-}
 
 #[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {

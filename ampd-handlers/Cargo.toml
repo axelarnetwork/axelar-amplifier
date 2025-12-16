@@ -30,6 +30,7 @@ ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
+bcs = { workspace = true }
 clap = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
@@ -48,6 +49,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime-serde = { workspace = true }
 mockall = { workspace = true }
+move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
 reqwest = { version = "0.11.24", default-features = false }
 router-api = { workspace = true }
@@ -57,6 +59,7 @@ serde_with = { workspace = true }
 stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
+sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 tendermint = { workspace = true, optional = true }
@@ -86,6 +89,7 @@ goldie = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
 rand = { workspace = true }
+random-string = { workspace = true }
 
 [lints]
 workspace = true

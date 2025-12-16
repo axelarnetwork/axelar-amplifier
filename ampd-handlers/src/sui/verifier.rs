@@ -9,8 +9,8 @@ use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 use tracing::debug;
 
-use crate::handlers::sui_verify_msg::Message;
-use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
+use crate::sui::types::Message;
+use crate::sui::types::VerifierSetConfirmation;
 
 enum EventType {
     ContractCall,
@@ -164,11 +164,12 @@ mod tests {
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use sui_types::event::EventID;
 
-    use crate::handlers::sui_verify_msg::Message;
-    use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
+    use crate::sui::types::Message;
+    use crate::sui::types::VerifierSetConfirmation;
     use crate::sui::verifier::{verify_message, verify_verifier_set};
-    use crate::types::{CosmosPublicKey, EVMAddress, Hash};
-    use crate::PREFIX;
+    use ampd::types::{CosmosPublicKey, EVMAddress, Hash};
+
+    const PREFIX: &str = "axelar";
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {
