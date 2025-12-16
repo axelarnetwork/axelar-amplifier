@@ -24,6 +24,7 @@ use solana_sdk::signature::Signature;
 use typed_builder::TypedBuilder;
 
 pub type Result<T> = error_stack::Result<T, Error>;
+pub type DomainSeparator = [u8; 32];
 
 #[derive(Clone, Debug, Deserialize)]
 #[try_from("wasm-messages_poll_started")]
@@ -60,6 +61,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = Base58SolanaTxSignatureAndEventIndex;
     type ChainAddress = Pubkey;
     type Receipt = SolanaTransaction;
+    type ContextData = DomainSeparator;
 
     fn tx_hash(&self) -> Self::Digest {
         match self {
@@ -77,22 +79,22 @@ impl voting::PollEventData for PollEventData {
         }
     }
 
-    fn verify(&self, source_gateway_address: &Pubkey, tx_receipt: &SolanaTransaction) -> Vote {
+    fn verify(
+        &self,
+        source_gateway_address: &Pubkey,
+        tx_receipt: &SolanaTransaction,
+        domain_separator: &DomainSeparator,
+    ) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(tx_receipt, message, source_gateway_address)
             }
-            PollEventData::VerifierSet(verifier_set) => {
-                // TODO: fix domain_separator
-                let domain_separator: [u8; 32] = [42; 32];
-
-                verify_verifier_set(
-                    tx_receipt,
-                    verifier_set,
-                    &domain_separator,
-                    source_gateway_address,
-                )
-            }
+            PollEventData::VerifierSet(verifier_set) => verify_verifier_set(
+                tx_receipt,
+                verifier_set,
+                domain_separator,
+                source_gateway_address,
+            ),
         }
     }
 }
@@ -166,7 +168,7 @@ where
     pub voting_verifier_contract: AccountId,
     pub chain: ChainName,
     pub gateway_address: Pubkey,
-    pub domain_separator: [u8; 32],
+    pub domain_separator: DomainSeparator,
     pub rpc_client: C,
     pub monitoring_client: monitoring::Client,
 }
@@ -180,9 +182,14 @@ where
     type Receipt = SolanaTransaction;
     type ChainAddress = Pubkey;
     type EventData = PollEventData;
+    type ContextData = DomainSeparator;
 
     fn chain(&self) -> &ChainName {
         &self.chain
+    }
+
+    fn context_data(&self) -> &Self::ContextData {
+        &self.domain_separator
     }
 
     fn verifier(&self) -> &AccountId {
