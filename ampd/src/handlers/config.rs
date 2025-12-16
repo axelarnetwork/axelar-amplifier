@@ -92,7 +92,6 @@ mod tests {
     use serde_json::to_value;
 
     use crate::handlers::config::{deserialize_handler_configs, Config};
-    use crate::types::debug::REDACTED_VALUE;
     use crate::types::TMAddress;
     use crate::url::Url;
     use crate::PREFIX;

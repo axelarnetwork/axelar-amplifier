@@ -30,7 +30,7 @@ use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcast::MsgQueue;
 use error_stack::{FutureExt, Result, ResultExt};
-use router_api::{chain_name, ChainName};
+use router_api::ChainName;
 use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
