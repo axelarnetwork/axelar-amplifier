@@ -82,8 +82,8 @@ interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
 its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
-its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
+its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
