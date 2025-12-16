@@ -8,4 +8,14 @@ pub enum Error {
     HandlerTask,
     #[error("task group execution failed")]
     TaskGroup,
+    #[error("failed to convert public key")]
+    PublicKey,
+    #[error("failed to handle event")]
+    EventHandling,
+    #[error("failed to prepare message for signing")]
+    MessageToSign,
+    #[error("failed to get signature from tofnd")]
+    Sign,
+    #[error("failed to get key id")]
+    KeyId,
 }
