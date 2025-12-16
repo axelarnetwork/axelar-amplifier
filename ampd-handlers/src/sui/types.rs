@@ -1,7 +1,7 @@
 use ampd::types::Hash;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
 use multisig::verifier_set::VerifierSet;
-use router_api::ChainName;
 use serde::Deserialize;
 use sui_types::base_types::SuiAddress;
 

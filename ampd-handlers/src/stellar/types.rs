@@ -1,6 +1,6 @@
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use multisig::verifier_set::VerifierSet;
-use router_api::ChainName;
 use serde::Deserialize;
 use serde_with::{serde_as, DisplayFromStr};
 use stellar_xdr::curr::{ScAddress, ScBytes, ScString};

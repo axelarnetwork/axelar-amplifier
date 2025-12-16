@@ -1,10 +1,10 @@
 use ampd::types::EVMAddress;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::Vote;
 use ethers_contract::EthLogDecode;
 use ethers_core::types::{Log, Transaction, TransactionReceipt, H160, H256};
 use event_verifier_api::evm::{Event, EvmEvent, TransactionDetails};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
-use router_api::ChainName;
 use tracing::debug;
 
 use crate::evm::types::Message;

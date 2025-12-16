@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::Vote;
-use router_api::ChainName;
 use stellar::WeightedSigners;
 use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol, ScVal, StringM};
 use tracing::debug;
@@ -142,6 +142,7 @@ fn verify<'a>(
 mod test {
     use std::str::FromStr;
 
+    use axelar_wasm_std::chain_name;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmrs::tx::MessageExt;
@@ -151,7 +152,6 @@ mod test {
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
-    use router_api::chain_name;
     use stellar::WeightedSigners;
     use stellar_xdr::curr::{
         AccountId, BytesM, ContractEvent, ContractEventBody, ContractEventType, ContractEventV0,

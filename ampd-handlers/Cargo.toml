@@ -52,7 +52,6 @@ mockall = { workspace = true }
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
 reqwest = { version = "0.11.24", default-features = false }
-router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }

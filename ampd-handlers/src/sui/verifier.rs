@@ -1,8 +1,8 @@
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::Vote;
 use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
 use move_core_types::language_storage::StructTag;
-use router_api::ChainName;
 use sui_gateway::events::{ContractCall, SignersRotated};
 use sui_gateway::{WeightedSigner, WeightedSigners};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
