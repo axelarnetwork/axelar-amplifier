@@ -198,11 +198,12 @@ pub trait VotingHandler: EventHandler {
             let votes: Vec<_> = poll_data
                 .iter()
                 .map(|data| {
-                    finalized_tx_receipts
-                        .get(&data.tx_hash())
-                        .map_or(Vote::NotFound, |tx_receipt| {
+                    finalized_tx_receipts.get(&data.tx_hash()).map_or(
+                        Vote::NotFound,
+                        |tx_receipt| {
                             data.verify(&source_gateway_address, tx_receipt, self.context_data())
-                        })
+                        },
+                    )
                 })
                 .inspect(|vote| {
                     self.monitoring_client().metrics().record_metric(

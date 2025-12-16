@@ -167,7 +167,9 @@ where
         &self.chain
     }
 
-    fn context_data(&self) -> &Self::ContextData { &() }
+    fn context_data(&self) -> &Self::ContextData {
+        &()
+    }
 
     fn verifier(&self) -> &AccountId {
         &self.verifier

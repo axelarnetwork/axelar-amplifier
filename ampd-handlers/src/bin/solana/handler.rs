@@ -80,23 +80,21 @@ impl voting::PollEventData for PollEventData {
     }
 
     fn verify(
-        &self, 
-        source_gateway_address: &Pubkey, 
-        tx_receipt: &SolanaTransaction, 
-        domain_separator: &DomainSeparator
+        &self,
+        source_gateway_address: &Pubkey,
+        tx_receipt: &SolanaTransaction,
+        domain_separator: &DomainSeparator,
     ) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(tx_receipt, message, source_gateway_address)
             }
-            PollEventData::VerifierSet(verifier_set) => {
-                verify_verifier_set(
-                    tx_receipt,
-                    verifier_set,
-                    domain_separator,
-                    source_gateway_address,
-                )
-            }
+            PollEventData::VerifierSet(verifier_set) => verify_verifier_set(
+                tx_receipt,
+                verifier_set,
+                domain_separator,
+                source_gateway_address,
+            ),
         }
     }
 }
