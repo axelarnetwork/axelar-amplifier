@@ -542,11 +542,7 @@ mod tests {
 
         let source_gateway_address = axelar_solana_gateway::ID;
         let voting_verifier_contract = TMAddress::random(PREFIX);
-
-        // Step 1: Create the VerifierSet PollStarted event
         let poll_started = verifier_set_poll_started_event(participants(5, None), 100);
-
-        // Step 2: Convert to cosmwasm_std::Event
         let cosmwasm_event: cosmwasm_std::Event = poll_started.into();
 
         // Verify the source_gateway_address attribute
@@ -557,7 +553,6 @@ mod tests {
             .expect("source_gateway_address attribute should exist");
         assert_eq!(gateway_attr.value, source_gateway_address.to_string());
 
-        // Step 3: Simulate ABCI event creation
         let abci_event = abci::Event::new(
             format!("wasm-{}", cosmwasm_event.ty),
             cosmwasm_event
@@ -569,13 +564,9 @@ mod tests {
                     voting_verifier_contract.to_string(),
                 ))),
         );
-
-        // Step 4: Convert to events::Event
         let event: events::Event = abci_event
             .try_into()
             .expect("should convert ABCI event to events::Event");
-
-        // Step 5: Deserialize into PollStartedEvent
         let poll_started_event: PollStartedEvent = event
             .try_into()
             .expect("should deserialize PollStartedEvent from events::Event");
