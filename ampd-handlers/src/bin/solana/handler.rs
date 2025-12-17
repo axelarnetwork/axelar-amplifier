@@ -245,12 +245,12 @@ where
         let (source_gateway_address, poll_id) = match event {
             PollStartedEvent::Messages(ref message) => {
                 (&message.source_gateway_address, &message.poll_id)
-            },
+            }
             PollStartedEvent::VerifierSet(ref verifier_set) => {
                 (&verifier_set.source_gateway_address, &verifier_set.poll_id)
-            },
+            }
         };
-        
+
         // Validate that the source gateway address matches the configured gateway address
         if *source_gateway_address != self.gateway_address.to_string() {
             info!(
