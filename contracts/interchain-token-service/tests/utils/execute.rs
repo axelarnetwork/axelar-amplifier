@@ -60,8 +60,7 @@ pub fn make_deps() -> OwnedDeps<MemoryStorage, MockApi, MockQuerier<AxelarQueryM
     let mut querier = MockQuerier::<AxelarQueryMsg>::new(&[]);
     querier.update_wasm(move |msg| match msg {
         WasmQuery::Smart { contract_addr, msg } if contract_addr == &addr.to_string() => {
-            let msg: axelarnet_gateway::msg::QueryMsg =
-                from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
+            let msg = from_json::<axelarnet_gateway::msg::QueryMsg>(msg).unwrap();
             match msg {
                 axelarnet_gateway::msg::QueryMsg::ChainName => {
                     Ok(to_json_binary(&chain_name!(params::AXELAR)).into()).into()
