@@ -591,7 +591,7 @@ mod tests {
 
                 tokio::spawn(async move {
                     for _ in 0..msg_count_per_client {
-                        let _ = msg_queue_client_clone.enqueue(dummy_msg()).await.unwrap();
+                        let _rx = msg_queue_client_clone.enqueue(dummy_msg()).await.unwrap();
                     }
                 })
             })
@@ -720,7 +720,7 @@ mod tests {
         );
         tokio::pin!(msg_queue);
 
-        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
 
         let start = time::Instant::now();
         let actual = msg_queue.next().await.unwrap();
@@ -794,7 +794,7 @@ mod tests {
         });
 
         for _ in 0..msg_count {
-            let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+            let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         }
         handle.await.unwrap();
     }
@@ -883,8 +883,8 @@ mod tests {
             monitoring_client,
         );
         tokio::pin!(msg_queue);
-        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
-        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
@@ -949,7 +949,7 @@ mod tests {
         );
         tokio::pin!(msg_queue);
 
-        let _ = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
 
         drop(msg_queue_client);
         assert!(msg_queue.next().await.is_none());
