@@ -32,7 +32,8 @@ pub type DomainSeparator = [u8; 32];
 pub struct MessagesPollStarted {
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: String,
+    #[serde(deserialize_with = "ampd::solana::deserialize_pubkey")]
+    source_gateway_address: Pubkey,
     confirmation_height: u64,
     expires_at: u64,
     messages: Vec<Message>,
@@ -45,7 +46,8 @@ pub struct VerifierSetPollStarted {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: String,
+    #[serde(deserialize_with = "ampd::solana::deserialize_pubkey")]
+    source_gateway_address: Pubkey,
     expires_at: u64,
     confirmation_height: u64,
     participants: Vec<AccountId>,
@@ -136,11 +138,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                     .collect(),
                 poll_id: message_event.poll_id,
                 source_chain: message_event.source_chain,
-                source_gateway_address: message_event
-                    .source_gateway_address
-                    .parse()
-                    // default is unreachable since gateway check would fail on startup
-                    .unwrap_or_default(),
+                source_gateway_address: message_event.source_gateway_address,
                 expires_at: message_event.expires_at,
                 confirmation_height: Some(message_event.confirmation_height),
                 participants: message_event.participants,
@@ -149,11 +147,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                 poll_data: vec![PollEventData::VerifierSet(verifier_set_event.verifier_set)],
                 poll_id: verifier_set_event.poll_id,
                 source_chain: verifier_set_event.source_chain,
-                source_gateway_address: verifier_set_event
-                    .source_gateway_address
-                    .parse()
-                    // default is unreachable since gateway check would fail on startup
-                    .unwrap_or_default(),
+                source_gateway_address: verifier_set_event.source_gateway_address,
                 expires_at: verifier_set_event.expires_at,
                 confirmation_height: Some(verifier_set_event.confirmation_height),
                 participants: verifier_set_event.participants,
@@ -254,7 +248,7 @@ where
         };
 
         // Validate that the source gateway address matches the configured gateway address
-        if *source_gateway_address != self.gateway_address.to_string() {
+        if *source_gateway_address != self.gateway_address {
             info!(
                 poll_id = poll_id.to_string(),
                 expected_gateway = %self.gateway_address,
@@ -471,6 +465,131 @@ mod tests {
         .unwrap();
 
         goldie::assert_debug!(event);
+    }
+
+    /// This test simulates the full event flow as it would happen in production:
+    /// 1. voting-verifier contract emits a PollStarted event with source_gateway_address as a Solana Pubkey string
+    /// 2. The event gets serialized to JSON and emitted as ABCI event attributes
+    /// 3. ampd receives the ABCI event and converts it to events::Event
+    /// 4. The handler's TryFrom<Event> deserializes the PollStartedEvent
+    ///
+    /// This verifies that the Solana Pubkey survives the full serialization round-trip.
+    #[test]
+    fn should_deserialize_poll_started_event_from_raw_abci_event_attributes() {
+        use std::convert::TryInto;
+        use tendermint::abci;
+
+        let source_gateway_address = axelar_solana_gateway::ID;
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+
+        // Step 1: Create the PollStarted event as the voting-verifier contract would emit it
+        let poll_started = message_poll_started_event(participants(5, None), 100);
+
+        // Step 2: Convert to cosmwasm_std::Event (this is what the contract returns)
+        let cosmwasm_event: cosmwasm_std::Event = poll_started.into();
+
+        // Verify the source_gateway_address is the Solana pubkey we expect
+        let gateway_attr = cosmwasm_event
+            .attributes
+            .iter()
+            .find(|attr| attr.key == "source_gateway_address")
+            .expect("source_gateway_address attribute should exist");
+        assert_eq!(gateway_attr.value, source_gateway_address.to_string());
+
+        // Step 3: Simulate what happens when the event goes through the ABCI layer
+        // The event type gets prefixed with "wasm-" and contract address is added
+        let abci_event = abci::Event::new(
+            format!("wasm-{}", cosmwasm_event.ty),
+            cosmwasm_event
+                .attributes
+                .into_iter()
+                .map(|attr| (attr.key, attr.value))
+                .chain(std::iter::once((
+                    "_contract_address".to_string(),
+                    voting_verifier_contract.to_string(),
+                ))),
+        );
+
+        // Step 4: Convert to events::Event (as ampd does when receiving from the chain)
+        let event: events::Event = abci_event
+            .try_into()
+            .expect("should convert ABCI event to events::Event");
+
+        // Step 5: Deserialize into PollStartedEvent (as the handler does)
+        let poll_started_event: PollStartedEvent = event
+            .try_into()
+            .expect("should deserialize PollStartedEvent from events::Event");
+
+        // Verify the event was correctly deserialized
+        match poll_started_event {
+            PollStartedEvent::Messages(msg_event) => {
+                // The source_gateway_address should match the original Solana pubkey
+                assert_eq!(msg_event.source_gateway_address, source_gateway_address);
+                assert_eq!(msg_event.source_chain.to_string(), "solana");
+                assert_eq!(msg_event.messages.len(), 2);
+            }
+            PollStartedEvent::VerifierSet(_) => {
+                panic!("Expected Messages variant, got VerifierSet");
+            }
+        }
+    }
+
+    /// Same as above but for VerifierSetPollStarted events
+    #[test]
+    fn should_deserialize_verifier_set_poll_started_event_from_raw_abci_event_attributes() {
+        use std::convert::TryInto;
+        use tendermint::abci;
+
+        let source_gateway_address = axelar_solana_gateway::ID;
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+
+        // Step 1: Create the VerifierSet PollStarted event
+        let poll_started = verifier_set_poll_started_event(participants(5, None), 100);
+
+        // Step 2: Convert to cosmwasm_std::Event
+        let cosmwasm_event: cosmwasm_std::Event = poll_started.into();
+
+        // Verify the source_gateway_address attribute
+        let gateway_attr = cosmwasm_event
+            .attributes
+            .iter()
+            .find(|attr| attr.key == "source_gateway_address")
+            .expect("source_gateway_address attribute should exist");
+        assert_eq!(gateway_attr.value, source_gateway_address.to_string());
+
+        // Step 3: Simulate ABCI event creation
+        let abci_event = abci::Event::new(
+            format!("wasm-{}", cosmwasm_event.ty),
+            cosmwasm_event
+                .attributes
+                .into_iter()
+                .map(|attr| (attr.key, attr.value))
+                .chain(std::iter::once((
+                    "_contract_address".to_string(),
+                    voting_verifier_contract.to_string(),
+                ))),
+        );
+
+        // Step 4: Convert to events::Event
+        let event: events::Event = abci_event
+            .try_into()
+            .expect("should convert ABCI event to events::Event");
+
+        // Step 5: Deserialize into PollStartedEvent
+        let poll_started_event: PollStartedEvent = event
+            .try_into()
+            .expect("should deserialize PollStartedEvent from events::Event");
+
+        // Verify the event was correctly deserialized
+        match poll_started_event {
+            PollStartedEvent::VerifierSet(vs_event) => {
+                assert_eq!(vs_event.source_gateway_address, source_gateway_address);
+                assert_eq!(vs_event.source_chain.to_string(), "solana");
+            }
+            PollStartedEvent::Messages(_) => {
+                panic!("Expected VerifierSet variant, got Messages");
+            }
+        }
     }
 
     // Should not handle event if it is not emitted from voting verifier
