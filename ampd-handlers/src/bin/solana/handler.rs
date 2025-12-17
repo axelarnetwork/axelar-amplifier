@@ -639,10 +639,7 @@ mod tests {
         } = event_data
         {
             // Using Pubkey::default() panics when processing the event
-            metadata.source_gateway_address = Pubkey::default()
-                .to_string()
-                .parse()
-                .unwrap();
+            metadata.source_gateway_address = Pubkey::default().to_string().parse().unwrap();
         }
 
         let event = into_structured_event(event_data, &voting_verifier);
