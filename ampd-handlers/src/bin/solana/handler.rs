@@ -139,8 +139,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                 source_gateway_address: message_event
                     .source_gateway_address
                     .parse()
-                    // Pubkey::default() panics, see test [`should_panic_with_pubkey_default_as_gateway`]
-                    // but default is unreachable since gateway check would fail on startup
+                    // default is unreachable since gateway check would fail on startup
                     .unwrap_or_default(),
                 expires_at: message_event.expires_at,
                 confirmation_height: Some(message_event.confirmation_height),
@@ -153,8 +152,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Pubkey> 
                 source_gateway_address: verifier_set_event
                     .source_gateway_address
                     .parse()
-                    // Pubkey::default() panics, see test [`should_panic_with_pubkey_default_as_gateway`]
-                    // but default is unreachable since gateway check would fail on startupc
+                    // default is unreachable since gateway check would fail on startup
                     .unwrap_or_default(),
                 expires_at: verifier_set_event.expires_at,
                 confirmation_height: Some(verifier_set_event.confirmation_height),
@@ -664,7 +662,7 @@ mod tests {
         let mut client = mock_handler_client(expiration - 1);
 
         // Panics with the following report:
-        // thread 'handler::tests::should_panic_with_pubkey_default_as_gateway' panicked at ampd-handlers/src/bin/solana/handler.rs:675:38:
+        // thread 'handler::tests::should_panic_with_pubkey_default_as_gateway' panicked at ampd-handlers/src/bin/solana/handler.rs:669:38:
         // called `Result::unwrap()` on an `Err` value: event does not match event type `wasm-messages_poll_started/wasm-verifier_set_poll_started`
         // at ampd-handlers/src/bin/solana/handler.rs:123:14
         handler
