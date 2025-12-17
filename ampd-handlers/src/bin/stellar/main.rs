@@ -4,11 +4,12 @@ mod handler;
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd::stellar::rpc_client::Client;
 use ampd::url::Url;
-use ampd_handlers::multisig;
 use ampd_handlers::tracing::init_tracing;
+use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;
 use axelar_wasm_std::chain::ChainName;
+use clap::Parser;
 #[cfg(debug_assertions)]
 use dotenv_flow::dotenv_flow;
 use error_stack::{Result, ResultExt};
@@ -83,14 +84,16 @@ async fn main() -> Result<(), Error> {
     #[cfg(debug_assertions)]
     dotenv_flow().ok();
 
+    let args: Args = Args::parse();
     init_tracing(Level::INFO);
 
-    let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
+    let base_config = config::Config::from_default_sources(args.config_dir.clone())
+        .change_context(Error::HandlerStart)?;
 
-    let handler_config = config::Config::builder()
-        .add_file_source("stellar-handler-config.toml")
+    let handler_config = config::builder::<StellarHandlerConfig>()
+        .add_file_source(args.config_dir.join("stellar-handler-config.toml"))
         .add_env_source("AMPD_STELLAR_HANDLER")
-        .build::<StellarHandlerConfig>()
+        .build()
         .change_context(Error::HandlerStart)?;
 
     let token = CancellationToken::new();

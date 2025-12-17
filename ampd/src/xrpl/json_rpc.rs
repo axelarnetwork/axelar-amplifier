@@ -9,6 +9,7 @@ use crate::monitoring::metrics::Msg;
 
 type Result<T> = error_stack::Result<T, error::Error>;
 
+#[derive(Debug)]
 pub struct Client {
     client: XrplHttpClient,
     monitoring_client: monitoring::Client,

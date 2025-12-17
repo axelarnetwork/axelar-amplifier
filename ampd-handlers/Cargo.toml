@@ -17,11 +17,16 @@ path = "src/bin/stellar/main.rs"
 name = "sui-handler"
 path = "src/bin/sui/main.rs"
 
+[[bin]]
+name = "xrpl-handler"
+path = "src/bin/xrpl/main.rs"
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
+clap = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
 dotenv = "0.15.0"
@@ -55,6 +60,8 @@ tracing-subscriber = { workspace = true }
 typed-builder = { workspace = true }
 valuable = { version = "0.1.0", features = ["derive"] }
 voting-verifier = { workspace = true }
+xrpl-types = { workspace = true }
+xrpl_http_client = { workspace = true }
 
 [dev-dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url", "test-utils"] }

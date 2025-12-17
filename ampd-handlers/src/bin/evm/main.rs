@@ -8,10 +8,11 @@ use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd::evm::finalizer::Finalization;
 use ampd::json_rpc;
 use ampd::url::Url;
-use ampd_handlers::multisig;
+use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;
 use axelar_wasm_std::chain::ChainName;
+use clap::Parser;
 #[cfg(debug_assertions)]
 use dotenv_flow::dotenv_flow;
 use error_stack::{Result, ResultExt};
@@ -174,14 +175,16 @@ async fn main() -> Result<(), Error> {
     #[cfg(debug_assertions)]
     dotenv_flow().ok();
 
+    let args: Args = Args::parse();
     ampd_handlers::tracing::init_tracing(Level::INFO);
 
-    let base_config = config::Config::from_default_sources().change_context(Error::HandlerStart)?;
+    let base_config = config::Config::from_default_sources(args.config_dir.clone())
+        .change_context(Error::HandlerStart)?;
 
-    let handler_config = config::Config::builder()
-        .add_file_source("evm-handler-config.toml")
+    let handler_config = config::builder::<EvmHandlerConfig>()
+        .add_file_source(args.config_dir.join("evm-handler-config.toml"))
         .add_env_source("AMPD_EVM_HANDLER")
-        .build::<EvmHandlerConfig>()
+        .build()
         .change_context(Error::HandlerStart)?;
 
     if !(handler_config.gmp_handler_enabled || handler_config.event_verifier_handler_enabled) {

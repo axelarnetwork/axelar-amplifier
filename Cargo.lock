@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.13.0"
+version = "1.14.1"
 dependencies = [
  "ampd-proto",
  "anchor-lang",
@@ -354,6 +354,7 @@ dependencies = [
  "async-trait",
  "axelar-wasm-std",
  "base64 0.21.7",
+ "clap",
  "cosmrs",
  "cosmwasm-std",
  "dotenv",
@@ -390,6 +391,8 @@ dependencies = [
  "typed-builder",
  "valuable",
  "voting-verifier",
+ "xrpl-types",
+ "xrpl_http_client",
 ]
 
 [[package]]

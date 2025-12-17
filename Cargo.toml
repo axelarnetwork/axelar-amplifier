@@ -45,6 +45,7 @@ bcs = "0.1.5"
 bech32 = "0.11.0"
 borsh = { version = "1.6", features = ["derive"] }
 bs58 = "0.5.1"
+clap = { version = "4.2.7", features = ["derive", "cargo"] }
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
 const-str = "0.6.2"
@@ -140,6 +141,7 @@ valuable = "0.1.1"
 voting-verifier = { version = "^2.0.0", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
+xrpl_http_client = { version = "0.15.0" }
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
