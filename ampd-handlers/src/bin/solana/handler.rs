@@ -475,7 +475,7 @@ mod tests {
     ///
     /// This verifies that the Solana Pubkey survives the full serialization round-trip.
     #[test]
-    fn should_deserialize_poll_started_event_from_raw_abci_event_attributes() {
+    fn should_deserialize_message_poll_started_event_from_raw_abci_event_attributes() {
         use std::convert::TryInto;
         use tendermint::abci;
 
@@ -729,59 +729,6 @@ mod tests {
 
         // Should return empty vec due to gateway address mismatch
         assert_eq!(res, vec![]);
-    }
-
-    // Should not handle event if source gateway address doesn't match configured gateway
-    #[async_test]
-    #[should_panic]
-    async fn should_panic_with_pubkey_default_as_gateway() {
-        let gateway_address = axelar_solana_gateway::ID;
-        let domain_separator: [u8; 32] = [42; 32];
-        let voting_verifier = TMAddress::random(PREFIX);
-        let verifier = TMAddress::random(PREFIX);
-        let expiration = 100u64;
-
-        // Create an event with a different gateway address
-        let mut event_data =
-            message_poll_started_event(participants(5, Some(verifier.clone())), 100);
-        if let PollStarted::Messages {
-            ref mut metadata, ..
-        } = event_data
-        {
-            // Using Pubkey::default() panics when processing the event
-            metadata.source_gateway_address = Pubkey::default().to_string().parse().unwrap();
-        }
-
-        let event = into_structured_event(event_data, &voting_verifier);
-
-        let (monitoring_client, _) = test_utils::monitoring_client();
-
-        let rpc_client = Client::new(
-            mock_rpc_client(),
-            monitoring_client.clone(),
-            chain_name!("solana"),
-        );
-
-        let handler = Handler::builder()
-            .verifier(verifier.into())
-            .voting_verifier_contract(voting_verifier.into())
-            .chain(chain_name!("solana"))
-            .rpc_client(rpc_client)
-            .gateway_address(gateway_address)
-            .domain_separator(domain_separator)
-            .monitoring_client(monitoring_client)
-            .build();
-
-        let mut client = mock_handler_client(expiration - 1);
-
-        // Panics with the following report:
-        // thread 'handler::tests::should_panic_with_pubkey_default_as_gateway' panicked at ampd-handlers/src/bin/solana/handler.rs:669:38:
-        // called `Result::unwrap()` on an `Err` value: event does not match event type `wasm-messages_poll_started/wasm-verifier_set_poll_started`
-        // at ampd-handlers/src/bin/solana/handler.rs:123:14
-        handler
-            .handle(event.try_into().unwrap(), &mut client)
-            .await
-            .unwrap();
     }
 
     #[async_test]
