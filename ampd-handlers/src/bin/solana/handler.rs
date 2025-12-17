@@ -304,6 +304,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::convert::TryInto;
     use std::str::FromStr;
 
     use ampd::handlers::test_utils::{into_structured_event, participants};
@@ -318,6 +319,7 @@ mod tests {
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use router_api::address;
     use solana_client::nonblocking::rpc_client::RpcClient;
+    use tendermint::abci;
     use tokio::test as async_test;
     use voting_verifier::events::{
         PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation,
@@ -476,9 +478,6 @@ mod tests {
     /// This verifies that the Solana Pubkey survives the full serialization round-trip.
     #[test]
     fn should_deserialize_message_poll_started_event_from_raw_abci_event_attributes() {
-        use std::convert::TryInto;
-        use tendermint::abci;
-
         let source_gateway_address = axelar_solana_gateway::ID;
         let voting_verifier_contract = TMAddress::random(PREFIX);
 
@@ -537,9 +536,6 @@ mod tests {
     /// Same as above but for VerifierSetPollStarted events
     #[test]
     fn should_deserialize_verifier_set_poll_started_event_from_raw_abci_event_attributes() {
-        use std::convert::TryInto;
-        use tendermint::abci;
-
         let source_gateway_address = axelar_solana_gateway::ID;
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let poll_started = verifier_set_poll_started_event(participants(5, None), 100);
