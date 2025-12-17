@@ -21,6 +21,7 @@ use events::{try_from, Event, EventType};
 use serde::Deserialize;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
+use tracing::info;
 use typed_builder::TypedBuilder;
 
 pub type Result<T> = error_stack::Result<T, Error>;
@@ -241,6 +242,26 @@ where
         event: PollStartedEvent,
         client: &mut HC,
     ) -> Result<Vec<cosmrs::Any>> {
+        let (source_gateway_address, poll_id) = match event {
+            PollStartedEvent::Messages(ref message) => {
+                (&message.source_gateway_address, &message.poll_id)
+            },
+            PollStartedEvent::VerifierSet(ref verifier_set) => {
+                (&verifier_set.source_gateway_address, &verifier_set.poll_id)
+            },
+        };
+        
+        // Validate that the source gateway address matches the configured gateway address
+        if *source_gateway_address != self.gateway_address.to_string() {
+            info!(
+                poll_id = poll_id.to_string(),
+                expected_gateway = %self.gateway_address,
+                actual_gateway = %source_gateway_address,
+                "skipping poll due to gateway address mismatch"
+            );
+            return Ok(vec![]);
+        }
+
         VotingHandler::handle(self, event.into(), client).await
     }
 
@@ -492,8 +513,7 @@ mod tests {
 
     // Should not handle event if source gateway address doesn't match configured gateway
     #[async_test]
-    #[should_panic]
-    async fn should_fail_message_poll_with_mismatched_gateway_address() {
+    async fn should_skip_message_poll_with_mismatched_gateway_address() {
         let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
@@ -508,7 +528,7 @@ mod tests {
         } = event_data
         {
             // Use a different gateway address
-            metadata.source_gateway_address = "1111111111111111111111111111111111111111111"
+            metadata.source_gateway_address = "DpqbTera2sSAjwjJewqrXof5hzUzMdKUd4hsUvgxEMm8"
                 .parse()
                 .unwrap();
         }
@@ -535,18 +555,18 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        // panic: event does not match event type `wasm-messages_poll_started/wasm-verifier_set_poll_started`
-        // due to gateway address mismatch
-        handler
+        let res = handler
             .handle(event.try_into().unwrap(), &mut client)
             .await
             .unwrap();
+
+        // Should return empty vec due to gateway address mismatch
+        assert_eq!(res, vec![]);
     }
 
     // Should not handle event if source gateway address doesn't match configured gateway
     #[async_test]
-    #[should_panic]
-    async fn should_fail_verifier_poll_with_mismatched_gateway_address() {
+    async fn should_skip_verifier_poll_with_mismatched_gateway_address() {
         let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
@@ -561,7 +581,7 @@ mod tests {
         } = event_data
         {
             // Use a different gateway address
-            metadata.source_gateway_address = "1111111111111111111111111111111111111111111"
+            metadata.source_gateway_address = "DpqbTera2sSAjwjJewqrXof5hzUzMdKUd4hsUvgxEMm8"
                 .parse()
                 .unwrap();
         }
@@ -588,12 +608,13 @@ mod tests {
 
         let mut client = mock_handler_client(expiration - 1);
 
-        // panic: event does not match event type `wasm-messages_poll_started/wasm-verifier_set_poll_started`
-        // due to gateway address mismatch
-        handler
+        let res = handler
             .handle(event.try_into().unwrap(), &mut client)
             .await
             .unwrap();
+
+        // Should return empty vec due to gateway address mismatch
+        assert_eq!(res, vec![]);
     }
 
     #[async_test]
