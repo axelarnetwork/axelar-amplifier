@@ -17,7 +17,7 @@ use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use cosmrs::AccountId;
 use error_stack::{Report, ResultExt};
-use events::{try_from, Event, EventType};
+use events::{try_from, AbciEventTypeFilter, Event, EventType};
 use serde::Deserialize;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
@@ -268,19 +268,22 @@ where
     }
 
     fn subscription_params(&self) -> SubscriptionParams {
-        use events::AbciEventTypeFilter;
+        let attributes = HashMap::from([(
+            "source_chain".to_string(),
+            serde_json::Value::String(self.chain.to_string()),
+        )]);
 
         SubscriptionParams::new(
             vec![
                 AbciEventTypeFilter {
                     event_type: MessagesPollStarted::event_type(),
                     contract: self.voting_verifier_contract.clone(),
-                    attributes: Default::default(),
+                    attributes: attributes.clone(),
                 },
                 AbciEventTypeFilter {
                     event_type: VerifierSetPollStarted::event_type(),
                     contract: self.voting_verifier_contract.clone(),
-                    attributes: Default::default(),
+                    attributes,
                 },
             ],
             false,
