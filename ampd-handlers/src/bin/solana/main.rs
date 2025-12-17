@@ -52,10 +52,6 @@ async fn build_handler(
 
     let gateway = Pubkey::from_str(&config.gateway_address);
     let gateway_address: Pubkey = if let Ok(parsed_address) = gateway {
-        // Solana system program ID is not a valid gateway address
-        if parsed_address == Pubkey::default() {
-            return Err(report!(Error::GatewayAddress));
-        }
         parsed_address
     } else {
         return Err(report!(Error::GatewayAddress));
