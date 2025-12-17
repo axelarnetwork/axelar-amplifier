@@ -45,7 +45,7 @@ async fn build_handler(
     config: SolanaHandlerConfig,
 ) -> Result<Handler<Client>, Error> {
     let rpc_client = Client::new(
-        RpcClient::new(config.rpc_url.to_string()),
+        RpcClient::new_with_timeout(config.rpc_url.to_string(), config.rpc_timeout),
         runtime.monitoring_client.clone(),
         chain_name.clone(),
     );
