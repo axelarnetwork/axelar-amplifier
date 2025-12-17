@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'ampd-handlers/**'
-      - 'packages/ampd-sdk/**'
-      - '.github/workflows/ampd-handlers-docker.yaml'
   workflow_dispatch:
     inputs:
       handler:
