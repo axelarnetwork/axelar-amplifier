@@ -360,7 +360,6 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            #[allow(deprecated)]
             messages: vec![
                 TxEventConfirmation {
                     source_address: Pubkey::from_str(
