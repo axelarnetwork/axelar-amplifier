@@ -39,21 +39,42 @@ pub enum Error {
     TaskGroup(#[from] crate::asyncutil::task::TaskGroupError),
 }
 
+/// Configuration for processing events from the Axelar chain.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
+    /// Duration to wait before retrying when handling an event fails.
+    ///
+    /// Handling may fail due to external RPC errors, contract query failures, etc.
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
+
+    /// Maximum number of retry attempts when handling an event fails.
     pub retry_max_attempts: u64,
+
+    /// Timeout for the event stream.
+    ///
+    /// If no events are received within this duration, a warning is logged.
+    /// The stream continues waiting for events.
     #[serde(with = "humantime_serde")]
     pub stream_timeout: Duration,
+
+    /// Buffer size for the event stream.
+    ///
+    /// Maximum number of events to buffer before applying backpressure.
     pub stream_buffer_size: usize,
+
+    /// Delay between processing consecutive blocks.
+    ///
+    /// To avoid inconsistencies (e.g. the block can be streamed but subsequent queries
+    /// for the state show the block doesn't exist yet, especially when using load-balancers)
+    /// blocks processing can be delayed by this parameter.
     #[serde(with = "humantime_serde")]
     pub delay: Duration,
-    // Maximum number of messages to enqueue for broadcasting concurrently.
-    // - Controls parallelism when enqueueing messages to the broadcast queue
-    // - Higher values increase throughput for processing many messages at once
-    // - Lower values reduce resource consumption
-    // - Setting is balanced based on network capacity and system resources
+
+    /// Maximum number of messages to enqueue for broadcasting concurrently.
+    ///
+    /// Controls parallelism when enqueueing messages to the broadcast queue.
+    /// Higher values increase throughput but consume more resources.
     pub tx_broadcast_buffer_size: usize,
 }
 
@@ -113,7 +134,6 @@ where
         match event {
             StreamStatus::Ok(event) => {
                 handle_event(
-                    &handler_label,
                     &handler,
                     &msg_queue_client,
                     &event,
@@ -136,21 +156,8 @@ where
     Ok(())
 }
 
-fn is_xrpl_evm_handler(handler_label: &str) -> bool {
-    let xrpl_handlers = [
-        "xrpl-evm-msg-verifier",
-        "xrpl-evm-verifier-set-verifier",
-        "xrpl-evm-multisig-signer",
-    ];
-
-    xrpl_handlers
-        .iter()
-        .any(|handler| handler_label == *handler)
-}
-
 #[instrument(fields(event = %event), skip_all)]
 async fn handle_event<H, C>(
-    handler_label: &str,
     handler: &H,
     msg_queue_client: &broadcast::MsgQueueClient<C>,
     event: &Event,
@@ -173,35 +180,6 @@ where
 
     match res {
         Ok(msgs) => {
-            if is_xrpl_evm_handler(handler_label) {
-                for (i, msg) in msgs.iter().enumerate() {
-                    match broadcast::deserialize_protobuf(&msg.value) {
-                        Ok(deserialized_values) => {
-                            info!(
-                                handler = %handler_label,
-                                msg_index = i,
-                                msg_type_url = %msg.type_url,
-                                msg_value_plain = ?msg.value,
-                                msg_value_deserialized = %deserialized_values,
-                                msg_value_hex = %hex::encode(&msg.value),
-                                "AMPD EVM handler message details"
-                            );
-                        }
-                        Err(e) => {
-                            warn!(
-                                handler = %handler_label,
-                                msg_index = i,
-                                msg_type_url = %msg.type_url,
-                                msg_value_plain = ?msg.value,
-                                msg_value_hex = %hex::encode(&msg.value),
-                                error = %e,
-                                "failed to parse AMPD EVM handler protobuf structure, showing raw data"
-                            );
-                        }
-                    }
-                }
-            }
-
             tokio_stream::iter(msgs)
                 .map(|msg| async { msg_queue_client.clone().enqueue_and_forget(msg).await })
                 .buffered(tx_broadcast_buffer_size)
