@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "1.14.0"
+version = "1.14.1"
 dependencies = [
  "ampd-proto",
  "anchor-lang",
@@ -246,7 +246,7 @@ dependencies = [
  "base64 0.21.7",
  "bcs",
  "bech32 0.11.0",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "clap",
  "clarity-serialization",
@@ -391,6 +391,8 @@ dependencies = [
  "typed-builder",
  "valuable",
  "voting-verifier",
+ "xrpl-types",
+ "xrpl_http_client",
 ]
 
 [[package]]
@@ -555,7 +557,7 @@ name = "anchor-discriminators"
 version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "serde",
  "sha2 0.10.9",
@@ -568,7 +570,7 @@ version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "anchor-discriminators",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "convert_case 0.8.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -1239,7 +1241,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "bnum 0.10.0",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bytemuck",
  "solana-program",
  "thiserror 1.0.69",
@@ -1251,7 +1253,7 @@ version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "arrayref",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "hex",
  "rs_merkle",
@@ -1282,7 +1284,7 @@ dependencies = [
  "axelar-solana-encoding",
  "bincode",
  "bitvec 1.0.1",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bytemuck",
  "ed25519-dalek 2.1.1",
  "event-cpi",
@@ -1930,11 +1932,11 @@ dependencies = [
 
 [[package]]
 name = "borsh"
-version = "1.5.7"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad8646f98db542e39fc66e68a20b2144f6a732636df7c2354e74645faaa433ce"
+checksum = "d1da5ab77c1437701eeff7c88d968729e7766172279eab0676857b3d63af7a6f"
 dependencies = [
- "borsh-derive 1.5.7",
+ "borsh-derive 1.6.0",
  "cfg_aliases",
 ]
 
@@ -1953,9 +1955,9 @@ dependencies = [
 
 [[package]]
 name = "borsh-derive"
-version = "1.5.7"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd1d3c0c2f5833f22386f252fe8ed005c7f59fdcddeef025c01b4c3b9fd9ac3"
+checksum = "0686c856aa6aac0c4498f936d7d6a02df690f614c03e4d906d1018062b5c5e2c"
 dependencies = [
  "once_cell",
  "proc-macro-crate 3.3.0",
@@ -3845,7 +3847,7 @@ version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
  "anchor-discriminators",
- "borsh 1.5.7",
+ "borsh 1.6.0",
 ]
 
 [[package]]
@@ -5705,6 +5707,24 @@ dependencies = [
  "cosmwasm-std",
  "error-stack",
  "interchain-token-service-std",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "its-solana-translator"
+version = "1.0.0"
+dependencies = [
+ "assert_ok",
+ "axelar-wasm-std",
+ "borsh 1.6.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw2",
+ "error-stack",
+ "goldie",
+ "interchain-token-service-std",
+ "its-msg-translator-api",
+ "router-api",
  "thiserror 1.0.69",
 ]
 
@@ -8211,7 +8231,7 @@ name = "program-utils"
 version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bytemuck",
  "mpl-token-metadata",
  "solana-program",
@@ -9030,7 +9050,7 @@ source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branc
 dependencies = [
  "bincode",
  "bitflags 2.9.0",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "program-utils",
  "solana-program",
 ]
@@ -10325,7 +10345,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad79f227829e9b3fa1227acf21b02877f1a0d99d1b753a8085254b706fbddfee"
 dependencies = [
  "borsh 0.10.4",
- "borsh 1.5.7",
+ "borsh 1.6.0",
 ]
 
 [[package]]
@@ -10514,7 +10534,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8591e9192a4575792bb6a175f82b6bcfb301fc1113c4342bce7789f00726e98a"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "bytemuck",
  "bytemuck_derive",
@@ -10553,7 +10573,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cfdcaf08849c1828899c5f9ac8da6077bd3b339e2b0648b2d99d3fd780c3c6f"
 dependencies = [
  "bincode",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "getrandom 0.2.16",
  "js-sys",
  "num-traits",
@@ -10702,7 +10722,7 @@ dependencies = [
  "bitflags 2.9.0",
  "blake3",
  "borsh 0.10.4",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "bv",
  "bytemuck",
@@ -10782,7 +10802,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a268d99b9f7a2ebfee0e8aa03be2f926626575d2e3c33ef02245c1e99477202e"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "num-traits",
  "serde",
  "serde_derive",
@@ -10854,7 +10874,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16bcff57fc2a096f6c57851e22587a7a36b6fdaa567eab75bb0bcd06f449fcbc"
 dependencies = [
  "borsh 0.10.4",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "bytemuck",
  "bytemuck_derive",
@@ -11023,7 +11043,7 @@ checksum = "cef4d9a579ff99aa5109921f729ab9cba07b207486b2c1eab8240c97777102ba"
 dependencies = [
  "bincode",
  "bitflags 2.9.0",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "bytemuck",
  "bytemuck_derive",
@@ -11097,7 +11117,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9d4483cde845bb0f70374d2905014650057eafdcc546a3e50059e7643318e8"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "libsecp256k1 0.6.0",
  "solana-define-syscall",
  "thiserror 1.0.69",
@@ -11345,7 +11365,7 @@ dependencies = [
  "Inflector",
  "base64 0.22.1",
  "bincode",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bs58 0.5.1",
  "lazy_static",
  "log",
@@ -11585,7 +11605,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68034596cf4804880d265f834af1ff2f821ad5293e41fa0f8f59086c181fc38e"
 dependencies = [
  "assert_matches",
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "num-derive 0.4.2",
  "num-traits",
  "solana-program",
@@ -11600,7 +11620,7 @@ version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76fee7d65013667032d499adc3c895e286197a35a0d3a4643c80e7fd3e9969e3"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "num-derive 0.4.2",
  "num-traits",
  "solana-program",
@@ -11709,7 +11729,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c704c88fc457fa649ba3aabe195c79d885c3f26709efaddc453c8de352c90b87"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bytemuck",
  "bytemuck_derive",
  "solana-program",
@@ -11723,7 +11743,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41a7d5950993e1ff2680bd989df298eeb169367fb2f9deeef1f132de6e4e8016"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "bytemuck",
  "bytemuck_derive",
  "num-derive 0.4.2",
@@ -11968,7 +11988,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6c2318ddff97e006ed9b1291ebec0750a78547f870f62a69c56fe3b46a5d8fc"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "solana-program",
  "spl-discriminator 0.3.0",
  "spl-pod 0.3.1",
@@ -11982,7 +12002,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfb9c89dbc877abd735f05547dcf9e6e12c00c11d6d74d8817506cab4c99fdbb"
 dependencies = [
- "borsh 1.5.7",
+ "borsh 1.6.0",
  "num-derive 0.4.2",
  "num-traits",
  "solana-borsh",
