@@ -295,7 +295,7 @@ where
             .field("voting_verifier_contract", &self.voting_verifier_contract)
             .field("gateway_address", &self.gateway_address)
             .field("domain_separator", &self.domain_separator)
-            .field("rpc_client", &"WARN: Solana sdk does impl Debug")
+            .field("rpc_client", &"WARN: Solana sdk does not implement Debug")
             .field("monitoring_client", &self.monitoring_client)
             .finish()
     }
