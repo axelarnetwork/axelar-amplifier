@@ -234,16 +234,11 @@ name = "ampd"
 version = "1.14.1"
 dependencies = [
  "ampd-proto",
- "anchor-lang",
- "assert_ok",
  "async-trait",
- "axelar-solana-encoding",
- "axelar-solana-gateway",
  "axelar-wasm-std",
  "axum 0.7.9",
  "axum-test",
  "base64 0.21.7",
- "bcs",
  "bech32 0.11.0",
  "bs58 0.5.1",
  "clap",
@@ -258,16 +253,10 @@ dependencies = [
  "elliptic-curve",
  "enum-display-derive",
  "error-stack",
- "ethers-contract",
  "ethers-core",
  "ethers-providers",
- "event-verifier",
- "event-verifier-api",
  "events",
- "evm-gateway",
- "faux",
  "futures",
- "gateway-event-stack",
  "generic-array",
  "goldie",
  "hex",
@@ -276,10 +265,8 @@ dependencies = [
  "k256",
  "lazy_static",
  "mockall 0.11.4",
- "move-core-types",
  "multisig",
  "num-traits",
- "openssl",
  "pin-project-lite",
  "primitive-types 0.12.2",
  "prometheus-client",
@@ -298,22 +285,12 @@ dependencies = [
  "serde_with",
  "service-registry-api",
  "sha3",
- "solana-client",
- "solana-sdk",
- "solana-transaction-status",
- "solana-zk-token-sdk",
- "stellar",
- "stellar-rpc-client",
  "stellar-xdr",
- "sui-gateway",
- "sui-json-rpc-types",
- "sui-types 0.1.0",
  "sysinfo",
  "temp-env",
  "tendermint",
  "tendermint-proto",
  "tendermint-rpc",
- "test-log",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -332,9 +309,6 @@ dependencies = [
  "url",
  "valuable",
  "valuable-serde",
- "voting-verifier",
- "xrpl-types",
- "xrpl_http_client",
 ]
 
 [[package]]
@@ -356,7 +330,6 @@ dependencies = [
  "clap",
  "cosmrs",
  "cosmwasm-std",
- "dotenv",
  "dotenv-flow",
  "ed25519-dalek 2.1.1",
  "error-stack",
@@ -457,117 +430,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anchor-attribute-access-control"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f70fd141a4d18adf11253026b32504f885447048c7494faf5fa83b01af9c0cf"
-dependencies = [
- "anchor-syn",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-attribute-account"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "715a261c57c7679581e06f07a74fa2af874ac30f86bd8ea07cca4a7e5388a064"
-dependencies = [
- "anchor-syn",
- "bs58 0.5.1",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-attribute-constant"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "730d6df8ae120321c5c25e0779e61789e4b70dc8297102248902022f286102e4"
-dependencies = [
- "anchor-syn",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-attribute-error"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27e6e449cc3a37b2880b74dcafb8e5a17b954c0e58e376432d7adc646fb333ef"
-dependencies = [
- "anchor-syn",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-attribute-event"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7710e4c54adf485affcd9be9adec5ef8846d9c71d7f31e16ba86ff9fc1dd49f"
-dependencies = [
- "anchor-syn",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-attribute-program"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05ecfd49b2aeadeb32f35262230db402abed76ce87e27562b34f61318b2ec83c"
-dependencies = [
- "anchor-lang-idl",
- "anchor-syn",
- "anyhow",
- "bs58 0.5.1",
- "heck 0.3.3",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "serde_json",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-derive-accounts"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be89d160793a88495af462a7010b3978e48e30a630c91de47ce2c1d3cb7a6149"
-dependencies = [
- "anchor-syn",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-derive-serde"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abc6ee78acb7bfe0c2dd2abc677aaa4789c0281a0c0ef01dbf6fe85e0fd9e6e4"
-dependencies = [
- "anchor-syn",
- "borsh-derive-internal",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-derive-space"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134a01c0703f6fd355a0e472c033f6f3e41fac1ef6e370b20c50f4c8d022cea7"
-dependencies = [
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "anchor-discriminators"
 version = "0.1.0"
 source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
@@ -590,71 +452,6 @@ dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "anchor-lang"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6bab117055905e930f762c196e08f861f8dfe7241b92cee46677a3b15561a0a"
-dependencies = [
- "anchor-attribute-access-control",
- "anchor-attribute-account",
- "anchor-attribute-constant",
- "anchor-attribute-error",
- "anchor-attribute-event",
- "anchor-attribute-program",
- "anchor-derive-accounts",
- "anchor-derive-serde",
- "anchor-derive-space",
- "base64 0.21.7",
- "bincode",
- "borsh 0.10.4",
- "bytemuck",
- "solana-program",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "anchor-lang-idl"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e8599d21995f68e296265aa5ab0c3cef582fd58afec014d01bd0bce18a4418"
-dependencies = [
- "anchor-lang-idl-spec",
- "anyhow",
- "heck 0.3.3",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "anchor-lang-idl-spec"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bdf143115440fe621bdac3a29a1f7472e09f6cd82b2aa569429a0c13f103838"
-dependencies = [
- "anyhow",
- "serde",
-]
-
-[[package]]
-name = "anchor-syn"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dc7a6d90cc643df0ed2744862cdf180587d1e5d28936538c18fc8908489ed67"
-dependencies = [
- "anyhow",
- "bs58 0.5.1",
- "heck 0.3.3",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "syn 1.0.109",
- "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1276,15 +1073,6 @@ dependencies = [
  "solana-program",
  "thiserror 1.0.69",
  "udigest",
-]
-
-[[package]]
-name = "axelar-solana-gas-service-events"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
-dependencies = [
- "event-utils",
- "solana-program",
 ]
 
 [[package]]
@@ -3323,12 +3111,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
-
-[[package]]
 name = "dotenv-flow"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3862,28 +3644,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "event-macros"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
-dependencies = [
- "keccak-const",
- "quote 1.0.40",
- "syn 2.0.101",
-]
-
-[[package]]
-name = "event-utils"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
-dependencies = [
- "axelar-message-primitives",
- "base64 0.21.7",
- "event-macros",
- "solana-program",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "event-verifier"
 version = "0.1.0"
 dependencies = [
@@ -4152,29 +3912,6 @@ dependencies = [
  "arrayvec",
  "auto_impl",
  "bytes",
-]
-
-[[package]]
-name = "faux"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a8e414cd04dc036003ccd2cc56492d5a7365e9d3f40b27c43606e42b54e5d1f"
-dependencies = [
- "faux_macros",
- "paste",
-]
-
-[[package]]
-name = "faux_macros"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfc583ba3a3c259f1986c68e1501228013a34224b9ac97d17b30d7f017213b2a"
-dependencies = [
- "darling 0.20.11",
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 2.0.101",
- "uuid",
 ]
 
 [[package]]
@@ -4510,17 +4247,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gateway-event-stack"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?branch=gateway-event-cpi#5472ab35d10fa9971303557df9feb4ebdd909019"
-dependencies = [
- "axelar-solana-gas-service-events",
- "base64 0.21.7",
- "event-utils",
- "tracing",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4794,15 +4520,6 @@ checksum = "765c9198f173dd59ce26ff9f95ef0aafd0a0fe01fb9d72841bc5066a4c06511d"
 dependencies = [
  "byteorder",
  "num-traits",
-]
-
-[[package]]
-name = "heck"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
-dependencies = [
- "unicode-segmentation",
 ]
 
 [[package]]
@@ -5974,12 +5691,6 @@ dependencies = [
  "digest 0.10.7",
  "sha3-asm",
 ]
-
-[[package]]
-name = "keccak-const"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d8d8ce877200136358e0bbff3a77965875db3af755a11e1fa6b1b3e2df13ea"
 
 [[package]]
 name = "lambdaworks-crypto"

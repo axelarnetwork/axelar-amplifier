@@ -43,15 +43,14 @@ bs58 = { workspace = true }
 clap = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
-dotenv = "0.15.0"
 dotenv-flow = "0.16.2"
-event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
+event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 event-verifier-api = { workspace = true }
 events = { workspace = true }
 evm-gateway = { workspace = true }
