@@ -1,4 +1,3 @@
-use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 
 use axelar_wasm_std::address::AddressFormat;
@@ -171,9 +170,7 @@ fn to_signature(
 }
 
 fn recoverable_ecdsa_to_array(rec: &Recoverable) -> Result<solana_axelar_std::Signature, Error> {
-    let sig_bytes: [u8; 65] = rec
-        .as_ref()
-        .try_into()
-        .map_err(|e: TryFromSliceError| Error::Proof)?;
-    Ok(solana_axelar_std::Signature(sig_bytes))
+    Ok(solana_axelar_std::Signature(
+        rec.as_ref().try_into().map_err(|_| Error::Proof)?,
+    ))
 }
