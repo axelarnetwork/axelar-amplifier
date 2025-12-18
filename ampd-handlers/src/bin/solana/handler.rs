@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Debug;
 
 use ampd::handlers::solana_verify_msg::Message;
 use ampd::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
@@ -280,23 +278,6 @@ where
             ],
             false,
         )
-    }
-}
-
-impl<C> Debug for Handler<C>
-where
-    C: SolanaRpcClientProxy + Send + Sync,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Handler")
-            .field("verifier", &self.verifier)
-            .field("voting_verifier_contract", &self.voting_verifier_contract)
-            .field("chain", &self.chain)
-            .field("gateway_address", &self.gateway_address)
-            .field("domain_separator", &self.domain_separator)
-            .field("rpc_client", &"WARN: Solana sdk does not implement Debug")
-            .field("monitoring_client", &self.monitoring_client)
-            .finish()
     }
 }
 

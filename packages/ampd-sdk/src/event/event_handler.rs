@@ -96,7 +96,7 @@ where
 
 impl<H> HandlerTask<H>
 where
-    H: EventHandler + Debug,
+    H: EventHandler,
     H::Event: TryFrom<Event, Error = Report<events::Error>>,
     H::Event: Debug + Clone,
 {
@@ -209,7 +209,7 @@ where
         }
     }
 
-    #[instrument]
+    #[instrument(skip(self), fields(handler_task_config = ?self.config))]
     async fn handle_event<HC>(&self, event: H::Event, client: &HC) -> Option<Vec<Any>>
     where
         HC: HandlerTaskClient + Clone + Debug + Send + 'static,
