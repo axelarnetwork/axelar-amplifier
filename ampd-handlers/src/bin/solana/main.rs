@@ -50,30 +50,21 @@ async fn build_handler(
         chain_name.clone(),
     );
 
-    let gateway = Pubkey::from_str(&config.gateway_address);
-    let gateway_address: Pubkey = if let Ok(parsed_address) = gateway {
-        parsed_address
-    } else {
-        return Err(report!(Error::GatewayAddress));
-    };
+    let gateway_address = Pubkey::from_str(&config.gateway_address).change_context(Error::GatewayAddress)?;
 
-    let domain_separator: Option<[u8; 32]> = rpc_client.domain_separator(&gateway_address).await;
+    let domain_separator: [u8; 32] = rpc_client.domain_separator(&gateway_address).await.ok_or(report!(Error::DomainSeparator))?;
 
-    if let Some(separator) = domain_separator {
-        let handler = Handler::builder()
-            .verifier(runtime.verifier.clone())
-            .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
-            .chain(chain_name)
-            .gateway_address(gateway_address)
-            .domain_separator(separator)
-            .rpc_client(rpc_client)
-            .monitoring_client(runtime.monitoring_client.clone())
-            .build();
+    let handler = Handler::builder()
+        .verifier(runtime.verifier.clone())
+        .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
+        .chain(chain_name)
+        .gateway_address(gateway_address)
+        .domain_separator(domain_separator)
+        .rpc_client(rpc_client)
+        .monitoring_client(runtime.monitoring_client.clone())
+        .build();
 
-        Ok(handler)
-    } else {
-        Err(report!(Error::DomainSeparator))
-    }
+    Ok(handler)
 }
 
 fn voting_handler_task(
