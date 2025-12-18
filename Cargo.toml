@@ -47,6 +47,7 @@ borsh = { version = "1.6", features = ["derive"] }
 bs58 = "0.5.1"
 chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
 chain-codec-evm = { version = "^0.1.0", path = "contracts/chain-codec-evm" }
+chain-codec-solana = { version = "^0.1.0", path = "contracts/chain-codec-solana" }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
