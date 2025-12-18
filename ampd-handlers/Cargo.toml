@@ -10,6 +10,10 @@ name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
 [[bin]]
+name = "solana-handler"
+path = "src/bin/solana/main.rs"
+
+[[bin]]
 name = "stellar-handler"
 path = "src/bin/stellar/main.rs"
 
@@ -25,6 +29,7 @@ path = "src/bin/xrpl/main.rs"
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
+axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 clap = { workspace = true }
 cosmrs = { workspace = true }
@@ -46,6 +51,8 @@ reqwest = { version = "0.11.24", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
+solana-client = "=2.1.21"
+solana-sdk = "=2.1.21"
 stellar-xdr = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
@@ -73,6 +80,7 @@ goldie = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
 rand = { workspace = true }
+router-api = { workspace = true }
 tendermint = { workspace = true }
 
 [lints]

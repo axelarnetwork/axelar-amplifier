@@ -1,0 +1,15 @@
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("handler failed to start")]
+    HandlerStart,
+    #[error("handler task failed")]
+    HandlerTask,
+    #[error("task group execution failed")]
+    TaskGroup,
+    #[error("Error fetching domain separator")]
+    DomainSeparator,
+    #[error("Error parsing gateway address")]
+    GatewayAddress,
+}
