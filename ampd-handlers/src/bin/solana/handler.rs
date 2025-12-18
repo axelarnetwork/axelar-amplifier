@@ -291,6 +291,7 @@ where
         f.debug_struct("Handler")
             .field("verifier", &self.verifier)
             .field("voting_verifier_contract", &self.voting_verifier_contract)
+            .field("chain", &self.chain)
             .field("gateway_address", &self.gateway_address)
             .field("domain_separator", &self.domain_separator)
             .field("rpc_client", &"WARN: Solana sdk does not implement Debug")
