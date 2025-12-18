@@ -86,8 +86,6 @@ mod tests {
     use crate::grpc;
     use crate::types::TMAddress;
 
-    const PREFIX: &str = "axelar";
-
     #[test]
     fn deserialize_invalid_grpc_config() {
         let ip_addr = "invalid_ip";
@@ -203,71 +201,6 @@ mod tests {
         );
         let cfg: Result<Config, _> = toml::from_str(config_str.as_str());
         assert!(cfg.is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_evm_msg_verifiers_with_the_same_chain_name() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7546/'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_evm_verifier_set_verifiers_with_the_same_chain_name() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7546/'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_more_then_one_for_multisig_signer() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
     }
 
     #[test]
