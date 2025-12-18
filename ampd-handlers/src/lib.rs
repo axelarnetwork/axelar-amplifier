@@ -1,5 +1,6 @@
 pub mod evm;
 pub mod multisig;
+pub mod solana;
 pub mod stellar;
 pub mod sui;
 pub mod tracing;

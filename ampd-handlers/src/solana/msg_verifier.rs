@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
 use axelar_solana_gateway::events::GatewayEvent;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::Vote;
-use router_api::ChainName;
 use solana_sdk::pubkey::Pubkey;
 use tracing::error;
 
 use super::verify;
-use crate::handlers::solana_verify_msg::Message;
+use crate::solana::types::Message;
 use crate::solana::SolanaTransaction;
 
 pub fn verify_message(tx: &SolanaTransaction, message: &Message, gateway_address: &Pubkey) -> Vote {

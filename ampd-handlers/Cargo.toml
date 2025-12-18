@@ -33,14 +33,19 @@ test-utils = ["dep:tendermint"]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
+axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
+axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 bcs = { workspace = true }
+borsh = { workspace = true }
+bs58 = { workspace = true }
 clap = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
 dotenv = "0.15.0"
 dotenv-flow = "0.16.2"
+event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
@@ -63,6 +68,7 @@ serde_with = { workspace = true }
 sha3 = { workspace = true }
 solana-client = "=2.1.21"
 solana-sdk = "=2.1.21"
+solana-transaction-status = "=2.1.21"
 stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
@@ -98,6 +104,7 @@ multisig = { workspace = true, features = ["test"] }
 rand = { workspace = true }
 random-string = { workspace = true }
 router-api = { workspace = true }
+test-log = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,14 +1,16 @@
 use std::str::FromStr;
 
+use ampd::monitoring;
+use ampd::monitoring::metrics::Msg;
 use axelar_solana_gateway::events::{CallContractEvent, GatewayEvent, VerifierSetRotatedEvent};
 use axelar_solana_gateway::state::GatewayConfig;
 use axelar_solana_gateway::BytemuckedPda;
+use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
 use event_cpi::Discriminator;
-use router_api::ChainName;
 use serde::Deserializer;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
@@ -18,10 +20,8 @@ use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
 use tracing::{debug, error};
 
-use crate::monitoring;
-use crate::monitoring::metrics::Msg;
-
 pub mod msg_verifier;
+pub mod types;
 pub mod verifier_set_verifier;
 
 pub struct Client {
@@ -308,14 +308,14 @@ fn parse_gateway_event_from_instruction(
 mod test {
     use std::str::FromStr;
 
-    use router_api::ChainName;
+    use ampd::monitoring::metrics::Msg;
+    use ampd::monitoring::test_utils;
+    use axelar_wasm_std::chain::ChainName;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::{UiInnerInstructions, UiInstruction};
 
     use super::{Client, SolanaRpcClientProxy};
-    use crate::monitoring::metrics::Msg;
-    use crate::monitoring::test_utils;
 
     #[tokio::test]
     async fn should_record_rpc_failure_metrics_successfully() {

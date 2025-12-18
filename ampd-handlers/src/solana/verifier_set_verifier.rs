@@ -9,7 +9,7 @@ use multisig::verifier_set::VerifierSet;
 use solana_sdk::pubkey::Pubkey;
 use tracing::error;
 
-use crate::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
+use crate::solana::types::VerifierSetConfirmation;
 use crate::solana::verify;
 
 pub fn verify_verifier_set(

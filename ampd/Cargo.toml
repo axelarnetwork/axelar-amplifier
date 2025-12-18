@@ -17,7 +17,6 @@ test-utils = ["rand"]
 ampd-proto = { workspace = true }
 anchor-lang = "0.31.1"
 async-trait = { workspace = true }
-axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
@@ -25,7 +24,6 @@ axum = "0.7.5"
 base64 = { workspace = true }
 bcs = { workspace = true }
 bech32 = "0.11.0"
-borsh = "1.5.1"
 bs58 = { workspace = true }
 clap = { workspace = true }
 config = { workspace = true }
@@ -42,7 +40,6 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
-event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 event-verifier-api = { workspace = true }
 events = { workspace = true, features = ["derive"] }
 evm-gateway = { workspace = true }
@@ -128,7 +125,7 @@ rand = { workspace = true }
 random-string = { workspace = true }
 temp-env = { workspace = true, features = ["async_closure"] }
 tendermint-proto = { version = "0.40.3" }
-test-log = { version = "0.2", features = ["trace"], default-features = false }
+test-log = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test = { workspace = true }
 
