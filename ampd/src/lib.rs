@@ -16,7 +16,7 @@ mod grpc;
 pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
-mod solana;
+pub mod solana;
 mod tm_client;
 mod tofnd;
 pub mod types;

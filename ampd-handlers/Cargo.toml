@@ -10,6 +10,10 @@ name = "evm-handler"
 path = "src/bin/evm/main.rs"
 
 [[bin]]
+name = "solana-handler"
+path = "src/bin/solana/main.rs"
+
+[[bin]]
 name = "stellar-handler"
 path = "src/bin/stellar/main.rs"
 
@@ -29,6 +33,7 @@ test-utils = ["dep:tendermint"]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
+axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 bcs = { workspace = true }
 clap = { workspace = true }
@@ -56,6 +61,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
 sha3 = { workspace = true }
+solana-client = "=2.1.21"
+solana-sdk = "=2.1.21"
 stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
@@ -90,6 +97,7 @@ k256 = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
 rand = { workspace = true }
 random-string = { workspace = true }
+router-api = { workspace = true }
 
 [lints]
 workspace = true
