@@ -113,6 +113,9 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 }
 
 fn multisig_address(config: &Config) -> Result<TMAddress, Error> {
+    // This assumes that all chains use the same multisig contract address
+    // Ideally in the future we will be able to use the coordinator contract to query for the multisig contract address
+    // for each chain.
     config
         .grpc
         .blockchain_service

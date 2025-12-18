@@ -50,7 +50,7 @@ fn default_rpc_timeout() -> Duration {
     Duration::from_secs(3)
 }
 
-async fn check_finalizer<C>(
+async fn assert_rpc_connection<C>(
     chain_name: &ChainName,
     finalization: &Finalization,
     rpc_client: &C,
@@ -61,7 +61,7 @@ where
     let _ = pick(finalization, rpc_client, 0)
         .latest_finalized_block_height()
         .await
-        .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
+        .change_context_lazy(|| Error::RpcConnection(chain_name.to_owned()))?;
 
     Ok(())
 }
@@ -82,7 +82,7 @@ async fn build_gmp_voting_handler(
         chain_name.clone(),
     );
 
-    check_finalizer(&chain_name, &config.finalization, &rpc_client).await?;
+    assert_rpc_connection(&chain_name, &config.finalization, &rpc_client).await?;
 
     let handler = gmp::Handler::builder()
         .verifier(runtime.verifier.clone())

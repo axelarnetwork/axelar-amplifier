@@ -13,6 +13,6 @@ pub enum Error {
     HandlerTask,
     #[error("task group execution failed")]
     TaskGroup,
-    #[error("invalid finalizer type for chain {0}")]
-    InvalidFinalizerType(ChainName),
+    #[error("faild to establish RPC connection for chain {0}")]
+    RpcConnection(ChainName),
 }
