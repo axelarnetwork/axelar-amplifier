@@ -50,9 +50,13 @@ async fn build_handler(
         chain_name.clone(),
     );
 
-    let gateway_address = Pubkey::from_str(&config.gateway_address).change_context(Error::GatewayAddress)?;
+    let gateway_address =
+        Pubkey::from_str(&config.gateway_address).change_context(Error::GatewayAddress)?;
 
-    let domain_separator: [u8; 32] = rpc_client.domain_separator(&gateway_address).await.ok_or(report!(Error::DomainSeparator))?;
+    let domain_separator: [u8; 32] = rpc_client
+        .domain_separator(&gateway_address)
+        .await
+        .ok_or(report!(Error::DomainSeparator))?;
 
     let handler = Handler::builder()
         .verifier(runtime.verifier.clone())
