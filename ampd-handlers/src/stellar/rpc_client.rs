@@ -218,6 +218,7 @@ impl StellarClient for Client {
 
 #[cfg(test)]
 mod tests {
+    use ampd::monitoring::test_utils;
     use stellar_rpc_client::{GetTransactionEvents, GetTransactionResponse};
     use stellar_xdr::curr::{
         ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
@@ -225,7 +226,6 @@ mod tests {
     };
 
     use super::*;
-    use ampd::monitoring::test_utils;
 
     fn create_mock_contract_event(data: u32) -> ContractEvent {
         ContractEvent {

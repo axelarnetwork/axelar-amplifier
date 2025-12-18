@@ -9,8 +9,7 @@ use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 use tracing::debug;
 
-use crate::sui::types::Message;
-use crate::sui::types::VerifierSetConfirmation;
+use crate::sui::types::{Message, VerifierSetConfirmation};
 
 enum EventType {
     ContractCall,
@@ -148,6 +147,7 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
+    use ampd::types::{CosmosPublicKey, EVMAddress, Hash};
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
@@ -164,10 +164,8 @@ mod tests {
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use sui_types::event::EventID;
 
-    use crate::sui::types::Message;
-    use crate::sui::types::VerifierSetConfirmation;
+    use crate::sui::types::{Message, VerifierSetConfirmation};
     use crate::sui::verifier::{verify_message, verify_verifier_set};
-    use ampd::types::{CosmosPublicKey, EVMAddress, Hash};
 
     const PREFIX: &str = "axelar";
 

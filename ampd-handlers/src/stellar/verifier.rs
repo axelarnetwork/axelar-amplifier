@@ -7,8 +7,7 @@ use stellar_xdr::curr::{BytesM, ContractEventBody, ScAddress, ScBytes, ScSymbol,
 use tracing::debug;
 
 use crate::stellar::rpc_client::TxResponse;
-use crate::stellar::types::Message;
-use crate::stellar::types::VerifierSetConfirmation;
+use crate::stellar::types::{Message, VerifierSetConfirmation};
 
 const TOPIC_CONTRACT_CALLED: &str = "contract_called";
 const TOPIC_SIGNERS_ROTATED: &str = "signers_rotated";
@@ -142,6 +141,7 @@ fn verify<'a>(
 mod test {
     use std::str::FromStr;
 
+    use ampd::types::{CosmosPublicKey, EVMAddress, Hash};
     use axelar_wasm_std::chain_name;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
@@ -159,12 +159,10 @@ mod test {
     };
 
     use crate::stellar::rpc_client::TxResponse;
-    use crate::stellar::types::Message;
-    use crate::stellar::types::VerifierSetConfirmation;
+    use crate::stellar::types::{Message, VerifierSetConfirmation};
     use crate::stellar::verifier::{
         verify_message, verify_verifier_set, TOPIC_CONTRACT_CALLED, TOPIC_SIGNERS_ROTATED,
     };
-    use ampd::types::{CosmosPublicKey, EVMAddress, Hash};
 
     const PREFIX: &str = "axelar";
 

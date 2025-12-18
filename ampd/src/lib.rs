@@ -10,10 +10,8 @@ pub mod config;
 #[cfg(not(feature = "config"))]
 mod config;
 mod cosmos;
-mod event_processor;
 pub mod event_sub;
 mod grpc;
-pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
 mod tm_client;

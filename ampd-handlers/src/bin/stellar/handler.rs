@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use ampd::monitoring;
 use ampd_handlers::stellar::rpc_client::{StellarClient, TxResponse};
-use ampd_handlers::stellar::types::Message;
-use ampd_handlers::stellar::types::VerifierSetConfirmation;
+use ampd_handlers::stellar::types::{Message, VerifierSetConfirmation};
 use ampd_handlers::stellar::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};

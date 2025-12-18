@@ -20,12 +20,10 @@ use error_stack::ResultExt;
 use ethers_core::types::{Transaction, TransactionReceipt, H256, U64};
 use event_verifier_api::evm::EvmEvent;
 use event_verifier_api::{EventData, EventToVerify};
-use events::try_from;
-use events::{AbciEventTypeFilter, EventType};
+use events::{try_from, AbciEventTypeFilter, EventType};
 use futures::future::join_all;
 use serde::Deserialize;
-use tracing::{debug, warn};
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span, warn};
 use typed_builder::TypedBuilder;
 use voting_verifier::msg::ExecuteMsg;
 

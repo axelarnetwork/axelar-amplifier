@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use ampd::monitoring;
 use ampd_handlers::solana::msg_verifier::verify_message;
-use ampd_handlers::solana::types::Message;
-use ampd_handlers::solana::types::VerifierSetConfirmation;
+use ampd_handlers::solana::types::{Message, VerifierSetConfirmation};
 use ampd_handlers::solana::verifier_set_verifier::verify_verifier_set;
 use ampd_handlers::solana::{SolanaRpcClientProxy, SolanaTransaction};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
@@ -287,10 +286,10 @@ mod tests {
     use std::convert::TryInto;
     use std::str::FromStr;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring::{metrics, test_utils};
     use ampd::types::{Hash, TMAddress};
     use ampd_handlers::solana::Client;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
     use cosmrs::cosmwasm::MsgExecuteContract;

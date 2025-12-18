@@ -2,8 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use ampd::monitoring;
 use ampd_handlers::sui::json_rpc::SuiClient;
-use ampd_handlers::sui::types::Message;
-use ampd_handlers::sui::types::VerifierSetConfirmation;
+use ampd_handlers::sui::types::{Message, VerifierSetConfirmation};
 use ampd_handlers::sui::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};

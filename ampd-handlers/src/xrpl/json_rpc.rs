@@ -59,12 +59,12 @@ impl XRPLClient for Client {
 mod test {
     use std::str::FromStr;
 
+    use ampd::monitoring::metrics::Msg;
+    use ampd::monitoring::test_utils;
     use axelar_wasm_std::chain::ChainName;
     use xrpl_http_client::Client as XrplHttpClient;
 
     use super::{Client, XRPLClient};
-    use ampd::monitoring::metrics::Msg;
-    use ampd::monitoring::test_utils;
 
     #[tokio::test]
     async fn should_record_rpc_failure_metrics_successfully() {

@@ -7,8 +7,7 @@ use event_verifier_api::evm::{Event, EvmEvent, TransactionDetails};
 use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use tracing::debug;
 
-use crate::evm::types::Message;
-use crate::evm::types::VerifierSetConfirmation;
+use crate::evm::types::{Message, VerifierSetConfirmation};
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
 
@@ -227,8 +226,7 @@ mod tests {
         verify_event_matches_log, verify_events, verify_events_match_logs, verify_message,
         verify_transaction_details, verify_verifier_set,
     };
-    use crate::evm::types::Message;
-    use crate::evm::types::VerifierSetConfirmation;
+    use crate::evm::types::{Message, VerifierSetConfirmation};
 
     #[test]
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {

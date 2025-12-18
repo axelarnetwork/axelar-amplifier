@@ -318,9 +318,8 @@ fn verify_payload_hash(
 mod test {
     use std::str::FromStr;
 
-    use axelar_wasm_std::chain_name_raw;
     use axelar_wasm_std::msg_id::HexTxHash;
-    use axelar_wasm_std::nonempty;
+    use axelar_wasm_std::{chain_name_raw, nonempty};
     use xrpl_http_client::Memo;
     use xrpl_types::msg::XRPLInterchainTransferMessage;
     use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};

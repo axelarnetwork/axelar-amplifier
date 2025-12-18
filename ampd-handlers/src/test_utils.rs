@@ -1,10 +1,9 @@
 use std::convert::TryInto;
 
+use ampd::types::TMAddress;
 use cosmrs::AccountId;
 use events::Event;
 use tendermint::abci;
-
-use ampd::types::TMAddress;
 
 const PREFIX: &str = "axelar";
 
