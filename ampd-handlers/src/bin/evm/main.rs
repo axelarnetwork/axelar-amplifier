@@ -96,7 +96,7 @@ async fn build_gmp_voting_handler(
     Ok(handler)
 }
 
-fn build_event_verifier_handler(
+async fn build_event_verifier_handler(
     runtime: &HandlerRuntime,
     chain_name: ChainName,
     config: &EvmHandlerConfig,
@@ -111,6 +111,8 @@ fn build_event_verifier_handler(
         runtime.monitoring_client.clone(),
         chain_name.clone(),
     );
+
+    assert_rpc_connection(&chain_name, &config.finalization, &rpc_client).await?;
 
     let confirmation_height = match config.finalization {
         Finalization::ConfirmationHeight => config
@@ -176,11 +178,9 @@ fn event_verifier_task(
     handler_config: EvmHandlerConfig,
 ) -> CancellableTask<Result<(), Error>> {
     CancellableTask::create(move |token| async move {
-        let handler = build_event_verifier_handler(
-            &runtime,
-            base_config.chain_name.clone(),
-            &handler_config,
-        )?;
+        let handler =
+            build_event_verifier_handler(&runtime, base_config.chain_name.clone(), &handler_config)
+                .await?;
 
         runtime
             .run_handler(handler, base_config, token)

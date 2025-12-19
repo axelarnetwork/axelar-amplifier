@@ -37,6 +37,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(default)]
 pub struct Config {
     /// Maximum number of blocks to buffer for concurrent processing.
     ///
@@ -74,7 +75,6 @@ pub struct Config {
     /// Buffer size for the event stream.
     ///
     /// Maximum number of events to buffer before applying backpressure.
-    #[serde(default = "default_stream_buffer_size")]
     pub stream_buffer_size: usize,
 
     /// Delay between processing consecutive blocks.
@@ -83,16 +83,7 @@ pub struct Config {
     /// for the state show the block doesn't exist yet, especially when using load-balancers)
     /// blocks processing can be delayed by this parameter.
     #[serde(with = "humantime_serde")]
-    #[serde(default = "default_delay")]
     pub delay: Duration,
-}
-
-fn default_stream_buffer_size() -> usize {
-    100000
-}
-
-fn default_delay() -> Duration {
-    Duration::from_secs(1)
 }
 
 impl Default for Config {
