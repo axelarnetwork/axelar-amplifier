@@ -1,4 +1,3 @@
-use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, Vote, WeightedPoll};
@@ -22,7 +21,7 @@ pub struct Config {
     pub source_chain: ChainName,
     pub rewards_contract: Addr,
     pub msg_id_format: MessageIdFormat,
-    pub address_format: AddressFormat,
+    pub chain_codec_address: Addr,
 }
 
 #[cw_serde]

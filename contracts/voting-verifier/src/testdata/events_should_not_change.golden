@@ -38,8 +38,8 @@
         "value": "\"hex_tx_hash_and_event_index\""
       },
       {
-        "key": "address_format",
-        "value": "\"eip55\""
+        "key": "chain_codec_address",
+        "value": "\"cosmwasm18uk44wma6zm645xu9j7gzlkelq8jm3xtmpzx86n38r2de9v95veq7ceezs\""
       }
     ],
     "type": "instantiated"

@@ -14,6 +14,9 @@ on:
           - gateway
           - multisig
           - multisig-prover
+          - chain-codec-evm
+          - chain-codec-stellar
+          - chain-codec-sui
           - rewards
           - service-registry
           - voting-verifier
@@ -38,7 +41,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
-      
+
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
@@ -57,6 +60,9 @@ jobs:
             ["voting-verifier"]="voting-verifier,/\(major\)|\(major-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-voting-verifier\)|\(minor-contracts\)/,contracts/voting-verifier packages"
             ["coordinator"]="coordinator,/\(major\)|\(major-coordinator\)|\(major-contracts\)/,/\(minor\)|\(minor-coordinator\)|\(minor-contracts\)/,contracts/coordinator packages"
             ["axelarnet-gateway"]="axelarnet-gateway,/\(major\)|\(major-axelarnet-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-axelarnet-gateway\)|\(minor-contracts\)/,contracts/axelarnet-gateway packages"
+            ["chain-codec-evm"]="chain-codec-evm,/\(major\)|\(major-chain-codec-evm\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-evm\)|\(minor-contracts\)/,contracts/chain-codec-evm packages"
+            ["chain-codec-stellar"]="chain-codec-stellar,/\(major\)|\(major-chain-codec-stellar\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-stellar\)|\(minor-contracts\)/,contracts/chain-codec-stellar packages"
+            ["chain-codec-sui"]="chain-codec-sui,/\(major\)|\(major-chain-codec-sui\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-sui\)|\(minor-contracts\)/,contracts/chain-codec-sui packages"
             ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
             ["its-abi-translator"]="its-abi-translator,/\(major\)|\(major-its-abi-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-abi-translator\)|\(minor-contracts\)/,contracts/its-abi-translator packages"
             ["event-verifier"]="event-verifier,/\(major\)|\(major-event-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-event-verifier\)|\(minor-contracts\)/,contracts/event-verifier packages"
