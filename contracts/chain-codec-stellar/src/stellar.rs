@@ -1,5 +1,8 @@
+use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::FnExt;
+use chain_codec_api::error::Error;
+use chain_codec_api::Payload;
 use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use multisig::msg::SignerWithSig;
@@ -8,32 +11,34 @@ use sha3::{Digest, Keccak256};
 use stellar::{Message, Messages, Proof, WeightedSigners};
 use stellar_xdr::curr::{Limits, ScVal, WriteXdr};
 
-use crate::error::ContractError;
-use crate::Payload;
+#[inline]
+pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {
+    axelar_wasm_std::address::validate_address(address, &AddressFormat::Stellar)
+}
 
 pub fn payload_digest(
     domain_separator: &Hash,
     verifier_set: &VerifierSet,
     payload: &Payload,
-) -> Result<Hash, ContractError> {
+) -> Result<Hash, Error> {
     let data_hash = match payload {
         Payload::Messages(messages) => messages
             .iter()
             .map(Message::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .change_context(ContractError::InvalidMessage)?
+            .change_context(Error::InvalidMessage)?
             .then(Messages::from)
             .messages_approval_hash(),
         Payload::VerifierSet(verifier_set) => WeightedSigners::try_from(verifier_set)
-            .change_context(ContractError::InvalidVerifierSet)?
+            .change_context(Error::InvalidVerifierSet)?
             .signers_rotation_hash(),
     }
-    .change_context(ContractError::SerializeData)?;
+    .change_context(Error::SerializeData)?;
 
     let signers_hash = WeightedSigners::try_from(verifier_set)
-        .change_context(ContractError::InvalidVerifierSet)?
+        .change_context(Error::InvalidVerifierSet)?
         .hash()
-        .change_context(ContractError::SerializeData)?;
+        .change_context(Error::SerializeData)?;
 
     let unsigned = [
         domain_separator,
@@ -48,38 +53,39 @@ pub fn payload_digest(
 /// `encode_execute_data` returns the XDR encoded external gateway function call args.
 /// The relayer will use this data to submit the payload to the contract.
 pub fn encode_execute_data(
+    _domain_separator: &Hash,
     verifier_set: &VerifierSet,
     signatures: Vec<SignerWithSig>,
     payload: &Payload,
-) -> Result<HexBinary, ContractError> {
+) -> Result<HexBinary, Error> {
     let payload = match payload {
         Payload::Messages(messages) => ScVal::try_from(
             messages
                 .iter()
                 .map(Message::try_from)
                 .collect::<Result<Vec<_>, _>>()
-                .change_context(ContractError::InvalidMessage)?
+                .change_context(Error::InvalidMessage)?
                 .then(Messages::from),
         ),
         Payload::VerifierSet(verifier_set) => ScVal::try_from(
-            WeightedSigners::try_from(verifier_set)
-                .change_context(ContractError::InvalidVerifierSet)?,
+            WeightedSigners::try_from(verifier_set).change_context(Error::InvalidVerifierSet)?,
         ),
     }
-    .change_context(ContractError::SerializeData)?;
+    .change_context(Error::SerializeData)?;
 
-    let proof =
-        Proof::try_from((verifier_set.clone(), signatures)).change_context(ContractError::Proof)?;
+    let proof = Proof::try_from((verifier_set.clone(), signatures)).change_context(Error::Proof)?;
 
     let execute_data = ScVal::try_from((payload, proof))
         .expect("must convert tuple of size 2 to ScVec")
         .to_xdr(Limits::none())
-        .change_context(ContractError::SerializeData)?;
+        .change_context(Error::SerializeData)?;
 
     Ok(execute_data.as_slice().into())
 }
+
 #[cfg(test)]
 mod tests {
+    use chain_codec_api::Payload;
     use cosmwasm_std::testing::MockApi;
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType::Ed25519;
@@ -88,8 +94,7 @@ mod tests {
     use multisig::verifier_set::VerifierSet;
     use router_api::{address, chain_name, chain_name_raw, CrossChainId, Message};
 
-    use crate::encoding::stellar_xdr::{encode_execute_data, payload_digest};
-    use crate::Payload;
+    use super::{encode_execute_data, payload_digest};
 
     #[test]
     fn stellar_messages_payload_digest() {
@@ -258,7 +263,7 @@ mod tests {
         }]);
 
         goldie::assert!(
-            encode_execute_data(&verifier_set, signer_with_sig, &payload)
+            encode_execute_data(&[0; 32], &verifier_set, signer_with_sig, &payload)
                 .unwrap()
                 .to_hex()
         );
@@ -325,7 +330,7 @@ mod tests {
         ));
 
         goldie::assert!(
-            encode_execute_data(&verifier_set, signer_with_sig, &payload)
+            encode_execute_data(&[0; 32], &verifier_set, signer_with_sig, &payload)
                 .unwrap()
                 .to_hex()
         );

@@ -24,7 +24,7 @@ impl From<Config> for Vec<Attribute> {
             source_chain,
             rewards_contract,
             msg_id_format,
-            address_format,
+            chain_codec_address,
         } = other;
 
         vec![
@@ -48,8 +48,9 @@ impl From<Config> for Vec<Attribute> {
                 serde_json::to_string(&msg_id_format).expect("failed to serialize msg_id_format"),
             ),
             (
-                "address_format",
-                serde_json::to_string(&address_format).expect("failed to serialize address_format"),
+                "chain_codec_address",
+                serde_json::to_string(&chain_codec_address)
+                    .expect("failed to serialize chain_codec_address"),
             ),
         ]
         .into_iter()
@@ -260,7 +261,6 @@ where
 mod test {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::address::AddressFormat;
     use axelar_wasm_std::msg_id::{
         Base58TxDigestAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
     };
@@ -469,7 +469,7 @@ mod test {
             source_chain: chain_name!(SOURCE_CHAIN),
             rewards_contract: cosmos_addr!("rewardsContract"),
             msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-            address_format: AddressFormat::Eip55,
+            chain_codec_address: cosmos_addr!("chainCodecAddress"),
         };
         let event_instantiated =
             cosmwasm_std::Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config));

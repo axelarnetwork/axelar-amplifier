@@ -42,6 +42,8 @@ pub enum Error {
     InstantiateVerifier,
     #[error("failed to instantiate prover")]
     InstantiateProver,
+    #[error("failed to instantiate chain codec")]
+    InstantiateChainCodec,
     #[error(
         "coordinator failed to retrieve verifier details and corresponding provers. service_name: {service_name}, verifier_address: {verifier_address}"
     )]

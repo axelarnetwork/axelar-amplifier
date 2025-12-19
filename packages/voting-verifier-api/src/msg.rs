@@ -1,4 +1,3 @@
-use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
@@ -28,5 +27,6 @@ pub struct InstantiateMsg {
     pub rewards_address: nonempty::String,
     /// Format that incoming messages should use for the id field of CrossChainId
     pub msg_id_format: MessageIdFormat,
-    pub address_format: AddressFormat,
+    /// Chain codec contract used for validating addresses
+    pub chain_codec_address: nonempty::String,
 }

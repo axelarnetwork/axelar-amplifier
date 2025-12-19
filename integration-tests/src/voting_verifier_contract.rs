@@ -18,6 +18,7 @@ impl VotingVerifierContract {
         protocol: &mut Protocol,
         voting_threshold: MajorityThreshold,
         source_chain: ChainName,
+        chain_codec_address: &Addr,
     ) -> Self {
         let code = ContractWrapper::new_with_empty(execute, instantiate, query);
         let app = &mut protocol.app;
@@ -50,7 +51,7 @@ impl VotingVerifierContract {
                         .try_into()
                         .unwrap(),
                     msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-                    address_format: axelar_wasm_std::address::AddressFormat::Eip55,
+                    chain_codec_address: chain_codec_address.to_string().try_into().unwrap(),
                 },
                 &[],
                 "voting_verifier",

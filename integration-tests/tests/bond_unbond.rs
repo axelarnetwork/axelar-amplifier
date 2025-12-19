@@ -328,14 +328,14 @@ fn claim_stake_when_in_next_verifier_sets_fails() {
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
     let response = polygon.multisig_prover.execute(
         &mut protocol.app,
         polygon.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
