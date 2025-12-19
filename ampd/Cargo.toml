@@ -15,20 +15,13 @@ test-utils = ["rand"]
 
 [dependencies]
 ampd-proto = { workspace = true }
-anchor-lang = "0.31.1"
 async-trait = { workspace = true }
-axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-axelar-solana-encoding = { workspace = true }
-axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axum = "0.7.5"
 base64 = { workspace = true }
-bcs = { workspace = true }
 bech32 = "0.11.0"
-borsh = "1.5.1"
 bs58 = { workspace = true }
 clap = { workspace = true }
-clarity-serialization = { git = "https://github.com/stacks-network/stacks-core", tag = "3.2.0.0.0", default-features = false, features = ["wasm-deterministic"] }
 config = { workspace = true }
 cosmrs = { version = "0.22.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
@@ -38,30 +31,20 @@ dirs = "5.0.1"
 ed25519-dalek = { workspace = true }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
-ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
-event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-event-verifier-api = { workspace = true }
 events = { workspace = true, features = ["derive"] }
-evm-gateway = { workspace = true }
 futures = { workspace = true }
-gateway-event-stack = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime-serde = "1.1.1"
 itertools = { workspace = true }
 k256 = { workspace = true }
 lazy_static = "1.5.0"
 mockall = "0.11.3"
-move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
-multiversx-sdk = "0.6.1"
 num-traits = { workspace = true }
-openssl = { version = "0.10.72", features = [
-  "vendored",
-] } # Needed to make arm compilation work by forcing vendoring
 pin-project-lite = "0.2.16"
 primitive-types = "0.12"
 prometheus-client = "0.23.1"
@@ -79,20 +62,7 @@ serde_json = { workspace = true }
 serde_with = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
-solana-client = "=2.1.21"
-solana-sdk = "=2.1.21"
-solana-transaction-status = "=2.1.21"
-solana-zk-token-sdk = "=2.1.21"
-starknet-checked-felt = { workspace = true }
-
-starknet-core = { workspace = true }
-starknet-providers = { workspace = true }
-stellar = { workspace = true }
-stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true, features = ["serde_json"] }
-sui-gateway = { workspace = true }
-sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
-sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sysinfo = "0.36.1"
 tendermint = { workspace = true }
 tendermint-rpc = { version = "0.40.4", features = ["http-client"] }
@@ -112,29 +82,22 @@ typed-builder = { workspace = true }
 url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
-voting-verifier = { workspace = true }
-xrpl-types = { workspace = true }
-xrpl_http_client = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.13.0"
 
 [dev-dependencies]
-assert_ok = { workspace = true }
 axum-test = "15.7.4"
 cosmos-sdk-proto = "0.27.0"
 ed25519-dalek = { workspace = true, features = ["rand_core"] }
 elliptic-curve = "0.13.5"
-event-verifier = { workspace = true }
-faux = "0.1.10"
 generic-array = "0.14.7"
 goldie = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
-random-string = "1.0.0"
+random-string = { workspace = true }
 temp-env = { workspace = true, features = ["async_closure"] }
 tendermint-proto = { version = "0.40.3" }
-test-log = { version = "0.2", features = ["trace"], default-features = false }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test = { workspace = true }
 

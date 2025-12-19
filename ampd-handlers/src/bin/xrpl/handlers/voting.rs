@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use ampd::monitoring;
-use ampd::xrpl::json_rpc::XRPLClient;
-use ampd::xrpl::verifier::verify_message;
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
+use ampd_handlers::xrpl::json_rpc::XRPLClient;
+use ampd_handlers::xrpl::verifier::verify_message;
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
 use async_trait::async_trait;

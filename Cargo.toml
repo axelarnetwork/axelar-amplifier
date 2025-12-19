@@ -97,6 +97,7 @@ num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
 rand = "0.8.5"
+random-string = "1.0.0"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
 router = { version = "^1.4.0", path = "contracts/router" }
@@ -124,6 +125,7 @@ sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 temp-env = "0.3.6"
 tendermint = "0.40.4"
+test-log = { version = "0.2", features = ["trace"], default-features = false }
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
 tokio = "1.44.2"

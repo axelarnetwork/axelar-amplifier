@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use ampd::handlers::solana_verify_msg::Message;
-use ampd::handlers::solana_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::solana::msg_verifier::verify_message;
-use ampd::solana::verifier_set_verifier::verify_verifier_set;
-use ampd::solana::{SolanaRpcClientProxy, SolanaTransaction};
+use ampd_handlers::solana::msg_verifier::verify_message;
+use ampd_handlers::solana::types::{Message, VerifierSetConfirmation};
+use ampd_handlers::solana::verifier_set_verifier::verify_verifier_set;
+use ampd_handlers::solana::{SolanaRpcClientProxy, SolanaTransaction};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -30,7 +29,7 @@ pub type DomainSeparator = [u8; 32];
 pub struct MessagesPollStarted {
     poll_id: PollId,
     source_chain: ChainName,
-    #[serde(deserialize_with = "ampd::solana::deserialize_pubkey")]
+    #[serde(deserialize_with = "ampd_handlers::solana::deserialize_pubkey")]
     source_gateway_address: Pubkey,
     expires_at: u64,
     messages: Vec<Message>,
@@ -43,7 +42,7 @@ pub struct VerifierSetPollStarted {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
     source_chain: ChainName,
-    #[serde(deserialize_with = "ampd::solana::deserialize_pubkey")]
+    #[serde(deserialize_with = "ampd_handlers::solana::deserialize_pubkey")]
     source_gateway_address: Pubkey,
     expires_at: u64,
     participants: Vec<AccountId>,
@@ -287,10 +286,10 @@ mod tests {
     use std::convert::TryInto;
     use std::str::FromStr;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring::{metrics, test_utils};
-    use ampd::solana::Client;
     use ampd::types::{Hash, TMAddress};
+    use ampd_handlers::solana::Client;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
     use cosmrs::cosmwasm::MsgExecuteContract;

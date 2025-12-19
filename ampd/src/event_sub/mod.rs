@@ -37,6 +37,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(default)]
 pub struct Config {
     /// Maximum number of blocks to buffer for concurrent processing.
     ///
@@ -70,6 +71,19 @@ pub struct Config {
     /// After this many consecutive failures, the operation is aborted.
     /// Total maximum wait time before giving up = `retry_delay * retry_max_attempts`.
     pub retry_max_attempts: u64,
+
+    /// Buffer size for the event stream.
+    ///
+    /// Maximum number of events to buffer before applying backpressure.
+    pub stream_buffer_size: usize,
+
+    /// Delay between processing consecutive blocks.
+    ///
+    /// To avoid inconsistencies (e.g. the block can be streamed but subsequent queries
+    /// for the state show the block doesn't exist yet, especially when using load-balancers)
+    /// blocks processing can be delayed by this parameter.
+    #[serde(with = "humantime_serde")]
+    pub delay: Duration,
 }
 
 impl Default for Config {
@@ -79,6 +93,8 @@ impl Default for Config {
             poll_interval: Duration::from_secs(1),
             retry_delay: Duration::from_secs(3),
             retry_max_attempts: 3,
+            stream_buffer_size: 100000,
+            delay: Duration::from_secs(1),
         }
     }
 }

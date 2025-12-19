@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use ampd::handlers::sui_verify_msg::Message;
-use ampd::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::sui::json_rpc::SuiClient;
-use ampd::sui::verifier::{verify_message, verify_verifier_set};
+use ampd_handlers::sui::json_rpc::SuiClient;
+use ampd_handlers::sui::types::{Message, VerifierSetConfirmation};
+use ampd_handlers::sui::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -247,10 +246,10 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring::{metrics, test_utils};
-    use ampd::sui::json_rpc::MockSuiClient;
     use ampd::types::TMAddress;
+    use ampd_handlers::sui::json_rpc::MockSuiClient;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
     use cosmrs::cosmwasm::MsgExecuteContract;
