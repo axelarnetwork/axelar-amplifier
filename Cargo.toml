@@ -43,6 +43,7 @@ axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
 base64 = "0.21.2"
 bcs = "0.1.5"
 bech32 = "0.11.0"
+borsh = { version = "1.6", features = ["derive"] }
 bs58 = "0.5.1"
 chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
 chain-codec-evm = { version = "^0.1.0", path = "contracts/chain-codec-evm" }
@@ -85,6 +86,7 @@ into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
 its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
 its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
+its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }

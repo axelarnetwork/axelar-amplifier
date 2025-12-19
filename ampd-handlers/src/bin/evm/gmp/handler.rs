@@ -60,6 +60,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = HexTxHashAndEventIndex;
     type ChainAddress = EVMAddress;
     type Receipt = TransactionReceipt;
+    type ContextData = ();
 
     fn tx_hash(&self) -> axelar_wasm_std::hash::Hash {
         self.message_id().tx_hash
@@ -72,7 +73,12 @@ impl voting::PollEventData for PollEventData {
         }
     }
 
-    fn verify(&self, source_gateway_address: &EVMAddress, tx_receipt: &TransactionReceipt) -> Vote {
+    fn verify(
+        &self,
+        source_gateway_address: &EVMAddress,
+        tx_receipt: &TransactionReceipt,
+        _: &Self::ContextData,
+    ) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(source_gateway_address, tx_receipt, message)
@@ -160,9 +166,13 @@ where
     type Receipt = TransactionReceipt;
     type ChainAddress = EVMAddress;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
+    }
+    fn context_data(&self) -> &Self::ContextData {
+        &()
     }
     fn verifier(&self) -> &AccountId {
         &self.verifier

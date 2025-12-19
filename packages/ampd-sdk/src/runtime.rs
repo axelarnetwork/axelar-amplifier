@@ -90,7 +90,7 @@ impl HandlerRuntime {
         token: CancellationToken,
     ) -> Result<(), Error>
     where
-        H: EventHandler + Debug,
+        H: EventHandler,
         H::Event: TryFrom<Event, Error = Report<events::Error>>,
         H::Event: Debug + Clone,
     {

@@ -1,0 +1,30 @@
+[package]
+name = "its-solana-translator"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+
+# Axelar dependencies
+axelar-wasm-std = { workspace = true }
+borsh = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
+error-stack = { workspace = true }
+interchain-token-service-std = { workspace = true }
+its-msg-translator-api = { workspace = true }
+router-api = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+assert_ok = { workspace = true }
+cosmwasm-schema = { workspace = true }
+goldie = { workspace = true }

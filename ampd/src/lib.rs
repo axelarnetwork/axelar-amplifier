@@ -18,7 +18,7 @@ pub mod handlers;
 pub mod json_rpc;
 pub mod monitoring;
 mod mvx;
-mod solana;
+pub mod solana;
 mod stacks;
 mod starknet;
 pub mod stellar;
