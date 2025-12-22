@@ -54,6 +54,10 @@ pub enum ExecuteMsg {
     /// Called by an incoming gateway
     #[permission(Specific(gateway))]
     RouteMessages(Vec<Message>),
+
+    /// Update admin address.
+    #[permission(Elevated)]
+    UpdateAdmin { new_admin_address: String },
 }
 
 #[cw_serde]

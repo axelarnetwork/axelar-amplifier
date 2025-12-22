@@ -86,6 +86,10 @@ pub enum ExecuteMsg {
         /// `None` keeps current block expiry.
         block_expiry: Option<nonempty::Uint64>,
     },
+
+    /// Update admin address.
+    #[permission(Elevated)]
+    UpdateAdmin { new_admin_address: String },
 }
 
 #[cw_serde]
