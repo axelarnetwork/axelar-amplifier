@@ -7,6 +7,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg, VotingParameters};
+use crate::shared::Poll;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -20,6 +21,8 @@ pub enum Error {
     MessagesStatus(Vec<Message>),
     #[error("failed to query voting verifier for poll. poll_id: {0}")]
     Poll(PollId),
+    #[error("failed to query voting verifier for poll by message")]
+    Message(Message),
 }
 
 impl Error {
@@ -29,6 +32,7 @@ impl Error {
             QueryMsg::VerifierSetStatus(verifier_set) => Error::VerifierSetStatus(verifier_set),
             QueryMsg::Poll { poll_id } => Error::Poll(poll_id),
             QueryMsg::VotingParameters => Error::VotingParameters,
+            QueryMsg::PollByMessage { message } => Error::Message(message),
         }
     }
 }
@@ -110,6 +114,14 @@ impl Client<'_> {
 
     pub fn voting_parameters(&self) -> Result<VotingParameters> {
         let msg = QueryMsg::VotingParameters;
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
+    }
+
+    pub fn poll_by_message(&self, message: Message) -> Result<Option<Poll>> {
+        let msg = QueryMsg::PollByMessage { message };
+
         self.client
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
@@ -206,6 +218,33 @@ mod test {
     }
 
     #[test]
+    fn query_poll_by_message() {
+        let (querier, _, addr) = setup();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let message = Message {
+            cc_id: CrossChainId::new(
+                "eth",
+                HexTxHashAndEventIndex {
+                    tx_hash: [0; 32],
+                    event_index: 0,
+                }
+                .to_string()
+                .as_str(),
+            )
+            .unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
+            destination_chain: chain_name!("eth"),
+            payload_hash: [0; 32],
+        };
+
+        let res = client.poll_by_message(message.clone());
+        assert!(res.is_ok());
+    }
+
+    #[test]
     fn query_voting_parameters() {
         let (querier, instantiate_msg, addr) = setup();
         let client: Client =
@@ -281,6 +320,34 @@ mod test {
             client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
         let res = client.voting_parameters();
 
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn query_poll_by_message_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let message = Message {
+            cc_id: CrossChainId::new(
+                "eth",
+                HexTxHashAndEventIndex {
+                    tx_hash: [0; 32],
+                    event_index: 0,
+                }
+                .to_string()
+                .as_str(),
+            )
+            .unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
+            destination_chain: chain_name!("eth"),
+            payload_hash: [0; 32],
+        };
+
+        let res = client.poll_by_message(message.clone());
         assert!(res.is_err());
         goldie::assert!(res.unwrap_err().to_string());
     }

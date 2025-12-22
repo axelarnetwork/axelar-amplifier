@@ -109,6 +109,9 @@ pub fn query(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
         QueryMsg::VotingParameters => to_json_binary(&query::voting_parameters(deps)?),
+        QueryMsg::PollByMessage { message } => {
+            to_json_binary(&query::poll_by_message(deps, message)?)
+        }
     }?
     .then(Ok)
 }
