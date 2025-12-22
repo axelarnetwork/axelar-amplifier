@@ -47,7 +47,7 @@ pub enum Error {
     #[error("failed to enable execution")]
     EnableExecution,
     #[error("failed to set operator")]
-    SetOperator,
+    UpdateOperator,
     #[error("failed to update admin address")]
     UpdateAdmin,
     #[error("failed to query chain config")]
@@ -159,11 +159,11 @@ pub fn execute(
                 .change_context(Error::UpdateAdmin)?;
             Ok(Response::new())
         }
-        ExecuteMsg::SetOperator {
+        ExecuteMsg::UpdateOperator {
             new_operator_address,
         } => {
             let new_operator = address::validate_cosmwasm_address(deps.api, &new_operator_address)?;
-            execute::set_operator(deps, new_operator).change_context(Error::SetOperator)
+            execute::update_operator(deps, new_operator).change_context(Error::UpdateOperator)
         }
     }?
     .then(Ok)

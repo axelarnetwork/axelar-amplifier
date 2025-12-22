@@ -52,13 +52,6 @@
       "operator"
     ]
   },
-  "SetOperator": {
-    "external": [],
-    "general": [
-      "Elevated"
-    ],
-    "specific": []
-  },
   "UnfreezeChain": {
     "external": [],
     "general": [
@@ -77,6 +70,13 @@
     "external": [],
     "general": [
       "Governance"
+    ],
+    "specific": []
+  },
+  "UpdateOperator": {
+    "external": [],
+    "general": [
+      "Elevated"
     ],
     "specific": []
   }

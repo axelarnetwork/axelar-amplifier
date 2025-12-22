@@ -113,7 +113,7 @@ pub enum ExecuteMsg {
 
     /// Update operator address.
     #[permission(Elevated)]
-    SetOperator { new_operator_address: String },
+    UpdateOperator { new_operator_address: String },
 }
 
 #[cw_serde]

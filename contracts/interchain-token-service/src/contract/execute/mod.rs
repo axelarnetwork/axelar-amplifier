@@ -385,7 +385,7 @@ pub fn enable_execution(deps: DepsMut) -> Result<Response, Error> {
     killswitch::disengage(deps.storage, Event::ExecutionEnabled).change_context(Error::State)
 }
 
-pub fn set_operator(deps: DepsMut, new_operator: Addr) -> Result<Response, Error> {
+pub fn update_operator(deps: DepsMut, new_operator: Addr) -> Result<Response, Error> {
     let mut config = state::load_config(deps.storage);
     config.operator = new_operator;
     state::save_config(deps.storage, &config).change_context(Error::State)?;
