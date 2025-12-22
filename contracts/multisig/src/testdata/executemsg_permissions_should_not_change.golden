@@ -57,6 +57,13 @@
     ],
     "specific": []
   },
+  "UpdateAdmin": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
   "UpdateSigningParameters": {
     "external": [],
     "general": [

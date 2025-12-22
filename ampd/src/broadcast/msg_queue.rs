@@ -131,29 +131,6 @@ where
         }))
     }
 
-    /// Enqueues a message without waiting for its result
-    ///
-    /// This is a fire-and-forget variant of `enqueue`, useful when
-    /// you don't need to track the transaction result.
-    ///
-    /// # Arguments
-    ///
-    /// * `msg` - The Cosmos message to enqueue
-    ///
-    /// # Returns
-    ///
-    /// `Ok(())` if the message was successfully enqueued
-    ///
-    /// # Errors
-    ///
-    /// * `Error::EstimateGas` - If gas estimation fails
-    /// * `Error::EnqueueMsg` - If enqueueing fails
-    pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
-        let _rx = self.enqueue_with_channel(msg).await?;
-
-        Ok(())
-    }
-
     /// Internal method that handles message enqueueing
     ///
     /// This method:
@@ -415,7 +392,7 @@ impl Queue {
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::{assert_err_contains, err_contains};
+    use axelar_wasm_std::err_contains;
     use cosmos_sdk_proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
     use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
@@ -501,57 +478,6 @@ mod tests {
         );
 
         assert_eq!(msg_queue_client.address(), &expected_address);
-    }
-
-    #[tokio::test]
-    async fn msg_queue_client_enqueue_and_forget() {
-        let gas_cap = 1000u64;
-        let gas_adjustment = 1.5;
-        let gas_price_amount = 0.025;
-        let gas_price_denom = "uaxl";
-
-        let gas_info = Some(GasInfo {
-            gas_wanted: gas_cap,
-            gas_used: gas_cap,
-        });
-
-        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
-        let broadcaster = broadcaster::Broadcaster::builder()
-            .client(cosmos_client)
-            .chain_id("chain-id".parse().unwrap())
-            .pub_key(random_cosmos_public_key())
-            .gas_adjustment(gas_adjustment)
-            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
-            .build()
-            .await
-            .unwrap();
-
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-
-        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            gas_cap,
-            time::Duration::from_secs(1),
-            monitoring_client,
-        );
-        tokio::pin!(msg_queue);
-
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
-        let actual = msg_queue.next().await.unwrap();
-
-        assert_eq!(actual.as_ref().len(), 1);
-        assert_eq!(actual.as_ref()[0].gas, gas_cap);
-        assert_eq!(
-            actual.as_ref()[0].msg.type_url,
-            "/cosmos.bank.v1beta1.MsgSend"
-        );
-
-        drop(msg_queue_client);
-        assert!(msg_queue.next().await.is_none());
     }
 
     #[tokio::test]
@@ -665,10 +591,7 @@ mod tests {
 
                 tokio::spawn(async move {
                     for _ in 0..msg_count_per_client {
-                        msg_queue_client_clone
-                            .enqueue_and_forget(dummy_msg())
-                            .await
-                            .unwrap();
+                        let _rx = msg_queue_client_clone.enqueue(dummy_msg()).await.unwrap();
                     }
                 })
             })
@@ -710,11 +633,11 @@ mod tests {
             monitoring_client,
         );
 
-        assert_err_contains!(
-            msg_queue_client.enqueue_and_forget(dummy_msg()).await,
-            Error,
-            Error::EstimateGas
-        );
+        let result = msg_queue_client.enqueue(dummy_msg()).await;
+        let Err(err) = result else {
+            panic!("expected error");
+        };
+        assert!(err_contains!(err, Error, Error::EstimateGas));
     }
 
     #[tokio::test]
@@ -797,10 +720,7 @@ mod tests {
         );
         tokio::pin!(msg_queue);
 
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
 
         let start = time::Instant::now();
         let actual = msg_queue.next().await.unwrap();
@@ -874,10 +794,7 @@ mod tests {
         });
 
         for _ in 0..msg_count {
-            msg_queue_client
-                .enqueue_and_forget(dummy_msg())
-                .await
-                .unwrap();
+            let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         }
         handle.await.unwrap();
     }
@@ -966,14 +883,8 @@ mod tests {
             monitoring_client,
         );
         tokio::pin!(msg_queue);
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
@@ -1038,10 +949,7 @@ mod tests {
         );
         tokio::pin!(msg_queue);
 
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
 
         drop(msg_queue_client);
         assert!(msg_queue.next().await.is_none());

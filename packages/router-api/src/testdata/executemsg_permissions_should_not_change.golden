@@ -43,6 +43,13 @@
     ],
     "specific": []
   },
+  "UpdateAdmin": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
   "UpgradeGateway": {
     "external": [],
     "general": [

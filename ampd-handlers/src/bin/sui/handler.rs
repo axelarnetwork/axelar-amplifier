@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use ampd::handlers::sui_verify_msg::Message;
-use ampd::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::sui::json_rpc::SuiClient;
-use ampd::sui::verifier::{verify_message, verify_verifier_set};
+use ampd_handlers::sui::json_rpc::SuiClient;
+use ampd_handlers::sui::types::{Message, VerifierSetConfirmation};
+use ampd_handlers::sui::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -29,7 +28,6 @@ pub struct MessagesPollStarted {
     poll_id: PollId,
     source_chain: ChainName,
     source_gateway_address: SuiAddress,
-    confirmation_height: u64,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<AccountId>,
@@ -43,7 +41,6 @@ pub struct VerifierSetPollStarted {
     source_chain: ChainName,
     source_gateway_address: SuiAddress,
     expires_at: u64,
-    confirmation_height: u64,
     participants: Vec<AccountId>,
 }
 
@@ -58,6 +55,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = Base58TxDigestAndEventIndex;
     type ChainAddress = SuiAddress;
     type Receipt = SuiTransactionBlockResponse;
+    type ContextData = ();
 
     fn tx_hash(&self) -> TransactionDigest {
         self.message_id().tx_digest.into()
@@ -74,6 +72,7 @@ impl voting::PollEventData for PollEventData {
         &self,
         source_gateway_address: &SuiAddress,
         tx_receipt: &SuiTransactionBlockResponse,
+        _: &Self::ContextData,
     ) -> Vote {
         match self {
             PollEventData::Message(message) => {
@@ -124,7 +123,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, SuiAddre
                 source_chain: message_event.source_chain,
                 source_gateway_address: message_event.source_gateway_address,
                 expires_at: message_event.expires_at,
-                confirmation_height: message_event.confirmation_height,
+                confirmation_height: None,
                 participants: message_event.participants,
             },
             PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
@@ -133,7 +132,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, SuiAddre
                 source_chain: verifier_set_event.source_chain,
                 source_gateway_address: verifier_set_event.source_gateway_address,
                 expires_at: verifier_set_event.expires_at,
-                confirmation_height: verifier_set_event.confirmation_height,
+                confirmation_height: None,
                 participants: verifier_set_event.participants,
             },
         }
@@ -161,9 +160,14 @@ where
     type Receipt = SuiTransactionBlockResponse;
     type ChainAddress = SuiAddress;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
+    }
+
+    fn context_data(&self) -> &Self::ContextData {
+        &()
     }
 
     fn verifier(&self) -> &AccountId {
@@ -242,10 +246,10 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring::{metrics, test_utils};
-    use ampd::sui::json_rpc::MockSuiClient;
     use ampd::types::TMAddress;
+    use ampd_handlers::sui::json_rpc::MockSuiClient;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
     use cosmrs::cosmwasm::MsgExecuteContract;

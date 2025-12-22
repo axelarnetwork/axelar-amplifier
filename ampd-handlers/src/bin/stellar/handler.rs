@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use ampd::handlers::stellar_verify_msg::Message;
-use ampd::handlers::stellar_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
-use ampd::stellar::rpc_client::{StellarClient, TxResponse};
-use ampd::stellar::verifier::{verify_message, verify_verifier_set};
+use ampd_handlers::stellar::rpc_client::{StellarClient, TxResponse};
+use ampd_handlers::stellar::types::{Message, VerifierSetConfirmation};
+use ampd_handlers::stellar::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -32,7 +31,6 @@ pub struct MessagesPollStarted {
     source_chain: ChainName,
     #[serde_as(as = "DisplayFromStr")]
     source_gateway_address: ScAddress,
-    confirmation_height: u64,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<AccountId>,
@@ -48,7 +46,6 @@ pub struct VerifierSetPollStarted {
     #[serde_as(as = "DisplayFromStr")]
     source_gateway_address: ScAddress,
     expires_at: u64,
-    confirmation_height: u64,
     participants: Vec<AccountId>,
 }
 
@@ -88,6 +85,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = HexTxHashAndEventIndex;
     type ChainAddress = ScAddress;
     type Receipt = TxResponse;
+    type ContextData = ();
 
     fn tx_hash(&self) -> Self::Digest {
         match self {
@@ -107,6 +105,7 @@ impl voting::PollEventData for PollEventData {
         &self,
         source_gateway_address: &Self::ChainAddress,
         tx_receipt: &Self::Receipt,
+        _: &Self::ContextData,
     ) -> Vote {
         match self {
             PollEventData::Message(message) => {
@@ -132,7 +131,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, ScAddres
                 source_chain: message_event.source_chain,
                 source_gateway_address: message_event.source_gateway_address,
                 expires_at: message_event.expires_at,
-                confirmation_height: message_event.confirmation_height,
+                confirmation_height: None,
                 participants: message_event.participants,
             },
             PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
@@ -141,7 +140,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, ScAddres
                 source_chain: verifier_set_event.source_chain,
                 source_gateway_address: verifier_set_event.source_gateway_address,
                 expires_at: verifier_set_event.expires_at,
-                confirmation_height: verifier_set_event.confirmation_height,
+                confirmation_height: None,
                 participants: verifier_set_event.participants,
             },
         }
@@ -169,9 +168,14 @@ where
     type Receipt = TxResponse;
     type ChainAddress = ScAddress;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
+    }
+
+    fn context_data(&self) -> &Self::ContextData {
+        &()
     }
 
     fn verifier(&self) -> &AccountId {
@@ -262,10 +266,10 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring;
-    use ampd::stellar::rpc_client::MockStellarClient;
     use ampd::types::TMAddress;
+    use ampd_handlers::stellar::rpc_client::MockStellarClient;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
@@ -396,7 +400,7 @@ mod tests {
         let mut rpc_client = MockStellarClient::new();
         rpc_client
             .expect_transaction_responses()
-            .returning(|_| Err(ampd::stellar::rpc_client::Error::TxHash.into()));
+            .returning(|_| Err(ampd_handlers::stellar::rpc_client::Error::TxHash.into()));
 
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -497,7 +501,7 @@ mod tests {
         let mut rpc_client = MockStellarClient::new();
         rpc_client
             .expect_transaction_responses()
-            .returning(|_| Err(ampd::stellar::rpc_client::Error::TxHash.into()));
+            .returning(|_| Err(ampd_handlers::stellar::rpc_client::Error::TxHash.into()));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);

@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use ampd::evm::finalizer;
-use ampd::evm::finalizer::Finalization;
-use ampd::evm::json_rpc::EthereumClient;
-use ampd::evm::verifier::{verify_message, verify_verifier_set};
-use ampd::handlers::evm_verify_msg::Message;
-use ampd::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
 use ampd::monitoring;
 use ampd::types::EVMAddress;
+use ampd_handlers::evm::finalizer;
+use ampd_handlers::evm::finalizer::Finalization;
+use ampd_handlers::evm::json_rpc::EthereumClient;
+use ampd_handlers::evm::types::{Message, VerifierSetConfirmation};
+use ampd_handlers::evm::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
 use ampd_sdk::event::event_handler::{EventHandler, SubscriptionParams};
 use ampd_sdk::grpc::client::EventHandlerClient;
@@ -60,6 +59,7 @@ impl voting::PollEventData for PollEventData {
     type MessageId = HexTxHashAndEventIndex;
     type ChainAddress = EVMAddress;
     type Receipt = TransactionReceipt;
+    type ContextData = ();
 
     fn tx_hash(&self) -> axelar_wasm_std::hash::Hash {
         self.message_id().tx_hash
@@ -72,7 +72,12 @@ impl voting::PollEventData for PollEventData {
         }
     }
 
-    fn verify(&self, source_gateway_address: &EVMAddress, tx_receipt: &TransactionReceipt) -> Vote {
+    fn verify(
+        &self,
+        source_gateway_address: &EVMAddress,
+        tx_receipt: &TransactionReceipt,
+        _: &Self::ContextData,
+    ) -> Vote {
         match self {
             PollEventData::Message(message) => {
                 verify_message(source_gateway_address, tx_receipt, message)
@@ -122,7 +127,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, EVMAddre
                 source_chain: message_event.source_chain,
                 source_gateway_address: message_event.source_gateway_address,
                 expires_at: message_event.expires_at,
-                confirmation_height: message_event.confirmation_height,
+                confirmation_height: Some(message_event.confirmation_height),
                 participants: message_event.participants,
             },
             PollStartedEvent::VerifierSet(verifier_set_event) => voting::PollStartedEvent {
@@ -131,7 +136,7 @@ impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, EVMAddre
                 source_chain: verifier_set_event.source_chain,
                 source_gateway_address: verifier_set_event.source_gateway_address,
                 expires_at: verifier_set_event.expires_at,
-                confirmation_height: verifier_set_event.confirmation_height,
+                confirmation_height: Some(verifier_set_event.confirmation_height),
                 participants: verifier_set_event.participants,
             },
         }
@@ -160,9 +165,13 @@ where
     type Receipt = TransactionReceipt;
     type ChainAddress = EVMAddress;
     type EventData = PollEventData;
+    type ContextData = ();
 
     fn chain(&self) -> &ChainName {
         &self.chain
+    }
+    fn context_data(&self) -> &Self::ContextData {
+        &()
     }
     fn verifier(&self) -> &AccountId {
         &self.verifier
@@ -258,11 +267,11 @@ where
 mod tests {
     use std::convert::TryInto;
 
-    use ampd::evm::finalizer::Finalization;
-    use ampd::evm::json_rpc::MockEthereumClient;
-    use ampd::handlers::test_utils::{into_structured_event, participants};
     use ampd::monitoring;
     use ampd::types::{Hash, TMAddress};
+    use ampd_handlers::evm::finalizer::Finalization;
+    use ampd_handlers::evm::json_rpc::MockEthereumClient;
+    use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;

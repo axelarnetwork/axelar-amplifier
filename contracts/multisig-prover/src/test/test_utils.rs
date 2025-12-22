@@ -1,5 +1,6 @@
+use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::{nonempty, VerificationStatus};
-use cosmwasm_std::{from_json, to_json_binary, QuerierResult, Uint128, WasmQuery};
+use cosmwasm_std::{from_json, to_json_binary, HexBinary, QuerierResult, Uint128, WasmQuery};
 use multisig::msg::Signer;
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
@@ -14,6 +15,7 @@ pub const MULTISIG_ADDRESS: &str = "multisig";
 pub const COORDINATOR_ADDRESS: &str = "coordinator";
 pub const SERVICE_REGISTRY_ADDRESS: &str = "service_registry";
 pub const VOTING_VERIFIER_ADDRESS: &str = "voting_verifier";
+pub const CHAIN_CODEC_ADDRESS: &str = "chain_codec";
 pub const ADMIN: &str = "admin";
 pub const GOVERNANCE: &str = "governance";
 pub const SERVICE_NAME: &str = "validators";
@@ -37,6 +39,11 @@ pub fn mock_querier_handler(
             if contract_addr == cosmos_addr!(SERVICE_REGISTRY_ADDRESS).as_str() =>
         {
             service_registry_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
+        }
+        WasmQuery::Smart { contract_addr, msg }
+            if contract_addr == cosmos_addr!(CHAIN_CODEC_ADDRESS).as_str() =>
+        {
+            chain_codec_mock_querier_handler(from_json(msg).unwrap())
         }
         WasmQuery::Smart { contract_addr, .. }
             if contract_addr == cosmos_addr!(VOTING_VERIFIER_ADDRESS).as_str() =>
@@ -165,4 +172,25 @@ fn service_registry_mock_querier_handler(
 
 fn voting_verifier_mock_querier_handler(status: VerificationStatus) -> QuerierResult {
     Ok(to_json_binary(&status).into()).into()
+}
+
+fn chain_codec_mock_querier_handler(msg: chain_codec_api::msg::QueryMsg) -> QuerierResult {
+    match msg {
+        chain_codec_api::msg::QueryMsg::EncodeExecData { .. } => {
+            Ok(to_json_binary(&HexBinary::from_hex("48656c6c6f20776f726c6421").unwrap()).into())
+                .into()
+        }
+        chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+            Ok(validate_address(&address, &AddressFormat::Eip55)
+                .map(|_| cosmwasm_std::to_json_binary(&cosmwasm_std::Empty {}).unwrap())
+                .into())
+            .into()
+        }
+        chain_codec_api::msg::QueryMsg::PayloadDigest {
+            domain_separator: _,
+            verifier_set: _,
+            payload: _,
+            full_message_payloads: _,
+        } => Ok(to_json_binary(&HexBinary::from_hex("deadbeef").unwrap()).into()).into(),
+    }
 }
