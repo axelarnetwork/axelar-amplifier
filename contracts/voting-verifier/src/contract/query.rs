@@ -22,10 +22,10 @@ pub fn poll_by_message(deps: Deps, message: Message) -> Result<Option<Poll>, Con
     let poll_id = poll_content.poll_id;
 
     let poll = POLLS
-        .may_load(deps.storage, poll_id)
-        .change_context(ContractError::StorageError)?;
+        .load(deps.storage, poll_id)
+        .change_context(ContractError::PollNotFound)?;
 
-    Ok(poll)
+    Ok(Some(poll))
 }
 
 pub fn voting_parameters(deps: Deps) -> Result<VotingParameters, ContractError> {
