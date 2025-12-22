@@ -1,4 +1,3 @@
-pub use crate::shared::Poll;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -8,6 +7,8 @@ use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
+
+pub use crate::shared::Poll;
 
 #[cw_serde]
 pub struct Config {
