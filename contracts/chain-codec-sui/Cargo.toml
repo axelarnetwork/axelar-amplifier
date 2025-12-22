@@ -1,0 +1,47 @@
+[package]
+name = "chain-codec-sui"
+version = "0.1.0"
+rust-version = { workspace = true }
+license = "MIT OR Apache-2.0"
+edition = { workspace = true }
+description = "Chain codec contract for Sui using BCS encoding and Sui addresses"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "chain-codec-schema"
+path = "src/bin/schema.rs"
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+bcs = { version = "0.1.5" }
+chain-codec-api = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
+error-stack = { workspace = true }
+itertools = { workspace = true }
+k256 = { workspace = true }
+multisig = { workspace = true, features = ["library"] }
+sha3 = { workspace = true }
+sui-gateway = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1.0"
+assert_ok = { workspace = true }
+cw-multi-test = { workspace = true }
+elliptic-curve = "0.13.5"
+generic-array = "0.14.7"
+goldie = { workspace = true }
+hex = { workspace = true }
+prost = "0.12.4"
+router-api = { workspace = true }
+service-registry-api = { workspace = true }
+
+[lints]
+workspace = true

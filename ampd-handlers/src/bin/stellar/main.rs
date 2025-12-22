@@ -2,8 +2,8 @@ mod error;
 mod handler;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
-use ampd::stellar::rpc_client::Client;
 use ampd::url::Url;
+use ampd_handlers::stellar::rpc_client::Client;
 use ampd_handlers::tracing::init_tracing;
 use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;

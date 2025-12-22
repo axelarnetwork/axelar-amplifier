@@ -14,7 +14,7 @@ use crate::commands::{broadcast_tx, verifier_pub_key, BroadcastArgs};
 use crate::config::Config;
 use crate::tofnd::{self, Multisig, MultisigClient};
 use crate::types::TMAddress;
-use crate::{handlers, Error, PREFIX};
+use crate::{Error, PREFIX};
 
 #[derive(clap::ValueEnum, Clone, Debug, Valuable, Copy)]
 enum KeyType {
@@ -113,19 +113,15 @@ pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
 }
 
 fn multisig_address(config: &Config) -> Result<TMAddress, Error> {
+    // This assumes that all chains use the same multisig contract address
+    // Ideally in the future we will be able to use the coordinator contract to query for the multisig contract address
+    // for each chain.
     config
-        .handlers
-        .iter()
-        .find_map(|config| {
-            if let handlers::config::Config::MultisigSigner {
-                cosmwasm_contract, ..
-            } = config
-            {
-                Some(cosmwasm_contract.clone())
-            } else {
-                None
-            }
-        })
+        .grpc
+        .blockchain_service
+        .chains
+        .first()
+        .map(|config| config.multisig.clone())
         .ok_or(Error::LoadConfig)
         .attach_printable("no multisig contract found in config")
 }

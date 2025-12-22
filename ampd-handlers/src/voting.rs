@@ -33,6 +33,7 @@ pub trait PollEventData: Clone + Debug + Send + Sync {
     type MessageId: Display;
     type ChainAddress;
     type Receipt;
+    type ContextData;
 
     fn tx_hash(&self) -> Self::Digest;
     fn message_id(&self) -> &Self::MessageId;
@@ -40,6 +41,7 @@ pub trait PollEventData: Clone + Debug + Send + Sync {
         &self,
         source_gateway_address: &Self::ChainAddress,
         tx_receipt: &Self::Receipt,
+        context: &Self::ContextData,
     ) -> Vote;
 }
 
@@ -54,7 +56,7 @@ where
     pub source_chain: ChainName,
     pub source_gateway_address: A,
     pub expires_at: u64,
-    pub confirmation_height: u64,
+    pub confirmation_height: Option<u64>,
     pub participants: Vec<AccountId>,
 }
 
@@ -63,13 +65,16 @@ pub trait VotingHandler: EventHandler {
     type Digest: Eq + Hash;
     type Receipt;
     type ChainAddress: Clone + Debug + Send + Sync;
+    type ContextData;
     type EventData: PollEventData<
         Digest = Self::Digest,
         Receipt = Self::Receipt,
         ChainAddress = Self::ChainAddress,
+        ContextData = Self::ContextData,
     >;
 
     fn chain(&self) -> &ChainName;
+    fn context_data(&self) -> &Self::ContextData;
     fn verifier(&self) -> &AccountId;
     fn voting_verifier_contract(&self) -> &AccountId;
     fn monitoring_client(&self) -> &monitoring::Client;
@@ -172,9 +177,7 @@ pub trait VotingHandler: EventHandler {
             return Ok(vec![]);
         }
 
-        let finalized_tx_receipts = self
-            .finalized_txs(&poll_data, Some(confirmation_height))
-            .await?;
+        let finalized_tx_receipts = self.finalized_txs(&poll_data, confirmation_height).await?;
 
         let poll_id_str: String = poll_id.to_string();
         let source_chain_str: String = source_chain.to_string();
@@ -195,11 +198,12 @@ pub trait VotingHandler: EventHandler {
             let votes: Vec<_> = poll_data
                 .iter()
                 .map(|data| {
-                    finalized_tx_receipts
-                        .get(&data.tx_hash())
-                        .map_or(Vote::NotFound, |tx_receipt| {
-                            data.verify(&source_gateway_address, tx_receipt)
-                        })
+                    finalized_tx_receipts.get(&data.tx_hash()).map_or(
+                        Vote::NotFound,
+                        |tx_receipt| {
+                            data.verify(&source_gateway_address, tx_receipt, self.context_data())
+                        },
+                    )
                 })
                 .inspect(|vote| {
                     self.monitoring_client().metrics().record_metric(

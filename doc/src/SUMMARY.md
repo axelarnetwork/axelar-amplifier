@@ -8,6 +8,7 @@
 - [Router](contracts/router.md)
 - [Multisig](contracts/multisig.md)
 - [Gateway](contracts/gateway.md)
+- [Chain Codec](contracts/chain_codec.md)
 - [Voting Verifier](contracts/voting_verifier.md)
 - [Multisig Prover](contracts/multisig_prover.md)
 - [Rewards](contracts/rewards.md)
