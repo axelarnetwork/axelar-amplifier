@@ -79,10 +79,11 @@ pub struct ManualDeploymentParams {
 }
 
 #[cw_serde]
-// The parameters used to configure each instantiation.
-// This is an enum to allow for additional parameter types in the future
+/// The parameters used to configure each instantiation.
+/// This is an enum to allow for additional parameter types in the future
 pub enum DeploymentParams {
-    Manual(ManualDeploymentParams), // user supplies all info that cannot be inferred by coordinator
+    /// user supplies all info that cannot be inferred by coordinator
+    Manual(ManualDeploymentParams),
 }
 
 #[cw_serde]
