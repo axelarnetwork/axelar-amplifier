@@ -2,7 +2,16 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.2..HEAD)
+
+## [v1.14.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.2) (2025-12-19)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.0..ampd-v1.14.2)
+
+- remove event_processor and legacy handlers [#1126](https://github.com/axelarnetwork/axelar-amplifier/pull/1126)
+- solana ampd handler migration [#1124](https://github.com/axelarnetwork/axelar-amplifier/pull/1124)
+- add xrpl voting handler [#1119](https://github.com/axelarnetwork/axelar-amplifier/pull/1119)
+- backport releases/v1.13.x changes to main [#1122](https://github.com/axelarnetwork/axelar-amplifier/pull/1122)
 
 ## [v1.14.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.0) (2025-12-10)
 
