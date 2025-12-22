@@ -8,7 +8,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
-pub use crate::shared::Poll;
+use crate::shared::Poll;
 
 #[cw_serde]
 pub struct Config {

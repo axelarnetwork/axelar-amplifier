@@ -7,7 +7,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg, VotingParameters};
-use crate::state::Poll;
+use crate::shared::Poll;
 
 type Result<T> = error_stack::Result<T, Error>;
 

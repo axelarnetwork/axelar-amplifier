@@ -19,8 +19,9 @@ use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
     VerifierSetConfirmation, Voted,
 };
+use crate::shared::Poll;
 use crate::state::{
-    self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
+    self, poll_messages, poll_verifier_sets, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
 
 pub fn update_voting_parameters(
