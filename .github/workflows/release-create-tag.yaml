@@ -1,4 +1,6 @@
-name: Update and tag release version
+# Creates a new release tag for the selected binary (ampd, contracts, etc.).
+# Bumps version based on conventional commits and creates git tag.
+name: "Release: Create Tag"
 
 on:
   workflow_dispatch:

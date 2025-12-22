@@ -1,4 +1,7 @@
-name: ampd (push to main) - Build and push image to ECR
+# Builds ampd Docker image and pushes to private ECR for internal testing.
+# Triggered automatically on push to main, or manually via workflow_dispatch from any branch.
+# For production releases, use release-build-ampd.yaml instead.
+name: "CI: Build and Push Ampd to ECR"
 
 on:
   push:

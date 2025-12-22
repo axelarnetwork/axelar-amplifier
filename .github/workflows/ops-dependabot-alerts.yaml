@@ -1,4 +1,5 @@
-name: Send vulnerabilities found by Dependabot to Slack
+# Sends weekly Dependabot vulnerability alerts to Slack (runs every Sunday at midnight).
+name: "Ops: Dependabot Alerts to Slack"
 
 on:
   schedule:

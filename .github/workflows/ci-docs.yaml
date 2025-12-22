@@ -1,4 +1,5 @@
-name: Docs
+# Builds and validates mdBook documentation, checking for broken links.
+name: "CI: Docs"
 
 on:
   pull_request:
@@ -7,7 +8,7 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

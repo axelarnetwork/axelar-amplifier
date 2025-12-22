@@ -1,0 +1,40 @@
+# Runs cargo-audit to check for known security vulnerabilities in dependencies
+# using the RustSec Advisory Database.
+#
+# Uses cargo-audit v0.22.0 which supports Cargo.lock version 4 format (Rust 1.86+).
+# Runs on all PRs and pushes, not just dependency changes, to catch retroactive
+# vulnerabilities on existing dependencies as soon as possible.
+name: "CI: Security Audit"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-audit:
+    name: Check dependencies for known vulnerabilities
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+    steps:
+      - name: Checkout repository including submodules
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      # Install cargo-audit explicitly because available github actions don't support Cargo.lock v4 yet
+      - name: Install cargo-audit
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
+        with:
+          crate: cargo-audit
+          version: 0.22.0
+
+      - name: Run cargo audit
+        run: cargo audit

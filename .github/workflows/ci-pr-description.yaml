@@ -1,4 +1,5 @@
-name: Basic
+# Checks that PR descriptions are not empty and meet minimum requirements.
+name: "CI: PR Description"
 
 on:
   pull_request:
@@ -6,9 +7,10 @@ on:
 
 jobs:
   check_description:
+    name: Verify PR description is not empty
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Check Pull Request Description Exists
         env:
           DESCRIPTION: ${{ github.event.pull_request.body }}
