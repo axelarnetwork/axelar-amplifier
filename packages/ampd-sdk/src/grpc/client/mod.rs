@@ -1,12 +1,11 @@
 use std::pin::Pin;
-use std::vec;
 
 use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{
     AddressRequest, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyRequest,
-    SignRequest, SubscribeRequest,
+    LatestBlockHeightRequest, SignRequest, SubscribeRequest,
 };
 use async_trait::async_trait;
 use axelar_wasm_std::nonempty;
@@ -14,7 +13,6 @@ use cosmrs::AccountId;
 use error_stack::{bail, Result, ResultExt as _};
 use events::{AbciEventTypeFilter, Event};
 use futures::StreamExt;
-use mockall::automock;
 use report::{ResultCompatExt, ResultExt};
 use serde::de::DeserializeOwned;
 use tokio_stream::Stream;
@@ -43,9 +41,29 @@ fn is_transport_error(status: &Status) -> bool {
     }
 }
 
-#[automock(type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;)]
 #[async_trait]
-pub trait Client {
+pub trait EventHandlerClient {
+    async fn contract_state<T: DeserializeOwned + 'static>(
+        &mut self,
+        contract: nonempty::String,
+        query: nonempty::Vec<u8>,
+    ) -> Result<T, Error>;
+
+    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error>;
+
+    async fn latest_block_height(&mut self) -> Result<u64, Error>;
+
+    async fn sign(
+        &mut self,
+        key: Option<Key>,
+        message: nonempty::Vec<u8>,
+    ) -> Result<nonempty::Vec<u8>, Error>;
+
+    async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error>;
+}
+
+#[async_trait]
+pub trait HandlerTaskClient: EventHandlerClient {
     type Stream: Stream<Item = Result<Event, Error>>;
 
     async fn subscribe(
@@ -57,25 +75,9 @@ pub trait Client {
     async fn address(&mut self) -> Result<AccountId, Error>;
 
     async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
-
-    async fn contract_state<T: DeserializeOwned + 'static>(
-        &mut self,
-        contract: nonempty::String,
-        query: nonempty::Vec<u8>,
-    ) -> Result<T, Error>;
-
-    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error>;
-
-    async fn sign(
-        &mut self,
-        key: Option<Key>,
-        message: nonempty::Vec<u8>,
-    ) -> Result<nonempty::Vec<u8>, Error>;
-
-    async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GrpcClient {
     connection_handle: ConnectionHandle,
 }
@@ -112,7 +114,106 @@ impl GrpcClient {
 }
 
 #[async_trait]
-impl Client for GrpcClient {
+impl EventHandlerClient for GrpcClient {
+    async fn contract_state<T: DeserializeOwned + 'static>(
+        &mut self,
+        contract: nonempty::String,
+        query: nonempty::Vec<u8>,
+    ) -> Result<T, Error> {
+        let channel = self.channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
+
+        blockchain_client
+            .contract_state(ContractStateRequest {
+                contract: contract.into(),
+                query: query.into(),
+            })
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()
+            .map(|response| response.into_inner().result)
+            .and_then(|result| {
+                serde_json::from_slice(&result)
+                    .change_context(AppError::InvalidJson.into())
+                    .attach_printable(hex::encode(&result))
+            })
+    }
+
+    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error> {
+        let channel = self.channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
+
+        let contracts_response = blockchain_client
+            .contracts(Request::new(ContractsRequest {
+                chain: chain.into(),
+            }))
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()?
+            .into_inner();
+
+        ContractsAddresses::try_from(&contracts_response)
+            .change_context(AppError::InvalidContractsResponse.into())
+            .attach_printable(format!("{contracts_response:?}"))
+    }
+
+    async fn latest_block_height(&mut self) -> Result<u64, Error> {
+        let channel = self.channel().await?;
+        let mut blockchain_client = BlockchainServiceClient::new(channel);
+
+        let height = blockchain_client
+            .latest_block_height(Request::new(LatestBlockHeightRequest {}))
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()?
+            .into_inner()
+            .height;
+
+        Ok(height)
+    }
+
+    async fn sign(
+        &mut self,
+        key: Option<Key>,
+        message: nonempty::Vec<u8>,
+    ) -> Result<nonempty::Vec<u8>, Error> {
+        let channel = self.channel().await?;
+        let mut crypto_client = CryptoServiceClient::new(channel);
+
+        crypto_client
+            .sign(Request::new(SignRequest {
+                key_id: key.map(|k| k.into()),
+                msg: message.into(),
+            }))
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()
+            .and_then(|response| {
+                nonempty::Vec::try_from(response.into_inner().signature)
+                    .change_context(AppError::InvalidByteArray.into())
+            })
+    }
+
+    async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
+        let channel = self.channel().await?;
+        let mut crypto_client = CryptoServiceClient::new(channel);
+
+        crypto_client
+            .key(Request::new(KeyRequest {
+                key_id: key.map(|k| k.into()),
+            }))
+            .await
+            .inspect_err(|status| self.ensure_healthy_connection(status))
+            .into_report()
+            .and_then(|response| {
+                nonempty::Vec::try_from(response.into_inner().pub_key)
+                    .change_context(AppError::InvalidByteArray.into())
+            })
+    }
+}
+
+#[async_trait]
+impl HandlerTaskClient for GrpcClient {
     type Stream = Pin<Box<dyn Stream<Item = Result<Event, Error>> + Send>>;
 
     async fn subscribe(
@@ -127,8 +228,13 @@ impl Client for GrpcClient {
             filters: filters
                 .into_iter()
                 .map(|filter| ampd_proto::EventFilter {
-                    r#type: filter.event_type,
-                    contract: Default::default(),
+                    r#type: filter.event_type.into(),
+                    contract: filter.contract.to_string(),
+                    attributes: filter
+                        .attributes
+                        .into_iter()
+                        .map(|(key, value)| (key, value.to_string()))
+                        .collect(),
                 })
                 .collect(),
             include_block_begin_end,
@@ -182,114 +288,68 @@ impl Client for GrpcClient {
 
         Ok(broadcast_response.into())
     }
-
-    async fn contract_state<T: DeserializeOwned + 'static>(
-        &mut self,
-        contract: nonempty::String,
-        query: nonempty::Vec<u8>,
-    ) -> Result<T, Error> {
-        let channel = self.channel().await?;
-        let mut blockchain_client = BlockchainServiceClient::new(channel);
-
-        blockchain_client
-            .contract_state(ContractStateRequest {
-                contract: contract.into(),
-                query: query.into(),
-            })
-            .await
-            .inspect_err(|status| self.ensure_healthy_connection(status))
-            .into_report()
-            .map(|response| response.into_inner().result)
-            .and_then(|result| {
-                serde_json::from_slice(&result)
-                    .change_context(AppError::InvalidJson.into())
-                    .attach_printable(hex::encode(&result))
-            })
-    }
-
-    async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error> {
-        let channel = self.channel().await?;
-        let mut blockchain_client = BlockchainServiceClient::new(channel);
-
-        let contracts_response = blockchain_client
-            .contracts(Request::new(ContractsRequest {
-                chain: chain.into(),
-            }))
-            .await
-            .inspect_err(|status| self.ensure_healthy_connection(status))
-            .into_report()?
-            .into_inner();
-
-        ContractsAddresses::try_from(&contracts_response)
-            .change_context(AppError::InvalidContractsResponse.into())
-            .attach_printable(format!("{contracts_response:?}"))
-    }
-
-    async fn sign(
-        &mut self,
-        key: Option<Key>,
-        message: nonempty::Vec<u8>,
-    ) -> Result<nonempty::Vec<u8>, Error> {
-        let channel = self.channel().await?;
-        let mut crypto_client = CryptoServiceClient::new(channel);
-
-        crypto_client
-            .sign(Request::new(SignRequest {
-                key_id: key.map(|k| k.into()),
-                msg: message.into(),
-            }))
-            .await
-            .inspect_err(|status| self.ensure_healthy_connection(status))
-            .into_report()
-            .and_then(|response| {
-                nonempty::Vec::try_from(response.into_inner().signature)
-                    .change_context(AppError::InvalidByteArray.into())
-            })
-    }
-
-    async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error> {
-        let channel = self.channel().await?;
-        let mut crypto_client = CryptoServiceClient::new(channel);
-
-        crypto_client
-            .key(Request::new(KeyRequest {
-                key_id: key.map(|k| k.into()),
-            }))
-            .await
-            .inspect_err(|status| self.ensure_healthy_connection(status))
-            .into_report()
-            .and_then(|response| {
-                nonempty::Vec::try_from(response.into_inner().pub_key)
-                    .change_context(AppError::InvalidByteArray.into())
-            })
-    }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
+    use std::vec;
 
-    use ampd::url::Url;
-    use ampd_proto::blockchain_service_server::{BlockchainService, BlockchainServiceServer};
-    use ampd_proto::crypto_service_server::{CryptoService, CryptoServiceServer};
+    use ampd_proto::blockchain_service_server::BlockchainService;
+    use ampd_proto::crypto_service_server::CryptoService;
     use ampd_proto::{
-        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
-        KeyResponse, SignResponse, SubscribeResponse,
+        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyResponse,
+        LatestBlockHeightRequest, LatestBlockHeightResponse, SignResponse, SubscribeResponse,
     };
-    use axelar_wasm_std::chain_name;
-    use cosmrs::{AccountId, Any};
-    use futures::StreamExt;
+    use cosmrs::AccountId;
     use mockall::mock;
-    use serde::{Deserialize, Serialize};
-    use serde_json::Value;
-    use tokio::time::{sleep, Duration};
-    use tokio_util::sync::CancellationToken;
     use tonic::{Request, Response, Status};
 
     use super::*;
-    use crate::grpc::client::types::KeyAlgorithm;
-    use crate::grpc::connection_pool::{ConnectionPool, ConnectionState};
-    use crate::grpc::error::GrpcError;
+
+    mock! {
+        #[derive(Debug)]
+        pub HandlerTaskClient {}
+
+        impl Clone for HandlerTaskClient {
+            fn clone(&self) -> Self;
+        }
+
+        #[async_trait]
+        impl EventHandlerClient for HandlerTaskClient {
+            async fn contract_state<T: DeserializeOwned + 'static>(
+                &mut self,
+                contract: nonempty::String,
+                query: nonempty::Vec<u8>,
+            ) -> Result<T, Error>;
+
+            async fn contracts(&mut self, chain: ChainName) -> Result<ContractsAddresses, Error>;
+
+            async fn latest_block_height(&mut self) -> Result<u64, Error>;
+
+            async fn sign(
+                &mut self,
+                key: Option<Key>,
+                message: nonempty::Vec<u8>,
+            ) -> Result<nonempty::Vec<u8>, Error>;
+
+            async fn key(&mut self, key: Option<Key>) -> Result<nonempty::Vec<u8>, Error>;
+        }
+
+        #[async_trait]
+        impl HandlerTaskClient for HandlerTaskClient {
+            type Stream = tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>;
+
+            async fn subscribe(
+                &mut self,
+                filters: Vec<AbciEventTypeFilter>,
+                include_block_begin_end: bool,
+            ) -> Result<tokio_stream::Iter<vec::IntoIter<Result<Event, Error>>>, Error>;
+
+            async fn address(&mut self) -> Result<AccountId, Error>;
+
+            async fn broadcast(&mut self, msg: cosmrs::Any) -> Result<BroadcastClientResponse, Error>;
+        }
+    }
 
     type ServerSubscribeStream =
         Pin<Box<dyn Stream<Item = std::result::Result<SubscribeResponse, Status>> + Send>>;
@@ -305,6 +365,7 @@ mod tests {
             async fn contract_state(&self, request: Request<ContractStateRequest>) -> std::result::Result<Response<ContractStateResponse>, Status>;
             async fn address(&self, request: Request<AddressRequest>) -> std::result::Result<Response<AddressResponse>, Status>;
             async fn contracts(&self, request: Request<ContractsRequest>) -> std::result::Result<Response<ContractsResponse>, Status>;
+            async fn latest_block_height(&self, request: Request<LatestBlockHeightRequest>) -> std::result::Result<Response<LatestBlockHeightResponse>, Status>;
         }
     }
 
@@ -318,6 +379,34 @@ mod tests {
             async fn key(&self, request: Request<KeyRequest>) -> std::result::Result<Response<KeyResponse>, Status>;
         }
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::str::FromStr;
+    use std::vec;
+
+    use ampd::url::Url;
+    use ampd_proto::blockchain_service_server::BlockchainServiceServer;
+    use ampd_proto::crypto_service_server::CryptoServiceServer;
+    use ampd_proto::{
+        AddressResponse, BroadcastResponse, ContractStateResponse, ContractsResponse, KeyId,
+        KeyResponse, LatestBlockHeightResponse, SignResponse, SubscribeResponse,
+    };
+    use axelar_wasm_std::chain_name;
+    use cosmrs::{AccountId, Any};
+    use futures::StreamExt;
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+    use tokio::time::{sleep, Duration};
+    use tokio_util::sync::CancellationToken;
+    use tonic::{Response, Status};
+
+    use super::*;
+    use crate::grpc::client::test_utils::{MockBlockchainService, MockCryptoService};
+    use crate::grpc::client::types::KeyAlgorithm;
+    use crate::grpc::connection_pool::{ConnectionPool, ConnectionState};
+    use crate::grpc::error::GrpcError;
 
     async fn test_setup(
         mock_blockchain: MockBlockchainService,
@@ -462,6 +551,43 @@ mod tests {
             assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
             assert_eq!(result.unwrap(), expected_address);
         }
+    }
+
+    #[tokio::test]
+    async fn latest_block_height_should_succeed_returning_the_height() {
+        let mut mock_blockchain = MockBlockchainService::new();
+        let expected_height = 12345u64;
+        let mock_response = LatestBlockHeightResponse {
+            height: expected_height,
+        };
+
+        mock_blockchain
+            .expect_latest_block_height()
+            .return_once(move |_request| Ok(Response::new(mock_response)));
+
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.latest_block_height().await;
+
+        assert!(result.is_ok(), "unexpected error: {}", result.unwrap_err());
+        assert_eq!(result.unwrap(), expected_height);
+    }
+
+    #[tokio::test]
+    async fn latest_block_height_should_return_error_if_grpc_error_occurs() {
+        let mut mock_blockchain = MockBlockchainService::new();
+
+        mock_blockchain
+            .expect_latest_block_height()
+            .return_once(|_request| Err(Status::unavailable("service unavailable")));
+
+        let (mut client, _) = test_setup(mock_blockchain, MockCryptoService::new()).await;
+        let result = client.latest_block_height().await;
+
+        assert!(result.is_err(), "unexpected Ok result: {}", result.unwrap());
+        assert!(matches!(
+            result.unwrap_err().current_context(),
+            Error::Grpc(GrpcError::ServiceUnavailable(_))
+        ));
     }
 
     #[tokio::test]
@@ -615,6 +741,10 @@ mod tests {
         let expected_contracts = sample_contracts();
         let mock_response = ContractsResponse {
             voting_verifier: expected_contracts.voting_verifier.to_string(),
+            event_verifier: expected_contracts
+                .event_verifier
+                .as_ref()
+                .map(|addr| addr.to_string()),
             multisig_prover: expected_contracts.multisig_prover.to_string(),
             service_registry: expected_contracts.service_registry.to_string(),
             rewards: expected_contracts.rewards.to_string(),
@@ -644,6 +774,7 @@ mod tests {
                     service_registry: "".to_string(),
                     rewards: "".to_string(),
                     multisig: "".to_string(),
+                    event_verifier: None,
                 }))
             });
 
@@ -941,6 +1072,7 @@ mod tests {
             service_registry: sample_account_id(),
             rewards: sample_account_id(),
             multisig: sample_account_id(),
+            event_verifier: None,
         }
     }
 

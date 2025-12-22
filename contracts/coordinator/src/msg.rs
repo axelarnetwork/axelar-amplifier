@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use axelar_wasm_std::address::AddressFormat;
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{nonempty, MajorityThreshold};
@@ -8,7 +7,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
 use msgs_derive::Permissions;
 use multisig::key::KeyType;
-use multisig_prover_api::encoding::Encoder;
 use router_api::ChainName;
 use service_registry_api::Verifier;
 
@@ -17,6 +15,12 @@ pub use crate::contract::MigrateMsg;
 type ProverAddress = Addr;
 type GatewayAddress = Addr;
 type VerifierAddress = Addr;
+
+pub const DEFAULT_PAGINATION_LIMIT: u32 = u32::MAX;
+
+const fn default_pagination_limit() -> u32 {
+    DEFAULT_PAGINATION_LIMIT
+}
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -75,10 +79,11 @@ pub struct ManualDeploymentParams {
 }
 
 #[cw_serde]
-// The parameters used to configure each instantiation.
-// This is an enum to allow for additional parameter types in the future
+/// The parameters used to configure each instantiation.
+/// This is an enum to allow for additional parameter types in the future
 pub enum DeploymentParams {
-    Manual(ManualDeploymentParams), // user supplies all info that cannot be inferred by coordinator
+    /// user supplies all info that cannot be inferred by coordinator
+    Manual(ManualDeploymentParams),
 }
 
 #[cw_serde]
@@ -90,11 +95,14 @@ pub struct ProverMsg {
     pub service_name: nonempty::String,
     pub chain_name: ChainName,
     pub verifier_set_diff_threshold: u32,
-    pub encoder: Encoder,
     pub key_type: KeyType,
     #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub domain_separator: Hash,
+    pub notify_signing_session: bool,
+    pub expect_full_message_payloads: bool,
+    pub sig_verifier_address: Option<String>,
+    pub chain_codec_address: nonempty::String,
 }
 
 #[cw_serde]
@@ -108,7 +116,7 @@ pub struct VerifierMsg {
     pub source_chain: ChainName,
     pub rewards_address: nonempty::String,
     pub msg_id_format: MessageIdFormat,
-    pub address_format: AddressFormat,
+    pub chain_codec_address: nonempty::String,
 }
 
 #[cw_serde]
@@ -125,6 +133,19 @@ pub enum QueryMsg {
 
     #[returns(ChainContractsResponse)]
     ChainContractsInfo(ChainContractsKey),
+
+    #[returns(Addr)]
+    Instantiate2Address { code_id: u64, salt: Binary },
+
+    #[returns(Vec<ChainContractsResponse>)]
+    Deployments {
+        start_after: Option<nonempty::String>,
+        #[serde(default = "default_pagination_limit")]
+        limit: u32,
+    },
+
+    #[returns(ChainContractsResponse)]
+    Deployment { deployment_name: nonempty::String },
 }
 
 #[cw_serde]

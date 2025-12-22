@@ -1,5 +1,3 @@
-use std::pin::Pin;
-
 use clap::Subcommand;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::Any;
@@ -13,7 +11,7 @@ use crate::asyncutil::future::RetryPolicy;
 use crate::config::Config;
 use crate::tofnd::{Multisig, MultisigClient};
 use crate::types::{CosmosPublicKey, TMAddress};
-use crate::{broadcast, cosmos, monitoring, tofnd, Error, PREFIX};
+use crate::{broadcast, cosmos, tofnd, Error, PREFIX};
 
 pub mod bond_verifier;
 pub mod claim_stake;
@@ -117,73 +115,48 @@ async fn broadcast_tx(
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
 
-    let mut broadcaster = instantiate_broadcaster(
-        broadcast.clone(),
-        tofnd_config,
-        cosmos_client.clone(),
-        pub_key,
-    )
-    .await?;
+    let key_uid = tofnd_config.key_uid.clone();
 
-    broadcaster
-        .broadcast(vec![tx].try_into().expect("must be non-empty"))
-        .map_err(|err| err.change_context(Error::Broadcaster))
-        .and_then(|res| handle_tx_result(broadcast, cosmos_client, res, skip_confirmation))
-        .await
+    let mut multisig_client = instantiate_multisig_client(tofnd_config.clone()).await?;
+    let mut broadcaster =
+        instantiate_broadcaster(broadcast.clone(), cosmos_client.clone(), pub_key).await?;
+
+    broadcast::broadcast(
+        &mut broadcaster,
+        &mut multisig_client,
+        &key_uid,
+        vec![tx].try_into().expect("must be non-empty"),
+    )
+    .map_err(|err| err.change_context(Error::Broadcaster))
+    .and_then(|res| handle_tx_result(broadcast, cosmos_client, res, skip_confirmation))
+    .await
 }
 
-async fn instantiate_broadcaster(
-    broadcaster_config: broadcast::Config,
-    tofnd_config: tofnd::Config,
-    cosmos_client: cosmos::CosmosGrpcClient,
-    pub_key: CosmosPublicKey,
-) -> Result<
-    broadcast::BroadcasterTask<
-        cosmos::CosmosGrpcClient,
-        Pin<Box<broadcast::MsgQueue>>,
-        MultisigClient,
-    >,
-    Error,
-> {
-    let multisig_client = MultisigClient::new(
+async fn instantiate_multisig_client(tofnd_config: tofnd::Config) -> Result<MultisigClient, Error> {
+    MultisigClient::new(
         tofnd_config.party_uid,
         tofnd_config.url.as_str(),
         tofnd_config.timeout,
     )
     .await
     .change_context(Error::Connection)
-    .attach_printable(tofnd_config.url)?;
+    .attach_printable(tofnd_config.url)
+}
 
-    let broadcaster = broadcast::Broadcaster::builder()
-        .client(cosmos_client.clone())
+async fn instantiate_broadcaster(
+    broadcaster_config: broadcast::Config,
+    cosmos_client: cosmos::CosmosGrpcClient,
+    pub_key: CosmosPublicKey,
+) -> Result<broadcast::Broadcaster<cosmos::CosmosGrpcClient>, Error> {
+    broadcast::Broadcaster::builder()
+        .client(cosmos_client)
         .chain_id(broadcaster_config.chain_id)
         .pub_key(pub_key)
         .gas_adjustment(broadcaster_config.gas_adjustment)
         .gas_price(broadcaster_config.gas_price)
         .build()
         .await
-        .change_context(Error::Broadcaster)?;
-
-    let (_, monitoring_client) = monitoring::Server::new(monitoring::Config::Disabled)
-        .expect("should never fail to create dummy monitoring client");
-
-    let (msg_queue, _) = broadcast::MsgQueue::new_msg_queue_and_client(
-        broadcaster.clone(),
-        broadcaster_config.queue_cap,
-        broadcaster_config.batch_gas_limit,
-        broadcaster_config.broadcast_interval,
-        monitoring_client.clone(),
-    );
-
-    let broadcaster_task = broadcast::BroadcasterTask::builder()
-        .broadcaster(broadcaster)
-        .msg_queue(msg_queue)
-        .signer(multisig_client.clone())
-        .key_id(tofnd_config.key_uid.clone())
-        .monitoring_client(monitoring_client)
-        .build();
-
-    Ok(broadcaster_task)
+        .change_context(Error::Broadcaster)
 }
 
 async fn handle_tx_result(

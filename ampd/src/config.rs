@@ -3,33 +3,57 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::commands::{RewardsConfig, ServiceRegistryConfig};
-use crate::handlers::config::deserialize_handler_configs;
-use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcast, event_processor, event_sub, grpc, monitoring, tm_client};
+use crate::{broadcast, event_sub, grpc, monitoring, tm_client};
 
+/// Root configuration for the ampd daemon.
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(default)]
 pub struct Config {
+    /// Tendermint JSON-RPC endpoint URL (e.g., "http://localhost:26657").
+    ///
+    /// Used for subscribing to block events and querying block data.
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_jsonrpc: Url,
+
+    /// Tendermint gRPC endpoint URL (e.g., "tcp://localhost:9090").
+    ///
+    /// Used for broadcasting transactions and querying chain state.
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_grpc: Url,
+
+    /// Timeout for Tendermint gRPC calls.
+    ///
+    /// Applied to transaction broadcasts, account queries, and other gRPC operations.
     #[serde(with = "humantime_serde")]
-    pub default_rpc_timeout: Duration,
     pub tm_grpc_timeout: Duration,
-    pub event_processor: event_processor::Config,
+
+    /// Configuration for broadcasting transactions to the Axelar chain.
     pub broadcast: broadcast::Config,
-    #[serde(deserialize_with = "deserialize_handler_configs")]
-    pub handlers: Vec<handlers::config::Config>,
+
+    /// Configuration for connecting to the tofnd signing service.
     pub tofnd_config: TofndConfig,
+
+    /// Service registry contract configuration.
     pub service_registry: ServiceRegistryConfig,
+
+    /// Rewards contract configuration.
     pub rewards: RewardsConfig,
+
+    /// gRPC server configuration for external clients.
+    ///
+    /// This allows separate event handler processes to hook into the base ampd process.
     #[serde(deserialize_with = "grpc::deserialize_config")]
     pub grpc: grpc::Config,
+
+    /// Monitoring/metrics server configuration.
     pub monitoring_server: monitoring::Config,
+
+    /// Configuration for subscribing to Axelar chain events.
     pub event_sub: event_sub::Config,
+
+    /// Tendermint client retry configuration.
     pub tm_client: tm_client::Config,
 }
 
@@ -40,12 +64,9 @@ impl Default for Config {
                 .expect("Url should be created validly"),
             tm_grpc: Url::new_non_sensitive("tcp://localhost:9090")
                 .expect("Url should be created validly"),
-            default_rpc_timeout: Duration::from_secs(3),
             tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcast::Config::default(),
-            handlers: vec![],
             tofnd_config: TofndConfig::default(),
-            event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
@@ -58,58 +79,12 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::fs::File;
-    use std::io::Write;
-    use std::net::{Ipv4Addr, SocketAddrV4};
-    use std::path::PathBuf;
-    use std::str::FromStr;
-    use std::time::Duration;
-
     use cosmrs::AccountId;
     use router_api::chain_name;
 
     use super::Config;
-    use crate::evm::finalizer::Finalization;
-    use crate::handlers::config::{Chain, Config as HandlerConfig};
+    use crate::grpc;
     use crate::types::TMAddress;
-    use crate::url::Url;
-    use crate::{grpc, monitoring};
-
-    const PREFIX: &str = "axelar";
-    const SOLANA: &str = "solana";
-    const STACKS: &str = "stacks";
-
-    #[test]
-    fn deserialize_valid_grpc_config() {
-        let ip_addr = "0.0.0.0";
-        let port = 9091;
-        let global_concurrency_limit = 2048;
-        let concurrency_limit_per_connection = 256;
-        let request_timeout = "30s";
-        let voting_verifier = "axelar1t5qnmp37l4tt3s9aqv7rd0jgat7tjau0xffad5";
-        let multisig_prover = "axelar1f06r764ftadyduqryz74qg5yt6yxzpq4vyy0m3";
-        let multisig = "axelar1v8a4r5ru2rwx35yfpqvsc66ydahtqprd3xqz8n";
-
-        let config_str = format!(
-            "
-            [grpc]
-            ip_addr = '{ip_addr}'
-            port = {port}
-            global_concurrency_limit = {global_concurrency_limit}
-            concurrency_limit_per_connection = {concurrency_limit_per_connection}
-            request_timeout = '{request_timeout}'
-            [[grpc.blockchain_service.chains]]
-            chain_name = 'test-chain'
-            voting_verifier = '{voting_verifier}'
-            multisig_prover = '{multisig_prover}'
-            multisig = '{multisig}'
-            ",
-        );
-        let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-
-        goldie::assert_json!(cfg);
-    }
 
     #[test]
     fn deserialize_invalid_grpc_config() {
@@ -229,400 +204,37 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_handlers() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Polygon'
-            chain_rpc_url = 'http://localhost:7546/'
-
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Polygon'
-            chain_rpc_url = 'http://localhost:7546/'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-
-            [[handlers]]
-            type = 'SuiMsgVerifier'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:7545/'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'MvxMsgVerifier'
-            cosmwasm_contract = '{}'
-            proxy_url = 'http://localhost:7545'
-
-            [[handlers]]
-            type = 'MvxVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            proxy_url = 'http://localhost:7545'
-
-            [[handlers]]
-            type = 'StellarMsgVerifier'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:7545'
-
-            [[handlers]]
-            type = 'StellarVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:7545'
-
-            [[handlers]]
-            type = 'StarknetMsgVerifier'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:7545'
-
-            [[handlers]]
-            type = 'StarknetVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:7545'
-
-            [[handlers]]
-            type = 'SolanaMsgVerifier'
-            chain_name = 'solana'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://127.0.0.1'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'SolanaVerifierSetVerifier'
-            chain_name = 'solana'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://127.0.0.1'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'StacksMsgVerifier'
-            chain_name = 'stacks'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:8000'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-
-            [[handlers]]
-            type = 'StacksVerifierSetVerifier'
-            chain_name = 'stacks'
-            cosmwasm_contract = '{}'
-            rpc_url = 'http://localhost:8000'
-
-            [handlers.rpc_timeout]
-            secs = 3
-            nanos = 0
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 16);
-    }
-
-    #[test]
-    fn deserialize_handlers_evm_msg_verifiers_with_the_same_chain_name() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7546/'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_evm_verifier_set_verifiers_with_the_same_chain_name() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7546/'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_more_then_one_for_multisig_signer() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_url() {
-        let expected_url = "tcp://localhost:26657";
-        let cfg: Config =
-            toml::from_str(format!("tm_jsonrpc = '{expected_url}'").as_str()).unwrap();
-        assert_eq!(cfg.tm_jsonrpc.as_str(), expected_url);
-
-        let expected_url = "tcp://localhost:9090";
-        let cfg: Config = toml::from_str(format!("tm_grpc = '{expected_url}'").as_str()).unwrap();
-        assert_eq!(cfg.tm_grpc.as_str(), expected_url);
-    }
-
-    #[test]
     fn fail_deserialization() {
         assert!(toml::from_str::<Config>("tm_jsonrpc = 'some other string'").is_err());
         assert!(toml::from_str::<Config>("tm_jsonrpc = 5").is_err());
     }
 
+    /// Tests that config serialization and deserialization is lossless.
+    ///
+    /// This test:
+    /// 1. Creates a config with all defaults plus dummy values for fields without good defaults
+    /// 2. Serializes it to TOML and asserts it matches the golden file
+    /// 3. Deserializes the TOML back and asserts it equals the original config
+    /// 4. Writes the serialized config to src/tests/config_template.toml for documentation
     #[test]
-    fn deserialize_tofnd_config() {
-        let url = "http://localhost:50051/";
-        let party_uid = "party_uid";
-        let key_uid = "key_uid";
+    fn config_serialization_roundtrip() {
+        let original_config = config_with_dummy_values();
+        let serialized =
+            toml::to_string_pretty(&original_config).expect("serialization should work");
 
-        let config_str = format!(
-            "
-            [tofnd_config]
-            url = '{url}'
-            party_uid = '{party_uid}'
-            key_uid = '{key_uid}'
+        goldie::assert!(&serialized);
 
-            [tofnd_config.timeout]
-            secs = 5
-            nanos = 0
-            ",
-        );
+        let deserialized: Config =
+            toml::from_str(&serialized).expect("deserialization should work");
+        assert_eq!(original_config, deserialized);
 
-        let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-
-        assert_eq!(cfg.tofnd_config.url.as_str(), url);
-        assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
-        assert_eq!(cfg.tofnd_config.key_uid.as_str(), key_uid);
-    }
-    #[test]
-    fn serialization_roundtrip_preserves_data() {
-        let cfg = config_template();
-        let serialized1 = toml::to_string_pretty(&cfg).expect("should work");
-        let deserialized: Config = toml::from_str(serialized1.as_str()).expect("should work");
-        let serialized2 = toml::to_string_pretty(&deserialized).expect("should work");
-        assert_eq!(serialized1, serialized2);
+        // Also write to config_template.toml for documentation purposes
+        let template_path = std::path::PathBuf::from("src/tests/config_template.toml");
+        std::fs::write(&template_path, &serialized).expect("failed to write config_template.toml");
     }
 
-    #[test]
-    fn deserialize_config() {
-        let cfg = toml::to_string_pretty(&config_template()).unwrap();
-
-        let path = PathBuf::from_str("src/tests")
-            .unwrap()
-            .join("config_template.toml");
-
-        // manually delete the file to create a new template before running the test
-        if !path.exists() {
-            let mut file = File::create(&path).unwrap();
-            file.write_all(cfg.as_bytes()).unwrap();
-        };
-
-        let serialized = fs::read_to_string(path).unwrap();
-        assert_eq!(cfg, serialized);
-    }
-
-    fn config_template() -> Config {
+    fn config_with_dummy_values() -> Config {
         Config {
-            handlers: vec![
-                HandlerConfig::EvmMsgVerifier {
-                    chain: Chain {
-                        name: chain_name!("Ethereum"),
-                        finalization: Finalization::RPCFinalizedBlock,
-                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    },
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                },
-                HandlerConfig::EvmVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    chain: Chain {
-                        name: chain_name!("Fantom"),
-                        finalization: Finalization::ConfirmationHeight,
-                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    },
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::MultisigSigner {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    chain_name: chain_name!("Ethereum"),
-                },
-                HandlerConfig::SuiMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::SuiVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::MvxMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    proxy_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::MvxVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    proxy_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StellarMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StellarVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StarknetMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StarknetVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::SolanaMsgVerifier {
-                    chain_name: chain_name!(SOLANA),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::SolanaVerifierSetVerifier {
-                    chain_name: chain_name!(SOLANA),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::StacksMsgVerifier {
-                    chain_name: chain_name!(STACKS),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::StacksVerifierSetVerifier {
-                    chain_name: chain_name!(STACKS),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-            ],
             grpc: grpc::Config {
                 blockchain_service: grpc::BlockchainServiceConfig {
                     chains: vec![
@@ -637,6 +249,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("solana"),
@@ -649,6 +262,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                         grpc::BlockchainServiceChainConfig {
                             chain_name: chain_name!("flow"),
@@ -661,6 +275,7 @@ mod tests {
                             multisig: TMAddress::from(
                                 AccountId::new("axelar", &[0u8; 32]).unwrap(),
                             ),
+                            event_verifier: None,
                         },
                     ],
                 },
@@ -668,100 +283,5 @@ mod tests {
             },
             ..Config::default()
         }
-    }
-
-    #[test]
-    fn deserialize_monitoring_server_config_enabled_with_all_fields() {
-        let bind_address = "0.0.0.0:3001";
-        let config_str = format!(
-            "
-            [monitoring_server]
-            enabled = true
-            bind_address = '{bind_address}'
-            channel_size = 500
-            ",
-        );
-        let cfg: Config = toml::from_str(&config_str).unwrap();
-        assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3001),
-                channel_size: 500,
-            }
-        );
-    }
-
-    #[test]
-    fn deserialize_monitoring_server_config_enabled_without_any_fields_should_use_default() {
-        let config_str = "
-            [monitoring_server]
-            enabled = true
-            ";
-        let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
-                channel_size: 1000,
-            }
-        );
-    }
-
-    #[test]
-    fn deserialize_monitoring_server_config_enabled_with_partial_fields() {
-        let config_str_1 = "
-            [monitoring_server]
-            enabled = true
-            bind_address = '0.0.0.0:3000'
-            ";
-        let cfg: Config = toml::from_str(config_str_1).unwrap();
-        assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 3000),
-                channel_size: 1000,
-            }
-        );
-
-        let config_str_2 = "
-        [monitoring_server]
-        enabled = true
-        channel_size = 500
-        ";
-        let cfg: Config = toml::from_str(config_str_2).unwrap();
-
-        assert_eq!(
-            cfg.monitoring_server,
-            monitoring::Config::Enabled {
-                bind_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 3000),
-                channel_size: 500,
-            }
-        );
-    }
-
-    #[test]
-    fn deserialize_monitoring_server_config_disabled() {
-        let config_str = "
-            [monitoring_server]
-            enabled = false
-            ";
-        let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.monitoring_server, monitoring::Config::Disabled);
-    }
-
-    #[test]
-    fn deserialize_event_sub_config() {
-        let config_str = "
-            [event_sub]
-            block_processing_buffer = 10
-            poll_interval = '5s'
-            retry_delay = '3s'
-            retry_max_attempts = 3
-            ";
-        let cfg: Config = toml::from_str(config_str).unwrap();
-        assert_eq!(cfg.event_sub.block_processing_buffer, 10);
-        assert_eq!(cfg.event_sub.poll_interval, Duration::from_secs(5));
-        assert_eq!(cfg.event_sub.retry_delay, Duration::from_secs(3));
-        assert_eq!(cfg.event_sub.retry_max_attempts, 3);
     }
 }

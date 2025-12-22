@@ -4,7 +4,7 @@ mod migrations;
 mod query;
 
 use axelar_wasm_std::error::ContractError;
-use axelar_wasm_std::{address, permission_control, FnExt};
+use axelar_wasm_std::{address, nonempty, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -109,7 +109,7 @@ fn find_prover_address(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::ReadyToUnbond {
             verifier_address: worker_address,
@@ -136,6 +136,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ChainContractsInfo(chain_contracts_key) => Ok(to_json_binary(
             &query::chain_contracts_info(deps, chain_contracts_key)?,
         )?),
+        QueryMsg::Instantiate2Address { code_id, salt } => Ok(to_json_binary(
+            &query::instantiate2_addr(&deps, &env, code_id, salt.as_slice())
+                .change_context(Error::Instantiate2Address)?,
+        )?),
+        QueryMsg::Deployments { start_after, limit } => Ok(to_json_binary(&query::deployments(
+            deps,
+            start_after,
+            nonempty::Uint32::try_from(limit).change_context(Error::InvalidLimit)?,
+        )?)?),
+        QueryMsg::Deployment { deployment_name } => {
+            Ok(to_json_binary(&query::deployment(deps, deployment_name)?)?)
+        }
     }
 }
 

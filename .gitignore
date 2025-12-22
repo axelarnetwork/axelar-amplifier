@@ -19,3 +19,5 @@
 .vscode
 
 config.toml
+.env
+.env.*

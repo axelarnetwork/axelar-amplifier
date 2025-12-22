@@ -10,11 +10,13 @@ use axelar_wasm_std::nonempty;
 pub use blockchain_service::ChainConfig as BlockchainServiceChainConfig;
 #[cfg(test)]
 pub use blockchain_service::Config as BlockchainServiceConfig;
-use error_stack::Result;
+use error_stack::{report, Result};
 use report::{ErrorExt, LoggableError};
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::io::Error as IoError;
+use tokio::sync::watch::Receiver;
 use tokio_util::sync::CancellationToken;
 use tonic::transport;
 use tower::limit::ConcurrencyLimitLayer;
@@ -36,6 +38,8 @@ mod status;
 pub enum Error {
     #[error(transparent)]
     Transport(#[from] transport::Error),
+    #[error("server task interrupted")]
+    ServerTaskInterrupted,
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -116,6 +120,7 @@ pub struct Server {
     cosmos_grpc_client: cosmos::CosmosGrpcClient,
     multisig_client: tofnd::MultisigClient,
     service_registry: TMAddress,
+    latest_block_height: Receiver<u64>,
     rewards: TMAddress,
     monitoring_client: monitoring::Client,
 }
@@ -157,6 +162,7 @@ impl Server {
                     .cosmos_client(self.cosmos_grpc_client)
                     .service_registry(self.service_registry)
                     .rewards(self.rewards)
+                    .latest_block_height(self.latest_block_height)
                     .config(self.config.blockchain_service)
                     .monitoring_client(self.monitoring_client.clone())
                     .build(),
@@ -168,18 +174,36 @@ impl Server {
 
         info!(%addr, "gRPC server started");
 
-        router
-            .serve_with_shutdown(addr, token.cancelled_owned())
-            .await
-            .map_err(ErrorExt::into_report)
-            .inspect(|_| {
+        let mut server_task = tokio::spawn(router.serve(addr));
+
+        tokio::select! {
+            result = &mut server_task => {
+                match result {
+                    Ok(result) => {
+                        result.map_err(ErrorExt::into_report)
+                            .inspect(|_| {
+                                info!("gRPC server stopped");
+                            })
+                            .inspect_err(|err| {
+                                info!(
+                                    err = LoggableError::from(err).as_value(),
+                                    "gRPC server failed"
+                                );
+                            })
+                    }
+                    Err(join_error) => {
+                        Err(report!(IoError::from(join_error)).change_context(Error::ServerTaskInterrupted))
+                    }
+                }
+            }
+            _ = token.cancelled() => {
+                // force shutdown, otherwise it will wait for all connections to close
+                // which may hang if the connections are subscribed to the event_sub.
+                server_task.abort();
                 info!("gRPC server stopped");
-            })
-            .inspect_err(|err| {
-                info!(
-                    err = LoggableError::from(err).as_value(),
-                    "gRPC server failed"
-                );
-            })
+
+                Ok(())
+            }
+        }
     }
 }

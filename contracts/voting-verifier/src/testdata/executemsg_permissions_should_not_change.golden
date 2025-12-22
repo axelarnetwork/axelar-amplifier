@@ -1,0 +1,37 @@
+{
+  "EndPoll": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "UpdateVotingParameters": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "VerifyMessages": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "VerifyVerifierSet": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "Vote": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  }
+}

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use axelar_wasm_std::address::ContractAddr;
 use axelar_wasm_std::nonempty;
 use axelarnet_gateway::AxelarExecutableMsg;
@@ -37,6 +35,11 @@ pub struct TokenInstance {
 #[cw_serde]
 pub struct TokenConfig {
     pub origin_chain: ChainNameRaw,
+}
+
+#[cw_serde]
+pub struct CustomTokenMetadata {
+    pub decimals: u8,
 }
 
 #[cw_serde]
@@ -103,6 +106,14 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     EnableExecution,
+
+    /// Update admin address.
+    #[permission(Elevated)]
+    UpdateAdmin { new_admin_address: String },
+
+    /// Update operator address.
+    #[permission(Elevated)]
+    UpdateOperator { new_operator_address: String },
 }
 
 #[cw_serde]
@@ -154,7 +165,7 @@ pub enum QueryMsg {
     ItsChain { chain: ChainNameRaw },
 
     /// Query all registered ITS contract addresses
-    #[returns(HashMap<ChainNameRaw, Address>)]
+    #[returns(std::collections::HashMap<ChainNameRaw, Address>)]
     AllItsContracts,
 
     /// Query all chain configs with optional frozen filter
@@ -179,6 +190,13 @@ pub enum QueryMsg {
     /// Query the configuration parameters for a token
     #[returns(Option<TokenConfig>)]
     TokenConfig { token_id: TokenId },
+
+    /// Query custom token metadata
+    #[returns(Option<CustomTokenMetadata>)]
+    CustomTokenMetadata {
+        chain: ChainNameRaw,
+        token_address: nonempty::HexBinary,
+    },
 
     /// Query the state of contract (enabled/disabled)
     #[returns(bool)]

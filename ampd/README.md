@@ -36,24 +36,19 @@ key_uid=[uid of key used for signing transactions]
 party_uid=[metadata, should just be set to ampd]
 url=[url of tofnd]
 
-# multisig handler. This handler is used for all supported chains.
-[[handlers]]
-cosmwasm_contract=[address of multisig contract]
-type="MultisigSigner"
+[grpc]
+concurrency_limit_per_connection=[maximum number of concurrent requests the server can handle per client connection]
+global_concurrency_limit=[maximum number of concurrent requests the server can handle globally across all connections]
+ip_addr=[IP address on which the gRPC server will listen]
+port=[port number on which the gRPC server will listen]
+request_timeout=[maximum time allowed for processing a single request before timing out]
 
-# message verifier handler. One per supported chain
-[[handlers]]
-chain_name=[chain name. Not necessary in the Sui case]
-chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
-cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier  | StarknetMsgVerifier | SolanaMsgVerifier | StacksMsgVerifier]
-
-# handler to verify verifier set rotations. One per supported chain
-[[handlers]]
-chain_name=[chain name. Not necessary in the Sui case]
-chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
-cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | StarknetVerifierSetVerifier | SolanaVerifierSetVerifier | StacksVerifierSetVerifier]
+# One per supported chain
+[[grpc.blockchain_service.chains]]
+chain_name=[chain name]
+multisig=[address of the multisig contract]
+multisig_prover=[address of the multisig prover contract]
+voting_verifier=[address of the voting verifier contract]
 
 [monitoring_server]
 enabled=[whether to enable the monitoring server]
@@ -61,7 +56,7 @@ bind_address=[the /status and /metrics endpoints bind address i.e. "127.0.0.1:30
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
-from Avalanche testnet, Sui testnet and Stacks testnet.
+from Flow testnet, Sui testnet and Stellar testnet.
 
 ```yaml
 tm_jsonrpc="http://localhost:26657"
@@ -89,61 +84,31 @@ key_uid="axelar"
 party_uid="ampd"
 url="http://127.0.0.1:50051"
 
-[[handlers]]
-type = 'MultisigSigner'
-cosmwasm_contract = 'axelar1au3qdftlypz3uydz9260aj4w73r7jm747zm5fsgrdnrlpwy7rrwqjzlemm'
+[grpc]
+concurrency_limit_per_connection="32"
+global_concurrency_limit="1024"
+ip_addr="127.0.0.1"
+port="9090"
+request_timeout="30s"
 
-[[handlers]]
-type = 'SuiMsgVerifier'
-cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns9yqsap'
-rpc_url = "https://fullnode.testnet.sui.io:443"
+[[grpc.blockchain_service.chains]]
+chain_name="flow"
+multisig="axelar14a4ar5jh7ue4wg28jwsspf23r8k68j7g5d6d3fsttrhp42ajn4xq6zayy5"
+multisig_prover="axelar1rsuejfntt4rs2y8dn4dd3acszs00zyg9wpnsc6fmhevcp6plu5qspzn7e0"
+voting_verifier="axelar1kkqdsqvwq9a7p9fj0w89wpx2m2t0vrxl782aslhq0kdw2xxd2aesv3un04"
 
-[[handlers]]
-type = 'SuiVerifierSetVerifier'
-cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns9yqsap'
-rpc_url = "https://fullnode.testnet.sui.io:443"
+[[grpc.blockchain_service.chains]]
+chain_name="sui"
+multisig="axelar14a4ar5jh7ue4wg28jwsspf23r8k68j7g5d6d3fsttrhp42ajn4xq6zayy5"
+multisig_prover="axelar1v8jrupu2rqpskwgtr69max0ajul92q8z5mdxd505m2hu3xc5jzcqm8zyc6"
+voting_verifier="axelar1sykyha8kzf35kc5hplqk76kdufntjn6w45ntwlevwxp74dqr3rvsq7fazh"
 
-[[handlers]]
-type = 'StacksMsgVerifier'
-chain_name = 'stacks'
-cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
-http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
+[[grpc.blockchain_service.chains]]
+chain_name="stellar-2025-q3"
+multisig="axelar14a4ar5jh7ue4wg28jwsspf23r8k68j7g5d6d3fsttrhp42ajn4xq6zayy5"
+multisig_prover="axelar1aux2l6er84m6gtayqdwqhz4rl0txqdlj3v7szr72j7etve3jmpks7x4euy"
+voting_verifier="axelar18y8p7dxesmxttvdzp5sqjksqrnh9xg32gtfqnkkucvv9de38f69qfn6ph3"
 
-[[handlers]]
-type = 'StacksVerifierSetVerifier'
-chain_name = 'stacks'
-cosmwasm_contract = 'axelar1mjlvl44v8er50nxjxcuugd4prafzxj4r84q84pf3ntgte6crnywsrk0s5e'
-http_url = 'https://api.testnet.hiro.so' # Stacks Hiro API URL
-
-[[handlers]]
-type = 'EvmMsgVerifier'
-cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
-chain_name = 'avalanche'
-chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
-
-[[handlers]]
-type = 'StarknetMsgVerifier'
-cosmwasm_contract = 'axelar1f7qqgp0zk8489s69xxszut07kxse7y5j6j5tune36x75dc9ftfsssdkf2u'
-chain = 'starknet-devnet-v1'
-rpc_url = "https://starknet-sepolia.public.blastapi.io/rpc/v0_7"
-
-[[handlers]]
-type = 'EvmVerifierSetVerifier'
-cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
-chain_name = 'avalanche'
-chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
-
-[[handlers]]
-type = "SolanaMsgVerifier"
-cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
-chain_name = "solana"
-chain_rpc_url = "https://api.devnet.solana.com"
-
-[[handlers]]
-cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
-type = "SolanaVerifierSetVerifier"
-chain_name = "solana"
-chain_rpc_url = "https://api.devnet.solana.com"
 
 [monitoring_server]
 enabled = false

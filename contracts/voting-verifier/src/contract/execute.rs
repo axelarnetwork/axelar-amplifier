@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::address::{validate_address, AddressFormat};
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::voting::{PollId, PollResults, Vote, WeightedPoll};
 use axelar_wasm_std::{nonempty, snapshot, MajorityThreshold, VerificationStatus};
@@ -20,19 +19,26 @@ use crate::events::{
     PollEnded, PollMetadata, PollStarted, QuorumReached, TxEventConfirmation,
     VerifierSetConfirmation, Voted,
 };
+use crate::shared::Poll;
 use crate::state::{
-    self, poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
+    self, poll_messages, poll_verifier_sets, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
 
-pub fn update_voting_threshold(
+pub fn update_voting_parameters(
     deps: DepsMut,
-    new_voting_threshold: MajorityThreshold,
+    voting_threshold: Option<MajorityThreshold>,
+    block_expiry: Option<nonempty::Uint64>,
+    confirmation_height: Option<u64>,
 ) -> Result<Response, ContractError> {
     CONFIG
         .update(
             deps.storage,
             |mut config| -> Result<_, cosmwasm_std::StdError> {
-                config.voting_threshold = new_voting_threshold;
+                config.voting_threshold = voting_threshold.unwrap_or(config.voting_threshold);
+                config.block_expiry = block_expiry.unwrap_or(config.block_expiry);
+                config.confirmation_height =
+                    confirmation_height.unwrap_or(config.confirmation_height);
+
                 Ok(config)
             },
         )
@@ -97,7 +103,11 @@ pub fn verify_messages(
 
     let messages = messages.try_map(|message| {
         validate_source_chain(message, &config.source_chain)
-            .and_then(|message| validate_source_address(message, &config.address_format))
+            .and_then(|message| {
+                let chain_codec: chain_codec_api::Client =
+                    client::ContractClient::new(deps.querier, &config.chain_codec_address).into();
+                validate_source_address(chain_codec, message)
+            })
             .and_then(|message| {
                 message_status(deps.as_ref(), &message, env.block.height)
                     .map(|status| (status, message))
@@ -393,10 +403,11 @@ fn validate_source_chain(
 }
 
 fn validate_source_address(
+    chain_codec: chain_codec_api::Client,
     message: Message,
-    address_format: &AddressFormat,
 ) -> Result<Message, ContractError> {
-    validate_address(&message.source_address, address_format)
+    chain_codec
+        .validate_address(message.source_address.to_string())
         .change_context(ContractError::InvalidSourceAddress)?;
 
     Ok(message)

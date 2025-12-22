@@ -21,6 +21,7 @@ use crate::monitoring;
 use crate::monitoring::metrics::Msg;
 use crate::tm_client::TmClient;
 
+pub mod event_filter;
 pub mod stream;
 
 #[derive(Error, Debug, Clone)]
@@ -36,34 +37,64 @@ pub enum Error {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(default)]
 pub struct Config {
-    // The maximum number of blocks to process concurrently.
-    // - A value of 1 ensures sequential processing, preventing the event sub
-    //   from downloading events from multiple blocks simultaneously. This minimizes
-    //   memory usage but may slow down event processing.
-    // - Higher values enable parallel block processing, improving throughput but
-    //   increasing memory usage and potential resource contention.
-    // - Setting this too high may cause excessive memory consumption, while setting
-    //   it too low may lead to slower processing and underutilization of downstream
-    //   consumers.
+    /// Maximum number of blocks to buffer for concurrent processing.
+    ///
+    /// - A value of 1 ensures sequential processing, preventing the event sub
+    ///   from downloading events from multiple blocks simultaneously. This minimizes
+    ///   memory usage but may slow down event processing.
+    /// - Higher values enable parallel block processing, improving throughput but
+    ///   increasing memory usage and potential resource contention.
+    /// - Setting this too high may cause excessive memory consumption, while setting
+    ///   it too low may lead to slower processing and underutilization of downstream
+    ///   consumers.
     pub block_processing_buffer: usize,
-    // Interval to poll for new blocks
+
+    /// How often to poll the Axelar node for new blocks.
+    ///
+    /// This should generally match or be slightly less than the chain's block time.
+    /// For example, with 1s block times, use `poll_interval = "1s"`.
     #[serde(with = "humantime_serde")]
     pub poll_interval: Duration,
 
-    // Retry policy for block processing and event retrival
+    /// Duration to wait before retrying a failed block or event fetch operation.
+    ///
+    /// When fetching block data or events from the RPC fails, the system waits
+    /// this duration before attempting again. This is independent of block time
+    /// and is used for recovering from transient RPC errors.
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
+
+    /// Maximum number of retry attempts for failed block or event fetch operations.
+    ///
+    /// After this many consecutive failures, the operation is aborted.
+    /// Total maximum wait time before giving up = `retry_delay * retry_max_attempts`.
     pub retry_max_attempts: u64,
+
+    /// Buffer size for the event stream.
+    ///
+    /// Maximum number of events to buffer before applying backpressure.
+    pub stream_buffer_size: usize,
+
+    /// Delay between processing consecutive blocks.
+    ///
+    /// To avoid inconsistencies (e.g. the block can be streamed but subsequent queries
+    /// for the state show the block doesn't exist yet, especially when using load-balancers)
+    /// blocks processing can be delayed by this parameter.
+    #[serde(with = "humantime_serde")]
+    pub delay: Duration,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             block_processing_buffer: 10,
-            poll_interval: Duration::from_secs(5),
+            poll_interval: Duration::from_secs(1),
             retry_delay: Duration::from_secs(3),
             retry_max_attempts: 3,
+            stream_buffer_size: 100000,
+            delay: Duration::from_secs(1),
         }
     }
 }
@@ -179,275 +210,292 @@ impl<T: TmClient + Sync + std::fmt::Debug> EventPublisher<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync;
     use std::time::Duration;
 
     use axelar_wasm_std::assert_err_contains;
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use error_stack::report;
     use events::Event;
     use futures::stream::StreamExt;
-    use random_string::generate;
     use tendermint::{abci, block};
     use tokio_util::sync::CancellationToken;
 
     use crate::asyncutil::future::RetryPolicy;
-    use crate::event_sub::{Config, Error, EventPublisher, EventSub, EventSubscriber};
-    use crate::monitoring;
+    use crate::event_sub::{Error, EventPublisher, EventSub};
     use crate::monitoring::metrics::Msg;
     use crate::monitoring::test_utils;
     use crate::tm_client::{self, MockTmClient};
 
-    fn create_test_event_publisher(
-        tm_client: MockTmClient,
-        monitoring_client: monitoring::Client,
-    ) -> (EventPublisher<MockTmClient>, EventSubscriber) {
-        let config = Config::default();
-        let capacity = 100;
-        let delay = Duration::from_secs(1);
+    // Test timing constants - explicit for clarity
+    const POLL_INTERVAL: Duration = Duration::from_millis(100);
+    const STREAM_DELAY: Duration = Duration::from_millis(50);
+    const RETRY_DELAY: Duration = Duration::from_millis(200);
 
-        let retry_policy =
-            RetryPolicy::repeat_constant(config.retry_delay, config.retry_max_attempts);
-        let (event_publisher, subscriber) = EventPublisher::new(
-            tm_client,
-            capacity,
-            delay,
-            config.poll_interval,
-            config.block_processing_buffer,
-            retry_policy,
-            monitoring_client,
-        );
-        (event_publisher, subscriber)
+    fn test_block() -> tendermint::Block {
+        serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap()
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn should_skip_processing_blocks_when_no_subscriber_exists() {
-        let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
-        let mut height = block.header().height;
-
-        let mut tm_client = MockTmClient::new();
-        let call_count = sync::Arc::new(sync::RwLock::new(0));
-        let inner_call_count = call_count.clone();
-        tm_client.expect_latest_block().returning(move || {
-            *inner_call_count.write().unwrap() += 1;
-
-            let mut block = block.clone();
-            height = height.increment();
-            block.header.height = height;
-
-            Ok(tm_client::BlockResponse {
-                block_id: Default::default(),
-                block,
-            })
-        });
-        tm_client.expect_block_results().never();
-
-        let token = CancellationToken::new();
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (event_publisher, _subscriber) =
-            create_test_event_publisher(tm_client, monitoring_client);
-        let handle = tokio::spawn(event_publisher.run(token.child_token()));
-
-        while *call_count.read().unwrap() < 10 {
-            tokio::time::advance(Duration::from_secs(1)).await;
+    fn test_block_response(block: tendermint::Block) -> tm_client::BlockResponse {
+        tm_client::BlockResponse {
+            block_id: Default::default(),
+            block,
         }
-
-        token.cancel();
-        handle.await.unwrap().unwrap();
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn should_stream_events_and_errors() {
-        let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
-        let initial_height = block.header().height;
-
-        let mut tm_client = MockTmClient::new();
-        let mut call_count = 0;
-        let mut height = initial_height;
-        tm_client.expect_latest_block().returning(move || {
-            call_count += 1;
-
-            match call_count {
-                1 => Ok(tm_client::BlockResponse {
-                    block_id: Default::default(),
-                    block: block.clone(),
-                }),
-                2 => Err(report!(tendermint_rpc::Error::server(
-                    "server error".to_string()
-                ))),
-                _ => {
-                    let mut block = block.clone();
-                    height = height.increment();
-                    block.header.height = height;
-
-                    Ok(tm_client::BlockResponse {
-                        block_id: Default::default(),
-                        block,
-                    })
-                }
-            }
-        });
-        tm_client.expect_block_results().returning(move |height| {
-            if height == initial_height {
-                Ok(block_results_response(
-                    height,
-                    vec![random_event()],
-                    vec![random_event()],
-                    vec![random_event()],
-                ))
-            } else if height == initial_height.increment() {
-                Err(report!(tendermint_rpc::Error::server(
-                    "server error".to_string()
-                )))
-            } else {
-                Ok(block_results_response(height, vec![], vec![], vec![]))
-            }
-        });
-
-        let token = CancellationToken::new();
-        let (monitoring_client, _) = test_utils::monitoring_client();
-        let (event_publisher, subscriber) =
-            create_test_event_publisher(tm_client, monitoring_client);
-        let mut stream = subscriber.subscribe();
-        let handle = tokio::spawn(event_publisher.run(token.child_token()));
-
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::BlockBegin(_))
-        ));
-        tokio::time::advance(Duration::from_secs(1)).await;
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::Abci { .. })
-        ));
-        tokio::time::advance(Duration::from_secs(1)).await;
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::Abci { .. })
-        ));
-        tokio::time::advance(Duration::from_secs(1)).await;
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::Abci { .. })
-        ));
-        tokio::time::advance(Duration::from_secs(1)).await;
-        assert!(matches!(
-            stream.next().await.unwrap(),
-            Ok(Event::BlockEnd(_))
-        ));
-        tokio::time::advance(Duration::from_secs(1)).await;
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-        tokio::time::advance(Duration::from_secs(1)).await;
-        assert_err_contains!(
-            stream.next().await.unwrap(),
-            Error,
-            Error::BlockResultsQuery { .. }
-        );
-        tokio::time::advance(Duration::from_secs(1)).await;
-
-        token.cancel();
-        handle.await.unwrap().unwrap();
-    }
-
-    pub fn random_event() -> abci::Event {
-        let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
-        abci::Event::new(
-            generate(10, charset),
-            vec![abci::EventAttribute {
-                key: STANDARD.encode(generate(10, charset)),
-                value: STANDARD.encode(generate(10, charset)),
-                index: false,
-            }],
-        )
-    }
-
-    pub fn block_results_response(
-        height: block::Height,
-        begin_block_events: Vec<abci::Event>,
-        end_block_events: Vec<abci::Event>,
-        txs_events: Vec<abci::Event>,
-    ) -> tm_client::BlockResultsResponse {
+    fn test_block_results(height: block::Height) -> tm_client::BlockResultsResponse {
         tm_client::BlockResultsResponse {
             height,
-            begin_block_events: Some(begin_block_events),
-            end_block_events: Some(end_block_events),
+            begin_block_events: Some(vec![]),
+            end_block_events: Some(vec![]),
             consensus_param_updates: None,
-            txs_results: Some(
-                txs_events
-                    .into_iter()
-                    .map(|event| abci::types::ExecTxResult {
-                        events: vec![event],
-                        ..Default::default()
-                    })
-                    .collect(),
-            ),
+            txs_results: Some(vec![abci::types::ExecTxResult::default()]),
             validator_updates: vec![],
             app_hash: Default::default(),
             finalize_block_events: vec![],
         }
     }
 
+    fn rpc_error() -> error_stack::Report<tendermint_rpc::Error> {
+        report!(tendermint_rpc::Error::server("test error".to_string()))
+    }
+
+    fn create_publisher(
+        mock: MockTmClient,
+    ) -> (
+        EventPublisher<MockTmClient>,
+        super::EventSubscriber,
+        tokio::sync::mpsc::Receiver<Msg>,
+    ) {
+        let (monitoring, metrics_rx) = test_utils::monitoring_client();
+        let (publisher, subscriber) = EventPublisher::new(
+            mock,
+            100,
+            STREAM_DELAY,
+            POLL_INTERVAL,
+            10,
+            RetryPolicy::repeat_constant(RETRY_DELAY, 3),
+            monitoring,
+        );
+        (publisher, subscriber, metrics_rx)
+    }
+
+    /// When no subscriber is listening, the publisher should still poll for new blocks
+    /// but skip fetching block results (an optimization to avoid unnecessary RPC calls).
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn should_record_event_publisher_err_successfully() {
-        let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/axelar_block.json")).unwrap();
-        let initial_height = block.header().height;
+    async fn with_no_subscriber_blocks_are_polled_but_skips_block_results_query() {
+        let mut mock = MockTmClient::new();
+        let mut height = test_block().header().height;
 
-        let mut tm_client = MockTmClient::new();
-        let mut call_count = 0;
-        tm_client.expect_latest_block().returning(move || {
-            call_count += 1;
+        // Expectation: latest_block will be called 10 times, because the time will advance 10 * poll interval
+        mock.expect_latest_block().times(10).returning(move || {
+            height = height.increment();
+            let mut block = test_block();
+            block.header.height = height;
 
-            match call_count {
-                1 => Err(report!(tendermint_rpc::Error::server(
-                    "server error".to_string()
-                ))),
-                2 => Ok(tm_client::BlockResponse {
-                    block_id: Default::default(),
-                    block: block.clone(),
-                }),
-                _ => unreachable!("Should only have 2 calls"),
-            }
+            Ok(test_block_response(block))
         });
-        tm_client.expect_block_results().returning(move |height| {
-            if height == initial_height {
-                Ok(block_results_response(
-                    height,
-                    vec![random_event()],
-                    vec![random_event()],
-                    vec![random_event()],
-                ))
-            } else {
-                Ok(block_results_response(height, vec![], vec![], vec![]))
-            }
-        });
+
+        // Expectation: block_results should never be called when no subscriber exists
+        mock.expect_block_results().never();
+
+        let (publisher, subscriber, _) = create_publisher(mock);
+        drop(subscriber);
 
         let token = CancellationToken::new();
-        let (monitoring_client, mut receiver) = test_utils::monitoring_client();
-        let (event_publisher, subscriber) =
-            create_test_event_publisher(tm_client, monitoring_client);
+        let handle = tokio::spawn(publisher.run(token.child_token()));
+
+        // Advance time in small steps to allow other threads to run
+        for _ in 0..100 {
+            tokio::time::advance(POLL_INTERVAL / 10).await;
+        }
+
+        token.cancel();
+        handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn with_subscriber_streams_block_events() {
+        let mut mock = MockTmClient::new();
+        mock.expect_latest_block()
+            .returning(move || Ok(test_block_response(test_block().clone())));
+        mock.expect_block_results()
+            .returning(move |h| Ok(test_block_results(h)));
+
+        let (publisher, subscriber, _) = create_publisher(mock);
+
+        let token = CancellationToken::new();
         let mut stream = subscriber.subscribe();
-        let handle = tokio::spawn(event_publisher.run(token.child_token()));
+        let handle = tokio::spawn(publisher.run(token.child_token()));
 
-        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
-        tokio::time::advance(Duration::from_secs(1)).await;
+        // Small time steps to allow task scheduling
+        for _ in 0..10 {
+            tokio::time::advance(POLL_INTERVAL / 10).await;
+        }
 
-        let metric = receiver.recv().await.unwrap();
-        assert_eq!(metric, Msg::EventPublisherError);
-
+        // Expectation: after poll interval is past, the block events should be accessible
         assert!(matches!(
             stream.next().await.unwrap(),
             Ok(Event::BlockBegin(_))
         ));
-        tokio::time::advance(Duration::from_secs(1)).await;
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockEnd(_))
+        ));
 
         token.cancel();
         handle.await.unwrap().unwrap();
+    }
 
-        assert!(receiver.try_recv().is_err());
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn with_latest_block_error_propagates_error_to_subscriber() {
+        let mut mock = MockTmClient::new();
+        mock.expect_latest_block().returning(|| Err(rpc_error()));
+        // Expectation: if the latest block query already fails, the block results will never be called
+        mock.expect_block_results().never();
+
+        let (publisher, subscriber, _) = create_publisher(mock);
+
+        let token = CancellationToken::new();
+        let mut stream = subscriber.subscribe();
+        let handle = tokio::spawn(publisher.run(token.child_token()));
+
+        // Small time steps to allow task scheduling
+        for _ in 0..10 {
+            tokio::time::advance(POLL_INTERVAL / 10).await;
+        }
+
+        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
+
+        token.cancel();
+        handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn with_block_results_error_propagates_error_to_subscriber() {
+        let mut mock = MockTmClient::new();
+        mock.expect_latest_block()
+            .returning(move || Ok(test_block_response(test_block().clone())));
+        mock.expect_block_results().returning(|_| Err(rpc_error()));
+
+        let (publisher, subscriber, _) = create_publisher(mock);
+
+        let token = CancellationToken::new();
+        let mut stream = subscriber.subscribe();
+        let handle = tokio::spawn(publisher.run(token.child_token()));
+
+        // Small time steps to allow task scheduling
+        for _ in 0..10 {
+            tokio::time::advance(POLL_INTERVAL / 10).await;
+        }
+
+        assert_err_contains!(
+            stream.next().await.unwrap(),
+            Error,
+            Error::BlockResultsQuery { .. }
+        );
+
+        token.cancel();
+        handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn with_error_records_error_metric() {
+        let mut mock = MockTmClient::new();
+        mock.expect_latest_block().returning(|| Err(rpc_error()));
+        mock.expect_block_results().never();
+
+        let (publisher, subscriber, mut metrics_rx) = create_publisher(mock);
+
+        let token = CancellationToken::new();
+        let mut stream = subscriber.subscribe();
+        let handle = tokio::spawn(publisher.run(token.child_token()));
+
+        // Small time steps to allow task scheduling
+        for _ in 0..10 {
+            tokio::time::advance(POLL_INTERVAL / 10).await;
+        }
+
+        // Consume the error event
+        let _ = stream.next().await;
+
+        // Verify metric was recorded
+        assert_eq!(metrics_rx.recv().await.unwrap(), Msg::EventPublisherError);
+
+        token.cancel();
+        handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn with_mixed_responses_streams_all_blocks_and_errors_in_order() {
+        let mut height = test_block().header.height;
+
+        // Prepare responses: Ok, Err, Ok, Err, Ok
+        let mut responses = vec![
+            Ok(test_block_response(test_block())),
+            Err(rpc_error()),
+            Ok(test_block_response({
+                height = height.increment();
+                let mut b = test_block();
+                b.header.height = height;
+                b
+            })),
+            Err(rpc_error()),
+            Ok(test_block_response({
+                height = height.increment();
+                let mut b = test_block();
+                b.header.height = height;
+                b
+            })),
+        ]
+        .into_iter();
+
+        let mut mock = MockTmClient::new();
+        // Expectation: called 5 times, because the time is advanced 5 * poll interval
+        mock.expect_latest_block()
+            .times(5)
+            .returning(move || responses.next().unwrap());
+        mock.expect_block_results()
+            .returning(move |h| Ok(test_block_results(h)));
+
+        let (publisher, subscriber, _) = create_publisher(mock);
+
+        let token = CancellationToken::new();
+        let mut stream = subscriber.subscribe();
+        let handle = tokio::spawn(publisher.run(token.child_token()));
+
+        // Advance time to process all 5 responses
+        for _ in 0..50 {
+            tokio::time::advance(POLL_INTERVAL / 10).await;
+        }
+
+        // Expectation: see all block events and all errors in the correct order
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockBegin(_))
+        ));
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockEnd(_))
+        ));
+        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockBegin(_))
+        ));
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockEnd(_))
+        ));
+        assert_err_contains!(stream.next().await.unwrap(), Error, Error::LatestBlockQuery);
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockBegin(_))
+        ));
+        assert!(matches!(
+            stream.next().await.unwrap(),
+            Ok(Event::BlockEnd(_))
+        ));
+
+        token.cancel();
+        handle.await.unwrap().unwrap();
     }
 }

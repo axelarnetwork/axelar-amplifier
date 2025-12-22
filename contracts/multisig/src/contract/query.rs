@@ -1,10 +1,13 @@
+use error_stack::{report, Result};
 use router_api::ChainName;
 
 use super::*;
 use crate::key::{KeyType, PublicKey};
+use crate::msg::SigningParameters;
 use crate::multisig::Multisig;
-use crate::state::{load_pub_key, load_session_signatures, AUTHORIZED_CALLERS};
+use crate::state::{chain_by_prover, load_pub_key, load_session_signatures, prover_by_chain};
 use crate::verifier_set::VerifierSet;
+use crate::ContractError;
 
 pub fn multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
     let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
@@ -28,7 +31,28 @@ pub fn public_key(deps: Deps, verifier: Addr, key_type: KeyType) -> StdResult<Pu
     Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
 }
 
-pub fn caller_authorized(deps: Deps, address: Addr, chain_name: ChainName) -> StdResult<bool> {
-    let is_authorized = AUTHORIZED_CALLERS.may_load(deps.storage, &address)? == Some(chain_name);
-    Ok(is_authorized)
+pub fn caller_authorized(
+    storage: &dyn Storage,
+    address: Addr,
+    chain_name: ChainName,
+) -> StdResult<bool> {
+    Ok(chain_by_prover(storage, address)?
+        .filter(|c| c == &chain_name)
+        .is_some())
+}
+
+pub fn prover_for_chain(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
+    prover_by_chain(deps.storage, chain_name.clone())
+        .change_context(ContractError::Storage)?
+        .ok_or(report!(ContractError::ProverNotFound(chain_name)))
+}
+
+pub fn signing_parameters(deps: Deps) -> Result<SigningParameters, ContractError> {
+    let config = CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::Storage)?;
+
+    Ok(SigningParameters {
+        block_expiry: config.block_expiry,
+    })
 }

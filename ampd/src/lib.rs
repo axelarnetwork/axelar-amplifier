@@ -1,6 +1,5 @@
-mod asyncutil;
+pub mod asyncutil;
 mod block_height_monitor;
-#[allow(dead_code)]
 mod broadcast;
 #[cfg(feature = "commands")]
 pub mod commands;
@@ -11,64 +10,33 @@ pub mod config;
 #[cfg(not(feature = "config"))]
 mod config;
 mod cosmos;
-mod event_processor;
 pub mod event_sub;
-mod evm;
 mod grpc;
-mod handlers;
-mod json_rpc;
-mod monitoring;
-mod mvx;
-mod solana;
-mod stacks;
-mod starknet;
-mod stellar;
-mod sui;
+pub mod json_rpc;
+pub mod monitoring;
 mod tm_client;
 mod tofnd;
-mod types;
+pub mod types;
 #[cfg(feature = "url")]
 pub mod url;
 #[cfg(not(feature = "url"))]
 mod url;
-mod xrpl;
 
-use std::pin::Pin;
-use std::time::Duration;
-
-use asyncutil::future::RetryPolicy;
 use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use block_height_monitor::BlockHeightMonitor;
 use broadcast::MsgQueue;
 use error_stack::{FutureExt, Result, ResultExt};
-use event_processor::EventHandler;
-use event_sub::EventSub;
-use evm::finalizer::{pick, Finalization};
-use evm::json_rpc::EthereumClient;
-use lazy_static::lazy_static;
-use multiversx_sdk::gateway::GatewayProxy;
-use router_api::{chain_name, ChainName};
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
-use starknet_providers::jsonrpc::HttpTransport;
+use router_api::ChainName;
 use thiserror::Error;
 use tofnd::{Multisig, MultisigClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
-use types::{CosmosPublicKey, TMAddress};
+use types::CosmosPublicKey;
 
 use crate::config::Config;
-use crate::stacks::http_client::Client;
 
 const PREFIX: &str = "axelar";
-
-lazy_static! {
-    static ref SUI_CHAIN_NAME: ChainName = chain_name!("sui");
-    static ref MULTIVERSX_CHAIN_NAME: ChainName = chain_name!("multiversx");
-    static ref STELLAR_CHAIN_NAME: ChainName = chain_name!("stellar");
-    static ref STARKNET_CHAIN_NAME: ChainName = chain_name!("starknet");
-}
 
 #[cfg(feature = "config")]
 pub async fn run(cfg: Config) -> Result<(), Error> {
@@ -77,15 +45,14 @@ pub async fn run(cfg: Config) -> Result<(), Error> {
 
 #[cfg(feature = "config")]
 async fn prepare_app(cfg: Config) -> Result<App, Error> {
+    use crate::asyncutil::future::RetryPolicy;
+
     let Config {
         tm_jsonrpc,
         tm_grpc,
-        default_rpc_timeout,
         tm_grpc_timeout,
         broadcast,
-        handlers,
         tofnd_config,
-        event_processor,
         service_registry,
         rewards,
         monitoring_server,
@@ -124,8 +91,8 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
     let pub_key = CosmosPublicKey::try_from(pub_key).change_context(Error::Tofnd)?;
     let (event_publisher, event_subscriber) = event_sub::EventPublisher::new(
         tm_client.clone(),
-        event_processor.stream_buffer_size,
-        event_processor.delay,
+        event_sub.stream_buffer_size,
+        event_sub.delay,
         event_sub.poll_interval,
         event_sub.block_processing_buffer,
         RetryPolicy::repeat_constant(event_sub.retry_delay, event_sub.retry_max_attempts),
@@ -158,6 +125,7 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .cosmos_grpc_client(cosmos_client.clone())
         .multisig_client(multisig_client.clone())
         .service_registry(service_registry.cosmwasm_contract)
+        .latest_block_height(block_height_monitor.latest_block_height())
         .rewards(rewards.cosmwasm_contract)
         .monitoring_client(monitoring_client.clone())
         .build();
@@ -180,568 +148,53 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .monitoring_client(monitoring_client.clone())
         .build();
 
-    let verifier: TMAddress = pub_key
-        .account_id(PREFIX)
-        .expect("failed to convert to account identifier")
-        .into();
-
-    App::new(
+    Ok(App::new(
         event_publisher,
-        event_subscriber,
-        multisig_client,
         block_height_monitor,
         monitoring_server,
         grpc_server,
         broadcaster_task,
-        msg_queue_client,
         tx_confirmer,
-        monitoring_client,
-    )
-    .configure_handlers(verifier, handlers, event_processor, default_rpc_timeout)
-    .await
-}
-
-async fn check_finalizer<C>(
-    chain_name: &ChainName,
-    finalization: &Finalization,
-    rpc_client: &C,
-) -> Result<(), Error>
-where
-    C: EthereumClient + Send + Sync,
-{
-    let _ = pick(finalization, rpc_client, 0)
-        .latest_finalized_block_height()
-        .await
-        .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
-
-    Ok(())
+    ))
 }
 
 struct App {
     event_publisher: event_sub::EventPublisher<tm_client::TendermintClient>,
-    event_subscriber: event_sub::EventSubscriber,
-    event_processor: TaskGroup<event_processor::Error>,
-    multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tm_client::TendermintClient>,
     monitoring_server: monitoring::Server,
     grpc_server: grpc::Server,
     broadcaster_task:
-        broadcast::BroadcasterTask<cosmos::CosmosGrpcClient, Pin<Box<MsgQueue>>, MultisigClient>,
-    msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
+        broadcast::BroadcasterTask<cosmos::CosmosGrpcClient, MsgQueue, MultisigClient>,
     tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
-    monitoring_client: monitoring::Client,
 }
 
 impl App {
     #[allow(clippy::too_many_arguments)]
     fn new(
         event_publisher: event_sub::EventPublisher<tm_client::TendermintClient>,
-        event_subscriber: event_sub::EventSubscriber,
-        multisig_client: MultisigClient,
         block_height_monitor: BlockHeightMonitor<tm_client::TendermintClient>,
         monitoring_server: monitoring::Server,
         grpc_server: grpc::Server,
         broadcaster_task: broadcast::BroadcasterTask<
             cosmos::CosmosGrpcClient,
-            Pin<Box<MsgQueue>>,
+            MsgQueue,
             MultisigClient,
         >,
-        msg_queue_client: broadcast::MsgQueueClient<cosmos::CosmosGrpcClient>,
         tx_confirmer: broadcast::TxConfirmer<cosmos::CosmosGrpcClient>,
-        monitoring_client: monitoring::Client,
     ) -> Self {
-        let event_processor = TaskGroup::new("event handler");
-
         Self {
             event_publisher,
-            event_subscriber,
-            event_processor,
-            multisig_client,
             block_height_monitor,
             monitoring_server,
             grpc_server,
             broadcaster_task,
-            msg_queue_client,
             tx_confirmer,
-            monitoring_client,
         }
-    }
-
-    async fn configure_handlers(
-        mut self,
-        verifier: TMAddress,
-        handler_configs: Vec<handlers::config::Config>,
-        event_processor_config: event_processor::Config,
-        default_rpc_timeout: Duration,
-    ) -> Result<App, Error> {
-        for config in handler_configs {
-            match self
-                .try_create_handler_task(
-                    &config,
-                    &verifier,
-                    &event_processor_config,
-                    default_rpc_timeout,
-                )
-                .await
-            {
-                Ok(task) => {
-                    self.event_processor = self.event_processor.add_task(task);
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, config = ?config,
-                        "Failed to create a handler, skipping instantiation. This handler will not run (and not vote or sign for this specific chain) until the issue is fixed and ampd is restarted."
-                    );
-                }
-            };
-        }
-
-        Ok(self)
-    }
-
-    async fn try_create_handler_task(
-        &mut self,
-        config: &handlers::config::Config,
-        verifier: &TMAddress,
-        event_processor_config: &event_processor::Config,
-        default_rpc_timeout: Duration,
-    ) -> Result<CancellableTask<Result<(), event_processor::Error>>, Error> {
-        match config {
-            handlers::config::Config::EvmMsgVerifier {
-                chain,
-                cosmwasm_contract,
-                rpc_timeout,
-            } => {
-                let rpc_client = json_rpc::Client::new_http(
-                    chain.rpc_url.clone(),
-                    reqwest::ClientBuilder::new()
-                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                        .build()
-                        .change_context(Error::Connection)?,
-                    self.monitoring_client.clone(),
-                    chain.name.clone(),
-                );
-
-                check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
-
-                Ok(self.create_handler_task(
-                    format!("{}-msg-verifier", chain.name),
-                    handlers::evm_verify_msg::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract.clone(),
-                        chain.name.clone(),
-                        chain.finalization.clone(),
-                        rpc_client,
-                        self.block_height_monitor.latest_block_height(),
-                        self.monitoring_client.clone(),
-                    ),
-                    event_processor_config.clone(),
-                    self.monitoring_client.clone(),
-                ))
-            }
-            handlers::config::Config::EvmVerifierSetVerifier {
-                chain,
-                cosmwasm_contract,
-                rpc_timeout,
-            } => {
-                let rpc_client = json_rpc::Client::new_http(
-                    chain.rpc_url.clone(),
-                    reqwest::ClientBuilder::new()
-                        .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                        .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                        .build()
-                        .change_context(Error::Connection)?,
-                    self.monitoring_client.clone(),
-                    chain.name.clone(),
-                );
-
-                check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
-
-                Ok(self.create_handler_task(
-                    format!("{}-verifier-set-verifier", chain.name),
-                    handlers::evm_verify_verifier_set::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract.clone(),
-                        chain.name.clone(),
-                        chain.finalization.clone(),
-                        rpc_client,
-                        self.block_height_monitor.latest_block_height(),
-                        self.monitoring_client.clone(),
-                    ),
-                    event_processor_config.clone(),
-                    self.monitoring_client.clone(),
-                ))
-            }
-            handlers::config::Config::MultisigSigner {
-                cosmwasm_contract,
-                chain_name,
-            } => Ok(self.create_handler_task(
-                "multisig-signer",
-                handlers::multisig::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    chain_name.clone(),
-                    self.multisig_client.clone(),
-                    self.block_height_monitor.latest_block_height(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::SuiMsgVerifier {
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "sui-msg-verifier",
-                handlers::sui_verify_msg::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    json_rpc::Client::new_http(
-                        rpc_url.clone(),
-                        reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                            .build()
-                            .change_context(Error::Connection)?,
-                        self.monitoring_client.clone(),
-                        SUI_CHAIN_NAME.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::XRPLMsgVerifier {
-                cosmwasm_contract,
-                chain_name,
-                chain_rpc_url,
-                rpc_timeout,
-            } => {
-                let xrpl_client = xrpl_http_client::Client::builder()
-                    .base_url(chain_rpc_url.as_str())
-                    .http_client(
-                        reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                            .build()
-                            .change_context(Error::Connection)?,
-                    )
-                    .build();
-
-                let rpc_client = xrpl::json_rpc::Client::new(
-                    xrpl_client,
-                    self.monitoring_client.clone(),
-                    chain_name.clone(),
-                );
-
-                Ok(self.create_handler_task(
-                    format!("{}-msg-verifier", chain_name),
-                    handlers::xrpl_verify_msg::Handler::new(
-                        verifier.clone(),
-                        cosmwasm_contract.clone(),
-                        rpc_client,
-                        self.block_height_monitor.latest_block_height(),
-                        self.monitoring_client.clone(),
-                    ),
-                    event_processor_config.clone(),
-                    self.monitoring_client.clone(),
-                ))
-            }
-            handlers::config::Config::XRPLMultisigSigner {
-                cosmwasm_contract,
-                chain_name,
-            } => Ok(self.create_handler_task(
-                "xrpl-multisig-signer",
-                handlers::xrpl_multisig::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    chain_name.clone(),
-                    self.multisig_client.clone(),
-                    self.block_height_monitor.latest_block_height(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::SuiVerifierSetVerifier {
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "sui-verifier-set-verifier",
-                handlers::sui_verify_verifier_set::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    json_rpc::Client::new_http(
-                        rpc_url.clone(),
-                        reqwest::ClientBuilder::new()
-                            .connect_timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                            .timeout(rpc_timeout.unwrap_or(default_rpc_timeout))
-                            .build()
-                            .change_context(Error::Connection)?,
-                        self.monitoring_client.clone(),
-                        SUI_CHAIN_NAME.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::MvxMsgVerifier {
-                cosmwasm_contract,
-                proxy_url,
-            } => Ok(self.create_handler_task(
-                "mvx-msg-verifier",
-                handlers::mvx_verify_msg::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    mvx::proxy::Client::new(
-                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
-                        self.monitoring_client.clone(),
-                        MULTIVERSX_CHAIN_NAME.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::MvxVerifierSetVerifier {
-                cosmwasm_contract,
-                proxy_url,
-            } => Ok(self.create_handler_task(
-                "mvx-worker-set-verifier",
-                handlers::mvx_verify_verifier_set::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    mvx::proxy::Client::new(
-                        GatewayProxy::new(proxy_url.to_string().trim_end_matches('/').into()),
-                        self.monitoring_client.clone(),
-                        MULTIVERSX_CHAIN_NAME.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::StellarMsgVerifier {
-                cosmwasm_contract,
-                rpc_url,
-            } => Ok(self.create_handler_task(
-                "stellar-msg-verifier",
-                handlers::stellar_verify_msg::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    stellar::rpc_client::Client::new(
-                        rpc_url.clone(),
-                        self.monitoring_client.clone(),
-                        STELLAR_CHAIN_NAME.clone(),
-                    )
-                    .change_context(Error::Connection)?,
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::StellarVerifierSetVerifier {
-                cosmwasm_contract,
-                rpc_url,
-            } => Ok(self.create_handler_task(
-                "stellar-verifier-set-verifier",
-                handlers::stellar_verify_verifier_set::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    stellar::rpc_client::Client::new(
-                        rpc_url.clone(),
-                        self.monitoring_client.clone(),
-                        STELLAR_CHAIN_NAME.clone(),
-                    )
-                    .change_context(Error::Connection)?,
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::StarknetMsgVerifier {
-                cosmwasm_contract,
-                rpc_url,
-            } => Ok(self.create_handler_task(
-                "starknet-msg-verifier",
-                handlers::starknet_verify_msg::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(
-                        HttpTransport::new(rpc_url.clone()),
-                        self.monitoring_client.clone(),
-                        STARKNET_CHAIN_NAME.clone(),
-                    )
-                    .change_context(Error::Connection)?,
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::StarknetVerifierSetVerifier {
-                cosmwasm_contract,
-                rpc_url,
-            } => Ok(self.create_handler_task(
-                "starknet-verifier-set-verifier",
-                handlers::starknet_verify_verifier_set::Handler::new(
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    starknet::json_rpc::Client::new_with_transport(
-                        HttpTransport::new(rpc_url.clone()),
-                        self.monitoring_client.clone(),
-                        STARKNET_CHAIN_NAME.clone(),
-                    )
-                    .change_context(Error::Connection)?,
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::SolanaMsgVerifier {
-                chain_name,
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "solana-msg-verifier",
-                handlers::solana_verify_msg::Handler::new(
-                    chain_name.clone(),
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    solana::Client::new(
-                        RpcClient::new_with_timeout_and_commitment(
-                            rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(default_rpc_timeout),
-                            CommitmentConfig::finalized(),
-                        ),
-                        self.monitoring_client.clone(),
-                        chain_name.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                ),
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::SolanaVerifierSetVerifier {
-                chain_name,
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "solana-verifier-set-verifier",
-                handlers::solana_verify_verifier_set::Handler::new(
-                    chain_name.clone(),
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    solana::Client::new(
-                        RpcClient::new_with_timeout_and_commitment(
-                            rpc_url.to_string(),
-                            rpc_timeout.unwrap_or(default_rpc_timeout),
-                            CommitmentConfig::finalized(),
-                        ),
-                        self.monitoring_client.clone(),
-                        chain_name.clone(),
-                    ),
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                )
-                .await,
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::StacksMsgVerifier {
-                chain_name,
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "stacks-msg-verifier",
-                handlers::stacks_verify_msg::Handler::new(
-                    chain_name.clone(),
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    Client::new_http(
-                        rpc_url.clone(),
-                        rpc_timeout.unwrap_or(default_rpc_timeout),
-                        self.monitoring_client.clone(),
-                        chain_name.clone(),
-                    )?,
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                )
-                .change_context(Error::Connection)?,
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-            handlers::config::Config::StacksVerifierSetVerifier {
-                chain_name,
-                cosmwasm_contract,
-                rpc_url,
-                rpc_timeout,
-            } => Ok(self.create_handler_task(
-                "stacks-verifier-set-verifier",
-                handlers::stacks_verify_verifier_set::Handler::new(
-                    chain_name.clone(),
-                    verifier.clone(),
-                    cosmwasm_contract.clone(),
-                    Client::new_http(
-                        rpc_url.clone(),
-                        rpc_timeout.unwrap_or(default_rpc_timeout),
-                        self.monitoring_client.clone(),
-                        chain_name.clone(),
-                    )?,
-                    self.block_height_monitor.latest_block_height(),
-                    self.monitoring_client.clone(),
-                )
-                .change_context(Error::Connection)?,
-                event_processor_config.clone(),
-                self.monitoring_client.clone(),
-            )),
-        }
-    }
-
-    fn create_handler_task<L, H>(
-        &mut self,
-        label: L,
-        handler: H,
-        event_processor_config: event_processor::Config,
-        monitoring_client: monitoring::Client,
-    ) -> CancellableTask<Result<(), event_processor::Error>>
-    where
-        L: AsRef<str>,
-        H: EventHandler + Send + Sync + 'static,
-    {
-        let label = label.as_ref().to_string();
-        let event_sub = self.event_subscriber.subscribe();
-        let msg_queue_client = self.msg_queue_client.clone();
-
-        CancellableTask::create(|token| {
-            event_processor::consume_events(
-                label,
-                handler,
-                event_sub,
-                event_processor_config,
-                token,
-                msg_queue_client,
-                monitoring_client,
-            )
-        })
     }
 
     async fn run(self) -> Result<(), Error> {
         let Self {
             event_publisher,
-            event_processor,
             block_height_monitor,
             monitoring_server,
             grpc_server,
@@ -767,35 +220,53 @@ impl App {
         });
 
         TaskGroup::new("ampd")
-            .add_task(CancellableTask::create(|token| {
-                block_height_monitor
-                    .run(token)
-                    .change_context(Error::BlockHeightMonitor)
-            }))
-            .add_task(CancellableTask::create(|token| {
-                event_publisher
-                    .run(token)
-                    .change_context(Error::EventPublisher)
-            }))
-            .add_task(CancellableTask::create(|token| {
-                monitoring_server.run(token).change_context(Error::Monitor)
-            }))
-            .add_task(CancellableTask::create(|token| {
-                event_processor
-                    .run(token)
-                    .change_context(Error::EventProcessor)
-            }))
-            .add_task(CancellableTask::create(|token| {
-                grpc_server.run(token).change_context(Error::GrpcServer)
-            }))
-            .add_task(CancellableTask::create(|_| {
-                tx_confirmer.run().change_context(Error::TxConfirmation)
-            }))
-            .add_task(CancellableTask::create(|_| {
-                broadcaster_task.run().change_context(Error::Broadcaster)
-            }))
+            .add_task(
+                "block-height-monitor",
+                CancellableTask::create(|token| {
+                    block_height_monitor
+                        .run(token)
+                        .change_context(Error::BlockHeightMonitor)
+                }),
+            )
+            .add_task(
+                "event-publisher",
+                CancellableTask::create(|token| {
+                    event_publisher
+                        .run(token)
+                        .change_context(Error::EventPublisher)
+                }),
+            )
+            .add_task(
+                "monitoring-server",
+                CancellableTask::create(|token| {
+                    monitoring_server.run(token).change_context(Error::Monitor)
+                }),
+            )
+            .add_task(
+                "grpc-server",
+                CancellableTask::create(|token| {
+                    grpc_server.run(token).change_context(Error::GrpcServer)
+                }),
+            )
+            .add_task(
+                "tx-confirmer",
+                CancellableTask::create(|token| {
+                    tx_confirmer
+                        .run(token)
+                        .change_context(Error::TxConfirmation)
+                }),
+            )
+            .add_task(
+                "broadcaster-task",
+                CancellableTask::create(|token| {
+                    broadcaster_task
+                        .run(token)
+                        .change_context(Error::Broadcaster)
+                }),
+            )
             .run(main_token)
             .await
+            .change_context(Error::AppFailure)
     }
 }
 
@@ -815,6 +286,8 @@ pub enum Error {
     Connection,
     #[error("task execution failed")]
     Task(#[from] TaskError),
+    #[error("app failed")]
+    AppFailure,
     #[error("failed to return updated state")]
     ReturnState,
     #[error("failed to load config")]

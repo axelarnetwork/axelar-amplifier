@@ -131,29 +131,6 @@ where
         }))
     }
 
-    /// Enqueues a message without waiting for its result
-    ///
-    /// This is a fire-and-forget variant of `enqueue`, useful when
-    /// you don't need to track the transaction result.
-    ///
-    /// # Arguments
-    ///
-    /// * `msg` - The Cosmos message to enqueue
-    ///
-    /// # Returns
-    ///
-    /// `Ok(())` if the message was successfully enqueued
-    ///
-    /// # Errors
-    ///
-    /// * `Error::EstimateGas` - If gas estimation fails
-    /// * `Error::EnqueueMsg` - If enqueueing fails
-    pub async fn enqueue_and_forget(&mut self, msg: Any) -> Result<()> {
-        let _rx = self.enqueue_with_channel(msg).await?;
-
-        Ok(())
-    }
-
     /// Internal method that handles message enqueueing
     ///
     /// This method:
@@ -175,9 +152,6 @@ where
     /// * `Error::EstimateGas` - If gas estimation fails
     /// * `Error::EnqueueMsg` - If enqueueing fails
     async fn enqueue_with_channel(&mut self, msg: Any) -> Result<oneshot::Receiver<TxResult>> {
-        // TODO: remove this once the commands broadcast through the daemon's broadcaster, so that the sequence does not get out of sync
-        self.broadcaster.reset_sequence().await?;
-
         let (tx, rx) = oneshot::channel();
         let gas = self.broadcaster.estimate_gas(vec![msg.clone()]).await?;
 
@@ -250,20 +224,20 @@ impl MsgQueue {
         gas_cap: Gas,
         duration: time::Duration,
         monitoring_client: monitoring::Client,
-    ) -> (Pin<Box<MsgQueue>>, MsgQueueClient<T>)
+    ) -> (MsgQueue, MsgQueueClient<T>)
     where
         T: cosmos::CosmosClient,
     {
         let (tx, rx) = mpsc::channel(msg_cap);
 
         (
-            Box::pin(MsgQueue {
+            MsgQueue {
                 stream: ReceiverStream::new(rx).fuse(),
                 deadline: time::sleep(duration),
                 queue: Queue::new(gas_cap),
                 duration,
                 monitoring_client,
-            }),
+            },
             MsgQueueClient { broadcaster, tx },
         )
     }
@@ -418,10 +392,10 @@ impl Queue {
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::{assert_err_contains, err_contains};
+    use axelar_wasm_std::err_contains;
     use cosmos_sdk_proto::cosmos::bank::v1beta1::QueryBalanceResponse;
     use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
-    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
     use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
     use cosmrs::proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmrs::proto::cosmos::tx::v1beta1::SimulateResponse;
@@ -459,25 +433,8 @@ mod tests {
         gas_info: Option<GasInfo>,
         times: usize,
     ) -> cosmos::MockCosmosClient {
-        let mut cosmos_client = cosmos::MockCosmosClient::new();
-        let base_account = test_utils::create_base_account(address);
+        let mut cosmos_client = setup_client(address);
 
-        cosmos_client.expect_balance().return_once(move |_| {
-            Ok(QueryBalanceResponse {
-                balance: Some(Coin {
-                    denom: "uaxl".to_string(),
-                    amount: "1000000".to_string(),
-                }),
-            })
-        });
-        cosmos_client
-            .expect_account()
-            .times(times.saturating_add(1))
-            .returning(move |_| {
-                Ok(QueryAccountResponse {
-                    account: Some(Any::from_msg(&base_account).unwrap()),
-                })
-            });
         cosmos_client
             .expect_simulate()
             .times(times)
@@ -524,56 +481,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn msg_queue_client_enqueue_and_forget() {
-        let gas_cap = 1000u64;
-        let gas_adjustment = 1.5;
-        let gas_price_amount = 0.025;
-        let gas_price_denom = "uaxl";
-
-        let gas_info = Some(GasInfo {
-            gas_wanted: gas_cap,
-            gas_used: gas_cap,
-        });
-
-        let cosmos_client = setup_client_with_simulate(&TMAddress::random(PREFIX), gas_info, 1);
-        let broadcaster = broadcaster::Broadcaster::builder()
-            .client(cosmos_client)
-            .chain_id("chain-id".parse().unwrap())
-            .pub_key(random_cosmos_public_key())
-            .gas_adjustment(gas_adjustment)
-            .gas_price(DecCoin::new(gas_price_amount, gas_price_denom).unwrap())
-            .build()
-            .await
-            .unwrap();
-
-        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
-
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
-            broadcaster,
-            10,
-            gas_cap,
-            time::Duration::from_secs(1),
-            monitoring_client,
-        );
-
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
-        let actual = msg_queue.next().await.unwrap();
-
-        assert_eq!(actual.as_ref().len(), 1);
-        assert_eq!(actual.as_ref()[0].gas, gas_cap);
-        assert_eq!(
-            actual.as_ref()[0].msg.type_url,
-            "/cosmos.bank.v1beta1.MsgSend"
-        );
-
-        drop(msg_queue_client);
-        assert!(msg_queue.next().await.is_none());
-    }
-
-    #[tokio::test]
     async fn msg_queue_client_enqueue() {
         let gas_cap = 1000u64;
         let gas_adjustment = 1.5;
@@ -598,13 +505,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
@@ -640,24 +548,7 @@ mod tests {
             .expect_clone()
             .times(client_count)
             .returning(move || {
-                let pub_key = random_cosmos_public_key();
-                let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
-                let base_account = BaseAccount {
-                    address: address.to_string(),
-                    pub_key: None,
-                    account_number: 42,
-                    sequence: 10,
-                };
-
                 let mut cosmos_client = cosmos::MockCosmosClient::new();
-                cosmos_client
-                    .expect_account()
-                    .times(msg_count_per_client)
-                    .returning(move |_| {
-                        Ok(QueryAccountResponse {
-                            account: Some(Any::from_msg(&base_account).unwrap()),
-                        })
-                    });
                 cosmos_client
                     .expect_simulate()
                     .times(msg_count_per_client)
@@ -685,13 +576,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         let handles: Vec<_> = (0..client_count)
             .map(|_| {
@@ -699,10 +591,7 @@ mod tests {
 
                 tokio::spawn(async move {
                     for _ in 0..msg_count_per_client {
-                        msg_queue_client_clone
-                            .enqueue_and_forget(dummy_msg())
-                            .await
-                            .unwrap();
+                        let _rx = msg_queue_client_clone.enqueue(dummy_msg()).await.unwrap();
                     }
                 })
             })
@@ -744,11 +633,11 @@ mod tests {
             monitoring_client,
         );
 
-        assert_err_contains!(
-            msg_queue_client.enqueue_and_forget(dummy_msg()).await,
-            Error,
-            Error::EstimateGas
-        );
+        let result = msg_queue_client.enqueue(dummy_msg()).await;
+        let Err(err) = result else {
+            panic!("expected error");
+        };
+        assert!(err_contains!(err, Error, Error::EstimateGas));
     }
 
     #[tokio::test]
@@ -776,13 +665,14 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let _ = msg_queue.next().await;
@@ -821,18 +711,16 @@ mod tests {
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
         let timeout = time::Duration::from_secs(3);
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             timeout,
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
 
         let start = time::Instant::now();
         let actual = msg_queue.next().await.unwrap();
@@ -878,14 +766,17 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(3),
             monitoring_client,
         );
+
         let handle = tokio::spawn(async move {
+            tokio::pin!(msg_queue);
+
             let actual = msg_queue.next().await.unwrap();
             assert_eq!(actual.as_ref().len(), 10);
             for msg in actual.as_ref() {
@@ -903,10 +794,7 @@ mod tests {
         });
 
         for _ in 0..msg_count {
-            msg_queue_client
-                .enqueue_and_forget(dummy_msg())
-                .await
-                .unwrap();
+            let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         }
         handle.await.unwrap();
     }
@@ -937,7 +825,7 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
@@ -947,6 +835,7 @@ mod tests {
 
         let rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let handle = tokio::spawn(async move {
+            tokio::pin!(msg_queue);
             assert!(msg_queue.next().await.is_none());
         });
 
@@ -986,22 +875,16 @@ mod tests {
 
         let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
-
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
+        tokio::pin!(msg_queue);
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
         let actual = msg_queue.next().await.unwrap();
 
         assert_eq!(actual.as_ref().len(), 1);
@@ -1057,18 +940,16 @@ mod tests {
 
         let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
 
-        let (mut msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
+        let (msg_queue, mut msg_queue_client) = MsgQueue::new_msg_queue_and_client(
             broadcaster,
             10,
             gas_cap,
             time::Duration::from_secs(1),
             monitoring_client,
         );
+        tokio::pin!(msg_queue);
 
-        msg_queue_client
-            .enqueue_and_forget(dummy_msg())
-            .await
-            .unwrap();
+        let _rx = msg_queue_client.enqueue(dummy_msg()).await.unwrap();
 
         drop(msg_queue_client);
         assert!(msg_queue.next().await.is_none());

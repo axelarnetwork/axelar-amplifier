@@ -14,6 +14,8 @@ pub enum Error {
     SetActiveVerifiers(Addr),
     #[error("failed to register deployment {0} with router")]
     RegisterDeployment(nonempty::String),
+    #[error("deployment {0} not found")]
+    DeploymentNotFound(nonempty::String),
     #[error("failed to instantiate chain contracts")]
     InstantiateChainContracts,
     #[error("main protocol contracts (e.g. the router) are not registered yet")]
@@ -24,6 +26,10 @@ pub enum Error {
     ChainNotRegistered(ChainName),
     #[error("prover {0} is not registered")]
     ProverNotRegistered(Addr),
+    #[error("failed to canonicalize address")]
+    CanonicalizeAddress,
+    #[error("failed to humanize address")]
+    HumanizeAddress,
     #[error("failed to generate instantiate2 address")]
     Instantiate2Address,
     #[error("failed to instantiate core contracts")]
@@ -36,6 +42,8 @@ pub enum Error {
     InstantiateVerifier,
     #[error("failed to instantiate prover")]
     InstantiateProver,
+    #[error("failed to instantiate chain codec")]
+    InstantiateChainCodec,
     #[error(
         "coordinator failed to retrieve verifier details and corresponding provers. service_name: {service_name}, verifier_address: {verifier_address}"
     )]
@@ -51,4 +59,6 @@ pub enum Error {
     RouterClient,
     #[error("address {0} has incorrect format")]
     InvalidAddress(String),
+    #[error("invalid limit")]
+    InvalidLimit,
 }

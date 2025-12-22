@@ -5,11 +5,15 @@ rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
 
+[features]
+test-utils = []
+
 [dependencies]
 ampd = { path = "../../ampd", default-features = false, features = ["url"] }
 ampd-proto = { workspace = true }
 async-trait = { workspace = true }
 axelar-wasm-std = { workspace = true }
+config = { workspace = true }
 cosmrs = { workspace = true }
 error-stack = { workspace = true }
 events = { workspace = true }
@@ -19,6 +23,7 @@ humantime-serde = { workspace = true }
 mockall = { workspace = true }
 report = { workspace = true }
 serde = { workspace = true }
+serde-aux = "4.7.0"
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -26,13 +31,17 @@ tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 tonic = "0.13.0"
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 typed-builder = { workspace = true }
 valuable = { workspace = true }
 
 [build-dependencies]
 
 [dev-dependencies]
+temp-env = { workspace = true }
+tempfile = "3.21.0"
 tokio = { workspace = true, features = ["test-util"] }
+tracing-test = { workspace = true }
 
 [lints]
 workspace = true

@@ -2,7 +2,95 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.11.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.2..HEAD)
+
+## [v1.14.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.2) (2025-12-19)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.1..ampd-v1.14.2)
+
+- remove event_processor and legacy handlers [#1126](https://github.com/axelarnetwork/axelar-amplifier/pull/1126)
+- solana ampd handler migration [#1124](https://github.com/axelarnetwork/axelar-amplifier/pull/1124)
+
+## [v1.14.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.1) (2025-12-15)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.14.0..ampd-v1.14.1)
+
+- add xrpl voting handler [#1119](https://github.com/axelarnetwork/axelar-amplifier/pull/1119)
+- backport releases/v1.13.x changes to main [#1122](https://github.com/axelarnetwork/axelar-amplifier/pull/1122)
+
+## [v1.14.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.14.0) (2025-12-10)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.2..ampd-v1.14.0)
+
+## [v1.13.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.13.2) (2025-11-28)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.1..ampd-v1.13.2)
+
+- update config defaults for 1s block time and improve documentation [#1108](https://github.com/axelarnetwork/axelar-amplifier/pull/1108)
+
+## [v1.13.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.13.1) (2025-11-24)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.13.0..ampd-v1.13.1)
+
+- support for SDK 0.50 upgrade for ampd 1.13 [#1089](https://github.com/axelarnetwork/axelar-amplifier/pull/1089)
+
+## [v1.13.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.13.0) (2025-10-15)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.2..ampd-v1.13.0)
+
+- update solana handler to parse events via CPI [#1048](https://github.com/axelarnetwork/axelar-amplifier/pull/1048)
+
+- enable modular handler broadcasting [#1113](https://github.com/axelarnetwork/axelar-amplifier/pull/1113)
+- add config dir argument to binaries [#1114](https://github.com/axelarnetwork/axelar-amplifier/pull/1114)
+- use typestate pattern to enforce valid EventFilter at compile-time [#1104](https://github.com/axelarnetwork/axelar-amplifier/pull/1104)
+- add event verifier [#1098](https://github.com/axelarnetwork/axelar-amplifier/pull/1098)
+- add attributes to event filter [#1095](https://github.com/axelarnetwork/axelar-amplifier/pull/1095)
+- stellar ampd handler migration [#1091](https://github.com/axelarnetwork/axelar-amplifier/pull/1091)
+- sui ampd handler migration [#1099](https://github.com/axelarnetwork/axelar-amplifier/pull/1099)
+- support for SDK 0.50 upgrade for ampd (backport of #1089) [#1090](https://github.com/axelarnetwork/axelar-amplifier/pull/1090)
+- add multisig module handler [#1083](https://github.com/axelarnetwork/axelar-amplifier/pull/1083)
+- add multisig handler to `is_xrpl_evm_handler` [#1084](https://github.com/axelarnetwork/axelar-amplifier/pull/1084)
+- prevents gRPC server from hanging during shut down [#1080](https://github.com/axelarnetwork/axelar-amplifier/pull/1080)
+- unify both modular EVM handlers [#1078](https://github.com/axelarnetwork/axelar-amplifier/pull/1078)
+- add confirmation height to event verifier config [#1075](https://github.com/axelarnetwork/axelar-amplifier/pull/1075)
+- add evm msg verifier handler [#1039](https://github.com/axelarnetwork/axelar-amplifier/pull/1039)
+- expose ampd and ampd-sdk test-utils [#1072](https://github.com/axelarnetwork/axelar-amplifier/pull/1072)
+- replace avalanche with xrpl-evm [#1071](https://github.com/axelarnetwork/axelar-amplifier/pull/1071)
+- add event verifier handler [#1036](https://github.com/axelarnetwork/axelar-amplifier/pull/1036)
+- add contract-release.md [#1068](https://github.com/axelarnetwork/axelar-amplifier/pull/1068)
+
+## [v1.12.2](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.2) (2025-10-03)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.1..ampd-v1.12.2)
+
+- add cancellation token to confirmer and broadcaster [#1056](https://github.com/axelarnetwork/axelar-amplifier/pull/1056)
+- add name to task runs [#1055](https://github.com/axelarnetwork/axelar-amplifier/pull/1055)
+- rotate out blastapi rpcs [#1054](https://github.com/axelarnetwork/axelar-amplifier/pull/1054)
+
+## [v1.12.1](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.1) (2025-09-25)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.12.0..ampd-v1.12.1)
+
+- add event filtering to event handlers [#1049](https://github.com/axelarnetwork/axelar-amplifier/pull/1049)
+
+## [v1.12.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.12.0) (2025-09-19)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/ampd-v1.11.0..ampd-v1.12.0)
+
+- retry when there is a sequence mismatch error [#1042](https://github.com/axelarnetwork/axelar-amplifier/pull/1042)
+- add latest block height method to grpc server [#1040](https://github.com/axelarnetwork/axelar-amplifier/pull/1040)
+- deserialize cosmrs message values [#1032](https://github.com/axelarnetwork/axelar-amplifier/pull/1032)
+- add config module [#1022](https://github.com/axelarnetwork/axelar-amplifier/pull/1022)
+- fix compilation error when not using `dummy-grpc-broadcast` [#1030](https://github.com/axelarnetwork/axelar-amplifier/pull/1030)
+- setup message logger for evm handler [#1026](https://github.com/axelarnetwork/axelar-amplifier/pull/1026)
+- implement blockchain service method `contracts` [#1009](https://github.com/axelarnetwork/axelar-amplifier/pull/1009)
+- move hardcoded values into config [#1019](https://github.com/axelarnetwork/axelar-amplifier/pull/1019)
+- miscellaneous changes to add `router_api` macros to tests [#1004](https://github.com/axelarnetwork/axelar-amplifier/pull/1004)
+- track ampd error in monitoring server [#998](https://github.com/axelarnetwork/axelar-amplifier/pull/998)
+- ampd release doc update [#1012](https://github.com/axelarnetwork/axelar-amplifier/pull/1012)
+- add custom linter to basic workflow [#981](https://github.com/axelarnetwork/axelar-amplifier/pull/981)
+- record stage metrics in monitoring server [#985](https://github.com/axelarnetwork/axelar-amplifier/pull/985)
+- track error returns by rpc nodes [#973](https://github.com/axelarnetwork/axelar-amplifier/pull/973)
 
 ## [v1.11.0](https://github.com/axelarnetwork/axelar-amplifier/tree/ampd-v1.11.0) (2025-08-14)
 

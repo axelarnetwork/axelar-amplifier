@@ -1,4 +1,3 @@
-use axelar_wasm_std::address::validate_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -32,7 +31,11 @@ pub fn instantiate(
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    validate_address(&msg.source_gateway_address, &msg.address_format)
+    let chain_codec_addr = address::validate_cosmwasm_address(deps.api, &msg.chain_codec_address)?;
+    let chain_codec: chain_codec_api::Client =
+        client::ContractClient::new(deps.querier, &chain_codec_addr).into();
+    chain_codec
+        .validate_address(msg.source_gateway_address.to_string())
         .change_context(ContractError::InvalidSourceGatewayAddress)?;
 
     let config = Config {
@@ -48,7 +51,7 @@ pub fn instantiate(
         source_chain: msg.source_chain,
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         msg_id_format: msg.msg_id_format,
-        address_format: msg.address_format,
+        chain_codec_address: chain_codec_addr,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -76,11 +79,15 @@ pub fn execute(
             message_id,
             new_verifier_set,
         )?),
-        ExecuteMsg::UpdateVotingThreshold {
-            new_voting_threshold,
-        } => Ok(execute::update_voting_threshold(
+        ExecuteMsg::UpdateVotingParameters {
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
+        } => Ok(execute::update_voting_parameters(
             deps,
-            new_voting_threshold,
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
         )?),
     }
 }
@@ -101,7 +108,10 @@ pub fn query(
         QueryMsg::VerifierSetStatus(new_verifier_set) => to_json_binary(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
-        QueryMsg::CurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
+        QueryMsg::VotingParameters => to_json_binary(&query::voting_parameters(deps)?),
+        QueryMsg::PollByMessage { message } => {
+            to_json_binary(&query::poll_by_message(deps, message)?)
+        }
     }?
     .then(Ok)
 }
@@ -109,7 +119,7 @@ pub fn query(
 #[cfg(test)]
 mod test {
     use assert_ok::assert_ok;
-    use axelar_wasm_std::address::AddressFormat;
+    use axelar_wasm_std::address::{validate_address, AddressFormat};
     use axelar_wasm_std::msg_id::{
         Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
         FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
@@ -142,6 +152,7 @@ mod test {
     const SERVICE_NAME: &str = "service_name";
     const POLL_BLOCK_EXPIRY: u64 = 100;
     const GOVERNANCE: &str = "governance";
+    const CHAIN_CODEC: &str = "chain_codec_address";
 
     fn source_chain() -> ChainName {
         chain_name!("source-chain")
@@ -181,6 +192,44 @@ mod test {
         let mut deps = mock_dependencies();
         let service_registry = cosmos_addr!(SERVICE_REGISTRY_ADDRESS);
 
+        let chain_codec_address = cosmos_addr!(CHAIN_CODEC);
+
+        let chain_codec_clone = chain_codec_address.clone();
+        let service_registry_clone = service_registry.clone();
+        deps.querier.update_wasm(move |q| match q {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == chain_codec_clone.as_str() =>
+            {
+                let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+                match msg {
+                    chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                        Ok(validate_address(&address, &AddressFormat::Eip55)
+                            .map(|_| cosmwasm_std::to_json_binary(&Empty {}).unwrap())
+                            .into())
+                        .into()
+                    }
+                    _ => panic!("unexpected query: {:?}", msg),
+                }
+            }
+            WasmQuery::Smart { contract_addr, .. }
+                if contract_addr == service_registry_clone.as_str() =>
+            {
+                Ok(to_json_binary(
+                    &verifiers
+                        .clone()
+                        .into_iter()
+                        .map(|v| WeightedVerifier {
+                            verifier_info: v,
+                            weight: nonempty::Uint128::one(),
+                        })
+                        .collect::<Vec<WeightedVerifier>>(),
+                )
+                .into())
+                .into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -198,30 +247,10 @@ mod test {
                 source_chain: source_chain(),
                 rewards_address: cosmos_addr!(REWARDS_ADDRESS).as_str().parse().unwrap(),
                 msg_id_format: msg_id_format.clone(),
-                address_format: AddressFormat::Eip55,
+                chain_codec_address: chain_codec_address.as_str().parse().unwrap(),
             },
         )
         .unwrap();
-
-        deps.querier.update_wasm(move |wq| match wq {
-            WasmQuery::Smart { contract_addr, .. }
-                if contract_addr == service_registry.as_str() =>
-            {
-                Ok(to_json_binary(
-                    &verifiers
-                        .clone()
-                        .into_iter()
-                        .map(|v| WeightedVerifier {
-                            verifier_info: v,
-                            weight: nonempty::Uint128::one(),
-                        })
-                        .collect::<Vec<WeightedVerifier>>(),
-                )
-                .into())
-                .into()
-            }
-            _ => panic!("no mock for this query"),
-        });
 
         deps
     }
@@ -256,7 +285,8 @@ mod test {
             MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
                 Base58SolanaTxSignatureAndEventIndex {
                     raw_signature: Keccak512::digest(id.as_bytes()).into(),
-                    event_index: index,
+                    inner_ix_group_index: u32::try_from(index).unwrap().try_into().unwrap(),
+                    inner_ix_index: 1.try_into().unwrap(),
                 }
                 .to_string()
                 .parse()
@@ -317,6 +347,7 @@ mod test {
     fn should_fail_if_gateway_address_format_is_invalid() {
         let mut deps = mock_dependencies();
 
+        let chain_codec_address = cosmos_addr!(CHAIN_CODEC);
         struct TestCase {
             source_gateway_address: String,
             address_format: AddressFormat,
@@ -418,6 +449,26 @@ mod test {
             should_fail,
         } in test_cases
         {
+            let chain_codec = chain_codec_address.clone();
+            deps.querier.update_wasm(move |q| match q {
+                WasmQuery::Smart { contract_addr, msg }
+                    if contract_addr == chain_codec.as_str() =>
+                {
+                    let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+
+                    match msg {
+                        chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                            Ok(validate_address(&address, &address_format)
+                                .map(|_| cosmwasm_std::to_json_binary(&Empty {}).unwrap())
+                                .into())
+                            .into()
+                        }
+                        _ => panic!("unexpected query: {:?}", msg),
+                    }
+                }
+                _ => panic!("unexpected query: {:?}", q),
+            });
+
             let result = instantiate(
                 deps.as_mut(),
                 mock_env(),
@@ -436,7 +487,10 @@ mod test {
                     source_chain: source_chain(),
                     rewards_address: cosmos_addr!(REWARDS_ADDRESS).as_str().parse().unwrap(),
                     msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-                    address_format,
+                    chain_codec_address: nonempty::String::try_from(
+                        chain_codec_address.to_string(),
+                    )
+                    .unwrap(),
                 },
             );
 
@@ -1284,61 +1338,45 @@ mod test {
     }
 
     #[test]
-    fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
-        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let verifiers = verifiers(2);
-        let mut deps = setup(verifiers.clone(), &msg_id_format);
-
-        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
-            initial_voting_threshold().numerator().u64() + 1,
-            initial_voting_threshold().denominator().u64() + 1,
-        ))
-        .unwrap()
-        .try_into()
-        .unwrap();
-
-        execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold,
-            },
-        )
-        .unwrap();
-
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::CurrentThreshold).unwrap();
-
-        let threshold: MajorityThreshold = from_json(res).unwrap();
-        assert_eq!(threshold, new_voting_threshold);
-    }
-
-    #[test]
     #[allow(clippy::arithmetic_side_effects)]
-    fn threshold_changes_should_not_affect_existing_polls() {
+    fn voting_parameter_changes_should_not_affect_existing_polls() {
         let verifiers = verifiers(10);
-        let initial_threshold = initial_voting_threshold();
-        let majority = (verifiers.len() as u64 * initial_threshold.numerator().u64())
-            .div_ceil(initial_threshold.denominator().u64());
-
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let messages = messages(1, &msg_id_format);
+        // Set explicit initial voting parameters: threshold 8/10, expiry 100 blocks
+        let initial_threshold: MajorityThreshold =
+            Threshold::try_from((8, 10)).unwrap().try_into().unwrap();
+        let initial_block_expiry: nonempty::Uint64 = 100u64.try_into().unwrap();
 
         execute(
             deps.as_mut(),
             mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(initial_threshold),
+                block_expiry: Some(initial_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let messages = messages(1, &msg_id_format);
+
+        let poll_start_env = mock_env();
+        let poll_start_height = poll_start_env.block.height;
+
+        // Start poll with initial parameters (threshold 8/10, expiry 100)
+        execute(
+            deps.as_mut(),
+            poll_start_env,
             message_info(&cosmos_addr!(SENDER), &[]),
             ExecuteMsg::VerifyMessages(messages.clone()),
         )
         .unwrap();
 
-        // simulate a majority of verifiers voting for succeeded on chain
-        verifiers.iter().enumerate().for_each(|(i, verifier)| {
-            if i as u64 >= majority {
-                return;
-            }
+        // Have 7 out of 10 verifiers vote (below initial 8/10 threshold)
+        verifiers.iter().take(7).for_each(|verifier| {
             let msg = ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
                 votes: vec![Vote::SucceededOnChain],
@@ -1353,132 +1391,89 @@ mod test {
             assert!(res.is_ok());
         });
 
-        // increase the threshold. Not enough verifiers voted to meet the new majority,
-        // but threshold changes should not affect existing polls
-        let new_voting_threshold: MajorityThreshold =
-            Threshold::try_from((majority + 1, verifiers.len() as u64))
-                .unwrap()
-                .try_into()
-                .unwrap();
+        // Update threshold to 6/10 (equal to current votes)
+        let new_threshold_lower: MajorityThreshold =
+            Threshold::try_from((6, 10)).unwrap().try_into().unwrap();
 
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold,
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_threshold_lower),
+                block_expiry: None,
+                confirmation_height: None,
             },
         )
         .unwrap();
 
-        execute(
-            deps.as_mut(),
-            mock_env_expired(),
-            message_info(&cosmos_addr!(SENDER), &[]),
-            ExecuteMsg::EndPoll {
-                poll_id: 1u64.into(),
-            },
-        )
-        .unwrap();
-
-        let res: Vec<MessageStatus> = from_json(
+        // Poll should still be in progress (not completed despite 7 votes > 6/10 new threshold)
+        let poll_response: crate::msg::PollResponse = from_json(
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::MessagesStatus(messages.clone()),
+                QueryMsg::Poll {
+                    poll_id: 1u64.into(),
+                },
             )
             .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            res,
-            vec![MessageStatus::new(
-                messages[0].clone(),
-                VerificationStatus::SucceededOnSourceChain
-            )]
+            poll_response.status,
+            axelar_wasm_std::voting::PollStatus::InProgress
         );
-    }
 
-    #[test]
-    fn threshold_changes_should_affect_new_polls() {
-        let verifiers = verifiers(10);
-        let initial_threshold = initial_voting_threshold();
-        let old_majority = (verifiers.len() as u64 * initial_threshold.numerator().u64())
-            .div_ceil(initial_threshold.denominator().u64());
-
-        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let mut deps = setup(verifiers.clone(), &msg_id_format);
-
-        // increase the threshold prior to starting a poll
-        let new_voting_threshold: MajorityThreshold =
-            Threshold::try_from((old_majority + 1, verifiers.len() as u64))
-                .unwrap()
-                .try_into()
-                .unwrap();
+        // Update block_expiry to 50 blocks
+        let new_block_expiry: nonempty::Uint64 = 50u64.try_into().unwrap();
 
         execute(
             deps.as_mut(),
             mock_env(),
             message_info(&cosmos_addr!(GOVERNANCE), &[]),
-            ExecuteMsg::UpdateVotingThreshold {
-                new_voting_threshold,
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
             },
         )
         .unwrap();
 
-        let messages = messages(1, &msg_id_format);
+        // Poll should still be in progress after new shorter expiry (50 blocks)
+        let mut env_after_new_expiry = mock_env();
+        env_after_new_expiry.block.height = poll_start_height + 50;
 
-        // start the poll, should just the new threshold
-        execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&cosmos_addr!(SENDER), &[]),
-            ExecuteMsg::VerifyMessages(messages.clone()),
-        )
-        .unwrap();
-
-        // simulate old_majority of verifiers voting succeeded on chain,
-        // which is one less than the updated majority. The messages
-        // should not receive enough votes to be considered verified
-        verifiers.iter().enumerate().for_each(|(i, verifier)| {
-            if i as u64 >= old_majority {
-                return;
-            }
-            let msg = ExecuteMsg::Vote {
-                poll_id: 1u64.into(),
-                votes: vec![Vote::SucceededOnChain],
-            };
-
-            let res = execute(
-                deps.as_mut(),
-                mock_env(),
-                message_info(&verifier.address, &[]),
-                msg,
-            );
-            assert!(res.is_ok());
-        });
-
-        execute(
-            deps.as_mut(),
-            mock_env_expired(),
-            message_info(&cosmos_addr!(SENDER), &[]),
-            ExecuteMsg::EndPoll {
-                poll_id: 1u64.into(),
-            },
-        )
-        .unwrap();
-
-        let res: Vec<MessageStatus> = from_json(
+        let poll_response: crate::msg::PollResponse = from_json(
             query(
                 deps.as_ref(),
-                mock_env_expired(),
+                env_after_new_expiry,
+                QueryMsg::Poll {
+                    poll_id: 1u64.into(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            poll_response.status,
+            axelar_wasm_std::voting::PollStatus::InProgress
+        );
+
+        // Poll expires at original expiry (100 blocks)
+        let mut env_at_original_expiry = mock_env();
+        env_at_original_expiry.block.height = poll_start_height + 100;
+
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                env_at_original_expiry,
                 QueryMsg::MessagesStatus(messages.clone()),
             )
             .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            res,
+            statuses,
             vec![MessageStatus::new(
                 messages[0].clone(),
                 VerificationStatus::FailedToVerify
@@ -1652,5 +1647,156 @@ mod test {
             msg,
         );
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn should_be_able_to_update_all_voting_parameters() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
+            initial_voting_threshold().numerator().u64() + 1,
+            initial_voting_threshold().denominator().u64() + 1,
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+        let new_confirmation_height: u64 = 200;
+
+        // Update all parameters
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: Some(new_confirmation_height),
+            },
+        )
+        .unwrap();
+
+        // Verify all parameters were updated
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(params.confirmation_height, new_confirmation_height);
+    }
+
+    #[test]
+    fn update_individual_voting_parameters() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        // Get initial parameters
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let initial_params: crate::msg::VotingParameters = from_json(res).unwrap();
+
+        // Update only voting_threshold
+        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
+            initial_voting_threshold().numerator().u64() + 1,
+            initial_voting_threshold().denominator().u64() + 1,
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: None,
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, initial_params.block_expiry);
+        assert_eq!(
+            params.confirmation_height,
+            initial_params.confirmation_height
+        );
+
+        // Update only block_expiry
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(
+            params.confirmation_height,
+            initial_params.confirmation_height
+        );
+
+        // Update only confirmation_height
+        let new_confirmation_height: u64 = 200;
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: None,
+                confirmation_height: Some(new_confirmation_height),
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(params.confirmation_height, new_confirmation_height);
+    }
+
+    #[test]
+    fn only_governance_can_update_voting_parameters() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        // Non-governance address should fail
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            axelar_wasm_std::permission_control::Error,
+            axelar_wasm_std::permission_control::Error::GeneralPermissionDenied { .. }
+        ));
     }
 }

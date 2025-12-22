@@ -1,11 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Binary, DepsMut, Env, Response, Storage, WasmMsg, WasmQuery};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use router_api::ChainName;
 
 use crate::contract::errors::Error;
+use crate::contract::query::instantiate2_addr;
 use crate::events::{ContractInstantiation, Event};
 use crate::msg::{DeploymentParams, ProverMsg, VerifierMsg};
 use crate::state;
@@ -55,29 +56,8 @@ pub fn set_active_verifier_set(
     Ok(Response::new())
 }
 
-fn instantiate2_addr(deps: &DepsMut, env: &Env, code_id: u64, salt: &[u8]) -> Result<Addr, Error> {
-    let code_info: cosmwasm_std::CodeInfoResponse = deps
-        .querier
-        .query(&WasmQuery::CodeInfo { code_id }.into())
-        .change_context(Error::QueryCodeInfo(code_id))?;
-
-    deps.api
-        .addr_humanize(
-            &cosmwasm_std::instantiate2_address(
-                code_info.checksum.as_slice(),
-                &deps
-                    .api
-                    .addr_canonicalize(&env.contract.address.to_string().clone())
-                    .change_context(Error::Instantiate2Address)?,
-                salt,
-            )
-            .change_context(Error::Instantiate2Address)?,
-        )
-        .change_context(Error::Instantiate2Address)
-}
-
 fn launch_contract(
-    deps: &DepsMut,
+    deps: &Deps,
     env: &Env,
     salt: Binary,
     code_id: u64,
@@ -94,7 +74,8 @@ fn launch_contract(
             label,
             salt: salt.clone(),
         },
-        instantiate2_addr(deps, env, code_id, salt.as_slice())?,
+        instantiate2_addr(deps, env, code_id, salt.as_slice())
+            .change_context(Error::Instantiate2Address)?,
     ))
 }
 
@@ -105,7 +86,7 @@ fn instantiate_gateway(
     verifier_address: Addr,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.gateway_code_id,
@@ -126,7 +107,7 @@ fn instantiate_verifier(
     verifier_msg: &VerifierMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.verifier_code_id,
@@ -144,7 +125,7 @@ fn instantiate_verifier(
             source_chain: verifier_msg.source_chain.clone(),
             rewards_address: verifier_msg.rewards_address.clone(),
             msg_id_format: verifier_msg.msg_id_format.clone(),
-            address_format: verifier_msg.address_format.clone(),
+            chain_codec_address: verifier_msg.chain_codec_address.clone(),
         })
         .change_context(Error::InstantiateVerifier)?,
         label,
@@ -162,25 +143,28 @@ fn instantiate_prover(
     prover_msg: &ProverMsg,
 ) -> Result<(WasmMsg, Addr), Error> {
     launch_contract(
-        &ctx.deps,
+        &ctx.deps.as_ref(),
         &ctx.env,
         ctx.salt.clone(),
         ctx.prover_code_id,
         cosmwasm_std::to_json_binary(&multisig_prover_api::msg::InstantiateMsg {
             admin_address: prover_msg.admin_address.to_string(),
-            governance_address: prover_msg.governance_address.to_string().clone(),
-            coordinator_address: ctx.env.contract.address.to_string().clone(),
-            gateway_address: gateway_address.to_string().clone(),
-            multisig_address: multisig_address.to_string().clone(),
-            service_registry_address: service_registry_address.to_string().clone(),
-            voting_verifier_address: verifier_address.to_string().clone(),
+            governance_address: prover_msg.governance_address.to_string(),
+            coordinator_address: ctx.env.contract.address.to_string(),
+            gateway_address: gateway_address.to_string(),
+            multisig_address: multisig_address.to_string(),
+            service_registry_address: service_registry_address.to_string(),
+            voting_verifier_address: verifier_address.to_string(),
             signing_threshold: prover_msg.signing_threshold,
             service_name: prover_msg.service_name.to_string(),
             chain_name: prover_msg.chain_name.to_string(),
             verifier_set_diff_threshold: prover_msg.verifier_set_diff_threshold,
-            encoder: prover_msg.encoder,
             key_type: prover_msg.key_type,
             domain_separator: prover_msg.domain_separator,
+            chain_codec_address: prover_msg.chain_codec_address.to_string(),
+            sig_verifier_address: prover_msg.sig_verifier_address.clone(),
+            notify_signing_session: prover_msg.notify_signing_session,
+            expect_full_message_payloads: prover_msg.expect_full_message_payloads,
         })
         .change_context(Error::InstantiateProver)?,
         label,
@@ -217,8 +201,8 @@ pub fn instantiate_chain_contracts(
     match params {
         DeploymentParams::Manual(params) => {
             let verifier_address =
-                instantiate2_addr(&deps, &env, params.verifier.code_id, salt.as_ref())
-                    .change_context(Error::InstantiateContracts)?;
+                instantiate2_addr(&deps.as_ref(), &env, params.verifier.code_id, salt.as_ref())
+                    .change_context(Error::Instantiate2Address)?;
 
             let gateway_contract_admin = deps
                 .api
@@ -321,7 +305,7 @@ pub fn register_deployment(
     original_sender: Addr,
     deployment_name: nonempty::String,
 ) -> Result<Response, Error> {
-    let deployed_contracts = state::deployed_contracts(deps.storage, deployment_name.clone())
+    let deployed_contracts = state::deployment(deps.storage, deployment_name.clone())
         .change_context(Error::ChainContractsInfo)?;
 
     let protocol_contracts =

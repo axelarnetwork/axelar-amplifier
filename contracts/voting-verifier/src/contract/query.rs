@@ -1,19 +1,44 @@
 use axelar_wasm_std::voting::{PollId, PollStatus, Vote};
-use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::Deps;
 use error_stack::{Result, ResultExt};
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::error::ContractError;
-use crate::msg::{MessageStatus, PollData, PollResponse};
-use crate::state::{poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};
+use crate::msg::{MessageStatus, PollData, PollResponse, VotingParameters};
+use crate::shared::Poll;
+use crate::state::{poll_messages, poll_verifier_sets, PollContent, CONFIG, POLLS};
 
-pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
-    Ok(CONFIG
+pub fn poll_by_message(deps: Deps, message: Message) -> Result<Option<Poll>, ContractError> {
+    let loaded_poll_content = poll_messages()
+        .may_load(deps.storage, &message.hash())
+        .change_context(ContractError::StorageError)?;
+
+    let poll_content = match loaded_poll_content {
+        Some(poll_content) => poll_content,
+        None => return Ok(None),
+    };
+
+    let poll_id = poll_content.poll_id;
+
+    let poll = POLLS
+        .load(deps.storage, poll_id)
+        .change_context(ContractError::PollNotFound)?;
+
+    Ok(Some(poll))
+}
+
+pub fn voting_parameters(deps: Deps) -> Result<VotingParameters, ContractError> {
+    let config = CONFIG
         .load(deps.storage)
-        .change_context(ContractError::StorageError)?
-        .voting_threshold)
+        .change_context(ContractError::StorageError)?;
+
+    Ok(VotingParameters {
+        voting_threshold: config.voting_threshold,
+        block_expiry: config.block_expiry,
+        confirmation_height: config.confirmation_height,
+    })
 }
 
 pub fn messages_status(

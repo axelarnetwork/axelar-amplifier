@@ -1,0 +1,60 @@
+{
+  "DisableRouting": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "EnableRouting": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "FreezeChains": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "RegisterChain": {
+    "external": [
+      "coordinator"
+    ],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "RouteMessages": {
+    "external": [],
+    "general": [],
+    "specific": [
+      "gateway"
+    ]
+  },
+  "UnfreezeChains": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "UpdateAdmin": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
+  "UpgradeGateway": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  }
+}
