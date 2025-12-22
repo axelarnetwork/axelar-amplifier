@@ -3,7 +3,7 @@ name: Security Audit
 # This workflow runs cargo-audit to check for known security vulnerabilities
 # in project dependencies using the RustSec Advisory Database.
 #
-# The workflow uses cargo-audit v0.21.2 which supports Cargo.lock version 4
+# The workflow uses cargo-audit v0.22.0 which supports Cargo.lock version 4
 # format introduced in Rust 1.86+.
 #
 # Despite the recommendation in the related audit-check documentation (https://github.com/rustsec/audit-check?tab=readme-ov-file#audit-changes),
