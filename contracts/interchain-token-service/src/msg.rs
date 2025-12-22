@@ -106,6 +106,14 @@ pub enum ExecuteMsg {
 
     #[permission(Elevated)]
     EnableExecution,
+
+    /// Update admin address.
+    #[permission(Elevated)]
+    UpdateAdmin { new_admin_address: String },
+
+    /// Update operator address. Callable only by governance.
+    #[permission(Elevated)]
+    SetOperator { new_operator_address: String },
 }
 
 #[cw_serde]
