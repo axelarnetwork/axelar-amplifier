@@ -111,7 +111,7 @@ pub enum ExecuteMsg {
     #[permission(Elevated)]
     UpdateAdmin { new_admin_address: String },
 
-    /// Update operator address. Callable only by governance.
+    /// Update operator address.
     #[permission(Elevated)]
     SetOperator { new_operator_address: String },
 }
