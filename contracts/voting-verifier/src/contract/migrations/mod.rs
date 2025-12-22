@@ -1,5 +1,7 @@
 use axelar_wasm_std::migrate_from_version;
 use cosmwasm_schema::cw_serde;
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, Response};
 
 #[cw_serde]
