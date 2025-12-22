@@ -155,10 +155,13 @@ pub fn execute(
         }
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)?;
-            permission_control::set_admin(deps.storage, &new_admin).change_context(Error::UpdateAdmin)?;
+            permission_control::set_admin(deps.storage, &new_admin)
+                .change_context(Error::UpdateAdmin)?;
             Ok(Response::new())
         }
-        ExecuteMsg::SetOperator { new_operator_address } => {
+        ExecuteMsg::SetOperator {
+            new_operator_address,
+        } => {
             let new_operator = address::validate_cosmwasm_address(deps.api, &new_operator_address)?;
             execute::set_operator(deps, new_operator).change_context(Error::SetOperator)
         }
