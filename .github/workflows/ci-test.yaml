@@ -1,4 +1,5 @@
-name: Coverage
+# Runs the test suite with coverage instrumentation and uploads report to Codecov.
+name: "CI: Test + Coverage"
 
 on:
   pull_request:
@@ -8,12 +9,13 @@ on:
       - releases/**
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  coverage:
-    runs-on: blacksmith-16vcpu-ubuntu-2204
+  test:
+    name: Run tests with coverage instrumentation
+    runs-on: blacksmith-32vcpu-ubuntu-2204
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -24,11 +26,12 @@ jobs:
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
         with:
-          cache-key: "cache-codecov"
+          cache-key: "cache-tests"
 
       - name: Install protoc
-        uses: arduino/setup-protoc@a8b67ba40b37d35169e222f3bb352603327985b6 # v2
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
+          version: "33.x"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libclang-dev
@@ -39,8 +42,8 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
-      - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      - name: Run tests with coverage
+        run: cargo llvm-cov --workspace --locked --no-fail-fast --lcov --output-path lcov.info
         env:
           RUST_BACKTRACE: 1
 

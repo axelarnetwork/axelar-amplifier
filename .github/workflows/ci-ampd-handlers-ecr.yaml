@@ -1,4 +1,7 @@
-name: ampd-handlers - Build and push images to ECR
+# Builds ampd-handler Docker images and pushes to private ECR.
+# Triggered automatically on push to main, or manually to build specific handlers.
+# Use dry-run mode to preview what would be built without actually pushing.
+name: "CI: Build and Push Ampd Handlers to ECR"
 
 on:
   push:

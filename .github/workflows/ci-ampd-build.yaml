@@ -1,0 +1,36 @@
+# Verifies that ampd compiles successfully in release mode.
+name: "CI: Ampd Release Build"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-ampd-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ampd-compilation:
+    name: Build ampd binary in release mode
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          cache-key: "cache-ampd-compilation"
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "33.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build ampd
+        working-directory: ./ampd
+        run: cargo build --release --locked

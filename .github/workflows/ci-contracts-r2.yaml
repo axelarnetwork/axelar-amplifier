@@ -1,4 +1,8 @@
-name: Amplifier wasm contracts - Upload wasm binaries to Cloudflare R2 bucket
+# Compiles CosmWasm contracts and uploads wasm binaries to Cloudflare R2.
+# On push to main: uploads all contracts to pre-releases/cosmwasm/.
+# On release tag (e.g., router-v1.0.0): uploads signed artifact to releases/cosmwasm/<contract>/.
+# Can also be triggered manually with a branch or tag ref.
+name: "CI: Build Contracts and Push to R2"
 
 on:
   push:
@@ -17,7 +21,7 @@ on:
 
 jobs:
   compile-and-upload:
-    name: Compile contracts and push to R2
+    name: Compile with cosmwasm/optimizer and upload artifacts
     runs-on: ubuntu-22.04
     permissions:
       contents: write

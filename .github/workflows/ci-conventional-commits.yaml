@@ -1,9 +1,11 @@
-name: Ensure Conventional Commit message
+# Verifies that PR titles follow conventional commit format (feat:, fix:, chore:, etc.).
+name: "CI: Conventional Commits"
 
 on: pull_request
 
 jobs:
   ensure-CC:
+    name: Validate PR title format (feat:, fix:, chore:, etc.)
     runs-on: ubuntu-latest
 
     steps:
