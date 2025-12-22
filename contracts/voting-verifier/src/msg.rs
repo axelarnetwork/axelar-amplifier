@@ -77,6 +77,9 @@ pub enum QueryMsg {
 
     #[returns(VotingParameters)]
     VotingParameters,
+
+    #[returns(crate::state::Poll)]
+    PollByMessage { message: Message },
 }
 
 #[cw_serde]

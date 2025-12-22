@@ -9,6 +9,25 @@ use crate::error::ContractError;
 use crate::msg::{MessageStatus, PollData, PollResponse, VotingParameters};
 use crate::state::{poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};
 
+pub fn poll_by_message(deps: Deps, message: Message) -> Result<Option<Poll>, ContractError> {
+    let loaded_poll_content = poll_messages()
+        .may_load(deps.storage, &message.hash())
+        .change_context(ContractError::StorageError)?;
+
+    let poll_content = match loaded_poll_content {
+        Some(poll_content) => poll_content,
+        None => return Ok(None),
+    };
+
+    let poll_id = poll_content.poll_id;
+
+    let poll = POLLS
+        .may_load(deps.storage, poll_id)
+        .change_context(ContractError::StorageError)?;
+
+    Ok(poll)
+}
+
 pub fn voting_parameters(deps: Deps) -> Result<VotingParameters, ContractError> {
     let config = CONFIG
         .load(deps.storage)
