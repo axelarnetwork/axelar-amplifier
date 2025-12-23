@@ -3,7 +3,7 @@ use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::testing::MockApi;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
-use integration_tests::multisig_prover_contract::MultisigProverContract;
+use integration_tests::solana_multisig_prover_contract::SolanaMultisigProverContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use router_api::{chain_name, cosmos_addr};
 
@@ -30,7 +30,7 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
 
     let multisig_prover_admin =
         MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
-    let multisig_prover = MultisigProverContract::instantiate_contract(
+    let multisig_prover = SolanaMultisigProverContract::instantiate_contract(
         &mut protocol,
         multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),

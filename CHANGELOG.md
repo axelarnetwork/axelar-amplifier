@@ -151,7 +151,7 @@ Upgrade or deploy contracts/components in the below order:
 - rewards
 - router
 - multisig
-- multisig-prover
+- solana-multisig-prover
 - service-registry
 - voting-verifier
 

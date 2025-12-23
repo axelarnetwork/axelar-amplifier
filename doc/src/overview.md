@@ -173,7 +173,7 @@ linked verification methods need to report a message as verified.
 ### Prover
 
 The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most
-common example of this is the [`multisig-prover`](contracts/multisig_prover.md) that constructs signed payload of routed
+common example of this is the [`solana-multisig-prover`](contracts/solana-multisig_prover.md) that constructs signed payload of routed
 messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the
 messages from the gateway, and interacts with the multisig contract to conduct the signing.
 

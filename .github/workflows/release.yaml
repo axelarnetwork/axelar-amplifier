@@ -12,7 +12,7 @@ on:
           - router
           - gateway
           - multisig
-          - multisig-prover
+          - solana-multisig-prover
           - rewards
           - service-registry
           - voting-verifier
@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
-      
+
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
@@ -49,7 +49,7 @@ jobs:
             ["router"]="router,/\(major\)|\(major-router\)|\(major-contracts\)|\(major-connection-router\)/,/\(minor\)|\(minor-router\)|\(minor-contracts\)|\(minor-connection-router\)/,contracts/router packages"
             ["gateway"]="gateway,/\(major\)|\(major-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-gateway\)|\(minor-contracts\)/,contracts/gateway packages"
             ["multisig"]="multisig,/\(major\)|\(major-multisig\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig\)|\(minor-contracts\)/,contracts/multisig packages"
-            ["multisig-prover"]="multisig-prover,/\(major\)|\(major-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-multisig-prover\)|\(minor-contracts\)/,contracts/multisig-prover packages"
+            ["solana-multisig-prover"]="solana-multisig-prover,/\(major\)|\(major-solana-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-solana-multisig-prover\)|\(minor-contracts\)/,contracts/solana-multisig-prover packages"
             ["rewards"]="rewards,/\(major\)|\(major-rewards\)|\(major-contracts\)/,/\(minor\)|\(minor-rewards\)|\(minor-contracts\)/,contracts/rewards packages"
             ["service-registry"]="service-registry,/\(major\)|\(major-service-registry\)|\(major-contracts\)/,/\(minor\)|\(minor-service-registry\)|\(minor-contracts\)/,contracts/service-registry packages"
             ["voting-verifier"]="voting-verifier,/\(major\)|\(major-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-voting-verifier\)|\(minor-contracts\)/,contracts/voting-verifier packages"

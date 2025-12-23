@@ -87,8 +87,8 @@ k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
 multisig = { version = "^2.4.0", path = "contracts/multisig" }
-solana-multisig-prover = { version = "0.4.0", path = "contracts/multisig-prover" }
-solana-multisig-prover-api = { version = "0.2.0", path = "packages/multisig-prover-api" }
+solana-multisig-prover = { version = "0.4.0", path = "contracts/solana-multisig-prover" }
+solana-multisig-prover-api = { version = "0.2.0", path = "packages/solana-multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
