@@ -12,14 +12,9 @@ use multisig::key::{PublicKey, Recoverable, Signature};
 use multisig::msg::SignerWithSig;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
-use sha3::{Digest, Keccak256};
 use solana_axelar_std::hasher::Hasher;
 use solana_axelar_std::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
-
-// Solana offchain signature prefix (matches gateway implementation)
-// This prefix is prepended to hashes before signing to prevent cross-context attacks
-// Pattern: keccak256(PREFIX + unprefixed_hash)
-const PREFIX: &[u8] = b"\xffsolana offchain";
+use solana_axelar_std::PayloadType;
 
 #[inline]
 pub fn validate_address(address: &str) -> Result<(), axelar_wasm_std::address::Error> {
@@ -31,16 +26,22 @@ pub fn payload_digest(
     _verifier_set: &VerifierSet,
     payload: &Payload,
 ) -> Result<Hash, Error> {
-    let payload = to_payload(payload)?;
-    let hash = solana_axelar_std::execute_data::hash_payload::<Hasher>(domain_separator, payload)
-        .change_context(Error::InvalidPayload)?;
+    let solana_payload = to_payload(payload)?;
+    let payload_merkle_root =
+        solana_axelar_std::execute_data::hash_payload::<Hasher>(domain_separator, solana_payload)
+            .change_context(Error::InvalidPayload)?;
 
-    // Add prefix for Solana offchain signing (matches gateway implementation)
-    // Note: The verifier_set parameter is not used in Solana's payload digest calculation,
-    // but it's required by the chain-codec-api interface
-    let prefixed_message = [PREFIX, hash.as_slice()].concat();
+    let payload_type = match payload {
+        Payload::Messages(_) => PayloadType::ApproveMessages,
+        Payload::VerifierSet(_) => PayloadType::RotateSigners,
+    };
 
-    Ok(Keccak256::digest(prefixed_message).into())
+    let hash = solana_axelar_std::execute_data::prefixed_message_hash_payload_type(
+        payload_type,
+        &payload_merkle_root,
+    );
+
+    Ok(hash)
 }
 
 pub fn encode_execute_data(
