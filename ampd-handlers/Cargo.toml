@@ -95,7 +95,7 @@ ampd-handlers = { path = ".", features = ["test-utils"] }
 ampd-sdk = { workspace = true, features = ["test-utils"] }
 base64 = { workspace = true }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
-ed25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
 event-verifier = { workspace = true }
 goldie = { workspace = true }
 k256 = { workspace = true }
