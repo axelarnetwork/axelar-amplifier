@@ -1,0 +1,17 @@
+# Sends weekly Dependabot vulnerability alerts to Slack (runs every Sunday at midnight).
+name: "Ops: Dependabot Alerts to Slack"
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+
+
+jobs:
+  Notify-Vulnerabilites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Vulnerabilities
+        uses: kunalnagarco/action-cve@05d3c64f3f7792562f9054940c5340db3be8aa0b # v1.7.15
+        with:
+          token: ${{ secrets.SLACK_PERSONAL_ACCESS_TOKEN }}
+          slack_webhook: ${{ secrets.SLACK_TEAM_PROTOCOL_CHANNEL_WEBHOOK }}

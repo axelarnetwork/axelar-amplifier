@@ -1,0 +1,55 @@
+# Runs the test suite with coverage instrumentation and uploads report to Codecov.
+name: "CI: Test + Coverage"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - releases/**
+
+concurrency:
+  group: ci-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run tests with coverage instrumentation
+    runs-on: blacksmith-32vcpu-ubuntu-2204
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          cache-key: "cache-tests"
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "33.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@1fd1160ee1f4387ce162a5a4f9c26ea274278b7f # cargo-llvm-cov branch (v2.58.7)
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Run tests with coverage
+        run: cargo llvm-cov --workspace --locked --no-fail-fast --lcov --output-path lcov.info
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true

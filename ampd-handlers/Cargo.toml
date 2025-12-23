@@ -1,6 +1,6 @@
 [package]
 name = "ampd-handlers"
-version = "0.1.0"
+version = "0.1.1"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
@@ -25,37 +25,56 @@ path = "src/bin/sui/main.rs"
 name = "xrpl-handler"
 path = "src/bin/xrpl/main.rs"
 
+[features]
+default = []
+test-utils = ["dep:tendermint"]
+
 [dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
+axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
+axelar-solana-encoding = { workspace = true }
 axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
+bcs = { workspace = true }
+borsh = { workspace = true }
+bs58 = { workspace = true }
 clap = { workspace = true }
 cosmrs = { workspace = true }
 cosmwasm-std = { workspace = true }
-dotenv = "0.15.0"
 dotenv-flow = "0.16.2"
 error-stack = { workspace = true }
+ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
+event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 event-verifier-api = { workspace = true }
 events = { workspace = true }
+evm-gateway = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime-serde = { workspace = true }
+mockall = { workspace = true }
+move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 multisig = { workspace = true, features = ["library"] }
 reqwest = { version = "0.11.24", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
+sha3 = { workspace = true }
 solana-client = "=2.1.21"
 solana-sdk = "=2.1.21"
+solana-transaction-status = "=2.1.21"
+stellar = { workspace = true }
+stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
+sui-gateway = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
 sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+tendermint = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
@@ -72,16 +91,19 @@ xrpl_http_client = { workspace = true }
 
 [dev-dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url", "test-utils"] }
+ampd-handlers = { path = ".", features = ["test-utils"] }
 ampd-sdk = { workspace = true, features = ["test-utils"] }
 base64 = { workspace = true }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
+ed25519-dalek = { workspace = true }
 event-verifier = { workspace = true }
 goldie = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true, features = ["test"] }
 rand = { workspace = true }
+random-string = { workspace = true }
 router-api = { workspace = true }
-tendermint = { workspace = true }
+test-log = { workspace = true }
 
 [lints]
 workspace = true

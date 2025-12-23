@@ -1,6 +1,6 @@
 use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::msg_id::MessageIdFormat;
-use axelar_wasm_std::voting::{PollId, Vote, WeightedPoll};
+use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{counter, nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, StdResult, Storage};
@@ -8,7 +8,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
-use crate::error::ContractError;
+use crate::shared::Poll;
 
 #[cw_serde]
 pub struct Config {
@@ -22,32 +22,6 @@ pub struct Config {
     pub rewards_contract: Addr,
     pub msg_id_format: MessageIdFormat,
     pub chain_codec_address: Addr,
-}
-
-#[cw_serde]
-pub enum Poll {
-    Messages(WeightedPoll),
-    ConfirmVerifierSet(WeightedPoll),
-}
-
-impl Poll {
-    pub fn try_map<F, E>(self, func: F) -> Result<Self, E>
-    where
-        F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
-        E: From<ContractError>,
-    {
-        match self {
-            Poll::Messages(poll) => Ok(Poll::Messages(func(poll)?)),
-            Poll::ConfirmVerifierSet(poll) => Ok(Poll::ConfirmVerifierSet(func(poll)?)),
-        }
-    }
-
-    pub fn weighted_poll(self) -> WeightedPoll {
-        match self {
-            Poll::Messages(poll) => poll,
-            Poll::ConfirmVerifierSet(poll) => poll,
-        }
-    }
 }
 
 #[cw_serde]

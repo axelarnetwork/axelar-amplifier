@@ -5,8 +5,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
-use ampd::solana::{Client, SolanaRpcClientProxy};
 use ampd::url::Url;
+use ampd_handlers::solana::{Client, SolanaRpcClientProxy};
 use ampd_handlers::tracing::init_tracing;
 use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;

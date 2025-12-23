@@ -1,6 +1,14 @@
+pub mod evm;
 pub mod multisig;
+pub mod solana;
+pub mod stellar;
+pub mod sui;
 pub mod tracing;
 pub mod voting;
+pub mod xrpl;
+
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 
 use std::path::PathBuf;
 

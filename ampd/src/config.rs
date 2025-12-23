@@ -3,11 +3,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::commands::{RewardsConfig, ServiceRegistryConfig};
-use crate::handlers::config::deserialize_handler_configs;
-use crate::handlers::{self};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcast, event_processor, event_sub, grpc, monitoring, tm_client};
+use crate::{broadcast, event_sub, grpc, monitoring, tm_client};
 
 /// Root configuration for the ampd daemon.
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
@@ -25,29 +23,14 @@ pub struct Config {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     pub tm_grpc: Url,
 
-    /// Default timeout for external RPC calls (e.g., to EVM chains).
-    ///
-    /// Individual handlers may override this with their own `rpc_timeout` setting.
-    #[serde(with = "humantime_serde")]
-    pub default_rpc_timeout: Duration,
-
     /// Timeout for Tendermint gRPC calls.
     ///
     /// Applied to transaction broadcasts, account queries, and other gRPC operations.
     #[serde(with = "humantime_serde")]
     pub tm_grpc_timeout: Duration,
 
-    /// Configuration for processing events from the Axelar chain.
-    pub event_processor: event_processor::Config,
-
     /// Configuration for broadcasting transactions to the Axelar chain.
     pub broadcast: broadcast::Config,
-
-    /// Handler configurations for different chain integrations.
-    ///
-    /// Each handler processes events for a specific chain (e.g., EVM, Sui, Solana).
-    #[serde(deserialize_with = "deserialize_handler_configs")]
-    pub handlers: Vec<handlers::config::Config>,
 
     /// Configuration for connecting to the tofnd signing service.
     pub tofnd_config: TofndConfig,
@@ -81,12 +64,9 @@ impl Default for Config {
                 .expect("Url should be created validly"),
             tm_grpc: Url::new_non_sensitive("tcp://localhost:9090")
                 .expect("Url should be created validly"),
-            default_rpc_timeout: Duration::from_secs(3),
             tm_grpc_timeout: Duration::from_secs(5),
             broadcast: broadcast::Config::default(),
-            handlers: vec![],
             tofnd_config: TofndConfig::default(),
-            event_processor: event_processor::Config::default(),
             service_registry: ServiceRegistryConfig::default(),
             rewards: RewardsConfig::default(),
             grpc: grpc::Config::default(),
@@ -99,21 +79,12 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use cosmrs::AccountId;
     use router_api::chain_name;
 
     use super::Config;
-    use crate::evm::finalizer::Finalization;
     use crate::grpc;
-    use crate::handlers::config::{Chain, Config as HandlerConfig};
     use crate::types::TMAddress;
-    use crate::url::Url;
-
-    const PREFIX: &str = "axelar";
-    const SOLANA: &str = "solana";
-    const STACKS: &str = "stacks";
 
     #[test]
     fn deserialize_invalid_grpc_config() {
@@ -233,71 +204,6 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_handlers_evm_msg_verifiers_with_the_same_chain_name() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [[handlers]]
-            type = 'EvmMsgVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7546/'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_evm_verifier_set_verifiers_with_the_same_chain_name() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7545/'
-
-            [[handlers]]
-            type = 'EvmVerifierSetVerifier'
-            cosmwasm_contract = '{}'
-            chain_name = 'Ethereum'
-            chain_rpc_url = 'http://localhost:7546/'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
-    fn deserialize_handlers_more_then_one_for_multisig_signer() {
-        let config_str = format!(
-            "
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-
-            [[handlers]]
-            type = 'MultisigSigner'
-            cosmwasm_contract = '{}'
-            ",
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-        );
-
-        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
-    }
-
-    #[test]
     fn fail_deserialization() {
         assert!(toml::from_str::<Config>("tm_jsonrpc = 'some other string'").is_err());
         assert!(toml::from_str::<Config>("tm_jsonrpc = 5").is_err());
@@ -329,120 +235,6 @@ mod tests {
 
     fn config_with_dummy_values() -> Config {
         Config {
-            handlers: vec![
-                HandlerConfig::EvmMsgVerifier {
-                    chain: Chain {
-                        name: chain_name!("Ethereum"),
-                        finalization: Finalization::RPCFinalizedBlock,
-                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    },
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                },
-                HandlerConfig::EvmVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    chain: Chain {
-                        name: chain_name!("Fantom"),
-                        finalization: Finalization::ConfirmationHeight,
-                        rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    },
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::MultisigSigner {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    chain_name: chain_name!("Ethereum"),
-                },
-                HandlerConfig::SuiMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::SuiVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::MvxMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    proxy_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::MvxVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    proxy_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StellarMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StellarVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StarknetMsgVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::StarknetVerifierSetVerifier {
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                },
-                HandlerConfig::SolanaMsgVerifier {
-                    chain_name: chain_name!(SOLANA),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    gateway_address: "11111111111111111111111111111112".to_string(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::SolanaVerifierSetVerifier {
-                    chain_name: chain_name!(SOLANA),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    gateway_address: "11111111111111111111111111111112".to_string(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::StacksMsgVerifier {
-                    chain_name: chain_name!(STACKS),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-                HandlerConfig::StacksVerifierSetVerifier {
-                    chain_name: chain_name!(STACKS),
-                    cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
-                    ),
-                    rpc_url: Url::new_non_sensitive("http://127.0.0.1").unwrap(),
-                    rpc_timeout: Some(Duration::from_secs(3)),
-                },
-            ],
             grpc: grpc::Config {
                 blockchain_service: grpc::BlockchainServiceConfig {
                     chains: vec![

@@ -193,8 +193,8 @@ impl EventHandler for Handler {
 mod tests {
     use std::collections::HashMap;
 
-    use ampd::handlers::test_utils::into_structured_event;
     use ampd::types::TMAddress;
+    use ampd_handlers::test_utils::into_structured_event;
     use ampd_sdk::grpc;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::{chain_name, nonempty};

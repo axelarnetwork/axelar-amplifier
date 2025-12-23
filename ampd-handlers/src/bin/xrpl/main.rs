@@ -5,8 +5,7 @@ use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd::url::Url;
-use ampd::xrpl;
-use ampd_handlers::Args;
+use ampd_handlers::{xrpl, Args};
 use ampd_sdk::config;
 use ampd_sdk::runtime::HandlerRuntime;
 use axelar_wasm_std::chain::ChainName;

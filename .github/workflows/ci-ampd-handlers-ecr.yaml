@@ -1,0 +1,214 @@
+# Builds ampd-handler Docker images and pushes to private ECR.
+# Triggered automatically on push to main, or manually to build specific handlers.
+# Use dry-run mode to preview what would be built without actually pushing.
+name: "CI: Build and Push Ampd Handlers to ECR"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      handler:
+        description: 'Handler to build (select "all" to build all handlers)'
+        required: false
+        type: choice
+        options:
+          - all
+          - evm
+          - solana
+          - stellar
+          - sui
+          - xrpl
+        default: all
+      ref:
+        description: 'Git ref (branch/commit/tag) to build from'
+        required: false
+        default: 'main'
+      dry-run:
+        description: 'Run in dry-run mode (set to false to actually build and push)'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  setup:
+    runs-on: blacksmith-4vcpu-ubuntu-2204
+    outputs:
+      handlers: ${{ steps.set-handlers.outputs.handlers }}
+      image-tag: ${{ steps.set-tag.outputs.tag }}
+      should-build: ${{ steps.check-handlers.outputs.should-build }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Check which handlers exist
+        id: check-handlers
+        run: |
+          if [ -d "ampd-handlers/src/bin" ]; then
+            handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "Available handlers: $handlers"
+            if [ "$handlers" = "[]" ]; then
+              echo "No handlers found in bin directory"
+              echo "should-build=false" >> $GITHUB_OUTPUT
+            else
+              echo "should-build=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No bin directory found"
+            echo "should-build=false" >> $GITHUB_OUTPUT
+            handlers='[]'
+          fi
+          echo "available-handlers=$handlers" >> $GITHUB_OUTPUT
+
+      - name: Set handlers to build
+        id: set-handlers
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+          elif [ "${{ github.event.inputs.handler }}" == "all" ]; then
+            handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+            echo "Building all available handlers"
+          elif [ -n "${{ github.event.inputs.handler }}" ]; then
+            available_handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+            input_handler="${{ github.event.inputs.handler }}"
+            if echo "$available_handlers" | jq -e --arg handler "$input_handler" 'contains([$handler])' > /dev/null; then
+              handlers="[\"$input_handler\"]"
+              echo "Valid handler specified: $input_handler"
+            else
+              echo "Error: Handler '$input_handler' not found in available handlers: $available_handlers"
+              echo "Available handlers: $available_handlers"
+              exit 1
+            fi
+          else
+            handlers='${{ steps.check-handlers.outputs.available-handlers }}'
+            echo "No handler specified, building all available handlers"
+          fi
+          echo "handlers=$handlers" >> $GITHUB_OUTPUT
+          echo "Building handlers: $handlers"
+
+      - name: Set image tag
+        id: set-tag
+        run: |
+          build_ref="${{ github.event.inputs.ref || github.ref }}"
+          
+          if git describe --exact-match --tags "$build_ref" >/dev/null 2>&1; then
+            tag="$build_ref"
+            echo "Building from tag: $tag"
+          else
+            tag="${{ github.sha }}"
+            echo "Building from ref '$build_ref', using commit SHA: $tag"
+          fi
+          
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    needs: setup
+    if: needs.setup.outputs.should-build == 'true'
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        handler: ${{ fromJson(needs.setup.outputs.handlers) }}
+    env:
+      REPOSITORY: axelar-ampd-event-handler
+      HANDLER: ${{ matrix.handler }}
+      IMAGE_TAG: ${{ matrix.handler }}-${{ needs.setup.outputs.image-tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          submodules: recursive
+
+      - name: Fetch tags
+        run: |
+          git fetch --unshallow || true
+
+      - name: Determine build mode
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "AUTOMATIC BUILD MODE (push to main)"
+            echo "This will build and push images to ECR"
+          elif [ "${{ github.event.inputs.dry-run }}" == "true" ]; then
+            echo "DRY RUN MODE (manual trigger)"
+            echo "This will NOT build or push images"
+          else
+            echo "MANUAL BUILD MODE (manual trigger with dry-run=false)"
+            echo "This will build and push images to ECR"
+          fi
+
+      # Configure AWS credentials
+      - name: Configure AWS credentials
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
+        uses: aws-actions/configure-aws-credentials@67fbcbb121271f7775d2e7715933280b06314838 # v1
+        with:
+          aws-region: us-east-2
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ghwf-${{ github.event.repository.name }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2
+
+      - name: Check if image already exists in ECR
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
+        id: image-tag-check
+        run: |
+          image_tag_exists=$(aws ecr batch-get-image --repository-name ${REPOSITORY} --image-ids "imageTag=${IMAGE_TAG}" 2>/dev/null | jq '.images | length' || echo "0")
+          echo "image_tag_exists=${image_tag_exists}" >> $GITHUB_OUTPUT
+          echo "Image exists: ${image_tag_exists}"
+
+      - name: Set up Docker Buildx
+        if: (github.event_name == 'push' || github.event.inputs.dry-run != 'true') && steps.image-tag-check.outputs.image_tag_exists == '0'
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+
+      - name: Build and push Docker image
+        if: (github.event_name == 'push' || github.event.inputs.dry-run != 'true') && steps.image-tag-check.outputs.image_tag_exists == '0'
+        uses: useblacksmith/build-push-action@574eb0ee0b59c6a687ace24192f0727dfb65d6d7 # v1
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          file: ampd-handlers/Dockerfile
+          build-args: |
+            HANDLER=${{ env.HANDLER }}
+
+      - name: Dry-run summary
+        if: github.event.inputs.dry-run == 'true'
+        run: |
+          echo "## DRY RUN MODE" >> $GITHUB_STEP_SUMMARY
+          echo "**Handler:** ${{ env.HANDLER }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Would build image with tag:** ${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Would push to:** ECR Repository \`${{ env.REPOSITORY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags that would be created:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Full image name that would be created:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "ECR_REGISTRY/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **No actual build or push was performed**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Image build summary
+        if: (github.event_name == 'push' || github.event.inputs.dry-run != 'true') && steps.image-tag-check.outputs.image_tag_exists == '0'
+        run: |
+          echo "**Handler:** ${{ env.HANDLER }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ECR" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ env.REPOSITORY }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Full Image:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.login-ecr.outputs.registry }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

@@ -52,7 +52,7 @@ clap = { version = "4.2.7", features = ["derive", "cargo"] }
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
 const-str = "0.6.2"
-coordinator = { version = "^2.1.3", path = "contracts/coordinator" }
+coordinator = { version = "^3.0.0", path = "contracts/coordinator" }
 cosmrs = "0.22.0"
 cosmwasm-crypto = "2.1.4"
 cosmwasm-schema = "2.1.4"
@@ -81,7 +81,7 @@ heck = "0.5.0"
 hex = "0.4.3"
 humantime-serde = "1.1.1"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
-interchain-token-service = { version = "^1.3.0", path = "contracts/interchain-token-service" }
+interchain-token-service = { version = "^1.3.1", path = "contracts/interchain-token-service" }
 interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain-token-service-std" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
@@ -91,16 +91,17 @@ its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-trans
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^2.4.0", path = "contracts/multisig" }
-multisig-prover = { version = "^1.1.1", path = "contracts/multisig-prover" }
+multisig = { version = "^2.4.1", path = "contracts/multisig" }
+multisig-prover = { version = "^1.2.0", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
 rand = "0.8.5"
+random-string = "1.0.0"
 report = { version = "^1.0.0", path = "packages/report" }
 rewards = { version = "^1.2.0", path = "contracts/rewards" }
-router = { version = "^1.4.0", path = "contracts/router" }
+router = { version = "^1.4.1", path = "contracts/router" }
 router-api = { version = "^1.0.0", path = "packages/router-api" }
 schemars = "0.8.10"
 semver = "1.0"
@@ -125,6 +126,7 @@ sui-types = { version = "^1.0.0", path = "packages/sui-types" }
 syn = "2.0.92"
 temp-env = "0.3.6"
 tendermint = "0.40.4"
+test-log = { version = "0.2", features = ["trace"], default-features = false }
 thiserror = "1.0.61"
 tofn = { version = "1.1" }
 tokio = "1.44.2"
@@ -141,7 +143,7 @@ tracing-subscriber = { version = "0.3.20", features = [
 tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
-voting-verifier = { version = "^2.0.0", path = "contracts/voting-verifier" }
+voting-verifier = { version = "^2.0.1", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 xrpl_http_client = { version = "0.15.0" }
