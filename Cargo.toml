@@ -90,7 +90,7 @@ its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-trans
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
-multisig = { version = "^2.4.0", path = "contracts/multisig" }
+multisig = { version = "^2.4.1", path = "contracts/multisig" }
 multisig-prover = { version = "^1.2.0", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
