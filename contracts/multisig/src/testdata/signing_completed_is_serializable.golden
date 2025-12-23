@@ -1,0 +1,17 @@
+{
+  "type": "signing_completed",
+  "attributes": [
+    {
+      "key": "session_id",
+      "value": "1"
+    },
+    {
+      "key": "completed_at",
+      "value": "1234567890"
+    },
+    {
+      "key": "chain_name",
+      "value": "\"ethereum\""
+    }
+  ]
+}
