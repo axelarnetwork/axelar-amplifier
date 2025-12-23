@@ -8764,7 +8764,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "assert_ok",
  "axelar-core-std",
