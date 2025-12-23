@@ -14,7 +14,7 @@ use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
-use integration_tests::multisig_prover_contract::MultisigProverContract;
+use integration_tests::solana_multisig_prover_contract::SolanaMultisigProverContract;
 use integration_tests::protocol::{AxelarApp, AxelarModule, Protocol};
 use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::router_contract::RouterContract;
@@ -198,7 +198,7 @@ pub fn end_poll(app: &mut AxelarApp, voting_verifier: &VotingVerifierContract, p
 
 pub fn construct_proof_and_sign(
     protocol: &mut Protocol,
-    multisig_prover: &MultisigProverContract,
+    multisig_prover: &SolanaMultisigProverContract,
     messages: &[Message],
     verifiers: &Vec<Verifier>,
 ) -> Uint64 {
@@ -295,7 +295,7 @@ pub fn messages_from_gateway(
 
 pub fn proof(
     app: &mut AxelarApp,
-    multisig_prover: &MultisigProverContract,
+    multisig_prover: &SolanaMultisigProverContract,
     multisig_session_id: &Uint64,
 ) -> solana_multisig_prover::msg::ProofResponse {
     let query_response: Result<solana_multisig_prover::msg::ProofResponse, StdError> =
@@ -312,7 +312,7 @@ pub fn proof(
 
 pub fn verifier_set_from_prover(
     app: &mut AxelarApp,
-    multisig_prover_contract: &MultisigProverContract,
+    multisig_prover_contract: &SolanaMultisigProverContract,
 ) -> VerifierSet {
     let query_response: Result<Option<VerifierSetResponse>, StdError> = multisig_prover_contract
         .query(
@@ -563,7 +563,7 @@ pub fn claim_stakes(
 pub fn confirm_verifier_set(
     app: &mut AxelarApp,
     relayer_addr: Addr,
-    multisig_prover: &MultisigProverContract,
+    multisig_prover: &SolanaMultisigProverContract,
 ) {
     let response = multisig_prover.execute(
         app,
@@ -668,7 +668,7 @@ pub fn update_registry_and_construct_verifier_set_update_proof(
     new_verifiers: &Vec<Verifier>,
     verifiers_to_remove: &Vec<Verifier>,
     current_verifiers: &Vec<Verifier>,
-    chain_multisig_prover: &MultisigProverContract,
+    chain_multisig_prover: &SolanaMultisigProverContract,
     min_verifier_bond: nonempty::Uint128,
 ) -> Uint64 {
     // Register new verifiers
@@ -717,7 +717,7 @@ pub fn execute_verifier_set_poll(
 pub struct Chain {
     pub gateway: GatewayContract,
     pub voting_verifier: VotingVerifierContract,
-    pub multisig_prover: MultisigProverContract,
+    pub multisig_prover: SolanaMultisigProverContract,
     pub chain_name: ChainName,
 }
 
@@ -736,7 +736,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     let multisig_prover_admin =
         MockApi::default().addr_make(format!("{}_prover_admin", chain_name).as_str());
-    let multisig_prover = MultisigProverContract::instantiate_contract(
+    let multisig_prover = SolanaMultisigProverContract::instantiate_contract(
         protocol,
         multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),

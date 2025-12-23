@@ -11,13 +11,13 @@ use crate::contract::Contract;
 use crate::protocol::{emptying_deps_mut, Protocol};
 
 #[derive(Clone)]
-pub struct MultisigProverContract {
+pub struct SolanaMultisigProverContract {
     pub contract_addr: Addr,
     pub admin_addr: Addr,
     pub code_id: u64,
 }
 
-impl MultisigProverContract {
+impl SolanaMultisigProverContract {
     pub fn instantiate_contract(
         protocol: &mut Protocol,
         admin_address: Addr,
@@ -59,7 +59,7 @@ impl MultisigProverContract {
             )
             .unwrap();
 
-        MultisigProverContract {
+        SolanaMultisigProverContract {
             contract_addr,
             admin_addr: admin_address,
             code_id,
@@ -67,9 +67,9 @@ impl MultisigProverContract {
     }
 }
 
-impl Default for MultisigProverContract {
+impl Default for SolanaMultisigProverContract {
     fn default() -> Self {
-        MultisigProverContract {
+        SolanaMultisigProverContract {
             contract_addr: cosmos_addr!("prover"),
             admin_addr: cosmos_addr!("admin"),
             code_id: 0,
@@ -85,7 +85,7 @@ fn custom_reply(
     solana_multisig_prover::contract::reply(emptying_deps_mut(&mut deps), env, msg)
 }
 
-impl Contract for MultisigProverContract {
+impl Contract for SolanaMultisigProverContract {
     type QMsg = solana_multisig_prover::msg::QueryMsg;
     type ExMsg = solana_multisig_prover::msg::ExecuteMsg;
 

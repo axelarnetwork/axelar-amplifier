@@ -10,7 +10,7 @@ use cw_multi_test::AppResponse;
 use error_stack::Report;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
-use integration_tests::multisig_prover_contract::MultisigProverContract;
+use integration_tests::solana_multisig_prover_contract::SolanaMultisigProverContract;
 use integration_tests::protocol::Protocol;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use multisig::key::KeyType;
@@ -29,7 +29,7 @@ const CHAIN_NAME_2: &str = "testchain2";
 struct DeployedContracts {
     gateway: GatewayContract,
     voting_verifier: VotingVerifierContract,
-    multisig_prover: MultisigProverContract,
+    multisig_prover: SolanaMultisigProverContract,
 }
 
 fn instantiate_contracts(
@@ -134,7 +134,7 @@ fn gather_contracts(
 ) -> DeployedContracts {
     let mut gateway = GatewayContract::default();
     let mut voting_verifier = VotingVerifierContract::default();
-    let mut multisig_prover = MultisigProverContract::default();
+    let mut multisig_prover = SolanaMultisigProverContract::default();
 
     let res = protocol.coordinator.query::<ChainContractsResponse>(
         &protocol.app,
