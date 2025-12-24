@@ -1,0 +1,25 @@
+[package]
+name = "solana-multisig-prover-api"
+version = "0.2.0"
+rust-version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+axelar-wasm-std = { workspace = true, features = ["derive"] }
+client = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-storage-plus = { workspace = true }
+error-stack = { workspace = true }
+msgs-derive = { workspace = true }
+multisig = { workspace = true, features = ["library"] }
+multisig-prover-api = { workspace = true }
+router-api = { workspace = true }
+sha3 = { workspace = true }
+
+[dev-dependencies]
+goldie = { workspace = true }
+
+[lints]
+workspace = true

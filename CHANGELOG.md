@@ -207,6 +207,7 @@ Upgrade or deploy contracts/components in the below order:
 - router
 - multisig
 - multisig-prover
+- solana-multisig-prover
 - service-registry
 - voting-verifier
 
