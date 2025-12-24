@@ -2010,6 +2010,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "chain-codec-solana"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_ok",
+ "axelar-solana-encoding",
+ "axelar-wasm-std",
+ "chain-codec-api",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw2",
+ "elliptic-curve",
+ "error-stack",
+ "generic-array",
+ "goldie",
+ "hex",
+ "itertools 0.14.0",
+ "k256",
+ "multisig",
+ "prost 0.12.6",
+ "router-api",
+ "service-registry-api",
+ "sha3",
+ "solana-axelar-std",
+]
+
+[[package]]
 name = "chain-codec-stellar"
 version = "1.0.0"
 dependencies = [
@@ -4055,6 +4083,15 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "five8"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23f76610e969fa1784327ded240f1e28a3fd9520c9cec93b636fcf62dd37f772"
+dependencies = [
+ "five8_core",
+]
 
 [[package]]
 name = "five8_const"
@@ -9938,6 +9975,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-axelar-std"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c21a7b7466230e3becfc98ed62d201ed40192d044746e23d1dfc720f1d4290dc"
+dependencies = [
+ "alloy-primitives",
+ "arrayref",
+ "bnum 0.10.0",
+ "borsh 0.10.4",
+ "bytemuck",
+ "hex",
+ "rs_merkle",
+ "solana-keccak-hasher",
+ "thiserror 1.0.69",
+ "udigest",
+]
+
+[[package]]
 name = "solana-bincode"
 version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10070,7 +10125,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f43b1391eecec7c15ae83477d0bfebc9a92ebe69f793683fd497ac02d180fcd5"
 dependencies = [
  "solana-account-info",
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
  "solana-instruction",
  "solana-program-error",
  "solana-pubkey",
@@ -10106,6 +10161,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "592a9b501608cb642af6ad9d07c8be8827772c20d1afa5173c85c561da7942a3"
 
 [[package]]
+name = "solana-define-syscall"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e5b1c0bc1d4a4d10c88a4100499d954c09d3fecfae4912c1a074dff68b1738"
+
+[[package]]
 name = "solana-derivation-path"
 version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10137,7 +10198,7 @@ dependencies = [
  "lazy_static",
  "solana-clock",
  "solana-epoch-schedule",
- "solana-hash",
+ "solana-hash 2.1.21",
  "solana-pubkey",
  "solana-sha256-hasher",
 ]
@@ -10169,6 +10230,15 @@ dependencies = [
  "solana-atomic-u64",
  "solana-sanitize",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "solana-hash"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a5d48a6ee7b91fc7b998944ab026ed7b3e2fc8ee3bc58452644a86c2648152f"
+dependencies = [
+ "five8",
 ]
 
 [[package]]
@@ -10204,9 +10274,20 @@ dependencies = [
  "num-traits",
  "serde",
  "serde_derive",
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
  "solana-pubkey",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "solana-keccak-hasher"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed1c0d16d6fdeba12291a1f068cdf0d479d9bff1141bf44afd7aa9d485f65ef8"
+dependencies = [
+ "sha3",
+ "solana-define-syscall 4.0.1",
+ "solana-hash 4.0.1",
 ]
 
 [[package]]
@@ -10257,7 +10338,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddbd7c6efaea83a2bd85a14a0a062ccc77039070311d2ca1af4c887be500192f"
 dependencies = [
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
 ]
 
 [[package]]
@@ -10378,10 +10459,10 @@ dependencies = [
  "solana-clock",
  "solana-cpi",
  "solana-decode-error",
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
  "solana-epoch-schedule",
  "solana-fee-calculator",
- "solana-hash",
+ "solana-hash 2.1.21",
  "solana-instruction",
  "solana-last-restart-slot",
  "solana-msg",
@@ -10444,7 +10525,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46d5f1d48635ce777d931ba85a4be23d9da2443cb24bcd9cc380636444a3e234"
 dependencies = [
  "num-traits",
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
 ]
 
 [[package]]
@@ -10513,7 +10594,7 @@ dependencies = [
  "serde_derive",
  "solana-atomic-u64",
  "solana-decode-error",
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
  "solana-sanitize",
  "solana-sha256-hasher",
  "wasm-bindgen",
@@ -10744,7 +10825,7 @@ checksum = "1e9d4483cde845bb0f70374d2905014650057eafdcc546a3e50059e7643318e8"
 dependencies = [
  "borsh 1.6.0",
  "libsecp256k1 0.6.0",
- "solana-define-syscall",
+ "solana-define-syscall 2.1.21",
  "thiserror 1.0.69",
 ]
 
@@ -10795,8 +10876,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4028550a372b5ce9514941fb1a04cfac9aa66f76fd9684a7b11ef37ac586e492"
 dependencies = [
  "sha2 0.10.9",
- "solana-define-syscall",
- "solana-hash",
+ "solana-define-syscall 2.1.21",
+ "solana-hash 2.1.21",
 ]
 
 [[package]]
@@ -10831,7 +10912,7 @@ checksum = "8c7bb06f75cb9d4c44f71dbc1cf46b1e67aaa9f737b66389b18471a8db1d9a09"
 dependencies = [
  "serde",
  "serde_derive",
- "solana-hash",
+ "solana-hash 2.1.21",
  "solana-sysvar-id",
 ]
 
@@ -13361,9 +13442,9 @@ checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 
 [[package]]
 name = "udigest"
-version = "0.2.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81cd61fa9fb78569e9fe34acf0048fd8cb9ebdbacc47af740745487287043ff0"
+checksum = "3a435a16abb7029ba807a45242367b087dd767e87e2e5ebc5f0e4189ea114a23"
 dependencies = [
  "digest 0.10.7",
  "udigest-derive",
@@ -13371,9 +13452,9 @@ dependencies = [
 
 [[package]]
 name = "udigest-derive"
-version = "0.3.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "603329303137e0d59238ee4d6b9c085eada8e2a9d20666f3abd9dadf8f8543f4"
+checksum = "ee6296c12e792dbc59565a58920d8d1842997ad5a72ddf2a51f70d70bd7af2ba"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
