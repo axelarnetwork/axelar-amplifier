@@ -59,10 +59,24 @@
     ],
     "specific": []
   },
+  "UpdateAdmin": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  },
   "UpdateChains": {
     "external": [],
     "general": [
       "Governance"
+    ],
+    "specific": []
+  },
+  "UpdateOperator": {
+    "external": [],
+    "general": [
+      "Elevated"
     ],
     "specific": []
   }

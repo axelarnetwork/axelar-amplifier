@@ -1,4 +1,3 @@
-use axelar_wasm_std::address::validate_address;
 use axelar_wasm_std::{address, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -32,7 +31,11 @@ pub fn instantiate(
     let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    validate_address(&msg.source_gateway_address, &msg.address_format)
+    let chain_codec_addr = address::validate_cosmwasm_address(deps.api, &msg.chain_codec_address)?;
+    let chain_codec: chain_codec_api::Client =
+        client::ContractClient::new(deps.querier, &chain_codec_addr).into();
+    chain_codec
+        .validate_address(msg.source_gateway_address.to_string())
         .change_context(ContractError::InvalidSourceGatewayAddress)?;
 
     let config = Config {
@@ -48,7 +51,7 @@ pub fn instantiate(
         source_chain: msg.source_chain,
         rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
         msg_id_format: msg.msg_id_format,
-        address_format: msg.address_format,
+        chain_codec_address: chain_codec_addr,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -106,6 +109,9 @@ pub fn query(
             &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
         ),
         QueryMsg::VotingParameters => to_json_binary(&query::voting_parameters(deps)?),
+        QueryMsg::PollByMessage { message } => {
+            to_json_binary(&query::poll_by_message(deps, message)?)
+        }
     }?
     .then(Ok)
 }
@@ -113,7 +119,7 @@ pub fn query(
 #[cfg(test)]
 mod test {
     use assert_ok::assert_ok;
-    use axelar_wasm_std::address::AddressFormat;
+    use axelar_wasm_std::address::{validate_address, AddressFormat};
     use axelar_wasm_std::msg_id::{
         Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
         FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
@@ -146,6 +152,7 @@ mod test {
     const SERVICE_NAME: &str = "service_name";
     const POLL_BLOCK_EXPIRY: u64 = 100;
     const GOVERNANCE: &str = "governance";
+    const CHAIN_CODEC: &str = "chain_codec_address";
 
     fn source_chain() -> ChainName {
         chain_name!("source-chain")
@@ -185,6 +192,44 @@ mod test {
         let mut deps = mock_dependencies();
         let service_registry = cosmos_addr!(SERVICE_REGISTRY_ADDRESS);
 
+        let chain_codec_address = cosmos_addr!(CHAIN_CODEC);
+
+        let chain_codec_clone = chain_codec_address.clone();
+        let service_registry_clone = service_registry.clone();
+        deps.querier.update_wasm(move |q| match q {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == chain_codec_clone.as_str() =>
+            {
+                let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+                match msg {
+                    chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                        Ok(validate_address(&address, &AddressFormat::Eip55)
+                            .map(|_| cosmwasm_std::to_json_binary(&Empty {}).unwrap())
+                            .into())
+                        .into()
+                    }
+                    _ => panic!("unexpected query: {:?}", msg),
+                }
+            }
+            WasmQuery::Smart { contract_addr, .. }
+                if contract_addr == service_registry_clone.as_str() =>
+            {
+                Ok(to_json_binary(
+                    &verifiers
+                        .clone()
+                        .into_iter()
+                        .map(|v| WeightedVerifier {
+                            verifier_info: v,
+                            weight: nonempty::Uint128::one(),
+                        })
+                        .collect::<Vec<WeightedVerifier>>(),
+                )
+                .into())
+                .into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
         instantiate(
             deps.as_mut(),
             mock_env(),
@@ -202,30 +247,10 @@ mod test {
                 source_chain: source_chain(),
                 rewards_address: cosmos_addr!(REWARDS_ADDRESS).as_str().parse().unwrap(),
                 msg_id_format: msg_id_format.clone(),
-                address_format: AddressFormat::Eip55,
+                chain_codec_address: chain_codec_address.as_str().parse().unwrap(),
             },
         )
         .unwrap();
-
-        deps.querier.update_wasm(move |wq| match wq {
-            WasmQuery::Smart { contract_addr, .. }
-                if contract_addr == service_registry.as_str() =>
-            {
-                Ok(to_json_binary(
-                    &verifiers
-                        .clone()
-                        .into_iter()
-                        .map(|v| WeightedVerifier {
-                            verifier_info: v,
-                            weight: nonempty::Uint128::one(),
-                        })
-                        .collect::<Vec<WeightedVerifier>>(),
-                )
-                .into())
-                .into()
-            }
-            _ => panic!("no mock for this query"),
-        });
 
         deps
     }
@@ -322,6 +347,7 @@ mod test {
     fn should_fail_if_gateway_address_format_is_invalid() {
         let mut deps = mock_dependencies();
 
+        let chain_codec_address = cosmos_addr!(CHAIN_CODEC);
         struct TestCase {
             source_gateway_address: String,
             address_format: AddressFormat,
@@ -423,6 +449,26 @@ mod test {
             should_fail,
         } in test_cases
         {
+            let chain_codec = chain_codec_address.clone();
+            deps.querier.update_wasm(move |q| match q {
+                WasmQuery::Smart { contract_addr, msg }
+                    if contract_addr == chain_codec.as_str() =>
+                {
+                    let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+
+                    match msg {
+                        chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                            Ok(validate_address(&address, &address_format)
+                                .map(|_| cosmwasm_std::to_json_binary(&Empty {}).unwrap())
+                                .into())
+                            .into()
+                        }
+                        _ => panic!("unexpected query: {:?}", msg),
+                    }
+                }
+                _ => panic!("unexpected query: {:?}", q),
+            });
+
             let result = instantiate(
                 deps.as_mut(),
                 mock_env(),
@@ -441,7 +487,10 @@ mod test {
                     source_chain: source_chain(),
                     rewards_address: cosmos_addr!(REWARDS_ADDRESS).as_str().parse().unwrap(),
                     msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-                    address_format,
+                    chain_codec_address: nonempty::String::try_from(
+                        chain_codec_address.to_string(),
+                    )
+                    .unwrap(),
                 },
             );
 

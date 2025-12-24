@@ -7,6 +7,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, PollResponse, QueryMsg, VotingParameters};
+use crate::shared::Poll;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -20,6 +21,8 @@ pub enum Error {
     MessagesStatus(Vec<Message>),
     #[error("failed to query voting verifier for poll. poll_id: {0}")]
     Poll(PollId),
+    #[error("failed to query voting verifier for poll by message")]
+    Message(Message),
 }
 
 impl Error {
@@ -29,6 +32,7 @@ impl Error {
             QueryMsg::VerifierSetStatus(verifier_set) => Error::VerifierSetStatus(verifier_set),
             QueryMsg::Poll { poll_id } => Error::Poll(poll_id),
             QueryMsg::VotingParameters => Error::VotingParameters,
+            QueryMsg::PollByMessage { message } => Error::Message(message),
         }
     }
 }
@@ -114,6 +118,14 @@ impl Client<'_> {
             .query(&msg)
             .change_context_lazy(|| Error::for_query(msg))
     }
+
+    pub fn poll_by_message(&self, message: Message) -> Result<Option<Poll>> {
+        let msg = QueryMsg::PollByMessage { message };
+
+        self.client
+            .query(&msg)
+            .change_context_lazy(|| Error::for_query(msg))
+    }
 }
 
 #[cfg(test)]
@@ -121,11 +133,13 @@ mod test {
     use std::collections::BTreeMap;
 
     use assert_ok::assert_ok;
+    use axelar_wasm_std::address::{validate_address, AddressFormat};
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::{Threshold, VerificationStatus};
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env, MockQuerier};
     use cosmwasm_std::{
-        from_json, Addr, DepsMut, QuerierWrapper, SystemError, Uint128, Uint64, WasmQuery,
+        from_json, Addr, Binary, DepsMut, QuerierResult, QuerierWrapper, SystemError, Uint128,
+        Uint64, WasmQuery,
     };
     use multisig::verifier_set::VerifierSet;
     use router_api::{address, chain_name, cosmos_addr, CrossChainId, Message};
@@ -201,6 +215,33 @@ mod test {
                 .unwrap(),
             VerificationStatus::Unknown
         );
+    }
+
+    #[test]
+    fn query_poll_by_message() {
+        let (querier, _, addr) = setup();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let message = Message {
+            cc_id: CrossChainId::new(
+                "eth",
+                HexTxHashAndEventIndex {
+                    tx_hash: [0; 32],
+                    event_index: 0,
+                }
+                .to_string()
+                .as_str(),
+            )
+            .unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
+            destination_chain: chain_name!("eth"),
+            payload_hash: [0; 32],
+        };
+
+        let res = client.poll_by_message(message.clone());
+        assert!(res.is_ok());
     }
 
     #[test]
@@ -283,6 +324,34 @@ mod test {
         goldie::assert!(res.unwrap_err().to_string());
     }
 
+    #[test]
+    fn query_poll_by_message_returns_error_when_query_fails() {
+        let (querier, addr) = setup_queries_to_fail();
+        let client: Client =
+            client::ContractClient::new(QuerierWrapper::new(&querier), &addr).into();
+
+        let message = Message {
+            cc_id: CrossChainId::new(
+                "eth",
+                HexTxHashAndEventIndex {
+                    tx_hash: [0; 32],
+                    event_index: 0,
+                }
+                .to_string()
+                .as_str(),
+            )
+            .unwrap(),
+            source_address: address!("0x1234"),
+            destination_address: address!("0x5678"),
+            destination_chain: chain_name!("eth"),
+            payload_hash: [0; 32],
+        };
+
+        let res = client.poll_by_message(message.clone());
+        assert!(res.is_err());
+        goldie::assert!(res.unwrap_err().to_string());
+    }
+
     fn setup_queries_to_fail() -> (MockQuerier, Addr) {
         let addr = cosmos_addr!("voting-verifier");
         let addr_clone = addr.clone();
@@ -301,17 +370,45 @@ mod test {
         (querier, addr_clone)
     }
 
+    fn chain_codec_handler(msg: &Binary) -> QuerierResult {
+        let msg = from_json::<chain_codec_api::msg::QueryMsg>(msg).unwrap();
+
+        match msg {
+            chain_codec_api::msg::QueryMsg::ValidateAddress { address } => {
+                Ok(validate_address(&address, &AddressFormat::Eip55)
+                    .map(|_| cosmwasm_std::to_json_binary(&cosmwasm_std::Empty {}).unwrap())
+                    .into())
+                .into()
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        }
+    }
+
     fn setup() -> (MockQuerier, InstantiateMsg, Addr) {
         let mut deps = mock_dependencies();
+        deps.querier.update_wasm(|q| match q {
+            WasmQuery::Smart { contract_addr, msg }
+                if contract_addr == cosmos_addr!("chain-codec").as_str() =>
+            {
+                chain_codec_handler(msg)
+            }
+            _ => Err(SystemError::Unknown {}).into(),
+        });
         let addr = cosmos_addr!("voting-verifier");
         let addr_clone = addr.clone();
         let instantiate_msg = instantiate_contract(deps.as_mut());
 
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
-            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr.as_str() => {
-                let msg = from_json::<QueryMsg>(msg).unwrap();
-                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+            WasmQuery::Smart { contract_addr, msg } => {
+                if contract_addr == addr.as_str() {
+                    let msg = from_json::<QueryMsg>(msg).unwrap();
+                    Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+                } else if contract_addr == cosmos_addr!("chain-codec").as_str() {
+                    chain_codec_handler(msg)
+                } else {
+                    Err(SystemError::Unknown {}).into()
+                }
             }
             _ => panic!("unexpected query: {:?}", msg),
         });
@@ -342,7 +439,7 @@ mod test {
             source_chain: chain_name!("source-chain"),
             rewards_address: cosmos_addr!("rewards").to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
-            address_format: axelar_wasm_std::address::AddressFormat::Eip55,
+            chain_codec_address: cosmos_addr!("chain-codec").to_string().try_into().unwrap(),
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

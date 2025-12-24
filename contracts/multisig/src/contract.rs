@@ -117,6 +117,11 @@ pub fn execute(
         ExecuteMsg::UpdateSigningParameters { block_expiry } => {
             Ok(execute::update_signing_parameters(deps, block_expiry)?)
         }
+        ExecuteMsg::UpdateAdmin { new_admin_address } => {
+            let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)?;
+            permission_control::set_admin(deps.storage, &new_admin)?;
+            Ok(Response::new())
+        }
     }?
     .then(Ok)
 }

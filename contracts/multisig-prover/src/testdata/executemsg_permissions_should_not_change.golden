@@ -1,0 +1,37 @@
+{
+  "ConfirmVerifierSet": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "ConstructProof": {
+    "external": [],
+    "general": [
+      "Any"
+    ],
+    "specific": []
+  },
+  "UpdateAdmin": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "UpdateSigningThreshold": {
+    "external": [],
+    "general": [
+      "Governance"
+    ],
+    "specific": []
+  },
+  "UpdateVerifierSet": {
+    "external": [],
+    "general": [
+      "Elevated"
+    ],
+    "specific": []
+  }
+}

@@ -18,6 +18,8 @@ library = []
 anyhow = { workspace = true }
 axelar-core-std = { workspace = true }
 axelar-wasm-std = { workspace = true }
+chain-codec-api = { workspace = true }
+chain-codec-evm = { workspace = true }
 coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-multi-test = { workspace = true, features = ["cosmwasm_1_2"] }
@@ -30,6 +32,8 @@ goldie = { workspace = true }
 interchain-token-service = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true }
+multisig-prover = { workspace = true }
+multisig-prover-api = { workspace = true }
 solana-multisig-prover = { workspace = true }
 solana-multisig-prover-api = { workspace = true }
 rand = { workspace = true }
@@ -43,6 +47,7 @@ serde_json = { workspace = true }
 service-registry = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
+signature-verifier-api = { workspace = true }
 tofn = { workspace = true }
 voting-verifier = { workspace = true }
 

@@ -1,0 +1,72 @@
+# Runs all linting checks: rustfmt, cargo-sort, clippy, and custom dylint lints.
+name: "CI: Lints"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-lints-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lints:
+    name: Format, sort, clippy, and custom lints
+    runs-on: blacksmith-16vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: recursive
+
+      # Setup Rust once - components are already in rust-toolchain.toml
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          cache-key: "cache-lints"
+
+      # Install nightly toolchain for formatting (as per justfile)
+      - name: Install nightly for rustfmt
+        run: rustup toolchain install nightly --component rustfmt --profile minimal
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "33.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cargo-sort
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
+        with:
+          crate: cargo-sort
+
+      - name: Install cargo-dylint
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
+        with:
+          crate: cargo-dylint
+          version: 4.1.0
+
+      - name: Install dylint-link
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
+        with:
+          crate: dylint-link
+          version: 4.1.0
+
+      - name: Run cargo fmt
+        run: cargo +nightly fmt-check # alias
+
+      - name: Run cargo sort
+        run: cargo sort-check # alias
+
+      - name: Run cargo clippy
+        run: cargo clippy-check # alias
+
+      - name: Run custom lints
+        run: cargo dylint --all
+        env:
+          DYLINT_RUSTFLAGS: -D warnings -A deprecated
+
+      - name: Check Diff
+        # fails if any changes not committed
+        run: git diff --exit-code

@@ -1,0 +1,40 @@
+# Builds all CosmWasm contracts to wasm32 and validates them with cosmwasm-check.
+name: "CI: Wasm Contract Build"
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-wasm-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cosmwasm-compilation:
+    name: Build contracts to wasm32 and validate with cosmwasm-check
+    runs-on: blacksmith-32vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          cache-key: "cache-cosmwasm-compilation"
+
+      - name: Build wasm release
+        run: |
+          for C in ./contracts/*/
+          do
+            echo "Compiling `basename $C`..."
+            (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
+          done
+
+      - name: Install cosmwasm-check
+        run: cargo install --version 3.0.1 --locked cosmwasm-check
+
+      - name: Check wasm contracts
+        run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm

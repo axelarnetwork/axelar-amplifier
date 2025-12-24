@@ -1,0 +1,19 @@
+# Checks that PR descriptions are not empty and meet minimum requirements.
+name: "CI: PR Description"
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  check_description:
+    name: Verify PR description is not empty
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Check Pull Request Description Exists
+        env:
+          DESCRIPTION: ${{ github.event.pull_request.body }}
+        run: |
+          echo "$DESCRIPTION" > description.txt
+          .github/workflows/utils/check_description.sh description.txt

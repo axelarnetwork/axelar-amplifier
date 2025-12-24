@@ -7,7 +7,27 @@ use router_api::Message;
 
 use crate::error::ContractError;
 use crate::msg::{MessageStatus, PollData, PollResponse, VotingParameters};
-use crate::state::{poll_messages, poll_verifier_sets, Poll, PollContent, CONFIG, POLLS};
+use crate::shared::Poll;
+use crate::state::{poll_messages, poll_verifier_sets, PollContent, CONFIG, POLLS};
+
+pub fn poll_by_message(deps: Deps, message: Message) -> Result<Option<Poll>, ContractError> {
+    let loaded_poll_content = poll_messages()
+        .may_load(deps.storage, &message.hash())
+        .change_context(ContractError::StorageError)?;
+
+    let poll_content = match loaded_poll_content {
+        Some(poll_content) => poll_content,
+        None => return Ok(None),
+    };
+
+    let poll_id = poll_content.poll_id;
+
+    let poll = POLLS
+        .load(deps.storage, poll_id)
+        .change_context(ContractError::PollNotFound)?;
+
+    Ok(Some(poll))
+}
 
 pub fn voting_parameters(deps: Deps) -> Result<VotingParameters, ContractError> {
     let config = CONFIG

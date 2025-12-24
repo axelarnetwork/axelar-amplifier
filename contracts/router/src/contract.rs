@@ -95,6 +95,11 @@ pub fn execute(
         )?),
         ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
         ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
+        ExecuteMsg::UpdateAdmin { new_admin_address } => {
+            let new_admin = address::validate_cosmwasm_address(deps.api, &new_admin_address)?;
+            permission_control::set_admin(deps.storage, &new_admin)?;
+            Ok(Response::new())
+        }
     }?
     .then(Ok)
 }

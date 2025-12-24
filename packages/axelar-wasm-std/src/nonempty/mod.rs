@@ -1,4 +1,5 @@
 mod error;
+mod hashmap;
 mod hexbinary;
 mod string;
 mod timestamp;
@@ -6,6 +7,7 @@ mod uint;
 mod vec;
 
 pub use error::Error;
+pub use hashmap::HashMap;
 pub use hexbinary::HexBinary;
 pub use string::String;
 pub use timestamp::Timestamp;

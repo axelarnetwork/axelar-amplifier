@@ -26,7 +26,7 @@ pub enum Error {
 }
 
 #[non_exhaustive] // prevents creating the runtime using struct expression from outside this crate
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HandlerRuntime {
     pub monitoring_client: monitoring::Client,
     pub grpc_client: GrpcClient,
@@ -47,11 +47,12 @@ impl HandlerRuntime {
     /// use ampd_sdk::config;
     /// use ampd_sdk::runtime::HandlerRuntime;
     /// # use std::error::Error;
+    /// # use std::path::PathBuf;
     /// use tokio_util::sync::CancellationToken;
     ///
     /// # #[tokio::main]
     /// async fn main() {
-    ///     let config = config::Config::from_default_sources().unwrap();
+    ///     let config = config::Config::from_default_sources(PathBuf::from("./")).unwrap();
     ///     let token = CancellationToken::new();
     ///
     ///     let runtime = HandlerRuntime::start(&config, token).await.unwrap();
@@ -83,13 +84,13 @@ impl HandlerRuntime {
 
     /// Use the started runtime to create and run the handler task
     pub async fn run_handler<H>(
-        mut self,
+        &self,
         handler: H,
         config: Config,
         token: CancellationToken,
     ) -> Result<(), Error>
     where
-        H: EventHandler + Debug,
+        H: EventHandler,
         H::Event: TryFrom<Event, Error = Report<events::Error>>,
         H::Event: Debug + Clone,
     {
@@ -98,7 +99,9 @@ impl HandlerRuntime {
             .config(config.event_handler)
             .build();
 
-        task.run(&mut self.grpc_client, token)
+        // Clone the gRPC client so multiple handlers can share the same runtime
+        let mut grpc_client = self.grpc_client.clone();
+        task.run(&mut grpc_client, token)
             .await
             .change_context(Error::HandlerRun)?;
 
@@ -159,6 +162,7 @@ fn start_shutdown_signal_monitor(token: CancellationToken) {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::path::PathBuf;
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -247,7 +251,7 @@ mod tests {
                     Some(chain_name.to_string()),
                 ),
             ],
-            || config::Config::from_default_sources().unwrap(),
+            || config::Config::from_default_sources(PathBuf::from("./")).unwrap(),
         )
     }
 

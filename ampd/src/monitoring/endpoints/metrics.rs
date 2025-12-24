@@ -651,6 +651,7 @@ mod tests {
         // verification votes
         let chain_names = vec![
             chain_name!("ethereum"),
+            chain_name!("solana"),
             chain_name!("polygon"),
             chain_name!("avalanche"),
             chain_name!("stellar"),
