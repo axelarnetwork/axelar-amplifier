@@ -2,7 +2,7 @@ use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQu
 use error_stack::{Result, ResultExt};
 use multisig::multisig::Multisig;
 use multisig::types::MultisigState;
-use solana_multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
+use multisig_prover_api::msg::{ProofResponse, ProofStatus, VerifierSetResponse};
 
 use crate::error::ContractError;
 use crate::state::{

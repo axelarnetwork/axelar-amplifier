@@ -96,7 +96,6 @@ multisig = { version = "^2.4.2", path = "contracts/multisig" }
 multisig-prover = { version = "^1.2.0", path = "contracts/multisig-prover" }
 multisig-prover-api = { version = "1.0.0", path = "packages/multisig-prover-api" }
 solana-multisig-prover = { version = "0.4.0", path = "contracts/solana-multisig-prover" }
-solana-multisig-prover-api = { version = "0.2.0", path = "packages/solana-multisig-prover-api" }
 num-traits = { version = "0.2.14", default-features = false }
 proc-macro2 = "1.0.92"
 quote = "1.0.38"

@@ -3,7 +3,7 @@ use axelar_wasm_std::{address, permission_control};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
-use solana_multisig_prover_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use multisig_prover_api::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -142,12 +142,11 @@ mod tests {
     };
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
-    use solana_multisig_prover_api::msg::{
+    use multisig_prover_api::msg::{
         ConstructProofMsg, ProofResponse, ProofStatus, VerifierSetResponse,
     };
     use prost::Message;
     use router_api::{cosmos_addr, CrossChainId};
-    use solana_multisig_prover_api::encoding::Encoder;
 
     use super::*;
     use crate::contract::execute::should_update_verifier_set;

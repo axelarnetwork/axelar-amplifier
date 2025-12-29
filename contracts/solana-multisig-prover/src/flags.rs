@@ -5,7 +5,7 @@ use chain_codec_api::{Payload, VerifierSet};
 use cosmwasm_std::{Deps, DepsMut, HexBinary, Uint64};
 use error_stack::{report, ResultExt};
 use router_api::Message;
-use solana_multisig_prover_api::payload::PayloadId;
+use multisig_prover_api::payload::PayloadId;
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;

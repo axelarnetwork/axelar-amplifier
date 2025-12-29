@@ -40,7 +40,7 @@ impl SolanaMultisigProverContract {
             .instantiate_contract(
                 code_id,
                 cosmos_addr!("anyone"),
-                &solana_multisig_prover_api::msg::InstantiateMsg {
+                &multisig_prover_api::msg::InstantiateMsg {
                     admin_address: admin_address.to_string(),
                     governance_address: protocol.governance_address.to_string(),
                     gateway_address: gateway_address.to_string(),
@@ -95,8 +95,8 @@ fn custom_reply(
 }
 
 impl Contract for SolanaMultisigProverContract {
-    type QMsg = solana_multisig_prover_api::msg::QueryMsg;
-    type ExMsg = solana_multisig_prover_api::msg::ExecuteMsg;
+    type QMsg = multisig_prover_api::msg::QueryMsg;
+    type ExMsg = multisig_prover_api::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()
