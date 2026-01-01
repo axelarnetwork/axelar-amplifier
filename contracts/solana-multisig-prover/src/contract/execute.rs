@@ -11,8 +11,8 @@ use error_stack::{report, Result, ResultExt};
 use itertools::Itertools;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
-use router_api::{ChainName, CrossChainId, Message};
 use multisig_prover_api::payload::Payload;
+use router_api::{ChainName, CrossChainId, Message};
 use service_registry_api::WeightedVerifier;
 
 use crate::contract::START_MULTISIG_REPLY_ID;
