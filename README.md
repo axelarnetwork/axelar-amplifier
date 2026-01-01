@@ -91,7 +91,6 @@ contracts and `ampd` that work well together.
 | ampd                                                                           | 0.6.0   |
 | coordinator                                                                    | 0.2.0   |
 | gateway                                                                        | 0.2.3   |
-| multisig-prover                                                                | 0.6.0   |
 | solana-multisig-prover                                                                | 0.6.0   |
 | multisig                                                                       | 0.4.1   |
 | rewards                                                                        | 0.4.0   |

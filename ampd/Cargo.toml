@@ -83,6 +83,7 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 
+# Pin ed25519-zebra to 4.0.3 to match cosmwasm-crypto requirements
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ed25519-zebra = { workspace = true }
 
