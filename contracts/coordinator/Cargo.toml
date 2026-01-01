@@ -32,7 +32,7 @@ gateway-api = { workspace = true }
 itertools = { workspace = true }
 msgs-derive = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
-solana-multisig-prover-api = { workspace = true }
+multisig-prover-api = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 semver = { workspace = true }
