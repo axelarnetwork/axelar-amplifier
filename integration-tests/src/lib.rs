@@ -11,4 +11,5 @@ pub mod protocol;
 pub mod rewards_contract;
 pub mod router_contract;
 pub mod service_registry_contract;
+pub mod solana_multisig_prover_contract;
 pub mod voting_verifier_contract;

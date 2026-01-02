@@ -255,6 +255,7 @@ mod tests {
     ) -> GetTransactionResponse {
         GetTransactionResponse {
             status: status.to_string(),
+            ledger: Default::default(),
             envelope: None,
             result: None,
             result_meta: Some(TransactionMeta::V4(TransactionMetaV4 {
@@ -283,6 +284,7 @@ mod tests {
 
         GetTransactionResponse {
             status: status.to_string(),
+            ledger: Default::default(),
             envelope: None,
             result: None,
             result_meta: Some(TransactionMeta::V3(TransactionMetaV3 {
