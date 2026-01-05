@@ -19,6 +19,7 @@ on:
           - chain-codec-evm
           - chain-codec-stellar
           - chain-codec-sui
+          - chain-codec-solana
           - rewards
           - service-registry
           - voting-verifier
@@ -65,6 +66,7 @@ jobs:
             ["chain-codec-evm"]="chain-codec-evm,/\(major\)|\(major-chain-codec-evm\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-evm\)|\(minor-contracts\)/,contracts/chain-codec-evm packages"
             ["chain-codec-stellar"]="chain-codec-stellar,/\(major\)|\(major-chain-codec-stellar\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-stellar\)|\(minor-contracts\)/,contracts/chain-codec-stellar packages"
             ["chain-codec-sui"]="chain-codec-sui,/\(major\)|\(major-chain-codec-sui\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-sui\)|\(minor-contracts\)/,contracts/chain-codec-sui packages"
+            ["chain-codec-solana"]="chain-codec-solana,/\(major\)|\(major-chain-codec-solana\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-solana\)|\(minor-contracts\)/,contracts/chain-codec-solana packages"
             ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
             ["its-abi-translator"]="its-abi-translator,/\(major\)|\(major-its-abi-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-abi-translator\)|\(minor-contracts\)/,contracts/its-abi-translator packages"
             ["event-verifier"]="event-verifier,/\(major\)|\(major-event-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-event-verifier\)|\(minor-contracts\)/,contracts/event-verifier packages"
