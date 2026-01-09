@@ -33,9 +33,6 @@ test-utils = ["dep:tendermint"]
 ampd = { path = "../ampd", default-features = false, features = ["url"] }
 ampd-sdk = { workspace = true }
 async-trait = { workspace = true }
-axelar-message-primitives = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-axelar-solana-encoding = { workspace = true }
-axelar-solana-gateway = { workspace = true }
 axelar-wasm-std = { workspace = true }
 bcs = { workspace = true }
 borsh = { workspace = true }
@@ -50,7 +47,6 @@ ethers-core = { workspace = true }
 ethers-providers = { version = "2.0.13", default-features = false, features = [
   "rustls",
 ] }
-event-cpi = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 event-verifier-api = { workspace = true }
 events = { workspace = true }
 evm-gateway = { workspace = true }
@@ -65,9 +61,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_with = { workspace = true }
 sha3 = { workspace = true }
-solana-client = "=2.1.21"
-solana-sdk = "=2.1.21"
-solana-transaction-status = "=2.1.21"
 stellar = { workspace = true }
 stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
@@ -88,6 +81,14 @@ valuable = { version = "0.1.0", features = ["derive"] }
 voting-verifier = { workspace = true }
 xrpl-types = { workspace = true }
 xrpl_http_client = { workspace = true }
+
+# Solana
+anchor-lang = { workspace = true }
+solana-axelar-std = { workspace = true }
+solana-axelar-gateway = { workspace = true }
+solana-client = { workspace = true }
+solana-sdk = { workspace = true }
+solana-transaction-status = { workspace = true }
 
 [dev-dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url", "test-utils"] }

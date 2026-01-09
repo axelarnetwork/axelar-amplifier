@@ -35,8 +35,6 @@ anyhow = "1.0.89"
 assert_ok = "1.0"
 async-trait = "0.1.59"
 axelar-core-std = { version = "^1.0.0", path = "packages/axelar-core-std" }
-axelar-solana-encoding = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
-axelar-solana-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", branch = "gateway-event-cpi" }
 axelar-wasm-std = { version = "^1.0.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^1.0.0", path = "packages/axelar-wasm-std-derive" }
 axelarnet-gateway = { version = "^1.0.0", path = "contracts/axelarnet-gateway" }
@@ -45,9 +43,6 @@ bcs = "0.1.5"
 bech32 = "0.11.0"
 borsh = { version = "1.6", features = ["derive"] }
 bs58 = "0.5.1"
-chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
-chain-codec-evm = { version = "^1.0.0", path = "contracts/chain-codec-evm" }
-chain-codec-solana = { version = "^1.0.0", path = "contracts/chain-codec-solana" }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 client = { version = "^1.0.0", path = "packages/client" }
 config = "0.15.11"
@@ -85,9 +80,6 @@ interchain-token-service = { version = "^1.3.1", path = "contracts/interchain-to
 interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain-token-service-std" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
-its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
-its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
-its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.12.1"
 msgs-derive = { version = "^1.0.0", path = "packages/msgs-derive" }
@@ -147,6 +139,24 @@ voting-verifier = { version = "^2.0.1", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 xrpl_http_client = { version = "0.15.0" }
+
+# Chain Codecs
+chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
+chain-codec-evm = { version = "^1.0.0", path = "contracts/chain-codec-evm" }
+chain-codec-solana = { version = "^1.0.0", path = "contracts/chain-codec-solana" }
+
+# ITS Translators
+its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
+its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
+its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
+
+# Solana
+anchor-lang = { version = "1.0.0-rc.1", features = ["event-cpi"] }
+solana-axelar-std = "0.1.5"
+solana-axelar-gateway = "0.1.8"
+solana-client = "3.1.5"
+solana-sdk = "3.0.0"
+solana-transaction-status = "3.1.5"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

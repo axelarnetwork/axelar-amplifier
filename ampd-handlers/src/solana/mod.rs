@@ -2,27 +2,33 @@ use std::str::FromStr;
 
 use ampd::monitoring;
 use ampd::monitoring::metrics::Msg;
-use axelar_solana_gateway::events::{CallContractEvent, GatewayEvent, VerifierSetRotatedEvent};
-use axelar_solana_gateway::state::GatewayConfig;
-use axelar_solana_gateway::BytemuckedPda;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::voting::Vote;
-use borsh::BorshDeserialize;
-use event_cpi::Discriminator;
 use serde::Deserializer;
+use tracing::{debug, error};
+
+use anchor_lang::{AccountDeserialize, Discriminator};
+use borsh::BorshDeserialize;
+use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
+use solana_axelar_gateway::state::GatewayConfig;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
-use tracing::{debug, error};
 
 pub mod msg_verifier;
 pub mod types;
 pub mod verifier_set_verifier;
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize)]
+pub enum GatewayEvent {
+    VerifierSetRotated(VerifierSetRotatedEvent),
+    CallContract(CallContractEvent),
+}
 
 pub struct Client {
     client: RpcClient,
@@ -99,7 +105,7 @@ impl SolanaRpcClientProxy for Client {
             Some(SolanaTransaction {
                 signature: *signature,
                 inner_instructions,
-                err: meta.err.clone(),
+                err: meta.err.map(|e| e.into()),
                 account_keys,
             })
         })
@@ -108,7 +114,7 @@ impl SolanaRpcClientProxy for Client {
     async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]> {
         // Use the same pattern as the axelar-solana-gateway crate to derive the gateway root config PDA
         let (gateway_root_pda, _) = Pubkey::find_program_address(
-            &[axelar_solana_gateway::seed_prefixes::GATEWAY_SEED],
+            &[solana_axelar_gateway::seed_prefixes::GATEWAY_SEED],
             gateway_address,
         );
 
@@ -123,9 +129,13 @@ impl SolanaRpcClientProxy for Client {
 
         let config_data = res.ok()?.data;
 
-        let config = *GatewayConfig::read(&config_data)?;
-        let domain_separator = config.domain_separator;
-        Some(domain_separator)
+        if let Ok(config) = GatewayConfig::try_deserialize(&mut &config_data[..]) {
+            let domain_separator = config.domain_separator;
+            Some(domain_separator)
+        } else {
+            error!("Failed to deserialize GatewayConfig from account data");
+            None
+        }
     }
 }
 
@@ -279,7 +289,7 @@ fn parse_gateway_event_from_instruction(
         return Err("Instruction data too short for CPI event".into());
     }
 
-    if bytes.get(0..8) != Some(event_cpi::EVENT_IX_TAG_LE) {
+    if bytes.get(0..8) != Some(anchor_lang::event::EVENT_IX_TAG_LE) {
         return Err(format!(
             "Expected CPI event discriminator, got {:?}",
             bytes.get(0..8)
@@ -339,7 +349,7 @@ mod test {
             }
         );
 
-        let result = client.domain_separator(&axelar_solana_gateway::ID).await;
+        let result = client.domain_separator(&solana_axelar_gateway::ID).await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();
