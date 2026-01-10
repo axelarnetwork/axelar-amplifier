@@ -18,7 +18,6 @@ path = "src/bin/schema.rs"
 library = []
 
 [dependencies]
-axelar-solana-encoding = { workspace = true }
 axelar-wasm-std = { workspace = true, features = ["derive"] }
 chain-codec-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
@@ -30,7 +29,7 @@ k256 = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
 sha3 = { workspace = true }
-solana-axelar-std = "0.1.3"
+solana-axelar-std = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1.0"

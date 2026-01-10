@@ -19,8 +19,8 @@ optimize-arm64:
 check:
     cargo clippy-check
     cargo +nightly fmt-check
-    cargo sort-check
+    cargo sort-check --grouped
 
 # Run migration remover for a specific contract.
 remove-migration contract:
-    cargo run --bin migration-remover -- -c {{contract}}
+    cargo run --bin migration-remover -- -c {{ contract }}
