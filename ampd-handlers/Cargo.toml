@@ -84,8 +84,8 @@ xrpl_http_client = { workspace = true }
 
 # Solana
 anchor-lang = { workspace = true }
-solana-axelar-std = { workspace = true }
 solana-axelar-gateway = { workspace = true }
+solana-axelar-std = { workspace = true }
 solana-client = { workspace = true }
 solana-sdk = { workspace = true }
 solana-transaction-status = { workspace = true }
