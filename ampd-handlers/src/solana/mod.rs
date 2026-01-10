@@ -2,15 +2,13 @@ use std::str::FromStr;
 
 use ampd::monitoring;
 use ampd::monitoring::metrics::Msg;
+use anchor_lang::{AccountDeserialize, Discriminator};
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::voting::Vote;
-use serde::Deserializer;
-use tracing::{debug, error};
-
-use anchor_lang::{AccountDeserialize, Discriminator};
 use borsh::BorshDeserialize;
+use serde::Deserializer;
 use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
 use solana_axelar_gateway::state::GatewayConfig;
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -19,6 +17,7 @@ use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
+use tracing::{debug, error};
 
 pub mod msg_verifier;
 pub mod types;
