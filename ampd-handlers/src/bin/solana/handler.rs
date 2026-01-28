@@ -322,7 +322,7 @@ mod tests {
         let inner_ix_index_2 = 88_u32;
         let message_id_2 = format!("{signature_2}-{inner_ix_group_index_2}.{inner_ix_index_2}");
 
-        let source_gateway_address = axelar_solana_gateway::ID;
+        let source_gateway_address = solana_axelar_gateway::ID;
 
         PollStarted::Messages {
             metadata: PollMetadata {
@@ -379,7 +379,7 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!("solana"),
-                source_gateway_address: axelar_solana_gateway::ID.to_string().parse().unwrap(),
+                source_gateway_address: solana_axelar_gateway::ID.to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
                 participants: participants
@@ -402,7 +402,7 @@ mod tests {
                 signature: *signature,
                 inner_instructions: vec![],
                 err: None,
-                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
+                account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
             })
         }
 
@@ -457,7 +457,7 @@ mod tests {
     /// This verifies that the Solana Pubkey survives the full serialization round-trip.
     #[test]
     fn should_deserialize_message_poll_started_event_from_raw_abci_event_attributes() {
-        let source_gateway_address = axelar_solana_gateway::ID;
+        let source_gateway_address = solana_axelar_gateway::ID;
         let voting_verifier_contract = TMAddress::random(PREFIX);
 
         // Step 1: Create the PollStarted event as the voting-verifier contract would emit it
@@ -515,7 +515,7 @@ mod tests {
     /// Same as above but for VerifierSetPollStarted events
     #[test]
     fn should_deserialize_verifier_set_poll_started_event_from_raw_abci_event_attributes() {
-        let source_gateway_address = axelar_solana_gateway::ID;
+        let source_gateway_address = solana_axelar_gateway::ID;
         let voting_verifier_contract = TMAddress::random(PREFIX);
         let poll_started = verifier_set_poll_started_event(participants(5, None), 100);
         let cosmwasm_event: cosmwasm_std::Event = poll_started.into();
@@ -561,7 +561,6 @@ mod tests {
     // Should not handle event if it is not emitted from voting verifier
     #[async_test]
     async fn contract_is_not_voting_verifier() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -585,7 +584,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(rpc_client)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -603,7 +602,6 @@ mod tests {
     // Should not handle event if source gateway address doesn't match configured gateway
     #[async_test]
     async fn should_skip_message_poll_with_mismatched_gateway_address() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -637,7 +635,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(rpc_client)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -656,7 +654,6 @@ mod tests {
     // Should not handle event if source gateway address doesn't match configured gateway
     #[async_test]
     async fn should_skip_verifier_poll_with_mismatched_gateway_address() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -690,7 +687,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(rpc_client)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -708,7 +705,6 @@ mod tests {
 
     #[async_test]
     async fn should_vote_correctly_in_message_poll() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -726,7 +722,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(ValidResponseSolanaRpc)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -744,7 +740,6 @@ mod tests {
 
     #[async_test]
     async fn should_vote_correctly_in_verifier_poll() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -762,7 +757,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(ValidResponseSolanaRpc)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -781,7 +776,6 @@ mod tests {
     #[async_test]
     async fn should_record_message_verification_vote_metric() {
         let solana_chain_name = chain_name!("solana");
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -799,7 +793,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(solana_chain_name.clone())
             .rpc_client(ValidResponseSolanaRpc)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -825,7 +819,6 @@ mod tests {
     #[async_test]
     async fn should_record_verifier_set_verification_vote_metric() {
         let solana_chain_name = chain_name!("solana");
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -843,7 +836,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(solana_chain_name.clone())
             .rpc_client(ValidResponseSolanaRpc)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -868,7 +861,6 @@ mod tests {
 
     #[async_test]
     async fn should_skip_expired_message_poll() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -886,7 +878,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(ValidResponseSolanaRpc)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();
@@ -914,7 +906,6 @@ mod tests {
 
     #[async_test]
     async fn should_skip_expired_verifier_poll() {
-        let gateway_address = axelar_solana_gateway::ID;
         let domain_separator: [u8; 32] = [42; 32];
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -932,7 +923,7 @@ mod tests {
             .voting_verifier_contract(voting_verifier.into())
             .chain(chain_name!("solana"))
             .rpc_client(ValidResponseSolanaRpc)
-            .gateway_address(gateway_address)
+            .gateway_address(solana_axelar_gateway::ID)
             .domain_separator(domain_separator)
             .monitoring_client(monitoring_client)
             .build();

@@ -1,14 +1,12 @@
 use std::collections::BTreeMap;
 
-use axelar_solana_encoding::hasher::NativeHasher;
-use axelar_solana_encoding::types::verifier_set::verifier_set_hash;
-use axelar_solana_gateway::events::GatewayEvent;
 use axelar_wasm_std::voting::Vote;
 use multisig::key::PublicKey;
 use multisig::verifier_set::VerifierSet;
 use solana_sdk::pubkey::Pubkey;
 use tracing::error;
 
+use super::GatewayEvent;
 use crate::solana::types::VerifierSetConfirmation;
 use crate::solana::verify;
 
@@ -31,8 +29,9 @@ pub fn verify_verifier_set(
             return false;
         };
 
-        let Ok(desired_hash) = verifier_set_hash::<NativeHasher>(&verifier_set, domain_separator)
-        else {
+        let Ok(desired_hash) = solana_axelar_std::verifier_set::verifier_set_hash::<
+            solana_axelar_std::hasher::Hasher,
+        >(&verifier_set, domain_separator) else {
             error!("verifier set could not be hashed");
             return false;
         };
@@ -41,10 +40,8 @@ pub fn verify_verifier_set(
     })
 }
 
-/// Transform from Axelar VerifierSet to axelar_solana_encoding VerifierSet
-fn to_verifier_set(
-    vs: &VerifierSet,
-) -> Option<axelar_solana_encoding::types::verifier_set::VerifierSet> {
+/// Transform from Axelar VerifierSet to solana_axelar_std VerifierSet
+fn to_verifier_set(vs: &VerifierSet) -> Option<solana_axelar_std::VerifierSet> {
     let mut signers = BTreeMap::new();
 
     for (_cosmwasm_adr, signer) in vs.signers.iter() {
@@ -53,7 +50,7 @@ fn to_verifier_set(
         signers.insert(pub_key, weight);
     }
 
-    let verifier_set = axelar_solana_encoding::types::verifier_set::VerifierSet {
+    let verifier_set = solana_axelar_std::verifier_set::VerifierSet {
         nonce: vs.created_at,
         signers,
         quorum: vs.threshold.u128(),
@@ -61,29 +58,29 @@ fn to_verifier_set(
     Some(verifier_set)
 }
 
-fn to_pub_key(pk: &PublicKey) -> Option<axelar_solana_encoding::types::pubkey::PublicKey> {
-    use axelar_solana_encoding::types::pubkey::{
-        ED25519_PUBKEY_LEN, SECP256K1_COMPRESSED_PUBKEY_LEN,
-    };
-    Some(match pk {
-        PublicKey::Ecdsa(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Secp256k1(
+fn to_pub_key(pk: &PublicKey) -> Option<solana_axelar_std::PublicKey> {
+    use solana_axelar_std::pubkey::SECP256K1_COMPRESSED_PUBKEY_LEN;
+
+    match pk {
+        PublicKey::Ecdsa(hb) => Some(solana_axelar_std::PublicKey(
             hb.to_array::<SECP256K1_COMPRESSED_PUBKEY_LEN>().ok()?,
-        ),
-        PublicKey::Ed25519(hb) => axelar_solana_encoding::types::pubkey::PublicKey::Ed25519(
-            hb.to_array::<ED25519_PUBKEY_LEN>().ok()?,
-        ),
-    })
+        )),
+        PublicKey::Ed25519(_) => {
+            error!("Ed25519 public keys are not supported on Solana");
+            None
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use axelar_solana_gateway::events::VerifierSetRotatedEvent;
+    use anchor_lang::Discriminator;
     use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{HexBinary, Uint128};
-    use event_cpi::Discriminator;
+    use solana_axelar_gateway::events::VerifierSetRotatedEvent;
     use solana_sdk::pubkey::Pubkey;
 
     use super::*;
@@ -94,7 +91,7 @@ mod tests {
 
         event.message_id.raw_signature = [0; 64];
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound
         );
     }
@@ -105,7 +102,7 @@ mod tests {
 
         tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::FailedOnChain
         );
     }
@@ -115,7 +112,7 @@ mod tests {
         let (tx, event) = fixture_bad_gateway_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound
         );
     }
@@ -126,12 +123,12 @@ mod tests {
 
         event.message_id.inner_ix_group_index = 999.try_into().unwrap(); // Use a high index that won't exist
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound
         );
         event.message_id.inner_ix_index = 1001.try_into().unwrap(); // Another high index that won't exist
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound
         );
     }
@@ -143,7 +140,7 @@ mod tests {
         event.message_id.inner_ix_group_index = u32::MAX.try_into().unwrap(); // Use max u32 value
         event.message_id.inner_ix_index = u32::MAX.try_into().unwrap();
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound
         );
     }
@@ -154,7 +151,7 @@ mod tests {
 
         event.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound
         );
     }
@@ -164,13 +161,18 @@ mod tests {
         let (tx, event) = fixture_success_call_contract_tx_data();
 
         assert_eq!(
-            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &axelar_solana_gateway::ID),
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::SucceededOnChain
         );
     }
 
     const DOMAIN_SEPARATOR: [u8; 32] = [42; 32];
     const RAW_SIGNATURE: [u8; 64] = [42; 64];
+
+    const FIXTURE_VERIFIER_SET_HASH: [u8; 32] = [
+        64, 41, 99, 180, 8, 232, 201, 108, 132, 236, 128, 215, 100, 34, 207, 49, 50, 255, 134, 221,
+        247, 54, 229, 206, 55, 158, 119, 180, 156, 113, 114, 72,
+    ];
 
     fn fixture_rotate_verifier_set() -> (
         String,
@@ -202,18 +204,15 @@ mod tests {
             threshold: 700_u128.into(),
             created_at: 1,
         };
-        let verifier_set_hash = [
-            172, 102, 223, 34, 98, 37, 150, 236, 159, 55, 30, 83, 126, 25, 217, 16, 52, 190, 185,
-            64, 74, 9, 32, 209, 0, 157, 188, 102, 123, 165, 110, 12,
-        ];
+        let verifier_set_hash = FIXTURE_VERIFIER_SET_HASH;
         let newly_created_vs = to_verifier_set(&verifier_set).unwrap();
-        let expected_hash = axelar_solana_encoding::types::verifier_set::verifier_set_hash::<
-            NativeHasher,
+        let expected_hash = solana_axelar_std::verifier_set::verifier_set_hash::<
+            solana_axelar_std::hasher::Hasher,
         >(&newly_created_vs, &DOMAIN_SEPARATOR)
         .unwrap();
         assert_eq!(verifier_set_hash, expected_hash);
         let event = VerifierSetRotatedEvent {
-            epoch: axelar_message_primitives::U256::from(2_u64),
+            epoch: solana_axelar_std::U256::from(2_u64),
             verifier_set_hash,
         };
 
@@ -235,16 +234,13 @@ mod tests {
         }
 
         let verifier_set_rotated_data = VerifierSetRotatedEvent {
-            epoch: axelar_message_primitives::U256::from_le_bytes(epoch_bytes),
-            verifier_set_hash: [
-                172, 102, 223, 34, 98, 37, 150, 236, 159, 55, 30, 83, 126, 25, 217, 16, 52, 190,
-                185, 64, 74, 9, 32, 209, 0, 157, 188, 102, 123, 165, 110, 12,
-            ],
+            epoch: solana_axelar_std::U256::from_le_bytes(epoch_bytes),
+            verifier_set_hash: FIXTURE_VERIFIER_SET_HASH,
         };
 
         // Serialize the event with discriminators
         let mut instruction_data = Vec::new();
-        instruction_data.extend_from_slice(event_cpi::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
         instruction_data.extend_from_slice(VerifierSetRotatedEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&verifier_set_rotated_data).unwrap());
 
@@ -267,7 +263,7 @@ mod tests {
                 signature: RAW_SIGNATURE.into(),
                 inner_instructions,
                 err: None,
-                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
+                account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
             },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
@@ -291,7 +287,7 @@ mod tests {
                 signature: RAW_SIGNATURE.into(),
                 inner_instructions: vec![],
                 err: None,
-                account_keys: vec![axelar_solana_gateway::ID], // Gateway program at index 0
+                account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
             },
             VerifierSetConfirmation {
                 message_id: Base58SolanaTxSignatureAndEventIndex {
