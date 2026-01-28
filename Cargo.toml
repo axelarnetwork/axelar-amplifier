@@ -152,8 +152,8 @@ its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-trans
 
 # Solana
 anchor-lang = { version = "1.0.0-rc.1", features = ["event-cpi"] }
-solana-axelar-gateway = "0.1.8"
-solana-axelar-std = "0.1.5"
+solana-axelar-gateway = "0.1.9"
+solana-axelar-std = "0.1.6"
 solana-client = "3.1.5"
 solana-sdk = "3.0.0"
 solana-transaction-status = "3.1.5"
