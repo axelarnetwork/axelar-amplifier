@@ -67,7 +67,6 @@ fn to_pub_key(pk: &PublicKey) -> Option<solana_axelar_std::PublicKey> {
         )),
         PublicKey::Ed25519(_) => {
             error!("Ed25519 public keys are not supported on Solana");
-            // TODO should we error here instead of returning None?
             None
         }
     }
