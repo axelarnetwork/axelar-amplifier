@@ -8,7 +8,7 @@ Messages(
         source_chain: ChainName(
             "solana",
         ),
-        source_gateway_address: gtwiF7Bamsq5zBQCnKjK7kHfmBQe7StQE9VPucWrtmA,
+        source_gateway_address: gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9,
         expires_at: 100,
         messages: [
             Message {
