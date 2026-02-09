@@ -57,43 +57,6 @@ Prover-->>-Relayer: returns data and proof
 
 ```
 
-## Custom signature verification
-
-If the multisig contract doesn't natively support the required signature verification, the `sig_verifier` parameter
-in `ExecuteMsg::StartSigningSession` can be set by the prover to specify a custom signature verification contract. The
-custom contract must implement the following interface defined in `packages/signature-verifier-api`:
-
-```Rust
-pub enum QueryMsg {
-    #[returns(bool)]
-    VerifySignature {
-        signature: HexBinary,
-        message: HexBinary,
-        public_key: HexBinary,
-        signer_address: String,
-        session_id: Uint64,
-    },
-}
-```
-
-In case a custom verification contract is specified, when a signature is submitted, the multisig contract will call
-the `VerifySignature` query on the custom contract to verify the signature, which in turn should return `true` if the
-signature is valid or `false` otherwise.
-
-```mermaid
-sequenceDiagram
-actor Signers
-box LightYellow Axelar
-participant Multisig
-participant SignatureVerifier
-end
-
-Signers->>+Multisig: ExecuteMsg::SubmitSignature
-Multisig->>SignatureVerifier: QueryMsg::VerifySignature
-SignatureVerifier->>Multisig: returns true/false
-deactivate Multisig
-```
-
 ## Authorization
 
 Prior to calling `StartSigningSession`, the prover contract must first be _authorized_.
@@ -108,7 +71,6 @@ pub enum ExecuteMsg {
         verifier_set_id: String,
         msg: HexBinary,
         chain_name: ChainName,
-        sig_verifier: Option<String>,
     },
     SubmitSignature {
         session_id: Uint64,

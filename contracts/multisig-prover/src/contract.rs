@@ -50,10 +50,6 @@ pub fn instantiate(
         domain_separator: msg.domain_separator,
         notify_signing_session: msg.notify_signing_session,
         expect_full_message_payloads: msg.expect_full_message_payloads,
-        sig_verifier_address: msg
-            .sig_verifier_address
-            .map(|addr| address::validate_cosmwasm_address(deps.api, &addr))
-            .transpose()?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -189,7 +185,6 @@ mod tests {
                 domain_separator: [0; 32],
                 notify_signing_session: false,
                 expect_full_message_payloads: false,
-                sig_verifier_address: None,
             },
         )
         .unwrap();
@@ -374,7 +369,6 @@ mod tests {
             domain_separator: [0; 32],
             notify_signing_session: false,
             expect_full_message_payloads: false,
-            sig_verifier_address: None,
         };
 
         let res = instantiate(deps.as_mut(), env, info, msg);

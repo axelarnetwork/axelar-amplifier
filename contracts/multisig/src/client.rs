@@ -81,13 +81,11 @@ impl Client<'_> {
         verifier_set_id: String,
         msg: HexBinary,
         chain_name: ChainName,
-        sig_verifier: Option<String>,
     ) -> CosmosMsg {
         self.client.execute(&ExecuteMsg::StartSigningSession {
             verifier_set_id,
             msg,
             chain_name,
-            sig_verifier,
         })
     }
 

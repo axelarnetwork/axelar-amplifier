@@ -32,13 +32,6 @@ pub enum ExecuteMsg {
         verifier_set_id: String,
         msg: HexBinary,
         chain_name: ChainName,
-        /// Address of a contract responsible for signature verification.
-        /// The multisig contract verifies each submitted signature by default.
-        /// But some chains need custom verification beyond this, so the verification can be optionally overridden.
-        /// If a callback address is provided, signature verification is handled by the contract at that address
-        /// instead of the multisig contract. Signature verifier contracts must implement interface defined in
-        /// [signature_verifier_api::msg]
-        sig_verifier: Option<String>,
     },
     #[permission(Any)]
     SubmitSignature {

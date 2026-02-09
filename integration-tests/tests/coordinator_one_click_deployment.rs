@@ -97,7 +97,6 @@ fn instantiate_contracts(
                         chain_name: chain_name.parse().unwrap(),
                         verifier_set_diff_threshold: 0,
                         key_type: KeyType::Ecdsa,
-                        sig_verifier_address: None,
                         admin_address: nonempty::String::try_from(
                             protocol.governance_address.to_string(),
                         )

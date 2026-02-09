@@ -40,7 +40,6 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
         voting_verifier.contract_addr.clone(),
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
-        None,
         [0; 32],
         false,
         false,

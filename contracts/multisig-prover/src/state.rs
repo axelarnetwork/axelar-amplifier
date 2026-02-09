@@ -24,8 +24,6 @@ pub struct Config {
     pub domain_separator: Hash,
     pub notify_signing_session: bool,
     pub expect_full_message_payloads: bool,
-    #[serde(default)]
-    pub sig_verifier_address: Option<Addr>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

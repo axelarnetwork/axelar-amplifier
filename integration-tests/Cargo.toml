@@ -45,7 +45,6 @@ serde_json = { workspace = true }
 service-registry = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }
-signature-verifier-api = { workspace = true }
 tofn = { workspace = true }
 voting-verifier = { workspace = true }
 
