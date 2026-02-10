@@ -32,7 +32,8 @@ pub const CONFIG: Item<Config> = Item::new("config");
 mod tests {
 
     use axelar_wasm_std::{MajorityThreshold, Threshold};
-    use cosmwasm_std::{testing::mock_dependencies, Addr};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Addr;
     use router_api::{chain_name, cosmos_addr};
 
     use super::*;
@@ -95,9 +96,15 @@ mod tests {
         assert_eq!(loaded.multisig, legacy.multisig);
         assert_eq!(loaded.service_name, legacy.service_name);
         assert_eq!(loaded.chain_name, legacy.chain_name);
-        assert_eq!(loaded.verifier_set_diff_threshold, legacy.verifier_set_diff_threshold);
+        assert_eq!(
+            loaded.verifier_set_diff_threshold,
+            legacy.verifier_set_diff_threshold
+        );
         assert_eq!(loaded.notify_signing_session, legacy.notify_signing_session);
-        assert_eq!(loaded.expect_full_message_payloads, legacy.expect_full_message_payloads);
+        assert_eq!(
+            loaded.expect_full_message_payloads,
+            legacy.expect_full_message_payloads
+        );
     }
 }
 

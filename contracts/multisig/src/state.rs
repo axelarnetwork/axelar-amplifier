@@ -175,7 +175,8 @@ pub fn prover_by_chain(storage: &dyn Storage, chain_name: ChainName) -> StdResul
 #[cfg(test)]
 mod tests {
 
-    use cosmwasm_std::{testing::mock_dependencies, HexBinary};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::HexBinary;
     use router_api::{chain_name, cosmos_addr};
 
     use super::*;
