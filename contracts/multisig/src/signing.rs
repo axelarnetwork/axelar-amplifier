@@ -214,22 +214,6 @@ mod tests {
 
             assert!(validate_session_signature(&session, &signer, signature, pub_key, 0).is_ok());
         }
-
-        for config in [ecdsa_setup(), ed25519_setup()] {
-            let session = config.session;
-            let verifier_set = config.verifier_set;
-            let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
-            let signature = config.signatures.values().next().unwrap();
-            let pub_key = &verifier_set
-                .signers
-                .get(&signer.to_string())
-                .unwrap()
-                .pub_key;
-
-            assert_ok!(validate_session_signature(
-                &session, &signer, signature, pub_key, 0,
-            ));
-        }
     }
 
     #[test]
