@@ -28,6 +28,19 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
+pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
+pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
+
+// we only need to save full message payloads if both the `notify-signing-session` and `receive-payload`
+// features are enabled
+pub const FULL_MESSAGE_PAYLOADS: Map<&PayloadId, Vec<HexBinary>> =
+    Map::new("full_message_payloads");
+
+pub const REPLY_TRACKER: Item<PayloadId> = Item::new("reply_tracker");
+
+pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
+pub const NEXT_VERIFIER_SET: Item<VerifierSet> = Item::new("next_verifier_set");
+
 #[cfg(test)]
 mod tests {
 
@@ -107,16 +120,3 @@ mod tests {
         );
     }
 }
-
-pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
-pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
-
-// we only need to save full message payloads if both the `notify-signing-session` and `receive-payload`
-// features are enabled
-pub const FULL_MESSAGE_PAYLOADS: Map<&PayloadId, Vec<HexBinary>> =
-    Map::new("full_message_payloads");
-
-pub const REPLY_TRACKER: Item<PayloadId> = Item::new("reply_tracker");
-
-pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
-pub const NEXT_VERIFIER_SET: Item<VerifierSet> = Item::new("next_verifier_set");

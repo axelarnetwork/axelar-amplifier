@@ -93,7 +93,6 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 #[cfg(test)]
 mod tests {
 
-    use assert_ok::assert_ok;
     use cosmwasm_std::HexBinary;
     use router_api::{chain_name, cosmos_addr};
 
