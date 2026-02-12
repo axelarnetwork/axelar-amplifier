@@ -745,7 +745,6 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         voting_verifier.contract_addr.clone(),
         chain_codec.contract_addr.clone(),
         chain_name.to_string(),
-        None,
         [0; 32],
         false,
         false,

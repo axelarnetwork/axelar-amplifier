@@ -101,7 +101,6 @@ pub struct ProverMsg {
     pub domain_separator: Hash,
     pub notify_signing_session: bool,
     pub expect_full_message_payloads: bool,
-    pub sig_verifier_address: Option<String>,
     pub chain_codec_address: nonempty::String,
 }
 

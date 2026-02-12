@@ -59,9 +59,6 @@ pub struct InstantiateMsg {
     pub notify_signing_session: bool,
     /// Whether to expect the full message payloads during proof construction. Disable this if your relayer does not send the full message payloads.
     pub expect_full_message_payloads: bool,
-    /// Address of a contract responsible for signature verification.
-    /// For detailed information, see [`multisig::msg::ExecuteMsg::StartSigningSession::sig_verifier`]
-    pub sig_verifier_address: Option<String>,
 }
 
 #[cw_serde]
