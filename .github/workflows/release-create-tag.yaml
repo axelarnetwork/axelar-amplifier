@@ -27,6 +27,7 @@ on:
           - axelarnet-gateway
           - interchain-token-service
           - its-abi-translator
+          - its-solana-translator
           - event-verifier
       dry-run:
         description: Dry run
@@ -69,6 +70,7 @@ jobs:
             ["chain-codec-solana"]="chain-codec-solana,/\(major\)|\(major-chain-codec-solana\)|\(major-contracts\)/,/\(minor\)|\(minor-chain-codec-solana\)|\(minor-contracts\)/,contracts/chain-codec-solana packages"
             ["interchain-token-service"]="interchain-token-service,/\(major\)|\(major-interchain-token-service\)|\(major-contracts\)/,/\(minor\)|\(minor-interchain-token-service\)|\(minor-contracts\)/,contracts/interchain-token-service packages"
             ["its-abi-translator"]="its-abi-translator,/\(major\)|\(major-its-abi-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-abi-translator\)|\(minor-contracts\)/,contracts/its-abi-translator packages"
+            ["its-solana-translator"]="its-solana-translator,/\(major\)|\(major-its-solana-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-solana-translator\)|\(minor-contracts\)/,contracts/its-solana-translator packages"
             ["event-verifier"]="event-verifier,/\(major\)|\(major-event-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-event-verifier\)|\(minor-contracts\)/,contracts/event-verifier packages"
           )
 
@@ -82,7 +84,7 @@ jobs:
               echo "Unknown binary to release"
               exit 1
           fi
-          
+
           if [[ "$binary" == "ampd-handlers" ]]; then
             if [ -d "ampd-handlers/src/bin" ]; then
               handlers=$(ls -d ampd-handlers/src/bin/*/ 2>/dev/null | xargs -n1 basename)
