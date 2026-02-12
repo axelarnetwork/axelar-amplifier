@@ -147,7 +147,7 @@ chain-codec-solana = { version = "^1.0.0", path = "contracts/chain-codec-solana"
 # ITS Translators
 its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }
 its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translator-api" }
-its-solana-translator = { version = "^0.1.0", path = "contracts/its-solana-translator" }
+its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 
 # Solana
 anchor-lang = { version = "1.0.0-rc.1", features = ["event-cpi"] }
