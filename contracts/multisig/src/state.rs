@@ -176,10 +176,27 @@ pub fn prover_by_chain(storage: &dyn Storage, chain_name: ChainName) -> StdResul
 mod tests {
 
     use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::HexBinary;
     use router_api::{chain_name, cosmos_addr};
 
     use super::*;
     use crate::test::common::ecdsa_test_data;
+    use crate::types::{MsgToSign, MultisigState};
+
+    /// Old layout of SigningSession with sig_verifier
+    #[cw_serde]
+    struct LegacySigningSession {
+        pub id: Uint64,
+        pub verifier_set_id: String,
+        pub chain_name: ChainName,
+        pub msg: MsgToSign,
+        pub state: MultisigState,
+        pub expires_at: u64,
+        pub sig_verifier: Option<Addr>,
+    }
+
+    /// Same namespace as SIGNING_SESSIONS so we can write "old" state and read with current type.
+    const LEGACY_SIGNING_SESSIONS: Map<u64, LegacySigningSession> = Map::new("signing_sessions");
 
     #[test]
     fn should_fail_if_duplicate_public_key() {
@@ -386,5 +403,41 @@ mod tests {
         assert!(prover_by_chain(&deps.storage, chain_name)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn loads_old_state_with_sig_verifier() {
+        let mut deps = mock_dependencies();
+
+        let session_id = 1u64;
+        let verifier_set_id = "old_set".to_string();
+        let chain_name = chain_name!("ethereum");
+        let msg = MsgToSign::unchecked(HexBinary::from_hex("deadbeef").unwrap());
+        let expires_at = 1000u64;
+        let sig_verifier = Some(cosmos_addr!("cosmos1oldverifier"));
+
+        let legacy = LegacySigningSession {
+            id: session_id.into(),
+            verifier_set_id: verifier_set_id.clone(),
+            chain_name: chain_name.clone(),
+            msg: msg.clone(),
+            state: MultisigState::Pending,
+            expires_at,
+            sig_verifier: sig_verifier.clone(),
+        };
+
+        LEGACY_SIGNING_SESSIONS
+            .save(deps.as_mut().storage, session_id, &legacy)
+            .unwrap();
+
+        let loaded = SIGNING_SESSIONS
+            .load(deps.as_ref().storage, session_id)
+            .expect("new code must load state saved with old (sig_verifier) layout");
+
+        assert_eq!(loaded.id, Uint64::from(session_id));
+        assert_eq!(loaded.verifier_set_id, verifier_set_id);
+        assert_eq!(loaded.chain_name, chain_name);
+        assert_eq!(loaded.msg.as_ref(), msg.as_ref());
+        assert_eq!(loaded.expires_at, expires_at);
     }
 }

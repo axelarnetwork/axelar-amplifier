@@ -162,7 +162,6 @@ fn instantiate_prover(
             key_type: prover_msg.key_type,
             domain_separator: prover_msg.domain_separator,
             chain_codec_address: prover_msg.chain_codec_address.to_string(),
-            sig_verifier_address: prover_msg.sig_verifier_address.clone(),
             notify_signing_session: prover_msg.notify_signing_session,
             expect_full_message_payloads: prover_msg.expect_full_message_payloads,
         })

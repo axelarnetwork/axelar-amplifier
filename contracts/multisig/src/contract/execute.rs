@@ -19,7 +19,6 @@ pub fn start_signing_session(
     verifier_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
-    sig_verifier: Option<Addr>,
 ) -> error_stack::Result<Response, ContractError> {
     ensure!(
         killswitch::is_contract_active(deps.storage),
@@ -53,7 +52,6 @@ pub fn start_signing_session(
         chain_name.clone(),
         msg.clone(),
         expires_at,
-        sig_verifier,
     );
 
     SIGNING_SESSIONS
@@ -104,17 +102,12 @@ pub fn submit_signature(
 
     let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
-    let sig_verifier = session.sig_verifier.as_ref().map(|address| {
-        signature_verifier_api::Client::from(client::ContractClient::new(deps.querier, address))
-    });
-
-    let sig_verifier_msg = validate_session_signature(
+    validate_session_signature(
         &session,
         &info.sender,
         &signature,
         pub_key,
         env.block.height,
-        sig_verifier.as_ref(),
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
@@ -137,10 +130,6 @@ pub fn submit_signature(
         signature,
         config.rewards_contract.into_string(),
     )
-    .map(|res| match sig_verifier_msg {
-        Some(msg) => res.add_message(msg),
-        None => res,
-    })
 }
 
 pub fn register_verifier_set(

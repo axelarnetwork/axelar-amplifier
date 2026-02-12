@@ -15,4 +15,6 @@ ignore = [
     "RUSTSEC-2024-0370",  # proc-macro-error unmaintained in alloy and Sui dependencies - waiting for upstream fix
     "RUSTSEC-2025-0010",  # ring unmaintained (pre-0.17) in ethers-providers and Sui dependencies - waiting for upstream fix
     "RUSTSEC-2025-0137",  # potential undefined behaviour in ruint — used by alloy etc. – waiting for upstream fix
+    "RUSTSEC-2026-0007",  # bytes: Integer overflow in BytesMut::reserve — transitive (tungstenite etc.), upgrade when deps allow
+    "RUSTSEC-2026-0009",  # time: DoS stack exhaustion — transitive (tendermint, serde_with etc.), upgrade when deps allow
 ]
