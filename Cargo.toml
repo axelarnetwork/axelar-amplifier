@@ -142,7 +142,7 @@ xrpl_http_client = { version = "0.15.0" }
 # Chain Codecs
 chain-codec-api = { version = "^0.1.0", path = "packages/chain-codec-api" }
 chain-codec-evm = { version = "^1.0.0", path = "contracts/chain-codec-evm" }
-chain-codec-solana = { version = "^1.0.0", path = "contracts/chain-codec-solana" }
+chain-codec-solana = { version = "^2.0.0", path = "contracts/chain-codec-solana" }
 
 # ITS Translators
 its-abi-translator = { version = "^2.0.0", path = "contracts/its-abi-translator" }

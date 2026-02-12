@@ -151,12 +151,7 @@ fn to_signature(
     prefixed_payload_hash: &[u8; 32],
 ) -> Result<solana_axelar_std::Signature, Error> {
     // convert to eth recovery transform
-    let recovery_transform = |recovery_byte: RecoveryId| -> u8 {
-        recovery_byte
-            .to_byte()
-            .checked_add(27)
-            .expect("overflow when adding 27 to recovery byte")
-    };
+    let recovery_transform = |recovery_byte: RecoveryId| -> u8 { recovery_byte.to_byte() };
 
     match sig {
         Signature::Ecdsa(nonrec) => {
