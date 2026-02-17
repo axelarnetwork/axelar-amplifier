@@ -11,6 +11,7 @@ use borsh::BorshDeserialize;
 use serde::Deserializer;
 use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
 use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::rpc_config::{CommitmentConfig, RpcTransactionConfig};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
@@ -58,9 +59,13 @@ impl SolanaRpcClientProxy for Client {
     async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
         let res = self
             .client
-            .get_transaction(
+            .get_transaction_with_config(
                 signature,
-                solana_transaction_status::UiTransactionEncoding::Json,
+                RpcTransactionConfig {
+                    encoding: Some(solana_transaction_status::UiTransactionEncoding::Json),
+                    commitment: Some(CommitmentConfig::finalized()),
+                    max_supported_transaction_version: Some(0),
+                },
             )
             .await;
 
@@ -79,7 +84,7 @@ impl SolanaRpcClientProxy for Client {
             };
 
             // Extract account keys from the transaction
-            let account_keys = match &tx_data.transaction.transaction {
+            let mut account_keys = match &tx_data.transaction.transaction {
                 solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
                     match &ui_transaction.message {
                         solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
@@ -98,6 +103,21 @@ impl SolanaRpcClientProxy for Client {
                     vec![]
                 }
             };
+
+            if let OptionSerializer::Some(loaded) = meta.loaded_addresses.as_ref() {
+                account_keys.extend(
+                    loaded
+                        .writable
+                        .iter()
+                        .filter_map(|k| Pubkey::from_str(k).ok()),
+                );
+                account_keys.extend(
+                    loaded
+                        .readonly
+                        .iter()
+                        .filter_map(|k| Pubkey::from_str(k).ok()),
+                );
+            }
 
             Some(SolanaTransaction {
                 signature: *signature,

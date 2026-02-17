@@ -122,6 +122,83 @@ mod tests {
     }
 
     #[test]
+    fn should_verify_msg_when_gateway_is_in_lookup_table_position() {
+        let (_base64_data, event) = fixture_call_contract_log();
+
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+        instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
+
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 3,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let msg = create_msg_counterpart(&event, 1, 1);
+
+        let solana_tx = crate::solana::SolanaTransaction {
+            signature: msg.message_id.raw_signature.into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                Pubkey::new_unique(),
+                solana_axelar_gateway::ID,
+            ],
+        };
+
+        assert_eq!(
+            Vote::SucceededOnChain,
+            verify_message(&solana_tx, &msg, &solana_axelar_gateway::ID)
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_when_program_id_index_beyond_account_keys() {
+        let (_base64_data, event) = fixture_call_contract_log();
+
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+        instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
+
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 5,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let msg = create_msg_counterpart(&event, 1, 1);
+
+        let solana_tx = crate::solana::SolanaTransaction {
+            signature: msg.message_id.raw_signature.into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![Pubkey::new_unique(), Pubkey::new_unique()],
+        };
+
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&solana_tx, &msg, &solana_axelar_gateway::ID)
+        );
+    }
+
+    #[test]
     fn should_fail_tx_failed() {
         let (tx, _event, msg) = fixture_success_call_contract_tx_data();
 
