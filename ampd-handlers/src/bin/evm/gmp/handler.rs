@@ -199,11 +199,11 @@ where
                 .change_context(Error::FinalizedTxs)
                 .attach_printable("failed to get chain's latest finalized block height")?;
 
-        let rcp_client = &self.rpc_client;
+        let rpc_client = &self.rpc_client;
         Ok(join_all(
             tx_hashes
                 .into_iter()
-                .map(|tx_hash| rcp_client.transaction_receipt(tx_hash)),
+                .map(|tx_hash| rpc_client.transaction_receipt(tx_hash)),
         )
         .await
         .into_iter()
