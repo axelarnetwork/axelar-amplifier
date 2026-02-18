@@ -406,9 +406,6 @@ mod tests {
             })
         }
 
-        async fn domain_separator(&self, _gateway_address: &Pubkey) -> Option<[u8; 32]> {
-            unimplemented!()
-        }
     }
 
     fn mock_rpc_client() -> RpcClient {

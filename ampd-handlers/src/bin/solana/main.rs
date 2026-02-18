@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd::url::Url;
-use ampd_handlers::solana::{Client, SolanaRpcClientProxy};
+use ampd_handlers::solana::Client;
 use ampd_handlers::tracing::init_tracing;
 use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;
@@ -15,7 +15,7 @@ use axelar_wasm_std::chain::ChainName;
 use clap::Parser;
 #[cfg(debug_assertions)]
 use dotenv_flow::dotenv_flow;
-use error_stack::{report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
@@ -33,6 +33,7 @@ struct SolanaHandlerConfig {
     #[serde(default = "default_rpc_timeout")]
     rpc_timeout: Duration,
     gateway_address: String,
+    domain_separator: String,
 }
 
 fn default_rpc_timeout() -> Duration {
@@ -53,10 +54,17 @@ async fn build_handler(
     let gateway_address =
         Pubkey::from_str(&config.gateway_address).change_context(Error::GatewayAddress)?;
 
-    let domain_separator: [u8; 32] = rpc_client
-        .domain_separator(&gateway_address)
-        .await
-        .ok_or(report!(Error::DomainSeparator))?;
+    let hex_str = config
+        .domain_separator
+        .strip_prefix("0x")
+        .unwrap_or(&config.domain_separator);
+    let domain_separator: [u8; 32] = hex::decode(hex_str)
+        .change_context(Error::DomainSeparator)?
+        .try_into()
+        .map_err(|v: Vec<u8>| {
+            error_stack::report!(Error::DomainSeparator)
+                .attach_printable(format!("expected 32 bytes, got {}", v.len()))
+        })?;
 
     let handler = Handler::builder()
         .verifier(runtime.verifier.clone())
