@@ -68,4 +68,37 @@ mod tests {
         let result = parse_domain_separator("");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn deserialize_config_uses_default_rpc_timeout() {
+        let json = serde_json::json!({
+            "rpc_url": "https://api.devnet.solana.com",
+            "gateway_address": "gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9",
+            "domain_separator": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+        });
+
+        let config: SolanaHandlerConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.rpc_timeout, Duration::from_secs(3));
+    }
+
+    #[test]
+    fn deserialize_config_with_explicit_timeout() {
+        let json = serde_json::json!({
+            "rpc_url": "https://api.devnet.solana.com",
+            "rpc_timeout": "10s",
+            "gateway_address": "gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9",
+            "domain_separator": "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+        });
+
+        let config: SolanaHandlerConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.rpc_timeout, Duration::from_secs(10));
+        assert_eq!(
+            config.gateway_address,
+            "gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9"
+        );
+        assert_eq!(
+            config.domain_separator,
+            "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+        );
+    }
 }
