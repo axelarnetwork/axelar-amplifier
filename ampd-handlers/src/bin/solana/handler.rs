@@ -405,7 +405,6 @@ mod tests {
                 account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
             })
         }
-
     }
 
     fn mock_rpc_client() -> RpcClient {
