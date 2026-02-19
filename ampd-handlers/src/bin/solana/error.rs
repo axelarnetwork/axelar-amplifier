@@ -8,7 +8,7 @@ pub enum Error {
     HandlerTask,
     #[error("task group execution failed")]
     TaskGroup,
-    #[error("Error fetching domain separator")]
+    #[error("Error parsing domain separator from config")]
     DomainSeparator,
     #[error("Error parsing gateway address")]
     GatewayAddress,
