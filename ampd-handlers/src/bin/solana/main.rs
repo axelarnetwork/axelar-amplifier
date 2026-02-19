@@ -54,10 +54,7 @@ async fn build_handler(
     let gateway_address =
         Pubkey::from_str(&config.gateway_address).change_context(Error::GatewayAddress)?;
 
-    let hex_str = config
-        .domain_separator
-        .strip_prefix("0x")
-        .unwrap_or(&config.domain_separator);
+    let hex_str = config.domain_separator.trim_start_matches("0x");
     let domain_separator: [u8; 32] = hex::decode(hex_str)
         .change_context(Error::DomainSeparator)?
         .try_into()
