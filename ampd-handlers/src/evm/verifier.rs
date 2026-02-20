@@ -89,11 +89,18 @@ fn verify<'a, V>(
 where
     V: PartialEq<IAxelarGatewayEventsWithLog<'a>>,
 {
+    let found_event = event(gateway_address, tx_receipt, expected_event_index);
+
+    // Only return FailedOnChain if we can verify the tx involved our gateway
     if has_failed(tx_receipt) {
-        return Vote::FailedOnChain;
+        return if found_event.is_some() {
+            Vote::FailedOnChain
+        } else {
+            Vote::NotFound
+        };
     }
 
-    match event(gateway_address, tx_receipt, expected_event_index) {
+    match found_event {
         Some(event)
             if tx_receipt.transaction_hash == expected_transaction_hash && to_verify == event =>
         {
@@ -136,10 +143,6 @@ pub fn verify_events(
     tx: Option<&Transaction>,
     event_data: &EvmEvent,
 ) -> Vote {
-    if has_failed(tx_receipt) {
-        return Vote::FailedOnChain;
-    }
-
     let expected_tx_hash: H256 = event_data.transaction_hash.to_array().into();
 
     if tx_receipt.transaction_hash != expected_tx_hash {
@@ -153,12 +156,29 @@ pub fn verify_events(
         }
     }
 
-    // Verify events match the logs in the transaction receipt
-    if !verify_events_match_logs(&tx_receipt.logs, &event_data.events) {
+    // An empty events list would vacuously match any transaction.
+    // Require at least one event to prevent verifying arbitrary transactions.
+    if event_data.events.is_empty() {
         return Vote::NotFound;
     }
 
-    Vote::SucceededOnChain
+    // Verify events match the logs in the transaction receipt
+    let events_match = verify_events_match_logs(&tx_receipt.logs, &event_data.events);
+
+    // Only return FailedOnChain if we can verify the tx involved our gateway
+    if has_failed(tx_receipt) {
+        return if events_match {
+            Vote::FailedOnChain
+        } else {
+            Vote::NotFound
+        };
+    }
+
+    if events_match {
+        Vote::SucceededOnChain
+    } else {
+        Vote::NotFound
+    }
 }
 
 fn verify_transaction_details(
@@ -253,6 +273,19 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_verifier_set_as_failed_if_not_from_gateway() {
+        let (gateway_address, mut tx_receipt, verifier_set) =
+            matching_verifier_set_and_tx_receipt();
+
+        tx_receipt.status = Some(0u64.into());
+        tx_receipt.logs = vec![]; // No gateway events (as on real Ethereum for failed txs)
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
         let (_, tx_receipt, verifier_set) = matching_verifier_set_and_tx_receipt();
 
@@ -338,6 +371,18 @@ mod tests {
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::FailedOnChain
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_as_failed_if_not_from_gateway() {
+        let (gateway_address, mut tx_receipt, msg) = matching_msg_and_tx_receipt();
+
+        tx_receipt.status = Some(0u64.into());
+        tx_receipt.logs = vec![]; // No gateway events (as on real Ethereum for failed txs)
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
         );
     }
 
@@ -689,6 +734,18 @@ mod tests {
 
         let result = verify_events(&tx_receipt, None, &event_data);
         assert_eq!(result, Vote::FailedOnChain);
+    }
+
+    #[test]
+    fn should_not_return_failed_on_chain_for_events_when_logs_dont_match() {
+        let tx_hash = H256::random();
+        let mut tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        tx_receipt.status = Some(U64::from(0)); // Failed transaction
+        tx_receipt.logs = vec![]; // No logs (as on real Ethereum for failed txs)
+        let event_data = mock_evm_event(tx_hash, false);
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
     }
 
     #[test]
@@ -1215,5 +1272,34 @@ mod tests {
         ];
 
         assert!(verify_events_match_logs(&logs, &events));
+    }
+
+    #[test]
+    fn should_not_verify_events_when_events_list_is_empty() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = EvmEvent {
+            transaction_hash: tx_hash.as_bytes().try_into().unwrap(),
+            transaction_details: None,
+            events: vec![], // Empty events should not vacuously match
+        };
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_as_failed_when_events_list_is_empty() {
+        let tx_hash = H256::random();
+        let mut tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        tx_receipt.status = Some(U64::from(0)); // Failed transaction
+        let event_data = EvmEvent {
+            transaction_hash: tx_hash.as_bytes().try_into().unwrap(),
+            transaction_details: None,
+            events: vec![], // Empty events should not vacuously match
+        };
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
     }
 }

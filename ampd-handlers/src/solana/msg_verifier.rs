@@ -139,6 +139,23 @@ mod tests {
     }
 
     #[test]
+    fn should_not_fail_tx_as_failed_if_not_from_gateway() {
+        let (tx, _event, msg) = fixture_success_call_contract_tx_data();
+
+        let mut failed_tx = tx;
+        failed_tx.err = Some(solana_sdk::transaction::TransactionError::InstructionError(
+            0,
+            solana_sdk::instruction::InstructionError::Custom(1),
+        ));
+        failed_tx.account_keys = vec![Pubkey::new_unique()]; // Not the gateway program
+
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&failed_tx, &msg, &solana_axelar_gateway::ID)
+        );
+    }
+
+    #[test]
     fn should_find_the_correct_index() {
         // Create a transaction with multiple instructions to test index finding
         let (_base64_data, event) = fixture_call_contract_log();

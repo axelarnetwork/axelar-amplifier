@@ -119,19 +119,21 @@ fn verify<'a>(
         return Vote::NotFound;
     }
 
-    if tx_receipt.has_failed() {
-        return Vote::FailedOnChain;
-    }
-
+    // Only return FailedOnChain after confirming the tx involved our gateway
     match tx_receipt.event(expected_event_index) {
         Some(event)
             if event
                 .clone()
                 .contract_id
-                .is_some_and(|hash| ScAddress::Contract(hash) == *gateway_address)
-                && to_verify == &event.body =>
+                .is_some_and(|hash| ScAddress::Contract(hash) == *gateway_address) =>
         {
-            Vote::SucceededOnChain
+            if tx_receipt.has_failed() {
+                Vote::FailedOnChain
+            } else if to_verify == &event.body {
+                Vote::SucceededOnChain
+            } else {
+                Vote::NotFound
+            }
         }
         _ => Vote::NotFound,
     }
@@ -241,6 +243,18 @@ mod test {
     }
 
     #[test]
+    fn should_not_verify_msg_as_failed_if_not_from_gateway() {
+        let (gateway_address, mut tx_response, msg) = matching_msg_and_tx_block();
+
+        tx_response.successful = false;
+        tx_response.contract_events = vec![]; // Failed txs have no events on Stellar
+        assert_eq!(
+            verify_message(&gateway_address, &tx_response, &msg),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_response, msg) = matching_msg_and_tx_block();
 
@@ -296,6 +310,18 @@ mod test {
             created_at: rand::random(),
         };
 
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx_response, &confirmation),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_as_failed_if_not_from_gateway() {
+        let (gateway_address, mut tx_response, confirmation) = matching_verifier_set_and_tx_block();
+
+        tx_response.successful = false;
+        tx_response.contract_events = vec![]; // Failed txs have no events on Stellar
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_response, &confirmation),
             Vote::NotFound

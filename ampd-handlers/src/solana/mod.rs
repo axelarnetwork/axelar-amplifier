@@ -139,11 +139,6 @@ where
         return Vote::NotFound;
     }
 
-    if tx.err.is_some() {
-        debug!("Transaction failed");
-        return Vote::FailedOnChain;
-    }
-
     let instruction = match instruction_at_index(
         tx,
         message_id.inner_ix_group_index,
@@ -168,6 +163,12 @@ where
             message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
         );
         return Vote::NotFound;
+    }
+
+    // Only return FailedOnChain after confirming the tx involved our gateway
+    if tx.err.is_some() {
+        debug!("Transaction failed");
+        return Vote::FailedOnChain;
     }
 
     let event = match parse_gateway_event_from_instruction(&instruction) {
