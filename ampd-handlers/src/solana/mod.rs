@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use ampd::monitoring;
 use ampd::monitoring::metrics::Msg;
-use anchor_lang::{AccountDeserialize, Discriminator};
+use anchor_lang::Discriminator;
 use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::nonempty;
@@ -10,7 +10,6 @@ use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
 use serde::Deserializer;
 use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
-use solana_axelar_gateway::state::GatewayConfig;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
@@ -52,7 +51,6 @@ impl Client {
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
     async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction>;
-    async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]>;
 }
 
 #[async_trait::async_trait]
@@ -108,33 +106,6 @@ impl SolanaRpcClientProxy for Client {
                 account_keys,
             })
         })
-    }
-
-    async fn domain_separator(&self, gateway_address: &Pubkey) -> Option<[u8; 32]> {
-        // Use the same pattern as the axelar-solana-gateway crate to derive the gateway root config PDA
-        let (gateway_root_pda, _) = Pubkey::find_program_address(
-            &[solana_axelar_gateway::seed_prefixes::GATEWAY_SEED],
-            gateway_address,
-        );
-
-        let res = self.client.get_account(&gateway_root_pda).await;
-
-        self.monitoring_client
-            .metrics()
-            .record_metric(Msg::RpcCall {
-                chain_name: self.chain_name.clone(),
-                success: res.is_ok(),
-            });
-
-        let config_data = res.ok()?.data;
-
-        if let Ok(config) = GatewayConfig::try_deserialize(&mut &config_data[..]) {
-            let domain_separator = config.domain_separator;
-            Some(domain_separator)
-        } else {
-            error!("Failed to deserialize GatewayConfig from account data");
-            None
-        }
     }
 }
 
@@ -338,18 +309,6 @@ mod test {
         );
 
         let result = client.tx(&Signature::default()).await;
-        assert!(result.is_none());
-
-        let msg = receiver.recv().await.unwrap();
-        assert_eq!(
-            msg,
-            Msg::RpcCall {
-                chain_name: ChainName::from_str("solana").unwrap(),
-                success: false,
-            }
-        );
-
-        let result = client.domain_separator(&solana_axelar_gateway::ID).await;
         assert!(result.is_none());
 
         let msg = receiver.recv().await.unwrap();
