@@ -16,7 +16,10 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
 use solana_transaction_status::option_serializer::OptionSerializer;
-use solana_transaction_status::{UiCompiledInstruction, UiInnerInstructions, UiInstruction};
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, UiCompiledInstruction, UiInnerInstructions,
+    UiInstruction,
+};
 use tracing::{debug, error};
 
 pub mod msg_verifier;
@@ -76,57 +79,63 @@ impl SolanaRpcClientProxy for Client {
                 success: res.is_ok(),
             });
 
-        res.ok().and_then(|tx_data| {
-            let meta = tx_data.transaction.meta?;
-            let inner_instructions = match meta.inner_instructions.as_ref() {
-                OptionSerializer::Some(inner) => inner.clone(),
-                _ => vec![],
-            };
+        res.ok()
+            .and_then(|tx_data| parse_rpc_response(signature, tx_data))
+    }
+}
 
-            // Extract account keys from the transaction
-            let mut account_keys = match &tx_data.transaction.transaction {
-                solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
-                    match &ui_transaction.message {
-                        solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
-                            .account_keys
-                            .iter()
-                            .filter_map(|key_str| Pubkey::from_str(key_str).ok())
-                            .collect(),
-                        _ => {
-                            error!("RPC returned Parsed message, but we requested Raw message");
-                            vec![]
-                        }
-                    }
-                }
+fn parse_rpc_response(
+    signature: &Signature,
+    tx_data: EncodedConfirmedTransactionWithStatusMeta,
+) -> Option<SolanaTransaction> {
+    let meta = tx_data.transaction.meta?;
+    let inner_instructions = match meta.inner_instructions.as_ref() {
+        OptionSerializer::Some(inner) => inner.clone(),
+        _ => vec![],
+    };
+
+    // Extract account keys from the transaction
+    let mut account_keys = match &tx_data.transaction.transaction {
+        solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
+            match &ui_transaction.message {
+                solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
+                    .account_keys
+                    .iter()
+                    .filter_map(|key_str| Pubkey::from_str(key_str).ok())
+                    .collect(),
                 _ => {
-                    error!("RPC returned non-JSON encoded transaction, but we requested JSON");
+                    error!("RPC returned Parsed message, but we requested Raw message");
                     vec![]
                 }
-            };
-
-            if let OptionSerializer::Some(loaded) = meta.loaded_addresses.as_ref() {
-                account_keys.extend(
-                    loaded
-                        .writable
-                        .iter()
-                        .filter_map(|k| Pubkey::from_str(k).ok()),
-                );
-                account_keys.extend(
-                    loaded
-                        .readonly
-                        .iter()
-                        .filter_map(|k| Pubkey::from_str(k).ok()),
-                );
             }
+        }
+        _ => {
+            error!("RPC returned non-JSON encoded transaction, but we requested JSON");
+            vec![]
+        }
+    };
 
-            Some(SolanaTransaction {
-                signature: *signature,
-                inner_instructions,
-                err: meta.err.map(|e| e.into()),
-                account_keys,
-            })
-        })
+    if let OptionSerializer::Some(loaded) = meta.loaded_addresses.as_ref() {
+        account_keys.extend(
+            loaded
+                .writable
+                .iter()
+                .filter_map(|k| Pubkey::from_str(k).ok()),
+        );
+        account_keys.extend(
+            loaded
+                .readonly
+                .iter()
+                .filter_map(|k| Pubkey::from_str(k).ok()),
+        );
     }
+
+    Some(SolanaTransaction {
+        signature: *signature,
+        inner_instructions,
+        err: meta.err.map(|e| e.into()),
+        account_keys,
+    })
 }
 
 pub fn deserialize_pubkey<'de, D>(deserializer: D) -> Result<Pubkey, D::Error>
@@ -313,6 +322,7 @@ mod test {
     use axelar_wasm_std::chain::ChainName;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::signature::Signature;
+    use solana_transaction_status::option_serializer::OptionSerializer;
     use solana_transaction_status::{UiInnerInstructions, UiInstruction};
 
     use super::{Client, SolanaRpcClientProxy};
@@ -388,6 +398,141 @@ mod test {
             err: None,
             account_keys: vec![],
         }
+    }
+
+    fn make_rpc_response(
+        account_keys: Vec<String>,
+        loaded_addresses: OptionSerializer<
+            solana_transaction_status::UiLoadedAddresses,
+        >,
+    ) -> solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+        use solana_sdk::message::MessageHeader;
+        use solana_transaction_status::{
+            EncodedTransaction, EncodedTransactionWithStatusMeta, UiMessage, UiRawMessage,
+            UiTransaction, UiTransactionStatusMeta,
+        };
+
+        let meta = UiTransactionStatusMeta {
+            err: None,
+            status: Ok(()),
+            fee: 0,
+            pre_balances: vec![],
+            post_balances: vec![],
+            inner_instructions: OptionSerializer::Some(vec![]),
+            log_messages: OptionSerializer::None,
+            pre_token_balances: OptionSerializer::None,
+            post_token_balances: OptionSerializer::None,
+            rewards: OptionSerializer::None,
+            loaded_addresses,
+            return_data: OptionSerializer::None,
+            compute_units_consumed: OptionSerializer::None,
+            cost_units: OptionSerializer::None,
+        };
+
+        solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+            slot: 0,
+            transaction: EncodedTransactionWithStatusMeta {
+                transaction: EncodedTransaction::Json(UiTransaction {
+                    signatures: vec![],
+                    message: UiMessage::Raw(UiRawMessage {
+                        header: MessageHeader {
+                            num_required_signatures: 1,
+                            num_readonly_signed_accounts: 0,
+                            num_readonly_unsigned_accounts: 0,
+                        },
+                        account_keys,
+                        recent_blockhash: String::new(),
+                        instructions: vec![],
+                        address_table_lookups: None,
+                    }),
+                }),
+                meta: Some(meta),
+                version: None,
+            },
+            block_time: None,
+        }
+    }
+
+    #[test]
+    fn parse_rpc_response_with_loaded_addresses() {
+        use solana_sdk::pubkey::Pubkey;
+        use solana_transaction_status::UiLoadedAddresses;
+
+        let static_key = Pubkey::new_unique();
+        let writable_key = Pubkey::new_unique();
+        let readonly_key = Pubkey::new_unique();
+
+        let resp = make_rpc_response(
+            vec![static_key.to_string()],
+            OptionSerializer::Some(UiLoadedAddresses {
+                writable: vec![writable_key.to_string()],
+                readonly: vec![readonly_key.to_string()],
+            }),
+        );
+
+        let sig = Signature::default();
+        let result = super::parse_rpc_response(&sig, resp).unwrap();
+
+        assert_eq!(result.account_keys, vec![static_key, writable_key, readonly_key]);
+    }
+
+    #[test]
+    fn parse_rpc_response_without_loaded_addresses() {
+        use solana_sdk::pubkey::Pubkey;
+
+        let static_key = Pubkey::new_unique();
+
+        let resp = make_rpc_response(
+            vec![static_key.to_string()],
+            OptionSerializer::None,
+        );
+
+        let sig = Signature::default();
+        let result = super::parse_rpc_response(&sig, resp).unwrap();
+
+        assert_eq!(result.account_keys, vec![static_key]);
+    }
+
+    #[test]
+    fn parse_rpc_response_filters_invalid_loaded_address_pubkeys() {
+        use solana_sdk::pubkey::Pubkey;
+        use solana_transaction_status::UiLoadedAddresses;
+
+        let static_key = Pubkey::new_unique();
+        let valid_key = Pubkey::new_unique();
+
+        let resp = make_rpc_response(
+            vec![static_key.to_string()],
+            OptionSerializer::Some(UiLoadedAddresses {
+                writable: vec!["not_a_valid_pubkey".to_string(), valid_key.to_string()],
+                readonly: vec!["also_invalid".to_string()],
+            }),
+        );
+
+        let sig = Signature::default();
+        let result = super::parse_rpc_response(&sig, resp).unwrap();
+
+        assert_eq!(result.account_keys, vec![static_key, valid_key]);
+    }
+
+    #[test]
+    fn parse_rpc_response_returns_none_when_no_meta() {
+        use solana_transaction_status::{
+            EncodedTransaction, EncodedTransactionWithStatusMeta,
+        };
+
+        let resp = solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+            slot: 0,
+            transaction: EncodedTransactionWithStatusMeta {
+                transaction: EncodedTransaction::LegacyBinary(String::new()),
+                meta: None,
+                version: None,
+            },
+            block_time: None,
+        };
+
+        let sig = Signature::default();
+        assert!(super::parse_rpc_response(&sig, resp).is_none());
     }
 
     #[test]
