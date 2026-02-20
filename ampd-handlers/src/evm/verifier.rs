@@ -156,6 +156,12 @@ pub fn verify_events(
         }
     }
 
+    // An empty events list would vacuously match any transaction.
+    // Require at least one event to prevent verifying arbitrary transactions.
+    if event_data.events.is_empty() {
+        return Vote::NotFound;
+    }
+
     // Verify events match the logs in the transaction receipt
     let events_match = verify_events_match_logs(&tx_receipt.logs, &event_data.events);
 
@@ -1266,5 +1272,34 @@ mod tests {
         ];
 
         assert!(verify_events_match_logs(&logs, &events));
+    }
+
+    #[test]
+    fn should_not_verify_events_when_events_list_is_empty() {
+        let tx_hash = H256::random();
+        let tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        let event_data = EvmEvent {
+            transaction_hash: tx_hash.as_bytes().try_into().unwrap(),
+            transaction_details: None,
+            events: vec![], // Empty events should not vacuously match
+        };
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
+    }
+
+    #[test]
+    fn should_not_verify_events_as_failed_when_events_list_is_empty() {
+        let tx_hash = H256::random();
+        let mut tx_receipt = mock_tx_receipt_for_events(tx_hash);
+        tx_receipt.status = Some(U64::from(0)); // Failed transaction
+        let event_data = EvmEvent {
+            transaction_hash: tx_hash.as_bytes().try_into().unwrap(),
+            transaction_details: None,
+            events: vec![], // Empty events should not vacuously match
+        };
+
+        let result = verify_events(&tx_receipt, None, &event_data);
+        assert_eq!(result, Vote::NotFound);
     }
 }
