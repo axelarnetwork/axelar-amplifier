@@ -402,9 +402,7 @@ mod test {
 
     fn make_rpc_response(
         account_keys: Vec<String>,
-        loaded_addresses: OptionSerializer<
-            solana_transaction_status::UiLoadedAddresses,
-        >,
+        loaded_addresses: OptionSerializer<solana_transaction_status::UiLoadedAddresses>,
     ) -> solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
         use solana_sdk::message::MessageHeader;
         use solana_transaction_status::{
@@ -473,7 +471,10 @@ mod test {
         let sig = Signature::default();
         let result = super::parse_rpc_response(&sig, resp).unwrap();
 
-        assert_eq!(result.account_keys, vec![static_key, writable_key, readonly_key]);
+        assert_eq!(
+            result.account_keys,
+            vec![static_key, writable_key, readonly_key]
+        );
     }
 
     #[test]
@@ -482,10 +483,7 @@ mod test {
 
         let static_key = Pubkey::new_unique();
 
-        let resp = make_rpc_response(
-            vec![static_key.to_string()],
-            OptionSerializer::None,
-        );
+        let resp = make_rpc_response(vec![static_key.to_string()], OptionSerializer::None);
 
         let sig = Signature::default();
         let result = super::parse_rpc_response(&sig, resp).unwrap();
@@ -517,9 +515,7 @@ mod test {
 
     #[test]
     fn parse_rpc_response_returns_none_when_no_meta() {
-        use solana_transaction_status::{
-            EncodedTransaction, EncodedTransactionWithStatusMeta,
-        };
+        use solana_transaction_status::{EncodedTransaction, EncodedTransactionWithStatusMeta};
 
         let resp = solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
             slot: 0,
