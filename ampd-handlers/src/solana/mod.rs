@@ -190,7 +190,7 @@ where
         }
     };
 
-    if !is_instruction_from_gateway_program(&instruction, &tx.account_keys, gateway_address) {
+    if !is_instruction_to_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
             "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
             tx.signature,
@@ -222,7 +222,7 @@ where
     }
 }
 
-fn is_instruction_from_gateway_program(
+fn is_instruction_to_gateway_program(
     instruction: &UiCompiledInstruction,
     account_keys: &[Pubkey],
     gateway_address: &Pubkey,
