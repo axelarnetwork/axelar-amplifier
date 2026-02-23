@@ -18,10 +18,10 @@ pub enum ClientError {
     },
     #[error("failed to validate address: {address}")]
     ValidateAddress { address: String },
-    #[error("failed to get payload digest. signer: {signer:?}, payload: {payload:?}, full_message_payloads: {full_message_payloads:?}")]
+    #[error("failed to get payload digest. verifier_set: {verifier_set:?}, payload: {payload:?}, full_message_payloads: {full_message_payloads:?}")]
     PayloadDigest {
         domain_separator: Hash,
-        signer: VerifierSet,
+        verifier_set: VerifierSet,
         payload: Payload,
         full_message_payloads: FullMessagePayloads,
     },
@@ -44,12 +44,12 @@ impl ClientError {
             QueryMsg::ValidateAddress { address } => ClientError::ValidateAddress { address },
             QueryMsg::PayloadDigest {
                 domain_separator,
-                verifier_set: signer,
+                verifier_set,
                 payload,
                 full_message_payloads,
             } => ClientError::PayloadDigest {
                 domain_separator,
-                signer,
+                verifier_set,
                 payload,
                 full_message_payloads,
             },
