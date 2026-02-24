@@ -13,7 +13,6 @@ pub struct SolanaHandlerConfig {
     #[serde(with = "humantime_serde")]
     #[serde(default = "default_rpc_timeout")]
     pub rpc_timeout: Duration,
-    pub gateway_address: String,
     pub domain_separator: String,
 }
 
@@ -92,10 +91,6 @@ mod tests {
 
         let config: SolanaHandlerConfig = serde_json::from_value(json).unwrap();
         assert_eq!(config.rpc_timeout, Duration::from_secs(10));
-        assert_eq!(
-            config.gateway_address,
-            "gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9"
-        );
         assert_eq!(
             config.domain_separator,
             "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
