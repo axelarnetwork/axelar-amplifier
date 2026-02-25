@@ -192,7 +192,7 @@ where
 
     if !is_instruction_to_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
-            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not to gateway program",
             tx.signature,
             message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
         );
@@ -245,7 +245,7 @@ fn is_instruction_to_gateway_program(
     let program_id = account_keys[program_id_index];
     if program_id != *gateway_address {
         debug!(
-            "Solana tx instruction not from gateway program. Expected: {}, got: {}",
+            "Solana tx instruction not to gateway program. Expected: {}, got: {}",
             gateway_address, program_id
         );
         return false;
