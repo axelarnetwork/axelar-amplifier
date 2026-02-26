@@ -72,7 +72,6 @@ mod tests {
     fn deserialize_config_uses_default_rpc_timeout() {
         let json = serde_json::json!({
             "rpc_url": "https://api.devnet.solana.com",
-            "gateway_address": "gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9",
             "domain_separator": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
         });
 
@@ -85,7 +84,6 @@ mod tests {
         let json = serde_json::json!({
             "rpc_url": "https://api.devnet.solana.com",
             "rpc_timeout": "10s",
-            "gateway_address": "gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9",
             "domain_separator": "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
         });
 
