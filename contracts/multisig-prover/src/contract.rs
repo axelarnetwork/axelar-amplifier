@@ -700,6 +700,74 @@ mod tests {
     }
 
     #[test]
+    fn test_construct_proof_with_notify_signing_session() {
+        let mut deps = mock_dependencies();
+
+        deps.querier.update_wasm(mock_querier_handler(
+            test_data::operators(),
+            VerificationStatus::SucceededOnSourceChain,
+        ));
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(ADMIN), &[]),
+            InstantiateMsg {
+                admin_address: cosmos_addr!(ADMIN).to_string(),
+                governance_address: cosmos_addr!(GOVERNANCE).to_string(),
+                gateway_address: cosmos_addr!(GATEWAY_ADDRESS).to_string(),
+                multisig_address: cosmos_addr!(MULTISIG_ADDRESS).to_string(),
+                coordinator_address: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
+                service_registry_address: cosmos_addr!(SERVICE_REGISTRY_ADDRESS).to_string(),
+                voting_verifier_address: cosmos_addr!(VOTING_VERIFIER_ADDRESS).to_string(),
+                chain_codec_address: cosmos_addr!(CHAIN_CODEC_ADDRESS).to_string(),
+                signing_threshold: test_data::threshold(),
+                service_name: SERVICE_NAME.to_string(),
+                chain_name: "ganache-0".to_string(),
+                verifier_set_diff_threshold: 0,
+                key_type: multisig::key::KeyType::Ecdsa,
+                domain_separator: [0; 32],
+                notify_signing_session: true, // enable this
+                expect_full_message_payloads: false,
+            },
+        )
+        .unwrap();
+
+        execute_update_verifier_set(deps.as_mut()).unwrap();
+        execute_construct_proof(deps.as_mut(), None).unwrap();
+        let res = reply_construct_proof(deps.as_mut()).unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+
+        let cosmwasm_std::CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            ..
+        }) = &res.messages[0].msg
+        else {
+            panic!("expected a WasmMsg::Execute");
+        };
+        assert_eq!(
+            *contract_addr,
+            cosmos_addr!(CHAIN_CODEC_ADDRESS).to_string()
+        );
+
+        use chain_codec_api::msg::{ExecuteMsg, FullMessagePayloads};
+
+        let execute_msg: ExecuteMsg = cosmwasm_std::from_json(msg).unwrap();
+        let ExecuteMsg::NotifySigningSession {
+            multisig_session_id,
+            full_message_payloads,
+            ..
+        } = execute_msg;
+        assert_eq!(multisig_session_id, MULTISIG_SESSION_ID);
+        assert_eq!(
+            full_message_payloads,
+            FullMessagePayloads::VerifierSetUpdate
+        );
+    }
+
+    #[test]
     fn test_query_proof() {
         let mut deps = setup_test_case();
         execute_update_verifier_set(deps.as_mut()).unwrap();
