@@ -925,16 +925,7 @@ mod tests {
             query_data: serde_json::to_vec(&json!({"get_config": {}})).unwrap(),
         };
         let res = QuerySmartContractStateResponse {
-            data: serde_json::to_vec(&json!({
-                "name": "axelar-gateway",
-                "version": "1.0.0",
-                "owner": "axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks",
-                "config": {
-                    "chain_id": "axelar-testnet-1",
-                    "enabled": true
-                }
-            }))
-            .unwrap(),
+            data: br#"{"name":"axelar-gateway","version":"1.0.0","owner":"axelar1q95p9fntvqn6jm9m0u5092pu9ulq3chn0zkuks","config":{"chain_id":"axelar-testnet-1","enabled":true}}"#.to_vec(),
         };
 
         goldie::assert_json!(json!({
