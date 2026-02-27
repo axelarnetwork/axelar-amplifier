@@ -1284,6 +1284,107 @@ mod test {
     }
 
     #[test]
+    fn should_confirm_verifier_set_after_failed_on_source_chain() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
+
+        // First attempt: submit with a bogus tx that failed on chain
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::VerifyVerifierSet {
+                message_id: message_id("bogus_tx", 0, &msg_id_format),
+                new_verifier_set: verifier_set.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for verifier in &verifiers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::FailedOnChain],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::FailedOnSourceChain);
+
+        // Second attempt: resubmit with the correct tx
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::VerifyVerifierSet {
+                message_id: message_id("correct_tx", 0, &msg_id_format),
+                new_verifier_set: verifier_set.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for verifier in verifiers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 2u64.into(),
+                    votes: vec![Vote::SucceededOnChain],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 2u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::VerifierSetStatus(verifier_set.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
+    }
+
+    #[test]
     fn should_not_confirm_twice() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
