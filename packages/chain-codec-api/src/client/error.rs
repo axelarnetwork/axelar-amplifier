@@ -56,3 +56,46 @@ impl ClientError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use cosmwasm_std::{Addr, HexBinary, Uint128};
+    use multisig::key::PublicKey;
+    use multisig::msg::Signer;
+    use multisig::verifier_set::VerifierSet;
+    use multisig_prover_api::payload::Payload;
+
+    use super::*;
+
+    fn dummy_verifier_set() -> VerifierSet {
+        let mut signers = BTreeMap::new();
+        signers.insert(
+            "signer".to_string(),
+            Signer {
+                address: Addr::unchecked("signer"),
+                weight: Uint128::one(),
+                pub_key: PublicKey::Ecdsa(HexBinary::from(&[1u8; 33][..])),
+            },
+        );
+        VerifierSet {
+            signers,
+            threshold: Uint128::one(),
+            created_at: 1,
+        }
+    }
+
+    #[test]
+    fn for_query_payload_digest() {
+        let query = QueryMsg::PayloadDigest {
+            domain_separator: [0u8; 32],
+            verifier_set: dummy_verifier_set(),
+            payload: Payload::Messages(vec![]),
+            full_message_payloads: FullMessagePayloads::NotSupported,
+        };
+
+        let err = ClientError::for_query(query);
+        assert!(matches!(err, ClientError::PayloadDigest { .. }));
+    }
+}
