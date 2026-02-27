@@ -31,14 +31,18 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let payload = PAYLOAD.load(deps.storage, &payload_id)?;
             let msg_ids = payload.message_ids().unwrap_or_default();
 
-            let response = notify_signing_session(
-                deps,
-                &config,
-                Response::new(),
-                &payload_id,
-                payload,
-                multisig_session_id,
-            )?
+            let response = if config.notify_signing_session {
+                notify_signing_session(
+                    deps,
+                    &config,
+                    Response::new(),
+                    &payload_id,
+                    payload,
+                    multisig_session_id,
+                )?
+            } else {
+                Response::new()
+            }
             .add_event(Event::ProofUnderConstruction {
                 destination_chain: config.chain_name,
                 msg_ids,
