@@ -188,7 +188,8 @@ macro_rules! assert_err_contains {
     }};
 }
 
-pub use {assert_err_contains, err_contains};
+pub use assert_err_contains;
+pub use err_contains;
 
 #[cfg(test)]
 mod test {
