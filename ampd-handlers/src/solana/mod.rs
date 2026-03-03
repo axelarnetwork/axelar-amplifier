@@ -10,7 +10,7 @@ use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
 use serde::Deserializer;
 use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
-pub use solana_client::client_error::{ClientError, ClientErrorKind};
+pub use solana_client::client_error::ClientError;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{CommitmentConfig, RpcTransactionConfig};
 use solana_sdk::pubkey::Pubkey;
