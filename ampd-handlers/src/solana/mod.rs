@@ -10,6 +10,7 @@ use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
 use serde::Deserializer;
 use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
+pub use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{CommitmentConfig, RpcTransactionConfig};
 use solana_sdk::pubkey::Pubkey;
@@ -20,7 +21,7 @@ use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, UiCompiledInstruction, UiInnerInstructions,
     UiInstruction,
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 pub mod msg_verifier;
 pub mod types;
@@ -54,12 +55,12 @@ impl Client {
 
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
-    async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction>;
+    async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError>;
 }
 
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for Client {
-    async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
+    async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError> {
         let res = self
             .client
             .get_transaction_with_config(
@@ -79,8 +80,13 @@ impl SolanaRpcClientProxy for Client {
                 success: res.is_ok(),
             });
 
-        res.ok()
-            .and_then(|tx_data| parse_rpc_response(signature, tx_data))
+        match res {
+            Ok(tx_data) => Ok(parse_rpc_response(signature, tx_data)),
+            Err(err) => {
+                warn!(%signature, ?err, "failed to fetch solana transaction");
+                Err(err)
+            }
+        }
     }
 }
 
@@ -339,7 +345,7 @@ mod test {
         );
 
         let result = client.tx(&Signature::default()).await;
-        assert!(result.is_none());
+        assert!(result.is_err());
 
         let msg = receiver.recv().await.unwrap();
         assert_eq!(
