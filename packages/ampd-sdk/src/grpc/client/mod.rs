@@ -1,10 +1,9 @@
 use std::pin::Pin;
 
-use ampd_proto;
 use ampd_proto::blockchain_service_client::BlockchainServiceClient;
 use ampd_proto::crypto_service_client::CryptoServiceClient;
 use ampd_proto::{
-    AddressRequest, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyRequest,
+    self, AddressRequest, BroadcastRequest, ContractStateRequest, ContractsRequest, KeyRequest,
     LatestBlockHeightRequest, SignRequest, SubscribeRequest,
 };
 use async_trait::async_trait;
