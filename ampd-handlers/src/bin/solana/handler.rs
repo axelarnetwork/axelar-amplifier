@@ -204,15 +204,18 @@ where
             self.rpc_client
                 .tx(&signature)
                 .await
-                .map(|tx| (signature, tx))
+                .map_err(|err| Report::new(err).change_context(Error::FinalizedTxs))
+                .map(|opt_tx| opt_tx.map(|tx| (signature, tx)))
         });
 
         let finalized_tx_receipts: HashMap<Signature, SolanaTransaction> =
             futures::future::join_all(tx_calls)
                 .await
                 .into_iter()
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
                 .flatten()
-                .collect::<HashMap<Signature, SolanaTransaction>>();
+                .collect();
 
         Ok(finalized_tx_receipts)
     }
@@ -375,13 +378,16 @@ mod tests {
     struct ValidResponseSolanaRpc;
     #[async_trait::async_trait]
     impl SolanaRpcClientProxy for ValidResponseSolanaRpc {
-        async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
-            Some(SolanaTransaction {
+        async fn tx(
+            &self,
+            signature: &Signature,
+        ) -> Result<Option<SolanaTransaction>, ampd_handlers::solana::ClientError> {
+            Ok(Some(SolanaTransaction {
                 signature: *signature,
                 inner_instructions: vec![],
                 err: None,
                 account_keys: vec![solana_axelar_gateway::ID], // Gateway program at index 0
-            })
+            }))
         }
     }
 
