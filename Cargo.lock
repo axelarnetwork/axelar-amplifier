@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 name = "ampd-handlers"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "ampd",
  "ampd-handlers",
