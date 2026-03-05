@@ -214,6 +214,14 @@ mod tests {
     }
 
     #[test]
+    fn sensitive_url_to_string_returns_redacted() {
+        let url = Url::new_sensitive("https://api.devnet.solana.com").unwrap();
+
+        assert_eq!(url.to_string(), "redacted");
+        assert_eq!(url.as_str(), "https://api.devnet.solana.com/");
+    }
+
+    #[test]
     fn deserialize_non_sensitive_shows_full_url_in_display() {
         #[derive(Deserialize)]
         struct TestConfig {

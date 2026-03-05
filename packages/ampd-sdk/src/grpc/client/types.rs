@@ -1,5 +1,4 @@
-use ampd_proto;
-use ampd_proto::{BroadcastResponse, ContractsResponse, KeyId};
+use ampd_proto::{self, BroadcastResponse, ContractsResponse, KeyId};
 pub use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::nonempty;
 use cosmrs::AccountId;

@@ -108,6 +108,18 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_verifier_set_as_failed_if_not_from_gateway() {
+        let (mut tx, event) = fixture_success_call_contract_tx_data();
+
+        tx.err = Some(solana_sdk::transaction::TransactionError::AccountInUse);
+        tx.account_keys = vec![Pubkey::new_unique()]; // Not the gateway program
+        assert_eq!(
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
         let (tx, event) = fixture_bad_gateway_call_contract_tx_data();
 
