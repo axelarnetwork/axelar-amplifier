@@ -13,10 +13,7 @@ pub enum VerificationStatus {
 
 impl VerificationStatus {
     pub fn is_confirmed(&self) -> bool {
-        matches!(
-            self,
-            VerificationStatus::SucceededOnSourceChain | VerificationStatus::FailedOnSourceChain
-        )
+        matches!(self, VerificationStatus::SucceededOnSourceChain)
     }
 }
 
@@ -27,7 +24,7 @@ mod tests {
     #[test]
     fn verification_status_is_confirmed() {
         assert!(VerificationStatus::SucceededOnSourceChain.is_confirmed());
-        assert!(VerificationStatus::FailedOnSourceChain.is_confirmed());
+        assert!(!VerificationStatus::FailedOnSourceChain.is_confirmed());
         assert!(!VerificationStatus::NotFoundOnSourceChain.is_confirmed());
         assert!(!VerificationStatus::FailedToVerify.is_confirmed());
         assert!(!VerificationStatus::InProgress.is_confirmed());
