@@ -61,6 +61,37 @@ cargo build --release -p ampd-handlers
 This produces `ampd`, `evm-handler`, `solana-handler`, `sui-handler`, `stellar-handler`
 and `xrpl-handler` in `target/release/`.
 
+### Docker images
+
+Prebuilt Docker images are available on Docker Hub:
+
+```bash
+# ampd
+docker pull axelarnet/axelar-ampd:<version>          # e.g. v1.14.2
+
+# handlers (one image per handler type)
+docker pull axelarnet/axelar-ampd-evm-handler:<version>
+docker pull axelarnet/axelar-ampd-solana-handler:<version>
+docker pull axelarnet/axelar-ampd-sui-handler:<version>
+docker pull axelarnet/axelar-ampd-stellar-handler:<version>
+docker pull axelarnet/axelar-ampd-xrpl-handler:<version>
+```
+
+To build images locally:
+
+```bash
+# ampd
+docker build -f ampd/Dockerfile -t ampd .
+
+# handlers (pass HANDLER build arg)
+docker build -f ampd-handlers/Dockerfile --build-arg HANDLER=evm -t evm-handler .
+docker build -f ampd-handlers/Dockerfile --build-arg HANDLER=solana -t solana-handler .
+# etc.
+```
+
+See [Running via Docker](#running-via-docker) below for how to run the containers
+(requires tofnd and configuration first).
+
 ## How to run
 
 ### Prerequisite: tofnd
@@ -340,6 +371,30 @@ Prior to running the ampd daemon, verifiers need to perform the following onboar
 
 A state file will be created if it doesn't yet exist. The default location of the state file is `~/.ampd/state.json`,
 which can be overridden by passing `--state [path]`.
+
+### Running via Docker
+
+Ensure tofnd is running and reachable, and your ampd config is ready (see above).
+
+```bash
+# ampd (mount config and state dir, expose gRPC port for handlers)
+docker run -p 9090:9090 \
+  -v ~/.ampd:/home/axelard/.ampd \
+  axelarnet/axelar-ampd:<version>
+
+# handlers (configure via env vars, no config files needed)
+docker run \
+  -e AMPD_HANDLERS_AMPD_URL=http://<ampd-host>:9090 \
+  -e AMPD_HANDLERS_CHAIN_NAME=flow \
+  -e AMPD_EVM_HANDLER_RPC_URL=https://testnet.evm.nodes.onflow.org \
+  -e AMPD_EVM_HANDLER_FINALIZATION=RPCFinalizedBlock \
+  axelarnet/axelar-ampd-evm-handler:<version>
+```
+
+Networking requirements:
+- **ampd** must be able to reach tofnd (default `:50051`) and the Axelar node (JSON-RPC `:26657`, gRPC `:9090`)
+- **handlers** must be able to reach ampd's gRPC (default `:9090`) and external chain RPCs (outbound internet)
+- If running all containers on the same machine, use a shared Docker network or `--network host` so they can communicate
 
 ### Help
 
