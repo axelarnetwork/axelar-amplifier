@@ -23,12 +23,8 @@ pattern = "amplifier-lints"
 rev = "bb4bda06a73ff8fb0642519f4c01dbbbe316e9f9"
 
 [workspace.dependencies]
-alloy-primitives = { version = "0.7.6", default-features = false, features = [
-  "std",
-] }
-alloy-sol-types = { version = "0.7.6", default-features = false, features = [
-  "std",
-] }
+alloy-primitives = { version = "0.7.6", default-features = false, features = ["std"] }
+alloy-sol-types = { version = "0.7.6", default-features = false, features = ["std"] }
 ampd-proto = { version = "^0.1.0", path = "packages/ampd-proto" }
 ampd-sdk = { version = "^0.1.0", path = "packages/ampd-sdk" }
 anyhow = "1.0.89"
@@ -58,9 +54,7 @@ cw-utils = "2.0.0"
 cw2 = "2.0.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre", "spantrace"] }
-ethers-contract = { version = "2.0.14", default-features = false, features = [
-  "abigen",
-] }
+ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
 ethers-core = "2.0.14"
 event-verifier = { version = "^0.1.0", path = "contracts/event-verifier" }
 event-verifier-api = { version = "^1.0.0", path = "packages/event-verifier-api" }
@@ -126,11 +120,7 @@ tokio-util = "0.7.11"
 tracing = { version = "0.1.37", features = ["valuable", "log"] }
 tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-error = { version = "0.2.1", features = ["traced-error"] }
-tracing-subscriber = { version = "0.3.20", features = [
-  "json",
-  "valuable",
-  "env-filter",
-] }
+tracing-subscriber = { version = "0.3.20", features = ["json", "valuable", "env-filter"] }
 tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
