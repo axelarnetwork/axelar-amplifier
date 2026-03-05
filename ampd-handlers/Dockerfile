@@ -14,6 +14,7 @@ RUN cargo build --release --bin ${HANDLER}-handler
 FROM debian:bookworm-slim AS runner
 ARG GRPCURL_VERSION=1.9.3
 ARG HANDLER=evm
+ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -21,11 +22,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz \
-    && tar -xvf grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz \
+RUN GRPCURL_ARCH=$(case "${TARGETARCH}" in arm64) echo "arm64" ;; *) echo "x86_64" ;; esac) \
+    && wget https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_linux_${GRPCURL_ARCH}.tar.gz \
+    && tar -xvf grpcurl_${GRPCURL_VERSION}_linux_${GRPCURL_ARCH}.tar.gz \
     && mv grpcurl /usr/local/bin/grpcurl \
     && chmod +x /usr/local/bin/grpcurl \
-    && rm grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz
+    && rm grpcurl_${GRPCURL_VERSION}_linux_${GRPCURL_ARCH}.tar.gz
 
 COPY --from=builder /app/target/release/${HANDLER}-handler /usr/local/bin/ampd_handler
 ENTRYPOINT ["ampd_handler"]
