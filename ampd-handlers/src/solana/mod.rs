@@ -10,6 +10,7 @@ use axelar_wasm_std::voting::Vote;
 use borsh::BorshDeserialize;
 use serde::Deserializer;
 use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
+pub use solana_client::client_error::ClientError;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{CommitmentConfig, RpcTransactionConfig};
 use solana_sdk::pubkey::Pubkey;
@@ -20,7 +21,7 @@ use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, UiCompiledInstruction, UiInnerInstructions,
     UiInstruction,
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 pub mod msg_verifier;
 pub mod types;
@@ -54,12 +55,12 @@ impl Client {
 
 #[async_trait::async_trait]
 pub trait SolanaRpcClientProxy: Send + Sync + 'static {
-    async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction>;
+    async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError>;
 }
 
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for Client {
-    async fn tx(&self, signature: &Signature) -> Option<SolanaTransaction> {
+    async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError> {
         let res = self
             .client
             .get_transaction_with_config(
@@ -79,8 +80,13 @@ impl SolanaRpcClientProxy for Client {
                 success: res.is_ok(),
             });
 
-        res.ok()
-            .and_then(|tx_data| parse_rpc_response(signature, tx_data))
+        match res {
+            Ok(tx_data) => Ok(parse_rpc_response(signature, tx_data)),
+            Err(err) => {
+                warn!(%signature, ?err, "failed to fetch solana transaction");
+                Err(err)
+            }
+        }
     }
 }
 
@@ -168,11 +174,6 @@ where
         return Vote::NotFound;
     }
 
-    if tx.err.is_some() {
-        debug!("Transaction failed");
-        return Vote::FailedOnChain;
-    }
-
     let instruction = match instruction_at_index(
         tx,
         message_id.inner_ix_group_index,
@@ -190,13 +191,19 @@ where
         }
     };
 
-    if !is_instruction_from_gateway_program(&instruction, &tx.account_keys, gateway_address) {
+    if !is_instruction_to_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
-            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not from gateway program",
+            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not to gateway program",
             tx.signature,
             message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
         );
         return Vote::NotFound;
+    }
+
+    // Only return FailedOnChain after confirming the tx involved our gateway
+    if tx.err.is_some() {
+        debug!("Transaction failed");
+        return Vote::FailedOnChain;
     }
 
     let event = match parse_gateway_event_from_instruction(&instruction) {
@@ -222,7 +229,7 @@ where
     }
 }
 
-fn is_instruction_from_gateway_program(
+fn is_instruction_to_gateway_program(
     instruction: &UiCompiledInstruction,
     account_keys: &[Pubkey],
     gateway_address: &Pubkey,
@@ -245,7 +252,7 @@ fn is_instruction_from_gateway_program(
     let program_id = account_keys[program_id_index];
     if program_id != *gateway_address {
         debug!(
-            "Solana tx instruction not from gateway program. Expected: {}, got: {}",
+            "Solana tx instruction not to gateway program. Expected: {}, got: {}",
             gateway_address, program_id
         );
         return false;
@@ -338,7 +345,7 @@ mod test {
         );
 
         let result = client.tx(&Signature::default()).await;
-        assert!(result.is_none());
+        assert!(result.is_err());
 
         let msg = receiver.recv().await.unwrap();
         assert_eq!(

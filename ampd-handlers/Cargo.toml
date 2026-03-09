@@ -1,6 +1,6 @@
 [package]
 name = "ampd-handlers"
-version = "0.1.3"
+version = "0.1.5"
 rust-version = { workspace = true }
 license = "MIT OR Apache-2.0"
 edition = { workspace = true }
@@ -44,9 +44,7 @@ dotenv-flow = "0.16.2"
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
 ethers-core = { workspace = true }
-ethers-providers = { version = "2.0.13", default-features = false, features = [
-  "rustls",
-] }
+ethers-providers = { version = "2.0.13", default-features = false, features = ["rustls"] }
 event-verifier-api = { workspace = true }
 events = { workspace = true }
 evm-gateway = { workspace = true }

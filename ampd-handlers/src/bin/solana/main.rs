@@ -2,8 +2,6 @@ mod config;
 mod error;
 mod handler;
 
-use std::str::FromStr;
-
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
 use ampd_handlers::solana::Client;
 use ampd_handlers::tracing::init_tracing;
@@ -16,7 +14,6 @@ use clap::Parser;
 use dotenv_flow::dotenv_flow;
 use error_stack::{Result, ResultExt};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
 
@@ -30,13 +27,10 @@ async fn build_handler(
     config: SolanaHandlerConfig,
 ) -> Result<Handler<Client>, Error> {
     let rpc_client = Client::new(
-        RpcClient::new_with_timeout(config.rpc_url.to_string(), config.rpc_timeout),
+        RpcClient::new_with_timeout(config.rpc_url.as_str().to_string(), config.rpc_timeout),
         runtime.monitoring_client.clone(),
         chain_name.clone(),
     );
-
-    let gateway_address =
-        Pubkey::from_str(&config.gateway_address).change_context(Error::GatewayAddress)?;
 
     let domain_separator = parse_domain_separator(&config.domain_separator)?;
 
@@ -44,7 +38,6 @@ async fn build_handler(
         .verifier(runtime.verifier.clone())
         .voting_verifier_contract(runtime.contracts.voting_verifier.clone())
         .chain(chain_name)
-        .gateway_address(gateway_address)
         .domain_separator(domain_separator)
         .rpc_client(rpc_client)
         .monitoring_client(runtime.monitoring_client.clone())
