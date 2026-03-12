@@ -13,6 +13,7 @@ use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
 pub use solana_client::client_error::ClientError;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{CommitmentConfig, RpcTransactionConfig};
+use solana_client::rpc_request::RpcRequest;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
@@ -61,15 +62,17 @@ pub trait SolanaRpcClientProxy: Send + Sync + 'static {
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for Client {
     async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError> {
-        let res = self
+        let config = RpcTransactionConfig {
+            encoding: Some(solana_transaction_status::UiTransactionEncoding::Json),
+            commitment: Some(CommitmentConfig::finalized()),
+            max_supported_transaction_version: Some(0),
+        };
+
+        let res: Result<Option<EncodedConfirmedTransactionWithStatusMeta>, _> = self
             .client
-            .get_transaction_with_config(
-                signature,
-                RpcTransactionConfig {
-                    encoding: Some(solana_transaction_status::UiTransactionEncoding::Json),
-                    commitment: Some(CommitmentConfig::finalized()),
-                    max_supported_transaction_version: Some(0),
-                },
+            .send(
+                RpcRequest::GetTransaction,
+                serde_json::json!([signature.to_string(), config]),
             )
             .await;
 
@@ -81,7 +84,8 @@ impl SolanaRpcClientProxy for Client {
             });
 
         match res {
-            Ok(tx_data) => Ok(parse_rpc_response(signature, tx_data)),
+            Ok(Some(tx_data)) => Ok(parse_rpc_response(signature, tx_data)),
+            Ok(None) => Ok(None),
             Err(err) => {
                 warn!(%signature, ?err, "failed to fetch solana transaction");
                 Err(err)
@@ -94,7 +98,13 @@ fn parse_rpc_response(
     signature: &Signature,
     tx_data: EncodedConfirmedTransactionWithStatusMeta,
 ) -> Option<SolanaTransaction> {
-    let meta = tx_data.transaction.meta?;
+    let meta = match tx_data.transaction.meta {
+        Some(m) => m,
+        None => {
+            error!(%signature, "transaction has no metadata");
+            return None;
+        }
+    };
     let inner_instructions = match meta.inner_instructions.as_ref() {
         OptionSerializer::Some(inner) => inner.clone(),
         _ => vec![],
@@ -104,12 +114,20 @@ fn parse_rpc_response(
     let mut account_keys = match &tx_data.transaction.transaction {
         solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
             match &ui_transaction.message {
-                solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
-                    .account_keys
-                    .iter()
-                    .map(|key_str| Pubkey::from_str(key_str))
-                    .collect::<Result<Vec<Pubkey>, _>>()
-                    .ok()?,
+                solana_transaction_status::UiMessage::Raw(raw_message) => {
+                    match raw_message
+                        .account_keys
+                        .iter()
+                        .map(|key_str| Pubkey::from_str(key_str))
+                        .collect::<Result<Vec<Pubkey>, _>>()
+                    {
+                        Ok(keys) => keys,
+                        Err(err) => {
+                            error!(%signature, ?err, "failed to parse static account key");
+                            return None;
+                        }
+                    }
+                }
                 _ => {
                     error!("RPC returned Parsed message, but we requested Raw message");
                     vec![]
@@ -123,18 +141,30 @@ fn parse_rpc_response(
     };
 
     if let OptionSerializer::Some(loaded) = meta.loaded_addresses.as_ref() {
-        let writable: Vec<Pubkey> = loaded
+        let writable: Vec<Pubkey> = match loaded
             .writable
             .iter()
             .map(|k| Pubkey::from_str(k))
             .collect::<Result<_, _>>()
-            .ok()?;
-        let readonly: Vec<Pubkey> = loaded
+        {
+            Ok(keys) => keys,
+            Err(err) => {
+                error!(%signature, ?err, "failed to parse writable loaded address");
+                return None;
+            }
+        };
+        let readonly: Vec<Pubkey> = match loaded
             .readonly
             .iter()
             .map(|k| Pubkey::from_str(k))
             .collect::<Result<_, _>>()
-            .ok()?;
+        {
+            Ok(keys) => keys,
+            Err(err) => {
+                error!(%signature, ?err, "failed to parse readonly loaded address");
+                return None;
+            }
+        };
         account_keys.extend(writable);
         account_keys.extend(readonly);
     }
