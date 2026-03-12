@@ -107,8 +107,9 @@ fn parse_rpc_response(
                 solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
                     .account_keys
                     .iter()
-                    .filter_map(|key_str| Pubkey::from_str(key_str).ok())
-                    .collect(),
+                    .map(|key_str| Pubkey::from_str(key_str))
+                    .collect::<Result<Vec<Pubkey>, _>>()
+                    .ok()?,
                 _ => {
                     error!("RPC returned Parsed message, but we requested Raw message");
                     vec![]
@@ -122,18 +123,20 @@ fn parse_rpc_response(
     };
 
     if let OptionSerializer::Some(loaded) = meta.loaded_addresses.as_ref() {
-        account_keys.extend(
-            loaded
-                .writable
-                .iter()
-                .filter_map(|k| Pubkey::from_str(k).ok()),
-        );
-        account_keys.extend(
-            loaded
-                .readonly
-                .iter()
-                .filter_map(|k| Pubkey::from_str(k).ok()),
-        );
+        let writable: Vec<Pubkey> = loaded
+            .writable
+            .iter()
+            .map(|k| Pubkey::from_str(k))
+            .collect::<Result<_, _>>()
+            .ok()?;
+        let readonly: Vec<Pubkey> = loaded
+            .readonly
+            .iter()
+            .map(|k| Pubkey::from_str(k))
+            .collect::<Result<_, _>>()
+            .ok()?;
+        account_keys.extend(writable);
+        account_keys.extend(readonly);
     }
 
     Some(SolanaTransaction {
@@ -499,7 +502,7 @@ mod test {
     }
 
     #[test]
-    fn parse_rpc_response_filters_invalid_loaded_address_pubkeys() {
+    fn parse_rpc_response_returns_none_on_invalid_loaded_address_pubkeys() {
         use solana_sdk::pubkey::Pubkey;
         use solana_transaction_status::UiLoadedAddresses;
 
@@ -515,9 +518,7 @@ mod test {
         );
 
         let sig = Signature::default();
-        let result = super::parse_rpc_response(&sig, resp).unwrap();
-
-        assert_eq!(result.account_keys, vec![static_key, valid_key]);
+        assert!(super::parse_rpc_response(&sig, resp).is_none());
     }
 
     #[test]
