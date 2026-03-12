@@ -540,6 +540,115 @@ mod test {
     }
 
     #[test]
+    fn verify_message_succeeds_when_gateway_is_in_loaded_addresses() {
+        use anchor_lang::Discriminator;
+        use solana_axelar_gateway::events::CallContractEvent;
+        use solana_sdk::message::MessageHeader;
+        use solana_sdk::pubkey::Pubkey;
+        use solana_transaction_status::{
+            EncodedTransaction, EncodedTransactionWithStatusMeta, UiLoadedAddresses, UiMessage,
+            UiRawMessage, UiTransaction, UiTransactionStatusMeta,
+        };
+
+        let gateway = solana_axelar_gateway::ID;
+        let static_key = Pubkey::new_unique();
+
+        let event = CallContractEvent {
+            sender: Pubkey::new_unique(),
+            destination_chain: "ethereum".to_owned(),
+            destination_contract_address: "0xdeadbeef".to_owned(),
+            payload: vec![1, 2, 3],
+            payload_hash: [42; 32],
+        };
+
+        // Build instruction data with anchor event discriminators
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+        instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
+
+        // Gateway is at index 1 (static_key=0, gateway=1 via loaded_addresses)
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 1,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let meta = UiTransactionStatusMeta {
+            err: None,
+            status: Ok(()),
+            fee: 0,
+            pre_balances: vec![],
+            post_balances: vec![],
+            inner_instructions: OptionSerializer::Some(inner_instructions),
+            log_messages: OptionSerializer::None,
+            pre_token_balances: OptionSerializer::None,
+            post_token_balances: OptionSerializer::None,
+            rewards: OptionSerializer::None,
+            loaded_addresses: OptionSerializer::Some(UiLoadedAddresses {
+                writable: vec![gateway.to_string()],
+                readonly: vec![],
+            }),
+            return_data: OptionSerializer::None,
+            compute_units_consumed: OptionSerializer::None,
+            cost_units: OptionSerializer::None,
+        };
+
+        let rpc_response = solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+            slot: 0,
+            transaction: EncodedTransactionWithStatusMeta {
+                transaction: EncodedTransaction::Json(UiTransaction {
+                    signatures: vec![],
+                    message: UiMessage::Raw(UiRawMessage {
+                        header: MessageHeader {
+                            num_required_signatures: 1,
+                            num_readonly_signed_accounts: 0,
+                            num_readonly_unsigned_accounts: 0,
+                        },
+                        account_keys: vec![static_key.to_string()],
+                        recent_blockhash: String::new(),
+                        instructions: vec![],
+                        address_table_lookups: None,
+                    }),
+                }),
+                meta: Some(meta),
+                version: None,
+            },
+            block_time: None,
+        };
+
+        let sig = Signature::default();
+        let tx = super::parse_rpc_response(&sig, rpc_response)
+            .expect("parse_rpc_response should succeed");
+
+        // Gateway should be at index 1 (after the static key)
+        assert_eq!(tx.account_keys[1], gateway);
+
+        let msg = crate::solana::types::Message {
+            message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
+                raw_signature: [0; 64],
+                inner_ix_group_index: 1u32.try_into().unwrap(),
+                inner_ix_index: 1u32.try_into().unwrap(),
+            },
+            destination_address: event.destination_contract_address,
+            destination_chain: event.destination_chain.parse().unwrap(),
+            source_address: event.sender,
+            payload_hash: event.payload_hash.into(),
+        };
+
+        assert_eq!(
+            axelar_wasm_std::voting::Vote::SucceededOnChain,
+            super::msg_verifier::verify_message(&tx, &msg, &gateway)
+        );
+    }
+
+    #[test]
     fn get_instruction_at_index_should_get_correct_instruction() {
         use super::instruction_at_index;
 
