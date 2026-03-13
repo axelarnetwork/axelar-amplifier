@@ -13,6 +13,7 @@ use solana_axelar_gateway::events::{CallContractEvent, VerifierSetRotatedEvent};
 pub use solana_client::client_error::ClientError;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{CommitmentConfig, RpcTransactionConfig};
+use solana_client::rpc_request::RpcRequest;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
@@ -61,15 +62,17 @@ pub trait SolanaRpcClientProxy: Send + Sync + 'static {
 #[async_trait::async_trait]
 impl SolanaRpcClientProxy for Client {
     async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError> {
-        let res = self
+        let config = RpcTransactionConfig {
+            encoding: Some(solana_transaction_status::UiTransactionEncoding::Json),
+            commitment: Some(CommitmentConfig::finalized()),
+            max_supported_transaction_version: Some(0),
+        };
+
+        let res: Result<Option<EncodedConfirmedTransactionWithStatusMeta>, _> = self
             .client
-            .get_transaction_with_config(
-                signature,
-                RpcTransactionConfig {
-                    encoding: Some(solana_transaction_status::UiTransactionEncoding::Json),
-                    commitment: Some(CommitmentConfig::finalized()),
-                    max_supported_transaction_version: Some(0),
-                },
+            .send(
+                RpcRequest::GetTransaction,
+                serde_json::json!([signature.to_string(), config]),
             )
             .await;
 
@@ -81,7 +84,8 @@ impl SolanaRpcClientProxy for Client {
             });
 
         match res {
-            Ok(tx_data) => Ok(parse_rpc_response(signature, tx_data)),
+            Ok(Some(tx_data)) => Ok(parse_rpc_response(signature, tx_data)),
+            Ok(None) => Ok(None),
             Err(err) => {
                 warn!(%signature, ?err, "failed to fetch solana transaction");
                 Err(err)
@@ -94,7 +98,13 @@ fn parse_rpc_response(
     signature: &Signature,
     tx_data: EncodedConfirmedTransactionWithStatusMeta,
 ) -> Option<SolanaTransaction> {
-    let meta = tx_data.transaction.meta?;
+    let meta = match tx_data.transaction.meta {
+        Some(m) => m,
+        None => {
+            error!(%signature, "transaction has no metadata");
+            return None;
+        }
+    };
     let inner_instructions = match meta.inner_instructions.as_ref() {
         OptionSerializer::Some(inner) => inner.clone(),
         _ => vec![],
@@ -104,11 +114,20 @@ fn parse_rpc_response(
     let mut account_keys = match &tx_data.transaction.transaction {
         solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
             match &ui_transaction.message {
-                solana_transaction_status::UiMessage::Raw(raw_message) => raw_message
-                    .account_keys
-                    .iter()
-                    .filter_map(|key_str| Pubkey::from_str(key_str).ok())
-                    .collect(),
+                solana_transaction_status::UiMessage::Raw(raw_message) => {
+                    match raw_message
+                        .account_keys
+                        .iter()
+                        .map(|key_str| Pubkey::from_str(key_str))
+                        .collect::<Result<Vec<Pubkey>, _>>()
+                    {
+                        Ok(keys) => keys,
+                        Err(err) => {
+                            error!(%signature, ?err, "failed to parse static account key");
+                            return None;
+                        }
+                    }
+                }
                 _ => {
                     error!("RPC returned Parsed message, but we requested Raw message");
                     vec![]
@@ -122,18 +141,32 @@ fn parse_rpc_response(
     };
 
     if let OptionSerializer::Some(loaded) = meta.loaded_addresses.as_ref() {
-        account_keys.extend(
-            loaded
-                .writable
-                .iter()
-                .filter_map(|k| Pubkey::from_str(k).ok()),
-        );
-        account_keys.extend(
-            loaded
-                .readonly
-                .iter()
-                .filter_map(|k| Pubkey::from_str(k).ok()),
-        );
+        let writable: Vec<Pubkey> = match loaded
+            .writable
+            .iter()
+            .map(|k| Pubkey::from_str(k))
+            .collect::<Result<_, _>>()
+        {
+            Ok(keys) => keys,
+            Err(err) => {
+                error!(%signature, ?err, "failed to parse writable loaded address");
+                return None;
+            }
+        };
+        let readonly: Vec<Pubkey> = match loaded
+            .readonly
+            .iter()
+            .map(|k| Pubkey::from_str(k))
+            .collect::<Result<_, _>>()
+        {
+            Ok(keys) => keys,
+            Err(err) => {
+                error!(%signature, ?err, "failed to parse readonly loaded address");
+                return None;
+            }
+        };
+        account_keys.extend(writable);
+        account_keys.extend(readonly);
     }
 
     Some(SolanaTransaction {
@@ -499,7 +532,7 @@ mod test {
     }
 
     #[test]
-    fn parse_rpc_response_filters_invalid_loaded_address_pubkeys() {
+    fn parse_rpc_response_returns_none_on_invalid_loaded_address_pubkeys() {
         use solana_sdk::pubkey::Pubkey;
         use solana_transaction_status::UiLoadedAddresses;
 
@@ -515,9 +548,7 @@ mod test {
         );
 
         let sig = Signature::default();
-        let result = super::parse_rpc_response(&sig, resp).unwrap();
-
-        assert_eq!(result.account_keys, vec![static_key, valid_key]);
+        assert!(super::parse_rpc_response(&sig, resp).is_none());
     }
 
     #[test]
@@ -536,6 +567,115 @@ mod test {
 
         let sig = Signature::default();
         assert!(super::parse_rpc_response(&sig, resp).is_none());
+    }
+
+    #[test]
+    fn verify_message_succeeds_when_gateway_is_in_loaded_addresses() {
+        use anchor_lang::Discriminator;
+        use solana_axelar_gateway::events::CallContractEvent;
+        use solana_sdk::message::MessageHeader;
+        use solana_sdk::pubkey::Pubkey;
+        use solana_transaction_status::{
+            EncodedTransaction, EncodedTransactionWithStatusMeta, UiLoadedAddresses, UiMessage,
+            UiRawMessage, UiTransaction, UiTransactionStatusMeta,
+        };
+
+        let gateway = solana_axelar_gateway::ID;
+        let static_key = Pubkey::new_unique();
+
+        let event = CallContractEvent {
+            sender: Pubkey::new_unique(),
+            destination_chain: "ethereum".to_owned(),
+            destination_contract_address: "0xdeadbeef".to_owned(),
+            payload: vec![1, 2, 3],
+            payload_hash: [42; 32],
+        };
+
+        // Build instruction data with anchor event discriminators
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+        instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
+
+        // Gateway is at index 1 (static_key=0, gateway=1 via loaded_addresses)
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 1,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let meta = UiTransactionStatusMeta {
+            err: None,
+            status: Ok(()),
+            fee: 0,
+            pre_balances: vec![],
+            post_balances: vec![],
+            inner_instructions: OptionSerializer::Some(inner_instructions),
+            log_messages: OptionSerializer::None,
+            pre_token_balances: OptionSerializer::None,
+            post_token_balances: OptionSerializer::None,
+            rewards: OptionSerializer::None,
+            loaded_addresses: OptionSerializer::Some(UiLoadedAddresses {
+                writable: vec![gateway.to_string()],
+                readonly: vec![],
+            }),
+            return_data: OptionSerializer::None,
+            compute_units_consumed: OptionSerializer::None,
+            cost_units: OptionSerializer::None,
+        };
+
+        let rpc_response = solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+            slot: 0,
+            transaction: EncodedTransactionWithStatusMeta {
+                transaction: EncodedTransaction::Json(UiTransaction {
+                    signatures: vec![],
+                    message: UiMessage::Raw(UiRawMessage {
+                        header: MessageHeader {
+                            num_required_signatures: 1,
+                            num_readonly_signed_accounts: 0,
+                            num_readonly_unsigned_accounts: 0,
+                        },
+                        account_keys: vec![static_key.to_string()],
+                        recent_blockhash: String::new(),
+                        instructions: vec![],
+                        address_table_lookups: None,
+                    }),
+                }),
+                meta: Some(meta),
+                version: None,
+            },
+            block_time: None,
+        };
+
+        let sig = Signature::default();
+        let tx = super::parse_rpc_response(&sig, rpc_response)
+            .expect("parse_rpc_response should succeed");
+
+        // Gateway should be at index 1 (after the static key)
+        assert_eq!(tx.account_keys[1], gateway);
+
+        let msg = crate::solana::types::Message {
+            message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
+                raw_signature: [0; 64],
+                inner_ix_group_index: 1u32.try_into().unwrap(),
+                inner_ix_index: 1u32.try_into().unwrap(),
+            },
+            destination_address: event.destination_contract_address,
+            destination_chain: event.destination_chain.parse().unwrap(),
+            source_address: event.sender,
+            payload_hash: event.payload_hash.into(),
+        };
+
+        assert_eq!(
+            axelar_wasm_std::voting::Vote::SucceededOnChain,
+            super::msg_verifier::verify_message(&tx, &msg, &gateway)
+        );
     }
 
     #[test]
