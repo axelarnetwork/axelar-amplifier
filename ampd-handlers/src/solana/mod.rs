@@ -233,12 +233,6 @@ where
         return Vote::NotFound;
     }
 
-    // Only return FailedOnChain after confirming the tx involved our gateway
-    if tx.err.is_some() {
-        debug!("Transaction failed");
-        return Vote::FailedOnChain;
-    }
-
     let event = match parse_gateway_event_from_instruction(&instruction) {
         Ok(ev) => ev,
         Err(err) => {
@@ -251,6 +245,13 @@ where
     };
 
     if events_are_equal(&event) {
+        // Only return FailedOnChain after confirming the failed tx
+        // involved our gateway and had the event we're looking for
+        if tx.err.is_some() {
+            debug!("Transaction failed");
+            return Vote::FailedOnChain;
+        }
+
         Vote::SucceededOnChain
     } else {
         debug!(
