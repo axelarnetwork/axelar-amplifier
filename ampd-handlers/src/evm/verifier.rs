@@ -21,7 +21,11 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
                     match ChainName::try_from(event.destination_chain.as_ref()) {
                         Ok(chain) => self.destination_chain == chain,
                         Err(e) => {
-                            debug!(error = ?e, "failed to parse destination chain");
+                            debug!(
+                                message_id = %self.message_id,
+                                error = ?e,
+                                "failed to parse destination chain"
+                            );
                             false
                         }
                     };
