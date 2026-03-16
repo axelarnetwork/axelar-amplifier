@@ -88,7 +88,7 @@ impl SolanaRpcClientProxy for Client {
             Ok(None) => Ok(None),
             Err(err) => {
                 warn!(%signature, ?err, "failed to fetch solana transaction");
-                Err(err)
+                Ok(None)
             }
         }
     }
@@ -378,7 +378,8 @@ mod test {
         );
 
         let result = client.tx(&Signature::default()).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
 
         let msg = receiver.recv().await.unwrap();
         assert_eq!(

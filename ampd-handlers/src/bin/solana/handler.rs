@@ -646,6 +646,124 @@ mod tests {
         assert!(MsgExecuteContract::from_any(res.first().unwrap()).is_ok());
     }
 
+    /// Returns a valid verifiable tx for signature_1, and Ok(None) for anything else.
+    struct OneNotFoundSolanaRpc;
+
+    #[async_trait::async_trait]
+    impl SolanaRpcClientProxy for OneNotFoundSolanaRpc {
+        async fn tx(
+            &self,
+            signature: &Signature,
+        ) -> Result<Option<SolanaTransaction>, ampd_handlers::solana::ClientError> {
+            use anchor_lang::Discriminator;
+            use solana_axelar_gateway::events::CallContractEvent;
+            use solana_transaction_status::{
+                UiCompiledInstruction, UiInnerInstructions, UiInstruction,
+            };
+
+            let sig_1: Signature =
+                "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP"
+                    .parse()
+                    .unwrap();
+
+            // Return None for all other txs
+            if *signature != sig_1 {
+                return Ok(None);
+            }
+
+            // Build a CallContractEvent matching message_1 in message_poll_started_event
+            let event = CallContractEvent {
+                sender: Pubkey::from_str("9Tp4XJZLQKdM82BHYfNAG6V3RWpLC7Y5mXo1UqKZFTJ3").unwrap(),
+                destination_chain: "ethereum".to_owned(),
+                destination_contract_address: "0x3ad1f33ef5814e7adb43ed7fb39f9b45053ecab1"
+                    .to_owned(),
+                payload: vec![],
+                payload_hash: [1; 32],
+            };
+
+            let mut cpi_event_ix = Vec::new();
+            cpi_event_ix.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+            cpi_event_ix.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+            cpi_event_ix.extend_from_slice(&borsh::to_vec(&event).unwrap());
+
+            // message_1 expects inner_ix_group_index=1, inner_ix_index=10
+            // That maps to group.index=0, instruction position=9
+            let mut instructions = vec![];
+            for _ in 0..9 {
+                instructions.push(UiInstruction::Compiled(UiCompiledInstruction {
+                    program_id_index: 0,
+                    accounts: vec![],
+                    data: String::new(),
+                    stack_height: Some(2),
+                }));
+            }
+            instructions.push(UiInstruction::Compiled(UiCompiledInstruction {
+                program_id_index: 0,
+                accounts: vec![],
+                data: bs58::encode(&cpi_event_ix).into_string(),
+                stack_height: Some(2),
+            }));
+
+            Ok(Some(SolanaTransaction {
+                signature: *signature,
+                inner_instructions: vec![UiInnerInstructions {
+                    index: 0,
+                    instructions,
+                }],
+                err: None,
+                account_keys: vec![solana_axelar_gateway::ID],
+            }))
+        }
+    }
+
+    #[async_test]
+    async fn should_still_vote_when_one_tx_not_found() {
+        let domain_separator: [u8; 32] = [42; 32];
+        let voting_verifier = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+
+        let event = into_structured_event(
+            message_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let (monitoring_client, _) = test_utils::monitoring_client();
+
+        let handler = Handler::builder()
+            .verifier(verifier.into())
+            .voting_verifier_contract(voting_verifier.into())
+            .chain(chain_name!("solana"))
+            .rpc_client(OneNotFoundSolanaRpc)
+            .domain_separator(domain_separator)
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let mut client = mock_handler_client(expiration - 1);
+
+        let res = handler
+            .handle(event.try_into().unwrap(), &mut client)
+            .await
+            .unwrap();
+
+        // Handler should produce a vote message despite one tx being missing
+        assert_eq!(res.len(), 1);
+        let msg = MsgExecuteContract::from_any(res.first().unwrap()).unwrap();
+        let execute_msg: voting_verifier::msg::ExecuteMsg =
+            serde_json::from_slice(&msg.msg).unwrap();
+
+        match execute_msg {
+            voting_verifier::msg::ExecuteMsg::Vote { votes, .. } => {
+                assert_eq!(votes.len(), 2);
+                // First message's tx was found and verified
+                assert_eq!(votes[0], Vote::SucceededOnChain);
+                // Second message's tx was not found
+                assert_eq!(votes[1], Vote::NotFound);
+            }
+            _ => panic!("expected Vote message"),
+        }
+    }
+
     #[async_test]
     async fn should_record_message_verification_vote_metric() {
         let solana_chain_name = chain_name!("solana");
