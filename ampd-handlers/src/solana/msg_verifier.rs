@@ -26,7 +26,11 @@ pub fn verify_message(tx: &SolanaTransaction, message: &Message, gateway_address
         let destination_chain = match ChainName::from_str(destination_chain) {
             Ok(cn) => cn,
             Err(err) => {
-                error!("Cannot parse destination chain from event: {}", err);
+                error!(
+                    message_id = %message.message_id,
+                    err = %err,
+                    "cannot parse destination chain from event"
+                );
                 return false;
             }
         };

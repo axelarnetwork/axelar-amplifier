@@ -18,21 +18,30 @@ pub fn verify_verifier_set(
 ) -> Vote {
     verify(tx, &message.message_id, gateway_address, |gateway_event| {
         let GatewayEvent::VerifierSetRotated(verifier_set_rotated) = gateway_event else {
-            error!("found gateway event but it's not VerifierSetRotated event");
+            error!(
+                message_id = %message.message_id,
+                "found gateway event but it's not VerifierSetRotated event"
+            );
             return false;
         };
 
         let incoming_verifier_set_hash = &verifier_set_rotated.verifier_set_hash;
 
         let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
-            error!("verifier set data structure could not be parsed");
+            error!(
+                message_id = %message.message_id,
+                "verifier set data structure could not be parsed"
+            );
             return false;
         };
 
         let Ok(desired_hash) = solana_axelar_std::verifier_set::verifier_set_hash::<
             solana_axelar_std::hasher::Hasher,
         >(&verifier_set, domain_separator) else {
-            error!("verifier set could not be hashed");
+            error!(
+                message_id = %message.message_id,
+                "verifier set could not be hashed"
+            );
             return false;
         };
 
