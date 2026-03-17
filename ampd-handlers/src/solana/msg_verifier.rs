@@ -20,7 +20,13 @@ pub fn verify_message(tx: &SolanaTransaction, message: &Message, gateway_address
                     &event.destination_chain,
                     &event.destination_contract_address,
                 ),
-                _ => return false,
+                _ => {
+                    error!(
+                        message_id = %message.message_id,
+                        "found gateway event but it's not CallContract event"
+                    );
+                    return false;
+                }
             };
 
         let destination_chain = match ChainName::from_str(destination_chain) {
