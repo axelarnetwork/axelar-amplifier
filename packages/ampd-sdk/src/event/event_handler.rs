@@ -11,7 +11,7 @@ use thiserror::Error;
 use tokio::time::interval;
 use tokio_stream::Elapsed;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, trace};
+use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
 use valuable::Valuable;
 
@@ -141,10 +141,7 @@ where
             match event {
                 Ok(Ok(event)) => Some(Ok(event)),
                 Ok(Err(err)) => Some(Err(err.change_context(Error::EventStream))),
-                Err(_) => {
-                    trace!("stream timed out, waiting for next event");
-                    None
-                }
+                Err(_) => None,
             }
         });
 
