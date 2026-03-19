@@ -243,6 +243,48 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_if_event_is_not_call_contract() {
+        use solana_axelar_gateway::events::VerifierSetRotatedEvent;
+
+        // Build a VerifierSetRotated event instruction instead of CallContract
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(VerifierSetRotatedEvent::DISCRIMINATOR);
+        let vs_event = VerifierSetRotatedEvent {
+            epoch: solana_axelar_std::U256::from(1_u64),
+            verifier_set_hash: [42; 32],
+        };
+        instruction_data.extend_from_slice(&borsh::to_vec(&vs_event).unwrap());
+
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 0,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let (_base64_data, event) = fixture_call_contract_log();
+        let msg = create_msg_counterpart(&event, 1, 1);
+
+        let solana_tx = crate::solana::SolanaTransaction {
+            signature: msg.message_id.raw_signature.into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![solana_axelar_gateway::ID],
+        };
+
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&solana_tx, &msg, &solana_axelar_gateway::ID)
+        );
+    }
+
+    #[test]
     fn should_find_the_correct_index() {
         // Create a transaction with multiple instructions to test index finding
         let (_base64_data, event) = fixture_call_contract_log();
