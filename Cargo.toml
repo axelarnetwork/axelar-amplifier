@@ -140,9 +140,9 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 
 # Solana
-anchor-lang = { version = "1.0.0-rc.1", features = ["event-cpi"] }
-solana-axelar-gateway = "0.1.9"
-solana-axelar-std = "0.1.6"
+anchor-lang = { version = "1.0.0-rc.5", features = ["event-cpi"] }
+solana-axelar-gateway = "1.0.0"
+solana-axelar-std = "1.0.0"
 solana-client = "3.1.10"
 solana-sdk = "3.0.0"
 solana-transaction-status = "3.1.10"
