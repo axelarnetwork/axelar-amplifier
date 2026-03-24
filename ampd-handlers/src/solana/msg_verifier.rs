@@ -285,6 +285,49 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_if_event_has_invalid_destination_chain() {
+        // Build a CallContractEvent with an empty (invalid) destination chain
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+        let event = CallContractEvent {
+            sender: Pubkey::new_unique(),
+            destination_chain: "".to_owned(), // empty string is not a valid ChainName
+            destination_contract_address: "0xdead".to_owned(),
+            payload: vec![],
+            payload_hash: [0; 32],
+        };
+        instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
+
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 0,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let (_, valid_event) = fixture_call_contract_log();
+        let msg = create_msg_counterpart(&valid_event, 1, 1);
+
+        let solana_tx = crate::solana::SolanaTransaction {
+            signature: msg.message_id.raw_signature.into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![solana_axelar_gateway::ID],
+        };
+
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&solana_tx, &msg, &solana_axelar_gateway::ID)
+        );
+    }
+
+    #[test]
     fn should_find_the_correct_index() {
         // Create a transaction with multiple instructions to test index finding
         let (_base64_data, event) = fixture_call_contract_log();
