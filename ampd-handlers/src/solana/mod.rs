@@ -203,7 +203,11 @@ where
     F: Fn(&GatewayEvent) -> bool,
 {
     if tx.signature.as_ref() != message_id.raw_signature {
-        debug!("signatures don't match");
+        debug!(
+            message_id = %message_id,
+            tx_signature = %tx.signature,
+            "tx signatures don't match"
+        );
         return Vote::NotFound;
     }
 
@@ -215,10 +219,8 @@ where
         Some(inst) => inst,
         None => {
             debug!(
-                "Solana tx instruction with tx signature {} not found at inner_ix_group_index: {}, inner_ix_index: {}",
-                tx.signature,
-                message_id.inner_ix_group_index.into_inner(),
-                message_id.inner_ix_index.into_inner()
+                message_id = %message_id,
+                "instruction not found at specified index"
             );
             return Vote::NotFound;
         }
@@ -226,9 +228,8 @@ where
 
     if !is_instruction_to_gateway_program(&instruction, &tx.account_keys, gateway_address) {
         debug!(
-            "Solana tx instruction with tx signature {} at inner_ix_group_index: {}, inner_ix_index: {} is not to gateway program",
-            tx.signature,
-            message_id.inner_ix_group_index.into_inner(), message_id.inner_ix_index.into_inner()
+            message_id = %message_id,
+            "instruction is not to gateway program"
         );
         return Vote::NotFound;
     }
@@ -237,8 +238,9 @@ where
         Ok(ev) => ev,
         Err(err) => {
             debug!(
-                "Cannot parse gateway event from Solana tx instruction with tx signature {}: {}",
-                tx.signature, err
+                message_id = %message_id,
+                err = %err,
+                "cannot parse gateway event from instruction"
             );
             return Vote::NotFound;
         }
@@ -248,16 +250,16 @@ where
         // Only return FailedOnChain after confirming the failed tx
         // involved our gateway and had the event we're looking for
         if tx.err.is_some() {
-            debug!("Transaction failed");
+            debug!(message_id = %message_id, "transaction failed on chain");
             return Vote::FailedOnChain;
         }
 
         Vote::SucceededOnChain
     } else {
         debug!(
+            message_id = %message_id,
             ?event,
-            "Solana tx with tx signature {} event was found, but contents were not equal",
-            tx.signature,
+            "event was found but contents were not equal",
         );
         Vote::NotFound
     }

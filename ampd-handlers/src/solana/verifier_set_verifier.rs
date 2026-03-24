@@ -18,21 +18,30 @@ pub fn verify_verifier_set(
 ) -> Vote {
     verify(tx, &message.message_id, gateway_address, |gateway_event| {
         let GatewayEvent::VerifierSetRotated(verifier_set_rotated) = gateway_event else {
-            error!("found gateway event but it's not VerifierSetRotated event");
+            error!(
+                message_id = %message.message_id,
+                "found gateway event but it's not VerifierSetRotated event"
+            );
             return false;
         };
 
         let incoming_verifier_set_hash = &verifier_set_rotated.verifier_set_hash;
 
         let Some(verifier_set) = to_verifier_set(&message.verifier_set) else {
-            error!("verifier set data structure could not be parsed");
+            error!(
+                message_id = %message.message_id,
+                "verifier set data structure could not be parsed"
+            );
             return false;
         };
 
         let Ok(desired_hash) = solana_axelar_std::verifier_set::verifier_set_hash::<
             solana_axelar_std::hasher::Hasher,
         >(&verifier_set, domain_separator) else {
-            error!("verifier set could not be hashed");
+            error!(
+                message_id = %message.message_id,
+                "verifier set could not be hashed"
+            );
             return false;
         };
 
@@ -162,6 +171,63 @@ mod tests {
         let (tx, mut event) = fixture_success_call_contract_tx_data();
 
         event.verifier_set.threshold = Uint128::from(50u64);
+        assert_eq!(
+            verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_verifier_set_if_event_is_not_verifier_set_rotated() {
+        use anchor_lang::Discriminator;
+        use solana_axelar_gateway::events::CallContractEvent;
+
+        // Build a CallContract event instruction instead of VerifierSetRotated
+        let mut instruction_data = Vec::new();
+        instruction_data.extend_from_slice(anchor_lang::event::EVENT_IX_TAG_LE);
+        instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
+        let cc_event = CallContractEvent {
+            sender: Pubkey::new_unique(),
+            destination_chain: "ethereum".to_owned(),
+            destination_contract_address: "0xdead".to_owned(),
+            payload: vec![],
+            payload_hash: [0; 32],
+        };
+        instruction_data.extend_from_slice(&borsh::to_vec(&cc_event).unwrap());
+
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 0,
+            accounts: vec![],
+            data: bs58::encode(&instruction_data).into_string(),
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![solana_transaction_status::UiInstruction::Compiled(
+                compiled_instruction,
+            )],
+        }];
+
+        let tx = crate::solana::SolanaTransaction {
+            signature: RAW_SIGNATURE.into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![solana_axelar_gateway::ID],
+        };
+
+        // Use the fixture's verifier set (the specific event type doesn't matter
+        // since verify_verifier_set will fail at the "not VerifierSetRotated" check)
+        let (_, _, verifier_set) = fixture_rotate_verifier_set();
+        let event = VerifierSetConfirmation {
+            message_id: axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex {
+                raw_signature: RAW_SIGNATURE,
+                inner_ix_group_index: 1.try_into().unwrap(),
+                inner_ix_index: 1.try_into().unwrap(),
+            },
+            verifier_set,
+        };
+
         assert_eq!(
             verify_verifier_set(&tx, &event, &DOMAIN_SEPARATOR, &solana_axelar_gateway::ID),
             Vote::NotFound

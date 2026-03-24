@@ -21,7 +21,11 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
                     match ChainName::try_from(event.destination_chain.as_ref()) {
                         Ok(chain) => self.destination_chain == chain,
                         Err(e) => {
-                            debug!(error = ?e, "failed to parse destination chain");
+                            debug!(
+                                message_id = %self.message_id,
+                                error = ?e,
+                                "failed to parse destination chain"
+                            );
                             false
                         }
                     };
@@ -389,6 +393,19 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_receipt();
 
         msg.source_address = EVMAddress::random();
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_event_has_invalid_destination_chain() {
+        let gateway_address = EVMAddress::random();
+        let msg = mock_message("ethereum-2");
+        // Build a tx receipt where the on-chain event has an invalid destination chain
+        let tx_receipt = mock_tx_receipt("", gateway_address, &msg);
+
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound

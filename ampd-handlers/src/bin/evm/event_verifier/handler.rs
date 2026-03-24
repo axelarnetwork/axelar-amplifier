@@ -114,8 +114,9 @@ where
     // Skip if the source chain is not the same as the handler chain
     if handler_chain != source_chain {
         debug!(
-            handler_chain = handler_chain.to_string(),
-            source_chain = source_chain.to_string(),
+            poll_id = %poll_id,
+            handler_chain = %handler_chain,
+            source_chain = %source_chain,
             "chain mismatch, skipping event"
         );
         return true;
@@ -124,6 +125,7 @@ where
     // Skip if the verifier is not a participant
     if !participants.contains(verifier) {
         debug!(
+            poll_id = %poll_id,
             verifier = verifier.to_string(),
             "verifier not in participants, skipping event"
         );
