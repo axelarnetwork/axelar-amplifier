@@ -243,6 +243,38 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_if_instruction_data_cannot_be_parsed() {
+        // An instruction that points to the gateway program but whose data is
+        // too short to be a valid event (empty base58 → 0 bytes).
+        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+            program_id_index: 0,
+            accounts: vec![],
+            data: String::new(), // empty → decodes to 0 bytes, too short for a GatewayEvent
+            stack_height: Some(2),
+        };
+
+        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
+            index: 0,
+            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+        }];
+
+        let (_base64_data, event) = fixture_call_contract_log();
+        let msg = create_msg_counterpart(&event, 1, 1);
+
+        let solana_tx = crate::solana::SolanaTransaction {
+            signature: msg.message_id.raw_signature.into(),
+            inner_instructions,
+            err: None,
+            account_keys: vec![solana_axelar_gateway::ID],
+        };
+
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&solana_tx, &msg, &solana_axelar_gateway::ID)
+        );
+    }
+
+    #[test]
     fn should_not_verify_msg_if_event_is_not_call_contract() {
         use solana_axelar_gateway::events::VerifierSetRotatedEvent;
 
