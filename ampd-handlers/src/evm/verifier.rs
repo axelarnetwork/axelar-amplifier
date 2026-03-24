@@ -400,6 +400,19 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_if_event_has_invalid_destination_chain() {
+        let gateway_address = EVMAddress::random();
+        let msg = mock_message("ethereum-2");
+        // Build a tx receipt where the on-chain event has an invalid destination chain
+        let tx_receipt = mock_tx_receipt("", gateway_address, &msg);
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_receipt, msg) = matching_msg_and_tx_receipt();
 
