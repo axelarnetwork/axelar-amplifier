@@ -66,7 +66,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractEr
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, message_info};
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::Empty;
     use router_api::cosmos_addr;
 
