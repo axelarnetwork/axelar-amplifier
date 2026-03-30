@@ -22,10 +22,13 @@ pub fn migrate(
     if let Some(chain_codec_address) = msg.chain_codec_address {
         let chain_codec = address::validate_cosmwasm_address(deps.api, &chain_codec_address)?;
 
-        CONFIG.update(deps.storage, |mut config| -> Result<_, axelar_wasm_std::error::ContractError> {
-            config.chain_codec = chain_codec;
-            Ok(config)
-        })?;
+        CONFIG.update(
+            deps.storage,
+            |mut config| -> Result<_, axelar_wasm_std::error::ContractError> {
+                config.chain_codec = chain_codec;
+                Ok(config)
+            },
+        )?;
     }
 
     Ok(Response::default())
