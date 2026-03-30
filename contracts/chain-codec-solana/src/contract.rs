@@ -63,3 +63,27 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractEr
         )?))?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, message_info};
+    use cosmwasm_std::Empty;
+    use router_api::cosmos_addr;
+
+    use super::*;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = message_info(&cosmos_addr!("sender"), &[]);
+
+        instantiate(deps.as_mut(), env.clone(), info, InstantiateMsg {}).unwrap();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+}
