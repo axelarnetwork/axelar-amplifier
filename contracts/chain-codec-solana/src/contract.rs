@@ -1,4 +1,5 @@
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::migrate_from_version;
 use chain_codec_api::error::Error;
 use chain_codec_api::msg::{InstantiateMsg, QueryMsg};
 use cosmwasm_std::{
@@ -18,6 +19,16 @@ pub fn instantiate(
 ) -> Result<Response, Error> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("1.0")]
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     Ok(Response::default())
 }
 
@@ -51,4 +62,28 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractEr
             &payload,
         )?))?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
+    use cosmwasm_std::Empty;
+    use router_api::cosmos_addr;
+
+    use super::*;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = message_info(&cosmos_addr!("sender"), &[]);
+
+        instantiate(deps.as_mut(), env.clone(), info, InstantiateMsg {}).unwrap();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
 }

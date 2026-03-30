@@ -311,13 +311,11 @@ mod tests {
     fn migrate_sets_contract_version() {
         let mut deps = setup_test_case();
 
-        let chain_codec_address = deps.api.addr_make("chain_codec_address").to_string();
-
         migrate(
             deps.as_mut(),
             mock_env(),
             MigrateMsg {
-                chain_codec_address,
+                chain_codec_address: None,
             },
         )
         .unwrap();
@@ -325,6 +323,25 @@ mod tests {
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, CONTRACT_NAME);
         assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+
+    #[test]
+    fn migrate_updates_chain_codec_address() {
+        let mut deps = setup_test_case();
+
+        let new_chain_codec_address = deps.api.addr_make("new_chain_codec_address").to_string();
+
+        migrate(
+            deps.as_mut(),
+            mock_env(),
+            MigrateMsg {
+                chain_codec_address: Some(new_chain_codec_address.clone()),
+            },
+        )
+        .unwrap();
+
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        assert_eq!(config.chain_codec.to_string(), new_chain_codec_address);
     }
 
     #[test]
