@@ -28,6 +28,7 @@ itertools = { workspace = true }
 k256 = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
+semver = { workspace = true }
 sha3 = { workspace = true }
 solana-axelar-std = { workspace = true }
 

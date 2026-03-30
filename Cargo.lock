@@ -2130,6 +2130,7 @@ dependencies = [
  "multisig",
  "prost 0.12.6",
  "router-api",
+ "semver 1.0.27",
  "service-registry-api",
  "sha3",
  "solana-axelar-std",

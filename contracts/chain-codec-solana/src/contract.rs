@@ -1,4 +1,5 @@
 use axelar_wasm_std::error::ContractError;
+use axelar_wasm_std::migrate_from_version;
 use chain_codec_api::error::Error;
 use chain_codec_api::msg::{InstantiateMsg, QueryMsg};
 use cosmwasm_std::{
@@ -18,6 +19,16 @@ pub fn instantiate(
 ) -> Result<Response, Error> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("1.0")]
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
     Ok(Response::default())
 }
 
