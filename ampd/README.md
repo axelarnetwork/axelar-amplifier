@@ -365,6 +365,52 @@ Prior to running the ampd daemon, verifiers need to perform the following onboar
    Multiple chain names can be passed, separated by a space.
    `ampd register-chain-support [service name] [chains]...`
 
+### Monitoring
+
+Ampd includes an optional HTTP monitoring server, disabled by default. Enable it in the config:
+
+```toml
+[monitoring_server]
+enabled = true
+bind_address = "127.0.0.1:3000"
+channel_size = 1000
+```
+
+When enabled, two endpoints are available. The metrics endpoint is compatible with any
+Prometheus-compatible scraper (e.g. Prometheus, VictoriaMetrics) and can be visualized with
+tools like Grafana.
+
+- **`GET /status`** — health check, returns `{"ok": true}`
+- **`GET /metrics`** — Prometheus metrics in OpenMetrics text format
+
+#### Available metrics
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `blocks_received_total` | Counter | — | Blocks received from the Axelar chain |
+| `verification_votes_total` | Counter | `chain_name`, `vote_decision` | Votes cast per chain, broken down by outcome |
+| `rpc_calls_total` | Counter | `chain_name` | Total RPC calls to the source chain |
+| `rpc_calls_failed_total` | Counter | `chain_name` | Failed RPC calls to the source chain |
+| `stage_processed_total` | Counter | `stage` | Items processed per pipeline stage |
+| `stage_failed_total` | Counter | `stage` | Failed items per pipeline stage |
+| `stage_duration_total` | Counter | `stage` | Cumulative processing time per stage (ms) |
+| `msg_enqueue_error_total` | Counter | — | gRPC message enqueue failures |
+| `event_stream_timeout_total` | Counter | — | Event stream timeouts |
+| `event_publisher_error_total` | Counter | — | Event publisher failures |
+| `grpc_service_error_total` | Counter | — | gRPC service errors |
+| `ampd_cpu_usage_percent` | Gauge | — | Process CPU usage (%) |
+| `ampd_memory_usage_bytes` | Gauge | — | Process memory usage (bytes) |
+
+**`vote_decision` label values:**
+- `SucceededOnChain` — message was found on the source chain and passed verification
+- `FailedOnChain` — message was found but failed verification (wrong gateway, wrong content, etc.)
+- `NotFound` — transaction was not found in finalized chain state
+
+Note: `verification_votes_total` is incremented per individual message, not per poll. To compute
+the success rate for a chain: `SucceededOnChain / (SucceededOnChain + FailedOnChain + NotFound)`.
+
+**`stage` label values:** `EventHandling`, `TransactionBroadcast`, `TransactionConfirmation`
+
 ### Run the daemon
 
 `ampd`
