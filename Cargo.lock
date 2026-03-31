@@ -2110,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "chain-codec-solana"
-version = "2.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "assert_ok",
@@ -2130,6 +2130,7 @@ dependencies = [
  "multisig",
  "prost 0.12.6",
  "router-api",
+ "semver 1.0.27",
  "service-registry-api",
  "sha3",
  "solana-axelar-std",
@@ -6688,7 +6689,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "anyhow",
  "assert_ok",
