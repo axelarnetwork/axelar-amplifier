@@ -111,18 +111,28 @@ mod tests {
         remove_stellar_xrp_token_instance(deps.as_mut().storage);
 
         // only stellar + xrp_token_id should be removed
-        assert!(state::may_load_token_instance(deps.as_ref().storage, stellar.clone(), xrp_token_id)
-            .unwrap()
-            .is_none());
+        assert!(state::may_load_token_instance(
+            deps.as_ref().storage,
+            stellar.clone(),
+            xrp_token_id
+        )
+        .unwrap()
+        .is_none());
 
-        assert!(state::may_load_token_instance(deps.as_ref().storage, xrpl, xrp_token_id)
-            .unwrap()
-            .is_some());
-        assert!(state::may_load_token_instance(deps.as_ref().storage, stellar, other_token_id)
-            .unwrap()
-            .is_some());
-        assert!(state::may_load_token_instance(deps.as_ref().storage, ethereum, xrp_token_id)
-            .unwrap()
-            .is_some());
+        assert!(
+            state::may_load_token_instance(deps.as_ref().storage, xrpl, xrp_token_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            state::may_load_token_instance(deps.as_ref().storage, stellar, other_token_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            state::may_load_token_instance(deps.as_ref().storage, ethereum, xrp_token_id)
+                .unwrap()
+                .is_some()
+        );
     }
 }
