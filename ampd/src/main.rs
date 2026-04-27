@@ -309,8 +309,7 @@ mod tests {
         let existing_str = existing.to_str().unwrap().to_string();
         let missing_str = missing.to_str().unwrap().to_string();
 
-        let files =
-            find_config_files(&[], &[missing_str.as_str(), existing_str.as_str()]).unwrap();
+        let files = find_config_files(&[], &[missing_str.as_str(), existing_str.as_str()]).unwrap();
         assert_eq!(files.len(), 1);
     }
 
