@@ -18,4 +18,7 @@ ignore = [
     "RUSTSEC-2026-0007",  # bytes: Integer overflow in BytesMut::reserve — transitive (tungstenite etc.), upgrade when deps allow
     "RUSTSEC-2026-0009",  # time: DoS stack exhaustion — transitive (tendermint, serde_with etc.), upgrade when deps allow,
     "RUSTSEC-2026-0049",  # rustls-webpki: CRL Distribution Point validation bypass — 0.102.x fix requires major version bump blocked on Sui/anemo upstream; 0.103.x fix blocked on Solana upstream
+    "RUSTSEC-2026-0098",  # rustls-webpki: name constraints for URI names incorrectly accepted — same upstream blockers as RUSTSEC-2026-0049
+    "RUSTSEC-2026-0099",  # rustls-webpki: name constraints accepted for wildcard certs — same upstream blockers as RUSTSEC-2026-0049
+    "RUSTSEC-2026-0104",  # rustls-webpki: reachable panic in CRL parsing — same upstream blockers as RUSTSEC-2026-0049
 ]
