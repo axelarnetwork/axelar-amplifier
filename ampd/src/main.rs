@@ -135,7 +135,7 @@ fn set_up_logger(output: &Output) {
 }
 
 fn init_config(config_paths: &[PathBuf]) -> error_stack::Result<Config, Error> {
-    let files = find_config_files(config_paths)?;
+    let files = find_config_files(config_paths, DEFAULT_CONFIG_PATHS)?;
     let env_keys: Vec<String> = std::env::vars_os()
         .filter_map(|(k, _)| k.into_string().ok())
         .filter(|k| k.starts_with("AMPD_"))
@@ -159,13 +159,11 @@ fn init_config(config_paths: &[PathBuf]) -> error_stack::Result<Config, Error> {
 
 fn find_config_files(
     config: &[PathBuf],
+    defaults: &[&str],
 ) -> error_stack::Result<Vec<File<FileSourceFile, FileFormat>>, Error> {
     let (paths, user_supplied) = if config.is_empty() {
         (
-            DEFAULT_CONFIG_PATHS
-                .iter()
-                .map(PathBuf::from)
-                .collect::<Vec<_>>(),
+            defaults.iter().map(PathBuf::from).collect::<Vec<_>>(),
             false,
         )
     } else {
@@ -226,4 +224,144 @@ fn expand_home_dir(path: impl AsRef<Path>) -> PathBuf {
     };
 
     dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use super::*;
+
+    fn make_file(dir: &TempDir, name: &str) -> PathBuf {
+        let path = dir.path().join(name);
+        fs::write(&path, b"").expect("write temp file");
+        path
+    }
+
+    #[test]
+    fn find_config_files_resolves_user_supplied_path() {
+        let dir = TempDir::new().unwrap();
+        let path = make_file(&dir, "ampd.toml");
+
+        let files = find_config_files(&[path], &[]).unwrap();
+        assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn find_config_files_collects_all_user_supplied_paths() {
+        let dir = TempDir::new().unwrap();
+        let a = make_file(&dir, "a.toml");
+        let b = make_file(&dir, "b.toml");
+
+        let files = find_config_files(&[a, b], &[]).unwrap();
+        assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn find_config_files_errors_on_missing_user_supplied_path() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("nope.toml");
+
+        let err = find_config_files(&[missing.clone()], &[]).unwrap_err();
+        let formatted = format!("{err:?}");
+        assert!(
+            formatted.contains(&missing.display().to_string()),
+            "expected error to mention path, got: {formatted}",
+        );
+    }
+
+    #[test]
+    fn find_config_files_errors_when_any_user_supplied_path_is_missing() {
+        let dir = TempDir::new().unwrap();
+        let good = make_file(&dir, "good.toml");
+        let missing = dir.path().join("missing.toml");
+
+        assert!(find_config_files(&[good, missing], &[]).is_err());
+    }
+
+    #[test]
+    fn find_config_files_returns_empty_when_no_user_paths_and_no_defaults_exist() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("not-there.toml");
+        let missing_str = missing.to_str().unwrap().to_string();
+
+        let files = find_config_files(&[], &[missing_str.as_str()]).unwrap();
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn find_config_files_picks_up_existing_default() {
+        let dir = TempDir::new().unwrap();
+        let existing = make_file(&dir, "default.toml");
+        let existing_str = existing.to_str().unwrap().to_string();
+
+        let files = find_config_files(&[], &[existing_str.as_str()]).unwrap();
+        assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn find_config_files_skips_missing_defaults_silently() {
+        let dir = TempDir::new().unwrap();
+        let existing = make_file(&dir, "exists.toml");
+        let missing = dir.path().join("absent.toml");
+        let existing_str = existing.to_str().unwrap().to_string();
+        let missing_str = missing.to_str().unwrap().to_string();
+
+        let files =
+            find_config_files(&[], &[missing_str.as_str(), existing_str.as_str()]).unwrap();
+        assert_eq!(files.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_config_files_errors_on_unreadable_user_supplied_path() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let restricted = dir.path().join("locked");
+        fs::create_dir(&restricted).unwrap();
+        let path = restricted.join("config.toml");
+        fs::write(&path, b"").unwrap();
+        fs::set_permissions(&restricted, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // root bypasses chmod, which would invalidate the test premise; detect by
+        // probing the FS rather than depending on libc
+        if canonicalize(&path).is_ok() {
+            fs::set_permissions(&restricted, fs::Permissions::from_mode(0o755)).unwrap();
+            return;
+        }
+
+        let result = find_config_files(&[path], &[]);
+
+        fs::set_permissions(&restricted, fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert!(result.is_err(), "expected error, got {result:?}");
+    }
+
+    #[test]
+    fn expand_home_dir_leaves_non_tilde_paths_untouched() {
+        let path = PathBuf::from("/etc/ampd/config.toml");
+        assert_eq!(expand_home_dir(&path), path);
+    }
+
+    #[test]
+    fn expand_home_dir_replaces_leading_tilde() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+
+        assert_eq!(
+            expand_home_dir(PathBuf::from("~/.ampd/config.toml")),
+            home.join(".ampd/config.toml"),
+        );
+    }
+
+    #[test]
+    fn expand_home_dir_does_not_match_tilde_inside_path_segment() {
+        // `~foo` is not a tilde-home path; it should pass through unchanged
+        let path = PathBuf::from("~foo/bar");
+        assert_eq!(expand_home_dir(&path), path);
+    }
 }
