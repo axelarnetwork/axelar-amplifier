@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::fs::canonicalize;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -16,18 +17,21 @@ use clap::{arg, command, Parser, ValueEnum};
 use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use report::LoggableError;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_core::LevelFilter;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 use valuable::Valuable;
 
+const DEFAULT_CONFIG_PATHS: &[&str] = &["~/.ampd/config.toml", "config.toml"];
+
 #[derive(Debug, Parser, Valuable)]
 #[command(version)]
 struct Args {
-    /// Set the paths for config file lookup. Can be defined multiple times (configs get merged)
-    #[arg(short, long, default_values_os_t = vec![std::path::PathBuf::from("~/.ampd/config.toml"), std::path::PathBuf::from("config.toml")])]
+    /// Set the paths for config file lookup. Can be defined multiple times (configs get merged).
+    /// If not provided, falls back to `~/.ampd/config.toml` and `./config.toml`.
+    #[arg(short, long)]
     pub config: Vec<PathBuf>,
 
     /// Set the output style of the logs
@@ -49,7 +53,16 @@ async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
-    let cfg = init_config(&args.config);
+    let cfg = match init_config(&args.config) {
+        Ok(cfg) => cfg,
+        Err(report) => {
+            error!(err = LoggableError::from(&report).as_value(), "{report:#}");
+            if matches!(args.output, Output::Text) {
+                eprintln!("{report:?}");
+            }
+            return ExitCode::FAILURE;
+        }
+    };
 
     let result = match args.cmd {
         Some(SubCommand::Daemon) | None => {
@@ -121,30 +134,78 @@ fn set_up_logger(output: &Output) {
     };
 }
 
-fn init_config(config_paths: &[PathBuf]) -> Config {
-    let files = find_config_files(config_paths);
+fn init_config(config_paths: &[PathBuf]) -> error_stack::Result<Config, Error> {
+    let files = find_config_files(config_paths)?;
+    let env_keys: Vec<String> = std::env::vars_os()
+        .filter_map(|(k, _)| k.into_string().ok())
+        .filter(|k| k.starts_with("AMPD_"))
+        .collect();
 
-    parse_config(files)
+    if files.is_empty() && env_keys.is_empty() {
+        warn!("no config file or AMPD_* env vars found; using Config::default()");
+    } else {
+        info!(
+            file_count = files.len(),
+            env_vars = ?env_keys,
+            "loading config",
+        );
+    }
+
+    Ok(parse_config(files)
         .change_context(Error::LoadConfig)
         .inspect_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
-        .unwrap_or_default()
+        .unwrap_or_default())
 }
 
-fn find_config_files(config: &[PathBuf]) -> Vec<File<FileSourceFile, FileFormat>> {
-    let files = config
-        .iter()
-        .map(expand_home_dir)
-        .map(canonicalize)
-        .filter_map(Result::ok)
-        .inspect(|path| info!("found config file {}", path.to_string_lossy()))
-        .map(File::from)
-        .collect::<Vec<_>>();
+fn find_config_files(
+    config: &[PathBuf],
+) -> error_stack::Result<Vec<File<FileSourceFile, FileFormat>>, Error> {
+    let (paths, user_supplied) = if config.is_empty() {
+        (
+            DEFAULT_CONFIG_PATHS
+                .iter()
+                .map(PathBuf::from)
+                .collect::<Vec<_>>(),
+            false,
+        )
+    } else {
+        (config.to_vec(), true)
+    };
+
+    let mut files = Vec::new();
+    for path in paths {
+        let expanded = expand_home_dir(&path);
+        match canonicalize(&expanded) {
+            Ok(canonical) => {
+                info!("found config file {}", canonical.to_string_lossy());
+                files.push(File::from(canonical));
+            }
+            Err(err) if !user_supplied && err.kind() == io::ErrorKind::NotFound => {
+                // default candidate does not exist on this install; skip silently
+            }
+            Err(err) if !user_supplied => {
+                warn!(
+                    path = %expanded.to_string_lossy(),
+                    err = %err,
+                    "skipping default config file",
+                );
+            }
+            Err(err) => {
+                return Err(Report::from(err)
+                    .change_context(Error::LoadConfig)
+                    .attach_printable(format!(
+                        "failed to resolve config path: {}",
+                        expanded.display()
+                    )));
+            }
+        }
+    }
 
     if files.is_empty() {
         info!("found no config files to load");
     }
 
-    files
+    Ok(files)
 }
 
 fn parse_config(
