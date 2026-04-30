@@ -53,15 +53,9 @@ async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
-    let cfg = match init_config(&args.config) {
+    let cfg = match init_config_or_exit(&args.config, &args.output) {
         Ok(cfg) => cfg,
-        Err(report) => {
-            error!(err = LoggableError::from(&report).as_value(), "{report:#}");
-            if matches!(args.output, Output::Text) {
-                eprintln!("{report:?}");
-            }
-            return ExitCode::FAILURE;
-        }
+        Err(code) => return code,
     };
 
     let result = match args.cmd {
@@ -108,6 +102,20 @@ async fn main() -> ExitCode {
     }
 }
 
+fn report_init_config_failure(report: &error_stack::Report<Error>, output: &Output) {
+    error!(err = LoggableError::from(report).as_value(), "{report:#}");
+    if matches!(output, Output::Text) {
+        eprintln!("{report:?}");
+    }
+}
+
+fn init_config_or_exit(config_paths: &[PathBuf], output: &Output) -> Result<Config, ExitCode> {
+    init_config(config_paths).map_err(|report| {
+        report_init_config_failure(&report, output);
+        ExitCode::FAILURE
+    })
+}
+
 fn set_up_logger(output: &Output) {
     let error_layer = ErrorLayer::default();
     let filter_layer = EnvFilter::builder()
@@ -151,11 +159,7 @@ fn init_config_with_defaults(
     if files.is_empty() && env_keys.is_empty() {
         warn!("no config file or AMPD_* env vars found; using Config::default()");
     } else {
-        info!(
-            file_count = files.len(),
-            env_vars = ?env_keys,
-            "loading config",
-        );
+        info!(file_count = files.len(), env_vars = ?env_keys, "loading config");
     }
 
     Ok(parse_config(files)
@@ -189,11 +193,7 @@ fn find_config_files(
                 // default candidate does not exist on this install; skip silently
             }
             Err(err) if !user_supplied => {
-                warn!(
-                    path = %expanded.to_string_lossy(),
-                    err = %err,
-                    "skipping default config file",
-                );
+                warn!(path = %expanded.to_string_lossy(), err = %err, "skipping default config file");
             }
             Err(err) => {
                 return Err(Report::from(err)
@@ -238,6 +238,7 @@ mod tests {
     use std::fs;
 
     use tempfile::TempDir;
+    use tracing_test::traced_test;
 
     use super::*;
 
@@ -247,6 +248,7 @@ mod tests {
         path
     }
 
+    #[traced_test]
     #[test]
     fn find_config_files_resolves_user_supplied_path() {
         let dir = TempDir::new().unwrap();
@@ -372,6 +374,7 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[traced_test]
     #[test]
     fn find_config_files_skips_unreadable_default_with_warning() {
         use std::os::unix::fs::PermissionsExt;
@@ -404,6 +407,7 @@ mod tests {
             .collect()
     }
 
+    #[traced_test]
     #[test]
     fn init_config_succeeds_with_user_supplied_file() {
         let dir = TempDir::new().unwrap();
@@ -420,6 +424,7 @@ mod tests {
         assert!(init_config(&[missing]).is_err());
     }
 
+    #[traced_test]
     #[test]
     fn init_config_falls_back_to_default_when_no_sources_present() {
         let keys = ampd_env_keys();
@@ -430,5 +435,33 @@ mod tests {
             let cfg = init_config_with_defaults(&[], &[]).expect("should not error");
             assert_eq!(cfg, Config::default());
         });
+    }
+
+    #[traced_test]
+    #[test]
+    fn report_init_config_failure_runs_for_text_and_json_output() {
+        let report = error_stack::Report::new(Error::LoadConfig);
+
+        // both branches should run without panicking; Text additionally writes to stderr
+        report_init_config_failure(&report, &Output::Text);
+        report_init_config_failure(&report, &Output::Json);
+    }
+
+    #[traced_test]
+    #[test]
+    fn init_config_or_exit_returns_failure_on_invalid_path() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("nope.toml");
+
+        assert!(init_config_or_exit(&[missing], &Output::Json).is_err());
+    }
+
+    #[traced_test]
+    #[test]
+    fn init_config_or_exit_returns_config_on_valid_path() {
+        let dir = TempDir::new().unwrap();
+        let path = make_file(&dir, "ampd.toml");
+
+        assert!(init_config_or_exit(&[path], &Output::Text).is_ok());
     }
 }
