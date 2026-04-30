@@ -135,7 +135,14 @@ fn set_up_logger(output: &Output) {
 }
 
 fn init_config(config_paths: &[PathBuf]) -> error_stack::Result<Config, Error> {
-    let files = find_config_files(config_paths, DEFAULT_CONFIG_PATHS)?;
+    init_config_with_defaults(config_paths, DEFAULT_CONFIG_PATHS)
+}
+
+fn init_config_with_defaults(
+    config_paths: &[PathBuf],
+    defaults: &[&str],
+) -> error_stack::Result<Config, Error> {
+    let files = find_config_files(config_paths, defaults)?;
     let env_keys: Vec<String> = std::env::vars_os()
         .filter_map(|(k, _)| k.into_string().ok())
         .filter(|k| k.starts_with("AMPD_"))
@@ -362,5 +369,66 @@ mod tests {
         // `~foo` is not a tilde-home path; it should pass through unchanged
         let path = PathBuf::from("~foo/bar");
         assert_eq!(expand_home_dir(&path), path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_config_files_skips_unreadable_default_with_warning() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let restricted = dir.path().join("locked");
+        fs::create_dir(&restricted).unwrap();
+        let default_path = restricted.join("default.toml");
+        fs::write(&default_path, b"").unwrap();
+        fs::set_permissions(&restricted, fs::Permissions::from_mode(0o000)).unwrap();
+
+        if canonicalize(&default_path).is_ok() {
+            fs::set_permissions(&restricted, fs::Permissions::from_mode(0o755)).unwrap();
+            return;
+        }
+
+        let default_str = default_path.to_string_lossy().into_owned();
+        let result = find_config_files(&[], &[default_str.as_str()]);
+
+        fs::set_permissions(&restricted, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let files = result.expect("default-path errors should not propagate");
+        assert!(files.is_empty());
+    }
+
+    fn ampd_env_keys() -> Vec<String> {
+        std::env::vars_os()
+            .filter_map(|(k, _)| k.into_string().ok())
+            .filter(|k| k.starts_with("AMPD_"))
+            .collect()
+    }
+
+    #[test]
+    fn init_config_succeeds_with_user_supplied_file() {
+        let dir = TempDir::new().unwrap();
+        let path = make_file(&dir, "ampd.toml");
+
+        assert!(init_config(&[path]).is_ok());
+    }
+
+    #[test]
+    fn init_config_propagates_user_path_resolution_errors() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("nope.toml");
+
+        assert!(init_config(&[missing]).is_err());
+    }
+
+    #[test]
+    fn init_config_falls_back_to_default_when_no_sources_present() {
+        let keys = ampd_env_keys();
+
+        temp_env::with_vars_unset(keys.as_slice(), || {
+            // empty user paths + empty defaults + no AMPD_* env vars exercises
+            // the warn-and-fall-back branch deterministically
+            let cfg = init_config_with_defaults(&[], &[]).expect("should not error");
+            assert_eq!(cfg, Config::default());
+        });
     }
 }
