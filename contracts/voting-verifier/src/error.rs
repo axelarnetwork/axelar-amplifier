@@ -23,6 +23,9 @@ pub enum ContractError {
     #[error("empty batch of messages")]
     EmptyMessages,
 
+    #[error("too many messages in batch: {actual} exceeds maximum {max}")]
+    TooManyMessages { actual: usize, max: usize },
+
     #[error("all messages must have the same source chain {0}")]
     SourceChainMismatch(ChainName),
 
