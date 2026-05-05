@@ -135,4 +135,11 @@ mod tests {
                 .is_some()
         );
     }
+
+    #[test]
+    fn migration_is_no_op_when_target_absent() {
+        let mut deps = mock_dependencies();
+        // should not panic
+        remove_stellar_xrp_token_instance(deps.as_mut().storage);
+    }
 }
