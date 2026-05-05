@@ -95,6 +95,7 @@ multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 random-string = { workspace = true }
 temp-env = { workspace = true, features = ["async_closure"] }
+tempfile = "3"
 tendermint-proto = { version = "0.40.3" }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test = { workspace = true }

@@ -304,6 +304,7 @@ dependencies = [
  "stellar-xdr",
  "sysinfo",
  "temp-env",
+ "tempfile",
  "tendermint",
  "tendermint-proto",
  "tendermint-rpc",
