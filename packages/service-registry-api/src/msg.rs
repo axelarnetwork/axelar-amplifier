@@ -60,7 +60,7 @@ pub enum ExecuteMsg {
         service_name: String,
     },
 
-    /// Register support for the specified chains. Called by the verifier.
+    /// Register support for the specified chains. Called by an authorized verifier.
     #[permission(Specific(verifier))]
     RegisterChainSupport {
         service_name: String,
