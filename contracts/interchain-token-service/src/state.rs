@@ -296,6 +296,10 @@ pub fn may_load_token_instance(
         .change_context(Error::Storage)
 }
 
+pub fn remove_token_instance(storage: &mut dyn Storage, chain: ChainNameRaw, token_id: TokenId) {
+    TOKEN_INSTANCE.remove(storage, &(chain, token_id));
+}
+
 pub fn may_load_token_config(
     storage: &dyn Storage,
     token_id: &TokenId,
