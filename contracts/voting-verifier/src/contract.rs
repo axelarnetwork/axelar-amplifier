@@ -507,6 +507,48 @@ mod test {
     }
 
     #[test]
+    fn should_fail_if_messages_exceed_max_per_poll() {
+        use crate::contract::execute::MAX_MESSAGES_PER_POLL;
+
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let count = u64::try_from(MAX_MESSAGES_PER_POLL)
+            .unwrap()
+            .saturating_add(1);
+        let messages: Vec<Message> = (0..count)
+            .map(|i| Message {
+                cc_id: CrossChainId::new(source_chain(), message_id("id", i, &msg_id_format))
+                    .unwrap(),
+                source_address: alloy_primitives::Address::random()
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+                destination_chain: chain_name!("destination-chain"),
+                destination_address: address!("destination-address"),
+                payload_hash: [0; 32],
+            })
+            .collect();
+        let msg = ExecuteMsg::VerifyMessages(messages);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            msg,
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            ContractError::TooManyMessages {
+                actual: MAX_MESSAGES_PER_POLL.saturating_add(1),
+                max: MAX_MESSAGES_PER_POLL,
+            },
+        );
+    }
+
+    #[test]
     fn should_fail_if_messages_are_not_from_same_source() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
