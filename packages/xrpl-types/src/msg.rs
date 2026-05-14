@@ -338,6 +338,7 @@ impl XRPLInterchainTransferMessage {
         hasher.update(self.destination_address.as_str());
         hasher.update(delimiter_bytes);
         hasher.update(self.transfer_amount.hash());
+        hasher.update(self.gas_fee_amount.hash());
 
         if let Some(hash) = self.payload_hash {
             hasher.update(delimiter_bytes);
