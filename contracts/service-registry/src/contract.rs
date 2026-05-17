@@ -163,7 +163,6 @@ fn match_verifier(
 
     let res = VERIFIERS
         .load(storage, (service_name, sender_addr))
-        .map(|verifier| verifier.address)
         .change_context(ContractError::VerifierNotFound)
         .change_context(permission_control::Error::Unauthorized);
 
@@ -172,7 +171,16 @@ fn match_verifier(
         state::service(storage, service_name, None)
             .change_context(permission_control::Error::Unauthorized)?;
     }
-    res.map(|addr| addr == sender_addr)
+    let verifier = res?;
+
+    if matches!(msg, ExecuteMsg::RegisterChainSupport { .. })
+        && verifier.authorization_state != AuthorizationState::Authorized
+    {
+        return Err(Report::new(ContractError::Unauthorized)
+            .change_context(permission_control::Error::Unauthorized));
+    }
+
+    Ok(verifier.address == sender_addr)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -2126,7 +2134,7 @@ mod test {
         assert!(res.is_ok());
 
         let chain_name = chain_name!(ETHEREUM);
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             mock_env(),
             message_info(&cosmos_addr!(VERIFIER_ADDRESS), &[]),
@@ -2134,8 +2142,14 @@ mod test {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::Unauthorized,
+        ));
 
         let verifiers: Vec<WeightedVerifier> = from_json(
             query(

@@ -24,6 +24,16 @@ use crate::state::{
     self, poll_messages, poll_verifier_sets, PollContent, CONFIG, POLLS, POLL_ID, VOTES,
 };
 
+/// Maximum number of messages allowed in a single `VerifyMessages` call.
+///
+/// This bounds the size of any poll created in the voting verifier so that a
+/// single oversized poll cannot inflate the gas cost of `Vote` past ampd's
+/// `batch_gas_limit`, which would otherwise let an attacker delay the
+/// verification of any included message indefinitely. Both `VerifyMessages`
+/// and ampd's `Vote` scale linearly with poll size, so capping the size of
+/// the poll caps the worst-case gas cost of voting on it.
+pub const MAX_MESSAGES_PER_POLL: usize = 1000;
+
 pub fn update_voting_parameters(
     deps: DepsMut,
     voting_threshold: Option<MajorityThreshold>,
@@ -97,6 +107,13 @@ pub fn verify_messages(
 ) -> Result<Response, ContractError> {
     if messages.is_empty() {
         return Err(report!(ContractError::EmptyMessages));
+    }
+
+    if messages.len() > MAX_MESSAGES_PER_POLL {
+        return Err(report!(ContractError::TooManyMessages {
+            actual: messages.len(),
+            max: MAX_MESSAGES_PER_POLL,
+        }));
     }
 
     let config = CONFIG.load(deps.storage).expect("failed to load config");
