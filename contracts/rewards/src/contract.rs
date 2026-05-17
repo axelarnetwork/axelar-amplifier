@@ -195,8 +195,8 @@ fn handle_distribution_failure(
     deps: DepsMut,
     reply: Reply,
 ) -> Result<Response, error_stack::Report<ContractError>> {
-    let payload: DistributionPayload = from_json(&reply.payload)
-        .change_context(ContractError::DeserializeReplyPayload)?;
+    let payload: DistributionPayload =
+        from_json(&reply.payload).change_context(ContractError::DeserializeReplyPayload)?;
 
     match payload.destination {
         SendDestination::Proxy => {
@@ -238,12 +238,14 @@ fn handle_distribution_failure(
                 .map_err(Into::<ContractError>::into)
                 .map_err(error_stack::Report::from)?;
             state::save_rewards_pool(deps.storage, &pool)?;
-            Ok(Response::new().add_event(events::Event::VerifierSendFailed {
-                pool_id: payload.pool_id,
-                verifier_address: payload.verifier_address,
-                proxy_address: payload.proxy_address,
-                amount: payload.amount,
-            }))
+            Ok(
+                Response::new().add_event(events::Event::VerifierSendFailed {
+                    pool_id: payload.pool_id,
+                    verifier_address: payload.verifier_address,
+                    proxy_address: payload.proxy_address,
+                    amount: payload.amount,
+                }),
+            )
         }
     }
 }
@@ -1144,9 +1146,7 @@ mod reply_tests {
 
     use super::*;
     use crate::msg::Params;
-    use crate::state::{
-        Epoch, ParamsSnapshot, RewardsPool, VERIFIER_PROXY_ADDRESSES,
-    };
+    use crate::state::{Epoch, ParamsSnapshot, RewardsPool, VERIFIER_PROXY_ADDRESSES};
 
     const AXL: &str = "uaxl";
     const POOL_CONTRACT: &str = "pool_contract";
