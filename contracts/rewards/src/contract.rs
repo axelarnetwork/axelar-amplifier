@@ -2,7 +2,8 @@ use axelar_wasm_std::{address, nonempty, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
+    from_json, to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, SubMsg,
 };
 use error_stack::ResultExt;
 use itertools::Itertools;
@@ -10,7 +11,7 @@ use itertools::Itertools;
 use crate::error::ContractError;
 use crate::events;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{self, Config, PoolId, CONFIG};
+use crate::state::{self, Config, DistributionPayload, PoolId, SendDestination, CONFIG};
 
 mod execute;
 mod migrations;
@@ -20,6 +21,8 @@ pub use migrations::{migrate, MigrateMsg};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub const REWARDS_DISTRIBUTION_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -92,31 +95,50 @@ pub fn execute(
             pool_id,
             epoch_count,
         } => {
+            let pool_id = PoolId::try_from_msg_pool_id(deps.api, pool_id)?;
             let rewards_distribution = execute::distribute_rewards(
                 deps.storage,
-                PoolId::try_from_msg_pool_id(deps.api, pool_id)?,
+                pool_id.clone(),
                 env.block.height,
                 epoch_count,
             )?;
 
-            let msgs = rewards_distribution
+            let denom = state::load_config(deps.storage).rewards_denom;
+            let submsgs = rewards_distribution
                 .rewards
                 .clone()
                 .into_iter()
                 .sorted()
-                .map(|(verifier, amount)| BankMsg::Send {
-                    to_address: verifier
-                        .proxy_address
-                        .unwrap_or(verifier.verifier_address)
-                        .into(),
-                    amount: vec![Coin {
-                        denom: state::load_config(deps.storage).rewards_denom.clone(),
+                .map(|(verifier, amount)| {
+                    let (to_address, destination) = match &verifier.proxy_address {
+                        Some(proxy) => (proxy.clone(), SendDestination::Proxy),
+                        None => (verifier.verifier_address.clone(), SendDestination::Verifier),
+                    };
+                    let payload = DistributionPayload {
+                        pool_id: pool_id.clone(),
+                        verifier_address: verifier.verifier_address.clone(),
+                        proxy_address: verifier.proxy_address.clone(),
                         amount,
-                    }],
-                });
+                        destination,
+                    };
+                    let bank_msg = BankMsg::Send {
+                        to_address: to_address.into(),
+                        amount: vec![Coin {
+                            denom: denom.clone(),
+                            amount,
+                        }],
+                    };
+                    let encoded = to_json_binary(&payload)
+                        .change_context(ContractError::SerializeReplyPayload)?;
+                    Ok::<_, error_stack::Report<ContractError>>(
+                        SubMsg::reply_on_error(bank_msg, REWARDS_DISTRIBUTION_REPLY_ID)
+                            .with_payload(encoded),
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
 
             Ok(Response::new()
-                .add_messages(msgs)
+                .add_submessages(submsgs)
                 .add_event(events::Event::from(rewards_distribution)))
         }
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
@@ -152,6 +174,76 @@ pub fn execute(
             execute::remove_verifier_proxy(deps.storage, &info.sender);
 
             Ok(Response::new())
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(
+    deps: DepsMut,
+    _env: Env,
+    reply: Reply,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    match reply.id {
+        REWARDS_DISTRIBUTION_REPLY_ID => handle_distribution_failure(deps, reply),
+        _ => unreachable!("unknown reply ID"),
+    }
+    .map_err(axelar_wasm_std::error::ContractError::from)
+}
+
+fn handle_distribution_failure(
+    deps: DepsMut,
+    reply: Reply,
+) -> Result<Response, error_stack::Report<ContractError>> {
+    let payload: DistributionPayload = from_json(&reply.payload)
+        .change_context(ContractError::DeserializeReplyPayload)?;
+
+    match payload.destination {
+        SendDestination::Proxy => {
+            let proxy_address = payload
+                .proxy_address
+                .clone()
+                .expect("proxy destination requires a proxy address");
+            let denom = state::load_config(deps.storage).rewards_denom;
+            let fallback_payload = DistributionPayload {
+                destination: SendDestination::Verifier,
+                ..payload.clone()
+            };
+            let bank_msg = BankMsg::Send {
+                to_address: payload.verifier_address.to_string(),
+                amount: vec![Coin {
+                    denom,
+                    amount: payload.amount,
+                }],
+            };
+            let encoded = to_json_binary(&fallback_payload)
+                .change_context(ContractError::SerializeReplyPayload)?;
+            Ok(Response::new()
+                .add_submessage(
+                    SubMsg::reply_on_error(bank_msg, REWARDS_DISTRIBUTION_REPLY_ID)
+                        .with_payload(encoded),
+                )
+                .add_event(events::Event::ProxySendFailed {
+                    pool_id: payload.pool_id,
+                    verifier_address: payload.verifier_address,
+                    proxy_address,
+                    amount: payload.amount,
+                }))
+        }
+        SendDestination::Verifier => {
+            let mut pool = state::load_rewards_pool(deps.storage, payload.pool_id.clone())?;
+            pool.balance = pool
+                .balance
+                .checked_add(payload.amount)
+                .map_err(Into::<ContractError>::into)
+                .map_err(error_stack::Report::from)?;
+            state::save_rewards_pool(deps.storage, &pool)?;
+            Ok(Response::new().add_event(events::Event::VerifierSendFailed {
+                pool_id: payload.pool_id,
+                verifier_address: payload.verifier_address,
+                proxy_address: payload.proxy_address,
+                amount: payload.amount,
+            }))
         }
     }
 }
@@ -229,7 +321,7 @@ mod tests {
                 .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         });
-        let code = ContractWrapper::new(execute, instantiate, query);
+        let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
         let code_id = app.store_code(Box::new(code));
 
         let governance_address = cosmos_addr!(GOVERNANCE);
@@ -381,7 +473,7 @@ mod tests {
                 .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         });
-        let code = ContractWrapper::new(execute, instantiate, query);
+        let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
         let code_id = app.store_code(Box::new(code));
 
         let governance_address = cosmos_addr!(GOVERNANCE);
@@ -571,7 +663,7 @@ mod tests {
                 .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         });
-        let code = ContractWrapper::new(execute, instantiate, query);
+        let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
         let code_id = app.store_code(Box::new(code));
 
         let governance_address = cosmos_addr!(GOVERNANCE);
@@ -726,7 +818,7 @@ mod tests {
                 .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         });
-        let code = ContractWrapper::new(execute, instantiate, query);
+        let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
         let code_id = app.store_code(Box::new(code));
 
         let governance_address = cosmos_addr!(GOVERNANCE);
@@ -888,7 +980,7 @@ mod tests {
                 .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         });
-        let code = ContractWrapper::new(execute, instantiate, query);
+        let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
         let code_id = app.store_code(Box::new(code));
 
         let governance_address = cosmos_addr!(GOVERNANCE);
@@ -1039,5 +1131,306 @@ mod tests {
             balance.amount,
             Uint128::from(updated_params.rewards_per_epoch)
         );
+    }
+}
+
+#[cfg(test)]
+mod reply_tests {
+    use cosmwasm_std::testing::{
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{CosmosMsg, OwnedDeps, ReplyOn, SubMsgResult};
+    use router_api::{chain_name, cosmos_addr};
+
+    use super::*;
+    use crate::msg::Params;
+    use crate::state::{
+        Epoch, ParamsSnapshot, RewardsPool, VERIFIER_PROXY_ADDRESSES,
+    };
+
+    const AXL: &str = "uaxl";
+    const POOL_CONTRACT: &str = "pool_contract";
+    const VERIFIER: &str = "verifier";
+    const MOCK_CHAIN: &str = "mock-chain";
+
+    type MockDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
+
+    fn test_pool_id() -> PoolId {
+        PoolId {
+            chain_name: chain_name!(MOCK_CHAIN),
+            contract: cosmos_addr!(POOL_CONTRACT),
+        }
+    }
+
+    fn setup_pool(initial_balance: u128) -> MockDeps {
+        let mut deps = mock_dependencies();
+        CONFIG
+            .save(
+                deps.as_mut().storage,
+                &Config {
+                    rewards_denom: AXL.into(),
+                },
+            )
+            .unwrap();
+        state::save_rewards_pool(
+            deps.as_mut().storage,
+            &RewardsPool {
+                id: test_pool_id(),
+                balance: cosmwasm_std::Uint128::from(initial_balance),
+                params: ParamsSnapshot {
+                    params: Params {
+                        epoch_duration: 100u64.try_into().unwrap(),
+                        rewards_per_epoch: cosmwasm_std::Uint128::from(100u128).try_into().unwrap(),
+                        participation_threshold: (1, 2).try_into().unwrap(),
+                    },
+                    created_at: Epoch {
+                        epoch_num: 0,
+                        block_height_started: 0,
+                    },
+                },
+            },
+        )
+        .unwrap();
+        deps
+    }
+
+    fn make_reply(payload: &DistributionPayload) -> Reply {
+        Reply {
+            id: REWARDS_DISTRIBUTION_REPLY_ID,
+            payload: to_json_binary(payload).unwrap(),
+            gas_used: 0,
+            result: SubMsgResult::Err("bank rejected".into()),
+        }
+    }
+
+    #[test]
+    fn proxy_send_failure_dispatches_fallback_to_verifier() {
+        let mut deps = setup_pool(1000);
+        let verifier = cosmos_addr!(VERIFIER);
+        let proxy = cosmos_addr!("malicious_proxy");
+        let amount = cosmwasm_std::Uint128::from(50u128);
+
+        let payload = DistributionPayload {
+            pool_id: test_pool_id(),
+            verifier_address: verifier.clone(),
+            proxy_address: Some(proxy.clone()),
+            amount,
+            destination: SendDestination::Proxy,
+        };
+
+        let res = reply(deps.as_mut(), mock_env(), make_reply(&payload)).unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        let sub = &res.messages[0];
+        assert_eq!(sub.reply_on, ReplyOn::Error);
+        assert_eq!(sub.id, REWARDS_DISTRIBUTION_REPLY_ID);
+
+        match &sub.msg {
+            CosmosMsg::Bank(BankMsg::Send {
+                to_address,
+                amount: coins,
+            }) => {
+                assert_eq!(to_address, verifier.as_str());
+                assert_eq!(coins.len(), 1);
+                assert_eq!(coins[0].amount, amount);
+                assert_eq!(coins[0].denom, AXL);
+            }
+            _ => panic!("expected BankMsg::Send"),
+        }
+
+        let fallback: DistributionPayload = from_json(&sub.payload).unwrap();
+        assert_eq!(fallback.destination, SendDestination::Verifier);
+        assert_eq!(fallback.verifier_address, verifier);
+        assert_eq!(fallback.proxy_address, Some(proxy));
+        assert_eq!(fallback.amount, amount);
+        assert_eq!(fallback.pool_id, test_pool_id());
+
+        // pool balance unchanged: refund only happens after verifier-send fails
+        let pool = state::load_rewards_pool(deps.as_ref().storage, test_pool_id()).unwrap();
+        assert_eq!(pool.balance, cosmwasm_std::Uint128::from(1000u128));
+
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "proxy_send_failed");
+    }
+
+    #[test]
+    fn verifier_send_failure_after_fallback_refunds_pool() {
+        let mut deps = setup_pool(1000);
+        let verifier = cosmos_addr!(VERIFIER);
+        let proxy = cosmos_addr!("malicious_proxy");
+        let amount = cosmwasm_std::Uint128::from(50u128);
+
+        let payload = DistributionPayload {
+            pool_id: test_pool_id(),
+            verifier_address: verifier,
+            proxy_address: Some(proxy),
+            amount,
+            destination: SendDestination::Verifier,
+        };
+
+        let res = reply(deps.as_mut(), mock_env(), make_reply(&payload)).unwrap();
+        assert!(res.messages.is_empty());
+
+        let pool = state::load_rewards_pool(deps.as_ref().storage, test_pool_id()).unwrap();
+        assert_eq!(pool.balance, cosmwasm_std::Uint128::from(1050u128));
+
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "verifier_send_failed");
+    }
+
+    #[test]
+    fn verifier_send_failure_no_proxy_refunds_pool() {
+        let mut deps = setup_pool(1000);
+        let verifier = cosmos_addr!(VERIFIER);
+        let amount = cosmwasm_std::Uint128::from(50u128);
+
+        let payload = DistributionPayload {
+            pool_id: test_pool_id(),
+            verifier_address: verifier,
+            proxy_address: None,
+            amount,
+            destination: SendDestination::Verifier,
+        };
+
+        let res = reply(deps.as_mut(), mock_env(), make_reply(&payload)).unwrap();
+        assert!(res.messages.is_empty());
+
+        let pool = state::load_rewards_pool(deps.as_ref().storage, test_pool_id()).unwrap();
+        assert_eq!(pool.balance, cosmwasm_std::Uint128::from(1050u128));
+
+        assert_eq!(res.events.len(), 1);
+        assert_eq!(res.events[0].ty, "verifier_send_failed");
+    }
+
+    #[test]
+    fn malformed_payload_returns_error() {
+        let mut deps = setup_pool(1000);
+        let reply_msg = Reply {
+            id: REWARDS_DISTRIBUTION_REPLY_ID,
+            payload: Binary::new(b"not valid json".to_vec()),
+            gas_used: 0,
+            result: SubMsgResult::Err("ignored".into()),
+        };
+        assert!(reply(deps.as_mut(), mock_env(), reply_msg).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "unknown reply ID")]
+    fn unknown_reply_id_panics() {
+        let mut deps = setup_pool(1000);
+        let reply_msg = Reply {
+            id: 999,
+            payload: Binary::default(),
+            gas_used: 0,
+            result: SubMsgResult::Err("ignored".into()),
+        };
+        let _ = reply(deps.as_mut(), mock_env(), reply_msg);
+    }
+
+    #[test]
+    fn distribute_rewards_dispatches_reply_on_error_submsg_for_proxy() {
+        let mut deps = setup_pool(1000);
+        let verifier = cosmos_addr!(VERIFIER);
+        let proxy = cosmos_addr!("proxy");
+
+        execute::record_participation(
+            deps.as_mut().storage,
+            "event-1".to_string().try_into().unwrap(),
+            verifier.clone(),
+            test_pool_id(),
+            0,
+        )
+        .unwrap();
+        VERIFIER_PROXY_ADDRESSES
+            .save(deps.as_mut().storage, verifier.clone(), &proxy)
+            .unwrap();
+
+        let mut env = mock_env();
+        env.block.height = 200;
+
+        let res = execute(
+            deps.as_mut(),
+            env,
+            message_info(&cosmos_addr!("caller"), &[]),
+            ExecuteMsg::DistributeRewards {
+                pool_id: crate::msg::PoolId {
+                    chain_name: chain_name!(MOCK_CHAIN),
+                    contract: cosmos_addr!(POOL_CONTRACT).to_string(),
+                },
+                epoch_count: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        let sub = &res.messages[0];
+        assert_eq!(sub.reply_on, ReplyOn::Error);
+        assert_eq!(sub.id, REWARDS_DISTRIBUTION_REPLY_ID);
+
+        match &sub.msg {
+            CosmosMsg::Bank(BankMsg::Send {
+                to_address,
+                amount: coins,
+            }) => {
+                assert_eq!(to_address, proxy.as_str());
+                assert_eq!(coins[0].denom, AXL);
+                assert_eq!(coins[0].amount, cosmwasm_std::Uint128::from(100u128));
+            }
+            _ => panic!("expected BankMsg::Send"),
+        }
+
+        let payload: DistributionPayload = from_json(&sub.payload).unwrap();
+        assert_eq!(payload.destination, SendDestination::Proxy);
+        assert_eq!(payload.verifier_address, verifier);
+        assert_eq!(payload.proxy_address, Some(proxy));
+        assert_eq!(payload.amount, cosmwasm_std::Uint128::from(100u128));
+    }
+
+    #[test]
+    fn distribute_rewards_dispatches_reply_on_error_submsg_without_proxy() {
+        let mut deps = setup_pool(1000);
+        let verifier = cosmos_addr!(VERIFIER);
+
+        execute::record_participation(
+            deps.as_mut().storage,
+            "event-1".to_string().try_into().unwrap(),
+            verifier.clone(),
+            test_pool_id(),
+            0,
+        )
+        .unwrap();
+
+        let mut env = mock_env();
+        env.block.height = 200;
+
+        let res = execute(
+            deps.as_mut(),
+            env,
+            message_info(&cosmos_addr!("caller"), &[]),
+            ExecuteMsg::DistributeRewards {
+                pool_id: crate::msg::PoolId {
+                    chain_name: chain_name!(MOCK_CHAIN),
+                    contract: cosmos_addr!(POOL_CONTRACT).to_string(),
+                },
+                epoch_count: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        let sub = &res.messages[0];
+        assert_eq!(sub.reply_on, ReplyOn::Error);
+
+        match &sub.msg {
+            CosmosMsg::Bank(BankMsg::Send { to_address, .. }) => {
+                assert_eq!(to_address, verifier.as_str());
+            }
+            _ => panic!("expected BankMsg::Send"),
+        }
+
+        let payload: DistributionPayload = from_json(&sub.payload).unwrap();
+        assert_eq!(payload.destination, SendDestination::Verifier);
+        assert_eq!(payload.proxy_address, None);
+        assert_eq!(payload.verifier_address, verifier);
     }
 }
