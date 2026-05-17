@@ -102,6 +102,11 @@ pub fn bond_verifier(
 ) -> Result<Response, ContractError> {
     let service = state::service(deps.storage, &service_name, None)?;
 
+    // should only have a single denomination
+    if info.funds.len() > 1 {
+        return Err(ContractError::WrongDenom.into());
+    }
+
     let bond: Option<nonempty::Uint128> = if !info.funds.is_empty() {
         Some(
             info.funds
