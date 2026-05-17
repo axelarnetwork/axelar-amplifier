@@ -1481,6 +1481,76 @@ mod test {
     }
 
     #[test]
+    fn should_not_start_new_poll_while_verifier_set_poll_in_progress() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
+
+        // first call: starts poll 1
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::VerifyVerifierSet {
+                message_id: message_id("id", 0, &msg_id_format),
+                new_verifier_set: verifier_set.clone(),
+            },
+        )
+        .unwrap();
+        assert!(!res.events.is_empty(), "first call should emit PollStarted");
+
+        // second call while poll 1 is in progress: must be a no-op
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::VerifyVerifierSet {
+                message_id: message_id("different_id", 1, &msg_id_format),
+                new_verifier_set: verifier_set.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res, Response::new());
+
+        // votes on poll 1 still reach consensus because the mapping was not overwritten
+        for verifier in verifiers {
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::SucceededOnChain],
+                },
+            )
+            .unwrap();
+        }
+
+        execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&cosmos_addr!(SENDER), &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        )
+        .unwrap();
+
+        let status: VerificationStatus = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::VerifierSetStatus(verifier_set),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(status, VerificationStatus::SucceededOnSourceChain);
+    }
+
+    #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn voting_parameter_changes_should_not_affect_existing_polls() {
         let verifiers = verifiers(10);
