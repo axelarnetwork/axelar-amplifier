@@ -232,7 +232,8 @@ mod test {
         message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        coins, from_json, Api, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128, WasmQuery,
+        coin, coins, from_json, Api, Coin, CosmosMsg, Empty, OwnedDeps, StdResult, Uint128,
+        WasmQuery,
     };
     use router_api::{chain_name, cosmos_addr, ChainName};
     use service_registry_api::{Verifier, WeightedVerifier};
@@ -2052,6 +2053,50 @@ mod test {
         ));
     }
 
+    #[test]
+    fn bond_multiple_denoms_should_fail() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond: nonempty::Uint128 = Uint128::new(100).try_into().unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(GOVERNANCE_ADDRESS), &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: cosmos_addr!(COORDINATOR_ADDRESS).to_string(),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let funds: Vec<Coin> = vec![
+            coin(min_verifier_bond.into_inner().u128(), AXL_DENOMINATION),
+            coin(5, "funnydenom"),
+        ];
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(VERIFIER_ADDRESS), &funds),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::WrongDenom
+        ));
+    }
     #[test]
     fn bond_but_not_authorized() {
         let mut deps = setup();
