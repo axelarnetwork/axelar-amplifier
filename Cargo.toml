@@ -70,7 +70,7 @@ heck = "0.5.0"
 hex = "0.4.3"
 humantime-serde = "1.1.1"
 integration-tests = { version = "^1.0.0", path = "integration-tests" }
-interchain-token-service = { version = "^1.3.1", path = "contracts/interchain-token-service" }
+interchain-token-service = { version = "^1.3.2", path = "contracts/interchain-token-service" }
 interchain-token-service-std = { version = "^1.0.0", path = "packages/interchain-token-service-std" }
 into-inner-derive = { version = "^1.0.0", path = "packages/into-inner-derive" }
 itertools = "0.14.0"
@@ -124,7 +124,7 @@ tracing-subscriber = { version = "0.3.20", features = ["json", "valuable", "env-
 tracing-test = "0.2.5"
 typed-builder = "0.18.2"
 valuable = "0.1.1"
-voting-verifier = { version = "^2.0.1", path = "contracts/voting-verifier" }
+voting-verifier = { version = "^2.0.2", path = "contracts/voting-verifier" }
 voting-verifier-api = { version = "1.0.0", path = "packages/voting-verifier-api" }
 xrpl-types = { version = "^1.0.0", path = "packages/xrpl-types" }
 xrpl_http_client = { version = "0.15.0" }
