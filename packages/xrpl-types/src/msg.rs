@@ -452,8 +452,43 @@ impl<T: Clone + Into<XRPLMessage>> From<WithPayload<T>> for XRPLMessage {
 mod test {
     use std::str::FromStr;
 
-    use super::XRPLMessageType;
+    use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::nonempty;
+    use router_api::ChainNameRaw;
+
+    use super::{XRPLInterchainTransferMessage, XRPLMessageType};
     use crate::error::XRPLError;
+    use crate::types::{XRPLAccountId, XRPLPaymentAmount};
+
+    fn interchain_transfer_message() -> XRPLInterchainTransferMessage {
+        XRPLInterchainTransferMessage {
+            tx_id: HexTxHash::new([1; 32]),
+            source_address: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
+            destination_chain: ChainNameRaw::from_str("Ethereum").unwrap(),
+            destination_address: nonempty::String::try_from(
+                "592639c10223c4ec6c0ffc670e94d289a25dd1ad".to_string(),
+            )
+            .unwrap(),
+            payload_hash: None,
+            transfer_amount: XRPLPaymentAmount::Drops(100000),
+            gas_fee_amount: XRPLPaymentAmount::Drops(50000),
+        }
+    }
+
+    #[test]
+    fn test_interchain_transfer_hash_includes_gas_fee_amount() {
+        let message = interchain_transfer_message();
+
+        let mut other = message.clone();
+        other.gas_fee_amount = XRPLPaymentAmount::Drops(50001);
+
+        // The gas fee amount is part of the hash preimage, so a different
+        // gas fee amount must yield a different hash.
+        assert_ne!(message.hash(), other.hash());
+
+        // The hash is deterministic for the same message.
+        assert_eq!(message.hash(), interchain_transfer_message().hash());
+    }
 
     #[test]
     fn test_xrpl_message_type_from_string() {
