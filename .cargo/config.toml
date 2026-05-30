@@ -1,5 +1,5 @@
 [alias]
-wasm = "build --release --lib --target wasm32-unknown-unknown --locked --workspace --exclude ampd --exclude integration-tests"
+wasm = "build --release --lib --target wasm32-unknown-unknown --locked --workspace --exclude ampd --exclude ampd-handlers --exclude ampd-sdk --exclude ampd-proto --exclude events --exclude integration-tests"
 unit-test = "test --lib"
 clippy-check = "clippy --all-targets -- -D warnings -A deprecated"
 fmt-check = "fmt --all --check"
