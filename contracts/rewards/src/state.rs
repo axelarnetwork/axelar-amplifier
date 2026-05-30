@@ -73,7 +73,7 @@ impl PrimaryKey<'_> for PoolId {
     type Suffix = Addr;
     type SuperSuffix = (ChainName, Addr);
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         let mut keys = self.chain_name.key();
         keys.extend(self.contract.key());
         keys
@@ -94,7 +94,7 @@ impl KeyDeserialize for PoolId {
 }
 
 impl Prefixer<'_> for PoolId {
-    fn prefix(&self) -> Vec<Key> {
+    fn prefix(&self) -> Vec<Key<'_>> {
         self.key()
     }
 }
@@ -112,7 +112,7 @@ impl PrimaryKey<'_> for TallyId {
     type Suffix = ();
     type SuperSuffix = (PoolId, u64);
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         let mut keys = self.pool_id.key();
         keys.extend(self.epoch_num.key());
         keys

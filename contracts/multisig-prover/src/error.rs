@@ -121,5 +121,5 @@ pub enum ContractError {
     StorageError,
 
     #[error(transparent)]
-    ChainCodecError(#[from] chain_codec_api::ClientError),
+    ChainCodecError(#[from] Box<chain_codec_api::ClientError>),
 }

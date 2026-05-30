@@ -291,6 +291,10 @@ impl HandlerTaskClient for GrpcClient {
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils {
+    #![allow(
+        clippy::result_large_err,
+        reason = "gRPC mocks return Result<_, tonic::Status>; Status is large and out of our control"
+    )]
     use std::vec;
 
     use ampd_proto::blockchain_service_server::BlockchainService;
@@ -382,6 +386,10 @@ pub mod test_utils {
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(
+        clippy::result_large_err,
+        reason = "gRPC mocks return Result<_, tonic::Status>; Status is large and out of our control"
+    )]
     use std::str::FromStr;
     use std::vec;
 

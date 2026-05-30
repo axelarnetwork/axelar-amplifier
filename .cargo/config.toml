@@ -3,7 +3,7 @@ wasm = "build --release --lib --target wasm32-unknown-unknown --locked --workspa
 unit-test = "test --lib"
 clippy-check = "clippy --all-targets -- -D warnings -A deprecated"
 fmt-check = "fmt --all --check"
-sort-check = "sort --workspace --check --check-format"
+sort-check = "sort --workspace --check --check-format --grouped"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]
