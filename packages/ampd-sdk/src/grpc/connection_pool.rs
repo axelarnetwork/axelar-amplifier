@@ -8,7 +8,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Duration};
 use tokio_util::sync::CancellationToken;
 use tonic::transport;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::future::{with_retry, RetryPolicy};
 

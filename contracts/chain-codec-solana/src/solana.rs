@@ -91,7 +91,7 @@ pub fn encode_execute_data(
 fn to_verifier_set(vs: &VerifierSet) -> Result<solana_axelar_std::VerifierSet, Error> {
     let mut signers = BTreeMap::new();
 
-    for (_cosmwasm_adr, signer) in vs.signers.iter() {
+    for signer in vs.signers.values() {
         let pub_key = to_pub_key(&signer.pub_key)?;
         let weight = signer.weight.u128();
         signers.insert(pub_key, weight);

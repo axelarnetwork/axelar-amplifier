@@ -11,7 +11,7 @@ use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 use typed_builder::TypedBuilder;
 
 use crate::monitoring::metrics;
