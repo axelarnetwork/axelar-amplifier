@@ -179,6 +179,7 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
 #[cfg(test)]
 mod tests {
     use error_stack::Report;
+    use rusty_fork::rusty_fork_test;
     use temp_env::with_var;
     use thiserror::Error;
     use tracing::instrument;
@@ -196,52 +197,58 @@ mod tests {
         FromString(String),
     }
 
-    #[test]
-    fn correct_error_log() {
-        with_var("RUST_BACKTRACE", Some("1"), || {
-            let line_offset = line!();
-            let report = Report::new(Error::FromString("error1".to_string()))
-                .attach_printable("foo1")
-                .change_context(Error::FromString("error2".to_string()))
-                .attach_printable("test1")
-                .attach_printable("test2")
-                .change_context(Error::FromString("error3".to_string()))
-                .attach(5);
+    rusty_fork_test! {
+        // Runs in its own forked process so this test is always the first backtrace
+        // capture, making RUST_BACKTRACE=1 (set below) take effect. std caches the
+        // backtrace-enabled decision once per process, so in the shared test binary a
+        // sibling test capturing first could lock it to "disabled" and flake this one.
+        #[test]
+        fn correct_error_log() {
+            with_var("RUST_BACKTRACE", Some("1"), || {
+                let line_offset = line!();
+                let report = Report::new(Error::FromString("error1".to_string()))
+                    .attach_printable("foo1")
+                    .change_context(Error::FromString("error2".to_string()))
+                    .attach_printable("test1")
+                    .attach_printable("test2")
+                    .change_context(Error::FromString("error3".to_string()))
+                    .attach(5);
 
-            let mut err = LoggableError::from(&report);
+                let mut err = LoggableError::from(&report);
 
-            let root_err = err.cause.as_mut().unwrap().cause.as_mut().unwrap();
+                let root_err = err.cause.as_mut().unwrap().cause.as_mut().unwrap();
 
-            assert!(root_err.backtrace.is_some());
-            assert!(!root_err.backtrace.as_ref().unwrap().lines.is_empty());
+                assert!(root_err.backtrace.is_some());
+                assert!(!root_err.backtrace.as_ref().unwrap().lines.is_empty());
 
-            root_err.backtrace = None;
+                root_err.backtrace = None;
 
-            let expected_err = LoggableError {
-                msg: "error3".to_string(),
-                attachments: vec!["opaque attachment".to_string()],
-                location: format!("packages/report/src/loggable.rs:{}:18", line_offset + 6),
-                cause: Some(Box::new(LoggableError {
-                    msg: "error2".to_string(),
-                    attachments: vec!["test1".to_string(), "test2".to_string()],
-                    location: format!("packages/report/src/loggable.rs:{}:18", line_offset + 3),
+                let expected_err = LoggableError {
+                    msg: "error3".to_string(),
+                    attachments: vec!["opaque attachment".to_string()],
+                    location: format!("packages/report/src/loggable.rs:{}:22", line_offset + 6),
                     cause: Some(Box::new(LoggableError {
-                        msg: "error1".to_string(),
-                        attachments: vec!["foo1".to_string()],
-                        location: format!("packages/report/src/loggable.rs:{}:26", line_offset + 1),
-                        cause: None,
+                        msg: "error2".to_string(),
+                        attachments: vec!["test1".to_string(), "test2".to_string()],
+                        location: format!("packages/report/src/loggable.rs:{}:22", line_offset + 3),
+                        cause: Some(Box::new(LoggableError {
+                            msg: "error1".to_string(),
+                            attachments: vec!["foo1".to_string()],
+                            location: format!("packages/report/src/loggable.rs:{}:30", line_offset + 1),
+                            cause: None,
+                            backtrace: None,
+                            spantrace: None,
+                        })),
                         backtrace: None,
                         spantrace: None,
                     })),
                     backtrace: None,
                     spantrace: None,
-                })),
-                backtrace: None,
-                spantrace: None,
-            };
+                };
 
-            assert_eq!(err, expected_err);
-        });
+                assert_eq!(err, expected_err);
+            });
+        }
     }
 
     #[test]

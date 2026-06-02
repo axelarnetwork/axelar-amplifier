@@ -62,7 +62,7 @@ impl PrimaryKey<'_> for PayloadId {
     type Suffix = PayloadId;
     type SuperSuffix = PayloadId;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_slice())]
     }
 }

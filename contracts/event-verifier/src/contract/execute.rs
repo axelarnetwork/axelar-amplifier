@@ -431,20 +431,28 @@ mod tests {
 
         let ev = event("test-event");
         // Initial status should be Unknown
-        let res =
-            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
+        let res = query::events_status(
+            deps.as_ref(),
+            std::slice::from_ref(&ev),
+            mock_env().block.height,
+        )
+        .unwrap();
         assert_eq!(res[0].status, VerificationStatus::Unknown);
 
         // Status should be InProgress after poll creation
         create_poll(&mut deps, &ev);
-        let res =
-            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
+        let res = query::events_status(
+            deps.as_ref(),
+            std::slice::from_ref(&ev),
+            mock_env().block.height,
+        )
+        .unwrap();
         assert_eq!(res[0].status, VerificationStatus::InProgress);
 
         // Status should be FailedToVerify after poll expiration with no consensus
         let res = query::events_status(
             deps.as_ref(),
-            &[ev.clone()],
+            std::slice::from_ref(&ev),
             mock_env().block.height + POLL_BLOCK_EXPIRY,
         )
         .unwrap();
@@ -494,8 +502,12 @@ mod tests {
 
             create_poll_and_cast_votes(&mut deps, &ev, &verifiers, votes.to_vec());
 
-            let res = query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height)
-                .unwrap();
+            let res = query::events_status(
+                deps.as_ref(),
+                std::slice::from_ref(&ev),
+                mock_env().block.height,
+            )
+            .unwrap();
             assert_eq!(res[0].status, *expected_status);
         }
     }
@@ -603,8 +615,12 @@ mod tests {
             poll_id,
             vec![Vote::SucceededOnChain],
         ));
-        let res =
-            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
+        let res = query::events_status(
+            deps.as_ref(),
+            std::slice::from_ref(&ev),
+            mock_env().block.height,
+        )
+        .unwrap();
         assert_eq!(res[0].status, VerificationStatus::InProgress);
 
         // Third vote should reach quorum under 3/3 and succeed
@@ -615,8 +631,12 @@ mod tests {
             poll_id,
             vec![Vote::SucceededOnChain],
         ));
-        let res =
-            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
+        let res = query::events_status(
+            deps.as_ref(),
+            std::slice::from_ref(&ev),
+            mock_env().block.height,
+        )
+        .unwrap();
         assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
     }
 
@@ -652,8 +672,12 @@ mod tests {
             vec![Vote::SucceededOnChain],
         ));
 
-        let res =
-            query::events_status(deps.as_ref(), &[ev.clone()], mock_env().block.height).unwrap();
+        let res = query::events_status(
+            deps.as_ref(),
+            std::slice::from_ref(&ev),
+            mock_env().block.height,
+        )
+        .unwrap();
         assert_eq!(res[0].status, VerificationStatus::SucceededOnSourceChain);
     }
 
