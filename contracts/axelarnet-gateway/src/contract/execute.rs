@@ -8,7 +8,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, CosmosMsg, DepsMut, Event, HexBinary, MessageInfo, QuerierWrapper, Response, Storage,
 };
-use error_stack::{bail, ensure, report, ResultExt};
+use error_stack::{bail, ensure, ResultExt};
 use itertools::Itertools;
 use router_api::{Address, ChainName, CrossChainId, Message};
 use sha3::{Digest, Keccak256};

@@ -420,8 +420,7 @@ mod test {
         simulated_participation.insert(cosmos_addr!("verifier_3"), 7);
 
         let event_count = 10;
-        let mut cur_height = epoch_block_start;
-        for i in 0..event_count {
+        for (cur_height, i) in (epoch_block_start..).zip(0..event_count) {
             for (verifier, part_count) in &simulated_participation {
                 // simulates a verifier participating in only part_count events
                 if i < *part_count {
@@ -436,7 +435,6 @@ mod test {
                     .unwrap();
                 }
             }
-            cur_height += 1;
         }
 
         let tally =

@@ -1,10 +1,8 @@
 use std::collections::BTreeMap;
 
 use axelar_wasm_std::{nonempty, Participant};
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{Addr, HexBinary, Uint128};
-use multisig::key::Signature;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
@@ -96,15 +94,6 @@ pub fn messages() -> Vec<Message> {
         .to_array::<32>()
         .unwrap(),
     }]
-}
-
-#[cw_serde]
-pub struct TestOperator {
-    pub address: Addr,
-    pub pub_key: multisig::key::PublicKey,
-    pub operator: HexBinary,
-    pub weight: Uint128,
-    pub signature: Option<Signature>,
 }
 
 // Generate a verifier set matches axelar-gmp-sdk-solidity repo test data

@@ -110,13 +110,13 @@ impl<const N: usize> PrimaryKey<'_> for HexBinary<N> {
     type Suffix = Self;
     type SuperSuffix = Self;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_slice())]
     }
 }
 
 impl<const N: usize> Prefixer<'_> for HexBinary<N> {
-    fn prefix(&self) -> Vec<Key> {
+    fn prefix(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_slice())]
     }
 }

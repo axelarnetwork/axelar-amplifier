@@ -161,6 +161,10 @@ fn start_shutdown_signal_monitor(token: CancellationToken) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::result_large_err,
+        reason = "gRPC mocks return Result<_, tonic::Status>; Status is large and out of our control"
+    )]
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::str::FromStr;

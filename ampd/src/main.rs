@@ -13,7 +13,7 @@ use ampd::commands::{
 use ampd::config::Config;
 use ampd::Error;
 use axelar_wasm_std::FnExt;
-use clap::{arg, command, Parser, ValueEnum};
+use clap::{Parser, ValueEnum};
 use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use report::LoggableError;
@@ -273,7 +273,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let missing = dir.path().join("nope.toml");
 
-        let err = find_config_files(&[missing.clone()], &[]).unwrap_err();
+        let err = find_config_files(std::slice::from_ref(&missing), &[]).unwrap_err();
         let formatted = format!("{err:?}");
         assert!(
             formatted.contains(&missing.display().to_string()),

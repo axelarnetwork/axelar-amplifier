@@ -329,7 +329,7 @@ mod tests {
             )
             .unwrap();
 
-        let messages = (0..poll.poll_size as u64).map(message);
+        let messages = (0..poll.poll_size).map(message);
         messages.clone().enumerate().for_each(|(idx, msg)| {
             poll_messages()
                 .save(
