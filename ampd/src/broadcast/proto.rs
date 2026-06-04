@@ -1,5 +1,9 @@
 use prost::Name;
 
+#[allow(
+    dead_code,
+    reason = "tonic generates the full proto message set; ampd uses only a subset"
+)]
 pub mod axelar {
     pub mod auxiliary {
         pub mod v1beta1 {
@@ -8,6 +12,10 @@ pub mod axelar {
     }
 }
 
+#[allow(
+    dead_code,
+    reason = "tonic generates the full proto message set; ampd uses only a subset"
+)]
 mod cosmos {
     pub mod base {
         pub mod abci {
@@ -18,6 +26,10 @@ mod cosmos {
     }
 }
 
+#[allow(
+    dead_code,
+    reason = "tonic generates the full proto message set; ampd uses only a subset"
+)]
 mod tendermint {
     #[allow(clippy::large_enum_variant)]
     pub mod abci {

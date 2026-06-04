@@ -58,7 +58,7 @@ mod test {
 
     #[test]
     fn optimize_signatures() {
-        let signers = vec![
+        let signers = [
             signer(cosmos_addr!("signer0"), 1),
             signer(cosmos_addr!("signer1"), 3),
             signer(cosmos_addr!("signer2"), 5),

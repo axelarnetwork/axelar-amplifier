@@ -173,7 +173,7 @@ impl PrimaryKey<'_> for TokenId {
     type Suffix = Self;
     type SuperSuffix = Self;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         self.0.key()
     }
 }
@@ -189,7 +189,7 @@ impl KeyDeserialize for TokenId {
 }
 
 impl Prefixer<'_> for TokenId {
-    fn prefix(&self) -> Vec<Key> {
+    fn prefix(&self) -> Vec<Key<'_>> {
         self.key()
     }
 }

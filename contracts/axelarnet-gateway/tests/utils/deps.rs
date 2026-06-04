@@ -47,8 +47,8 @@ pub fn axelar_query_handler(
 }
 
 pub trait OwnedDepsExt {
-    fn as_default_mut(&mut self) -> DepsMut<Empty>;
-    fn as_default_deps(&self) -> Deps<Empty>;
+    fn as_default_mut(&mut self) -> DepsMut<'_, Empty>;
+    fn as_default_deps(&self) -> Deps<'_, Empty>;
 }
 
 impl<S: Storage, A: Api, Q: Querier, C: CustomQuery> OwnedDepsExt for OwnedDeps<S, A, Q, C> {

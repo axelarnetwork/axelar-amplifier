@@ -2,7 +2,6 @@ use axelar_wasm_std::{FnExt, IntoContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw_storage_plus::{Item, Map};
-use error_stack::report;
 use router_api::{ChainName, CrossChainId, Message};
 
 use crate::msg;

@@ -239,7 +239,7 @@ impl PrimaryKey<'_> for CrossChainId {
     type Suffix = String;
     type SuperSuffix = (ChainNameRaw, String);
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         let mut keys = self.source_chain.key();
         keys.extend(self.message_id.key());
         keys
