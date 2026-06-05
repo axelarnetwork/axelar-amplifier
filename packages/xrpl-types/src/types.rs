@@ -1707,54 +1707,34 @@ mod tests {
         assert_eq!(result.exponent, MIN_EXPONENT);
     }
 
-    // --- IOU precision-loss tests -------------------------------------------
-    //
-    // Issued-token amounts carry at most 16 significant decimal digits (mantissa
-    // in [MIN_MANTISSA, MAX_MANTISSA]). When an arithmetic result needs more
-    // precision than that, `canonicalize_mantissa` *floors* it (the `mantissa /=
-    // 10` loop), so IOU addition and subtraction are lossy.
-    //
-    // This matters for the XRPL interchain-transfer verifier. The relayer derives
-    // `transfer_amount = payment_amount - gas_fee_amount` and the verifier checks
-    // `transfer_amount + gas_fee_amount` against the on-chain payment amount.
-    // These tests show that re-adding the split does NOT always reproduce the
-    // original payment amount — which is why tightening the verifier check from
-    // `<=` to `==` would reject legitimate issued-token transfers.
+    // IOU add/sub are lossy (16 sig digits, floored), so re-adding `transfer + gas` need not
+    // reproduce the payment — which is why the verifier subtracts (`payment - gas`) instead.
 
     #[test]
     fn test_xrpl_token_amount_add_loses_low_order_digit() {
-        // 1.111111111111111 + 0.1111111111111111
-        // exact sum is 1.2222222222222221 (17 significant digits); the 17th digit
-        // cannot be represented and is truncated (floored), not rounded.
+        // 1.111111111111111 + 0.1111111111111111 = 1.2222222222222221 (17 digits); 17th floored away.
         let x = XRPLTokenAmount::new(1_111_111_111_111_111, -15);
         let y = XRPLTokenAmount::new(1_111_111_111_111_111, -16);
 
         let result = x.add(y).unwrap();
         assert_eq!(result.mantissa, 1_222_222_222_222_222); // 1.222222222222222
         assert_eq!(result.exponent, -15);
-        // The dropped trailing `1` means the stored sum is strictly less than the
-        // true sum, so `a + b` here is not exactly `a + b`.
     }
 
     #[test]
     fn test_xrpl_interchain_transfer_split_does_not_round_trip() {
-        // Models the relayer/verifier path for an issued-token interchain transfer:
-        //   payment   P = 1_234_567.890123456   (uses all 16 significant digits)
-        //   gas fee   G = 0.0000000001 (1e-10)   (finer than P's ULP of 1e-9)
+        // payment P = 1_234_567.890123456 (16 sig digits); gas G = 1e-10 (finer than P's ULP).
         let payment = XRPLTokenAmount::new(1_234_567_890_123_456, -9);
         let gas_fee = XRPLTokenAmount::new(1_000_000_000_000_000, -25); // 1e-10
 
-        // Relayer: transfer_amount = payment - gas_fee. The sub-ULP gas fee is
-        // floored away during canonicalization, so the transfer is P - 1 ULP.
+        // relayer: transfer = P - G (sub-ULP gas floored away).
         let transfer = payment.clone().sub(gas_fee.clone()).unwrap();
         assert_eq!(transfer, XRPLTokenAmount::new(1_234_567_890_123_455, -9));
 
-        // Verifier: transfer_amount + gas_fee. Adding the sub-ULP gas fee back is
-        // floored away again, so the total never returns to the payment amount.
+        // re-adding transfer + G never returns to P, so an `==` check would reject it.
         let reconstructed = transfer.add(gas_fee).unwrap();
         assert_ne!(reconstructed, payment);
-        assert!(reconstructed < payment); // strictly less => an `==` check fails
-                                          // The current `<=` check accepts this legitimate transfer; `==` would not.
+        assert!(reconstructed < payment);
     }
 
     #[test]

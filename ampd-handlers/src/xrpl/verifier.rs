@@ -109,20 +109,14 @@ fn is_valid_interchain_transfer_message(
     memos: &HashMap<String, String>,
 ) -> bool {
     if let Payment(payment_tx) = &tx {
-        // Mirror the relayer, which derives `transfer_amount = payment_amount - gas_fee_amount`
-        // (see relayer_base::utils::parse_gas_fee_amount + the ingestor's `amount.sub(gas_fee)`).
-        // Re-adding `transfer_amount + gas_fee_amount` and comparing it to the payment does NOT
-        // round-trip for issued tokens: IOU arithmetic floors to 16 significant digits, so a
-        // legitimate transfer whose gas fee is finer than the payment's ULP would be rejected.
-        // Recomputing the expected transfer the same way the relayer does avoids that, while
-        // still binding `transfer_amount` to the on-chain payment (closing the underreport bug).
+        // Mirror the relayer (transfer = payment - gas); subtracting avoids the IOU precision loss of re-adding.
         let payment_amount = match to_xrpl_payment_amount(payment_tx.amount.clone()) {
             Some(amount) => amount,
             None => return false,
         };
         let expected_transfer_amount = match payment_amount.sub(message.gas_fee_amount.clone()) {
             Ok(amount) => amount,
-            Err(_) => return false, // gas fee exceeds the payment, or token mismatch
+            Err(_) => return false, // gas > payment, or token mismatch
         };
 
         payment_tx.destination == multisig_address.to_string()
@@ -497,7 +491,6 @@ mod test {
         }
     }
 
-    // `gas_value` is the decimal string written into the on-chain gas_fee_amount memo.
     fn interchain_transfer_memos(gas_value: &str) -> Vec<Memo> {
         vec![
             memo("type", "interchain_transfer"),
@@ -507,7 +500,7 @@ mod test {
         ]
     }
 
-    // Builds the on-chain Payment. `delivered` defaults to `amount` (i.e. not a partial payment).
+    // `delivered` defaults to `amount` (full delivery).
     fn payment_tx(amount: Amount, delivered: Option<Amount>, memos: Vec<Memo>) -> Transaction {
         let delivered_amount = Some(delivered.unwrap_or_else(|| amount.clone()));
         Transaction::Payment(PaymentTransaction {
@@ -523,7 +516,7 @@ mod test {
                 }),
                 ..Default::default()
             },
-            flags: Default::default(), // empty => verify_payment_flags passes
+            flags: Default::default(),
             amount,
             destination: MULTISIG.to_string(),
             destination_tag: None,
@@ -569,8 +562,7 @@ mod test {
 
     #[test]
     fn malicious_relayer_underreporting_drops_transfer_is_rejected() {
-        // Same 100_000-drop payment and gas 50_000, but the relayer claims transfer = 1.
-        // expected = 100_000 - 50_000 = 50_000 != 1 (the underreport attack).
+        // underreport attack: claims transfer 1; expected = 100_000 - 50_000 = 50_000.
         let tx = payment_tx(
             Amount::Drops("100000".to_string()),
             None,
@@ -585,9 +577,7 @@ mod test {
 
     #[test]
     fn claimed_gas_not_matching_memo_is_rejected() {
-        // Internally consistent claim (transfer 60_000 + gas 40_000 = 100_000), but the
-        // claimed gas (40_000) does not match the on-chain gas_fee_amount memo (50_000).
-        // The transfer check passes; the memo binding is what rejects it.
+        // transfer+gas is self-consistent (60k+40k=100k), but claimed gas 40k != memo 50k.
         let tx = payment_tx(
             Amount::Drops("100000".to_string()),
             None,
@@ -602,7 +592,7 @@ mod test {
 
     #[test]
     fn gas_exceeding_payment_is_rejected() {
-        // gas (200_000) > payment (100_000) => the subtraction underflows.
+        // gas 200_000 > payment 100_000 => sub underflows.
         let tx = payment_tx(
             Amount::Drops("100000".to_string()),
             None,
@@ -617,7 +607,7 @@ mod test {
 
     #[test]
     fn partial_payment_is_rejected() {
-        // The Amount field says 100_000, but only 1 drop was actually delivered.
+        // Amount says 100_000 but only 1 drop delivered.
         let tx = payment_tx(
             Amount::Drops("100000".to_string()),
             Some(Amount::Drops("1".to_string())),
@@ -632,10 +622,8 @@ mod test {
 
     #[test]
     fn honest_issued_transfer_with_sub_ulp_gas_is_accepted() {
-        // The IOU precision case: payment 1234567.890123456, gas 1e-10.
-        // Relayer sets transfer = payment - gas = 1234567.890123455. The old
-        // `transfer + gas == payment` would reject this (re-adding floors the sub-ULP gas
-        // away); recomputing `payment - gas` the same way the relayer does accepts it.
+        // IOU precision: transfer = payment(…456) - gas(1e-10) = …455. `transfer+gas==payment`
+        // would wrongly reject this; `payment-gas` accepts it.
         let tx = payment_tx(
             issued_onchain("1234567.890123456"),
             None,
@@ -650,7 +638,6 @@ mod test {
 
     #[test]
     fn malicious_relayer_underreporting_issued_transfer_is_rejected() {
-        // Same large issued payment, but the relayer claims transfer = 1.
         let tx = payment_tx(
             issued_onchain("1234567.890123456"),
             None,
