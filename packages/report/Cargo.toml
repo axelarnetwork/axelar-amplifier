@@ -18,5 +18,8 @@ tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
 valuable = { version = "0.1.0", features = ["derive"] }
 
+[dev-dependencies]
+rusty-fork = "0.3"
+
 [lints]
 workspace = true

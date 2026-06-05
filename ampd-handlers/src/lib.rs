@@ -12,7 +12,7 @@ pub mod test_utils;
 
 use std::path::PathBuf;
 
-use clap::{command, Parser};
+use clap::Parser;
 
 #[derive(Parser)]
 #[command(version)]

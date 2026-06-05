@@ -157,7 +157,7 @@ impl PrimaryKey<'_> for XRPLToken {
     type Suffix = XRPLToken;
     type SuperSuffix = XRPLToken;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         vec![
             Key::Ref(self.issuer.as_ref()),
             Key::Ref(self.currency.as_ref()),
@@ -860,7 +860,7 @@ impl PrimaryKey<'_> for XRPLCurrency {
     type Suffix = XRPLCurrency;
     type SuperSuffix = XRPLCurrency;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         self.0.key()
     }
 }
