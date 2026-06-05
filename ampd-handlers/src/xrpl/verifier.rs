@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ops::Add;
+use std::ops::Sub;
 
 use axelar_wasm_std::voting::Vote;
 use sha3::{Digest, Keccak256};
@@ -109,19 +109,26 @@ fn is_valid_interchain_transfer_message(
     memos: &HashMap<String, String>,
 ) -> bool {
     if let Payment(payment_tx) = &tx {
-        let total_amount = match message
-            .transfer_amount
-            .clone()
-            .add(message.gas_fee_amount.clone())
-        {
+        // Mirror the relayer, which derives `transfer_amount = payment_amount - gas_fee_amount`
+        // (see relayer_base::utils::parse_gas_fee_amount + the ingestor's `amount.sub(gas_fee)`).
+        // Re-adding `transfer_amount + gas_fee_amount` and comparing it to the payment does NOT
+        // round-trip for issued tokens: IOU arithmetic floors to 16 significant digits, so a
+        // legitimate transfer whose gas fee is finer than the payment's ULP would be rejected.
+        // Recomputing the expected transfer the same way the relayer does avoids that, while
+        // still binding `transfer_amount` to the on-chain payment (closing the underreport bug).
+        let payment_amount = match to_xrpl_payment_amount(payment_tx.amount.clone()) {
+            Some(amount) => amount,
+            None => return false,
+        };
+        let expected_transfer_amount = match payment_amount.sub(message.gas_fee_amount.clone()) {
             Ok(amount) => amount,
-            Err(_) => return false,
+            Err(_) => return false, // gas fee exceeds the payment, or token mismatch
         };
 
         payment_tx.destination == multisig_address.to_string()
             && message.source_address.to_string() == tx.common().account
             && verify_delivered_full_amount(tx, payment_tx.amount.clone())
-            && verify_amount(total_amount, payment_tx.amount.clone(), |a, b| a <= b)
+            && message.transfer_amount == expected_transfer_amount
             && verify_interchain_transfer_memos(memos, message)
             && verify_payment_flags(payment_tx)
     } else {
@@ -243,26 +250,27 @@ fn verify_delivered_full_amount(tx: &Transaction, expected_amount: Amount) -> bo
     false
 }
 
+fn to_xrpl_payment_amount(actual_amount: Amount) -> Option<XRPLPaymentAmount> {
+    match actual_amount {
+        Amount::Issued(a) => Some(XRPLPaymentAmount::Issued(
+            XRPLToken {
+                issuer: a.issuer.try_into().ok()?,
+                currency: a.currency.try_into().ok()?,
+            },
+            a.value.try_into().ok()?,
+        )),
+        Amount::Drops(a) => Some(XRPLPaymentAmount::Drops(a.parse().ok()?)),
+    }
+}
+
 fn verify_amount(
     expected_amount: XRPLPaymentAmount,
     actual_amount: Amount,
     cmp: impl Fn(XRPLPaymentAmount, XRPLPaymentAmount) -> bool,
 ) -> bool {
-    || -> Option<bool> {
-        let amount = match actual_amount {
-            Amount::Issued(a) => XRPLPaymentAmount::Issued(
-                XRPLToken {
-                    issuer: a.issuer.try_into().ok()?,
-                    currency: a.currency.try_into().ok()?,
-                },
-                a.value.try_into().ok()?,
-            ),
-            Amount::Drops(a) => XRPLPaymentAmount::Drops(a.parse().ok()?),
-        };
-
-        Some(cmp(expected_amount, amount))
-    }()
-    .unwrap_or(false)
+    to_xrpl_payment_amount(actual_amount)
+        .map(|amount| cmp(expected_amount, amount))
+        .unwrap_or(false)
 }
 
 fn verify_gas_fee_amount(
@@ -319,12 +327,18 @@ mod test {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{chain_name_raw, nonempty};
-    use xrpl_http_client::Memo;
-    use xrpl_types::msg::XRPLInterchainTransferMessage;
-    use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
+    use xrpl_http_client::{
+        Amount, IssuedAmount, Memo, Meta, PaymentTransaction, Transaction, TransactionCommon,
+        TransactionResult,
+    };
+    use xrpl_types::msg::{XRPLInterchainTransferMessage, XRPLMessage};
+    use xrpl_types::types::{
+        XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenAmount,
+    };
 
-    use crate::xrpl::verifier::{parse_memos, verify_interchain_transfer_memos};
+    use crate::xrpl::verifier::{parse_memos, verify_interchain_transfer_memos, verify_message};
 
     #[test]
     fn test_verify_interchain_transfer_memos() {
@@ -437,5 +451,212 @@ mod test {
             &parse_memos(&memos),
             &interchain_transfer_message
         ));
+    }
+
+    // --- Integration-style tests for the interchain-transfer amount check ------
+    //
+    // These build a full XRPL `Payment` (the trusted on-chain transaction) and a
+    // claimed `XRPLInterchainTransferMessage` (the Cosmos-side poll event), then
+    // drive `verify_message`. They simulate an honest relayer (which sets
+    // transfer_amount = payment - gas) and malicious ones (under-reporting the
+    // transfer, or claiming a gas fee that doesn't match the on-chain memo).
+
+    const ISSUER: &str = "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe";
+    const SOURCE: &str = "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo";
+    const MULTISIG: &str = "rfmS3zqrQrka8wVyhXifEeyTwe8AMz2Yhw";
+    const DESTINATION_ADDRESS: &str = "592639c10223c4ec6c0ffc670e94d289a25dd1ad";
+
+    fn multisig() -> XRPLAccountId {
+        XRPLAccountId::from_str(MULTISIG).unwrap()
+    }
+
+    fn usd_token() -> XRPLToken {
+        XRPLToken {
+            issuer: XRPLAccountId::from_str(ISSUER).unwrap(),
+            currency: XRPLCurrency::new("USD").unwrap(),
+        }
+    }
+
+    fn issued(value: &str) -> XRPLPaymentAmount {
+        XRPLPaymentAmount::Issued(usd_token(), XRPLTokenAmount::from_str(value).unwrap())
+    }
+
+    fn issued_onchain(value: &str) -> Amount {
+        Amount::Issued(IssuedAmount {
+            value: value.to_string(),
+            currency: "USD".to_string(),
+            issuer: ISSUER.to_string(),
+        })
+    }
+
+    fn memo(key: &str, value: &str) -> Memo {
+        Memo {
+            memo_type: Some(hex::encode(key)),
+            memo_data: Some(hex::encode(value)),
+            memo_format: None,
+        }
+    }
+
+    // `gas_value` is the decimal string written into the on-chain gas_fee_amount memo.
+    fn interchain_transfer_memos(gas_value: &str) -> Vec<Memo> {
+        vec![
+            memo("type", "interchain_transfer"),
+            memo("destination_address", DESTINATION_ADDRESS),
+            memo("destination_chain", "Ethereum"),
+            memo("gas_fee_amount", gas_value),
+        ]
+    }
+
+    // Builds the on-chain Payment. `delivered` defaults to `amount` (i.e. not a partial payment).
+    fn payment_tx(amount: Amount, delivered: Option<Amount>, memos: Vec<Memo>) -> Transaction {
+        let delivered_amount = Some(delivered.unwrap_or_else(|| amount.clone()));
+        Transaction::Payment(PaymentTransaction {
+            common: TransactionCommon {
+                account: SOURCE.to_string(),
+                memos: Some(memos),
+                validated: Some(true),
+                meta: Some(Meta {
+                    affected_nodes: vec![],
+                    transaction_index: 0,
+                    transaction_result: TransactionResult::tesSUCCESS,
+                    delivered_amount,
+                }),
+                ..Default::default()
+            },
+            flags: Default::default(), // empty => verify_payment_flags passes
+            amount,
+            destination: MULTISIG.to_string(),
+            destination_tag: None,
+            invoice_id: None,
+            send_max: None,
+            deliver_min: None,
+        })
+    }
+
+    fn transfer_message(
+        transfer_amount: XRPLPaymentAmount,
+        gas_fee_amount: XRPLPaymentAmount,
+    ) -> XRPLMessage {
+        XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
+            tx_id: HexTxHash::new([0; 32]),
+            source_address: XRPLAccountId::from_str(SOURCE).unwrap(),
+            destination_address: nonempty::String::try_from(DESTINATION_ADDRESS.to_string())
+                .unwrap(),
+            destination_chain: chain_name_raw!("Ethereum"),
+            payload_hash: None,
+            transfer_amount,
+            gas_fee_amount,
+        })
+    }
+
+    #[test]
+    fn honest_drops_transfer_is_accepted() {
+        // payment 100_000 drops, gas 50_000 => transfer 50_000
+        let tx = payment_tx(
+            Amount::Drops("100000".to_string()),
+            None,
+            interchain_transfer_memos("50000"),
+        );
+        let message = transfer_message(
+            XRPLPaymentAmount::Drops(50_000),
+            XRPLPaymentAmount::Drops(50_000),
+        );
+        assert_eq!(
+            verify_message(&multisig(), &tx, &message),
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
+    fn malicious_relayer_underreporting_drops_transfer_is_rejected() {
+        // Same 100_000-drop payment and gas 50_000, but the relayer claims transfer = 1.
+        // expected = 100_000 - 50_000 = 50_000 != 1 (the underreport attack).
+        let tx = payment_tx(
+            Amount::Drops("100000".to_string()),
+            None,
+            interchain_transfer_memos("50000"),
+        );
+        let message = transfer_message(
+            XRPLPaymentAmount::Drops(1),
+            XRPLPaymentAmount::Drops(50_000),
+        );
+        assert_eq!(verify_message(&multisig(), &tx, &message), Vote::NotFound);
+    }
+
+    #[test]
+    fn claimed_gas_not_matching_memo_is_rejected() {
+        // Internally consistent claim (transfer 60_000 + gas 40_000 = 100_000), but the
+        // claimed gas (40_000) does not match the on-chain gas_fee_amount memo (50_000).
+        // The transfer check passes; the memo binding is what rejects it.
+        let tx = payment_tx(
+            Amount::Drops("100000".to_string()),
+            None,
+            interchain_transfer_memos("50000"),
+        );
+        let message = transfer_message(
+            XRPLPaymentAmount::Drops(60_000),
+            XRPLPaymentAmount::Drops(40_000),
+        );
+        assert_eq!(verify_message(&multisig(), &tx, &message), Vote::NotFound);
+    }
+
+    #[test]
+    fn gas_exceeding_payment_is_rejected() {
+        // gas (200_000) > payment (100_000) => the subtraction underflows.
+        let tx = payment_tx(
+            Amount::Drops("100000".to_string()),
+            None,
+            interchain_transfer_memos("200000"),
+        );
+        let message = transfer_message(
+            XRPLPaymentAmount::Drops(1),
+            XRPLPaymentAmount::Drops(200_000),
+        );
+        assert_eq!(verify_message(&multisig(), &tx, &message), Vote::NotFound);
+    }
+
+    #[test]
+    fn partial_payment_is_rejected() {
+        // The Amount field says 100_000, but only 1 drop was actually delivered.
+        let tx = payment_tx(
+            Amount::Drops("100000".to_string()),
+            Some(Amount::Drops("1".to_string())),
+            interchain_transfer_memos("50000"),
+        );
+        let message = transfer_message(
+            XRPLPaymentAmount::Drops(50_000),
+            XRPLPaymentAmount::Drops(50_000),
+        );
+        assert_eq!(verify_message(&multisig(), &tx, &message), Vote::NotFound);
+    }
+
+    #[test]
+    fn honest_issued_transfer_with_sub_ulp_gas_is_accepted() {
+        // The IOU precision case: payment 1234567.890123456, gas 1e-10.
+        // Relayer sets transfer = payment - gas = 1234567.890123455. The old
+        // `transfer + gas == payment` would reject this (re-adding floors the sub-ULP gas
+        // away); recomputing `payment - gas` the same way the relayer does accepts it.
+        let tx = payment_tx(
+            issued_onchain("1234567.890123456"),
+            None,
+            interchain_transfer_memos("0.0000000001"),
+        );
+        let message = transfer_message(issued("1234567.890123455"), issued("0.0000000001"));
+        assert_eq!(
+            verify_message(&multisig(), &tx, &message),
+            Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
+    fn malicious_relayer_underreporting_issued_transfer_is_rejected() {
+        // Same large issued payment, but the relayer claims transfer = 1.
+        let tx = payment_tx(
+            issued_onchain("1234567.890123456"),
+            None,
+            interchain_transfer_memos("0.0000000001"),
+        );
+        let message = transfer_message(issued("1"), issued("0.0000000001"));
+        assert_eq!(verify_message(&multisig(), &tx, &message), Vote::NotFound);
     }
 }
