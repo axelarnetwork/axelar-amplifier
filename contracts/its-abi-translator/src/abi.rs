@@ -2,7 +2,7 @@ use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
 use axelar_wasm_std::{nonempty, IntoContractError};
 use cosmwasm_std::{HexBinary, Uint256};
-use error_stack::{bail, ensure, report, Report, ResultExt};
+use error_stack::{bail, ensure, Report, ResultExt};
 use interchain_token_service_std::{HubMessage, Message, TokenId};
 use router_api::ChainNameRaw;
 // ITS Message payload types

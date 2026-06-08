@@ -34,7 +34,7 @@ jobs:
           done
 
       - name: Install cosmwasm-check
-        run: cargo install --version 3.0.1 --locked cosmwasm-check
+        run: cargo install --version 3.0.7 --locked cosmwasm-check
 
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm

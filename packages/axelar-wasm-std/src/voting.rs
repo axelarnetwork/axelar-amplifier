@@ -123,13 +123,13 @@ impl PrimaryKey<'_> for PollId {
     type Suffix = Self;
     type SuperSuffix = Self;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         vec![Key::Val64(self.0.to_be_bytes())]
     }
 }
 
 impl Prefixer<'_> for PollId {
-    fn prefix(&self) -> Vec<Key> {
+    fn prefix(&self) -> Vec<Key<'_>> {
         vec![Key::Val64(self.0.to_be_bytes())]
     }
 }
@@ -322,8 +322,8 @@ impl WeightedPoll {
 
         let consensus_participants = self
             .participation
-            .iter()
-            .filter_map(|(address, _)| {
+            .keys()
+            .filter_map(|address| {
                 voting_history.get(address).and_then(|votes| {
                     let voted_consensus = votes.iter().zip(results.iter()).all(|(vote, result)| {
                         result.is_none() || Some(vote) == result.as_ref()
