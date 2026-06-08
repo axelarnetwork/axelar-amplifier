@@ -112,13 +112,13 @@ impl PrimaryKey<'_> for ChainName {
     type Suffix = Self;
     type SuperSuffix = Self;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
 impl Prefixer<'_> for ChainName {
-    fn prefix(&self) -> Vec<Key> {
+    fn prefix(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_bytes())]
     }
 }
@@ -273,13 +273,13 @@ impl PrimaryKey<'_> for ChainNameRaw {
     type Suffix = Self;
     type SuperSuffix = Self;
 
-    fn key(&self) -> Vec<Key> {
+    fn key(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
 impl Prefixer<'_> for ChainNameRaw {
-    fn prefix(&self) -> Vec<Key> {
+    fn prefix(&self) -> Vec<Key<'_>> {
         vec![Key::Ref(self.0.as_bytes())]
     }
 }

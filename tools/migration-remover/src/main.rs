@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
-use clap::{arg, Parser};
+use clap::Parser;
 use error_stack::{Result, ResultExt};
 use thiserror::Error;
 use toml::Table;

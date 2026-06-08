@@ -286,7 +286,7 @@ mod test {
     fn should_not_verify_verifier_set_if_signer_hash_does_not_match() {
         let (gateway_address, tx_response, mut confirmation) = matching_verifier_set_and_tx_block();
 
-        let signers = vec![random_signer(), random_signer(), random_signer()];
+        let signers = [random_signer(), random_signer(), random_signer()];
         confirmation.verifier_set = VerifierSet {
             signers: signers
                 .iter()
@@ -388,7 +388,7 @@ mod test {
         let account_id = stellar_xdr::curr::Hash::from(Hash::random().0);
         let gateway_address = ScAddress::Contract(account_id.clone().into());
 
-        let signers = vec![random_signer(), random_signer(), random_signer()];
+        let signers = [random_signer(), random_signer(), random_signer()];
         let created_at = rand::random();
         let threshold = Uint128::new(2u128);
 

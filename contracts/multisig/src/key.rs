@@ -205,7 +205,7 @@ impl PrimaryKey<'_> for KeyType {
     type Suffix = Self;
     type SuperSuffix = Self;
 
-    fn key(&self) -> Vec<cw_storage_plus::Key> {
+    fn key(&self) -> Vec<cw_storage_plus::Key<'_>> {
         vec![cw_storage_plus::Key::Val8(
             vec![*self as u8]
                 .try_into()
