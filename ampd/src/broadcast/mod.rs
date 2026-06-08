@@ -227,14 +227,7 @@ where
 
     broadcaster
         .broadcast(vec![batch_req], |sign_doc| {
-            let mut hasher = Sha256::new();
-            hasher.update(sign_doc);
-
-            let sign_digest: [u8; 32] = hasher
-                .finalize()
-                .to_vec()
-                .try_into()
-                .expect("hash size must be 32");
+            let sign_digest: [u8; 32] = Sha256::digest(sign_doc).into();
 
             signer.sign(key_id, sign_digest, pub_key.into(), tofnd::Algorithm::Ecdsa)
         })
