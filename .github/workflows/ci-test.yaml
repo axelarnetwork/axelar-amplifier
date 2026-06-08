@@ -35,7 +35,9 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libclang-dev
-        run: sudo apt-get install libclang-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@1fd1160ee1f4387ce162a5a4f9c26ea274278b7f # cargo-llvm-cov branch (v2.58.7)
