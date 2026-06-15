@@ -1707,6 +1707,36 @@ mod tests {
         assert_eq!(result.exponent, MIN_EXPONENT);
     }
 
+    // IOU add/sub are lossy (16 sig digits, floored), so re-adding `transfer + gas` need not
+    // reproduce the payment — which is why the verifier subtracts (`payment - gas`) instead.
+
+    #[test]
+    fn test_xrpl_token_amount_add_loses_low_order_digit() {
+        // 1.111111111111111 + 0.1111111111111111 = 1.2222222222222221 (17 digits); 17th floored away.
+        let x = XRPLTokenAmount::new(1_111_111_111_111_111, -15);
+        let y = XRPLTokenAmount::new(1_111_111_111_111_111, -16);
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result.mantissa, 1_222_222_222_222_222); // 1.222222222222222
+        assert_eq!(result.exponent, -15);
+    }
+
+    #[test]
+    fn test_xrpl_interchain_transfer_split_does_not_round_trip() {
+        // payment P = 1_234_567.890123456 (16 sig digits); gas G = 1e-10 (finer than P's ULP).
+        let payment = XRPLTokenAmount::new(1_234_567_890_123_456, -9);
+        let gas_fee = XRPLTokenAmount::new(1_000_000_000_000_000, -25); // 1e-10
+
+        // relayer: transfer = P - G (sub-ULP gas floored away).
+        let transfer = payment.clone().sub(gas_fee.clone()).unwrap();
+        assert_eq!(transfer, XRPLTokenAmount::new(1_234_567_890_123_455, -9));
+
+        // re-adding transfer + G never returns to P, so an `==` check would reject it.
+        let reconstructed = transfer.add(gas_fee).unwrap();
+        assert_ne!(reconstructed, payment);
+        assert!(reconstructed < payment);
+    }
+
     #[test]
     fn test_xrpl_payment_amount_add_drops() {
         let x = XRPLPaymentAmount::Drops(5_123_456);

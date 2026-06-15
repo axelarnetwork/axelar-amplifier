@@ -141,9 +141,13 @@ pub struct XRPLInterchainTransferMessage {
     #[serde(with = "hex_option")]
     #[schemars(with = "String")]
     pub payload_hash: Option<[u8; 32]>,
-    /// The total amount of tokens sent to the XRPL multisig,
-    /// including the gas fee.
+    /// The net amount to deliver to the destination chain: the amount sent to the XRPL
+    /// multisig (`Payment.Amount`) minus the `gas_fee_amount`. This is NOT the total sent
+    /// to the multisig — the gas fee is excluded. The voting verifier enforces
+    /// `transfer_amount == Payment.Amount - gas_fee_amount`.
     pub transfer_amount: XRPLPaymentAmount,
+    /// The portion of the payment reserved to fund cross-chain relaying (gas). Bound to the
+    /// on-chain `gas_fee_amount` memo by the voting verifier.
     pub gas_fee_amount: XRPLPaymentAmount,
 }
 
