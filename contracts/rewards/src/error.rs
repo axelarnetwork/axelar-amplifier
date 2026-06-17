@@ -75,4 +75,10 @@ pub enum ContractError {
 
     #[error("failed to serialize the response")]
     SerializeResponse,
+
+    #[error("failed to serialize the reply payload")]
+    SerializeReplyPayload,
+
+    #[error("failed to deserialize the reply payload")]
+    DeserializeReplyPayload,
 }

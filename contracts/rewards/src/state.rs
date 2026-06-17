@@ -288,6 +288,21 @@ pub struct Verifier {
     pub verifier_address: Addr,
     pub proxy_address: Option<Addr>,
 }
+
+#[cw_serde]
+pub enum SendDestination {
+    Proxy,
+    Verifier,
+}
+
+#[cw_serde]
+pub struct DistributionPayload {
+    pub pool_id: PoolId,
+    pub verifier_address: Addr,
+    pub proxy_address: Option<Addr>,
+    pub amount: Uint128,
+    pub destination: SendDestination,
+}
 #[cw_serde]
 pub struct RewardsDistribution {
     /// Amount of rewards denom each verifier received
