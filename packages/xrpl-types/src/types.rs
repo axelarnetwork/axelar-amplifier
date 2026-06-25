@@ -952,12 +952,27 @@ impl XRPLTokenAmount {
     }
 }
 
+impl Ord for XRPLTokenAmount {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+
+        // Handle zero first
+        match (self.is_zero(), other.is_zero()) {
+            (true, true) => return Ordering::Equal,
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            (false, false) => {}
+        }
+
+        self.exponent
+            .cmp(&other.exponent)
+            .then(self.mantissa.cmp(&other.mantissa))
+    }
+}
+
 impl PartialOrd for XRPLTokenAmount {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let (self_mantissa, other_mantissa, _min_exponent) =
-            scale_to_min_exponent(self, other).expect("scale_to_min_exponent should not fail");
-
-        Some(self_mantissa.cmp(&other_mantissa))
+        Some(self.cmp(other))
     }
 }
 
@@ -1831,6 +1846,44 @@ mod tests {
         let g1 = XRPLTokenAmount::new(1_000_000_000_000_000, 1);
         let g2 = XRPLTokenAmount::new(1_000_000_000_000_000, -2);
         assert_eq!(g1.partial_cmp(&g2), Some(std::cmp::Ordering::Greater));
+    }
+
+    #[test]
+    fn test_token_amount_comparison_large_exponent_gap_does_not_panic() {
+        // Regression: the old PartialOrd scaled the higher-exponent amount up by
+        // 10^(exponent gap) into a Uint256, which overflows (and panicked via
+        // .expect) once the gap reaches ~78. Both amounts below are valid
+        // canonical values whose exponents differ by 83 (-13 vs -96), the gap
+        // produced by comparing a normal ~100-unit Issued payment against the
+        // smallest non-zero canonical amount. The new (exponent, mantissa)
+        // ordering compares them without overflow.
+        let big = XRPLTokenAmount::new(MIN_MANTISSA, -13); // ~100 units
+        let tiny = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT); // smallest non-zero, exponent -96
+        assert_eq!(MIN_EXPONENT, -96);
+        assert_eq!(big.exponent - tiny.exponent, 83); // gap >= 78 -> old code overflowed
+
+        assert_eq!(big.cmp(&tiny), std::cmp::Ordering::Greater);
+        assert_eq!(tiny.cmp(&big), std::cmp::Ordering::Less);
+        assert_eq!(big.cmp(&big), std::cmp::Ordering::Equal);
+
+        // The full canonical exponent range (gap of 176) is also fine.
+        let max_exp = XRPLTokenAmount::new(MAX_MANTISSA, MAX_EXPONENT);
+        let min_exp = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT);
+        assert_eq!(max_exp.cmp(&min_exp), std::cmp::Ordering::Greater);
+        assert_eq!(min_exp.cmp(&max_exp), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn test_token_amount_comparison_zero_representations_are_equal() {
+        // Zero has more than one stored representation; all must compare equal
+        // and rank below any non-zero amount.
+        let zero_const = XRPLTokenAmount::ZERO; // {0, 0}
+        let zero_canonical = XRPLTokenAmount::new(0, 1); // {0, 1}, as emitted on underflow
+        assert_eq!(zero_const.cmp(&zero_canonical), std::cmp::Ordering::Equal);
+
+        let smallest = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT);
+        assert_eq!(zero_const.cmp(&smallest), std::cmp::Ordering::Less);
+        assert_eq!(zero_canonical.cmp(&smallest), std::cmp::Ordering::Less);
     }
 
     #[test]
