@@ -35,8 +35,10 @@ jobs:
 
       - name: Extract semver and handler from tag
         id: extract_semver
+        env:
+          TAG: ${{ github.event.inputs.tag }}
         run: |
-          tag="${{ github.event.inputs.tag }}"
+          tag="$TAG"
           handler=$(echo "$tag" | sed -E 's/-handler-v.*//')
           full_semver=$(echo "$tag" | sed -E 's/.*-handler-(v.*)/\1/')
           version_number=$(echo "$full_semver" | sed 's/^v//')

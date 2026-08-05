@@ -30,13 +30,15 @@ jobs:
     steps:
       - name: Get tag
         id: get-tag
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
         run: |
           echo "github_ref=$GITHUB_REF"
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo "tag=${GITHUB_REF#refs/tags/}"
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            input_ref="${{ github.event.inputs.ref }}"
+            input_ref="$INPUT_REF"
             if [[ $input_ref =~ ^([a-zA-Z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
               echo "tag=$input_ref"
               echo "tag=$input_ref" >> $GITHUB_OUTPUT
@@ -80,13 +82,15 @@ jobs:
 
       - name: Determine checkout ref
         id: get-checkout-ref
+        env:
+          INPUT_REF: ${{ inputs.ref }}
         run: |
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" == "push" ]; then
             echo "ref=main" >> $GITHUB_OUTPUT
           else
-            echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
+            echo "ref=$INPUT_REF" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout code
