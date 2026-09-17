@@ -1159,6 +1159,11 @@ pub fn canonicalize_mantissa(
     mut mantissa: Uint256,
     mut exponent: i64,
 ) -> Result<(u64, i64), XRPLError> {
+    // Zero canonicalizes to (0, 1) for every exponent, so return it directly.
+    if mantissa.is_zero() {
+        return Ok((0, 1));
+    }
+
     let ten = Uint256::from(10u8);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
@@ -1474,6 +1479,25 @@ mod tests {
         assert_eq!(
             canonicalize_token_amount(Uint256::from(1_234_567_891_234_567_891u64), 6).unwrap(),
             XRPLTokenAmount::new(1_234_567_891_234_567u64, -3)
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_zero_mantissa_terminates_for_any_exponent() {
+        for exponent in [i64::MIN, -97, -96, 0, 1, 80, 1000, i64::MAX] {
+            assert_eq!(
+                canonicalize_mantissa(Uint256::zero(), exponent).unwrap(),
+                (0, 1)
+            );
+        }
+
+        assert_eq!(
+            XRPLTokenAmount::from_str("0e9223372036854775807").unwrap(),
+            XRPLTokenAmount::new(0, 1)
+        );
+        assert_eq!(
+            XRPLTokenAmount::from_str("0.0e9223372036854775807").unwrap(),
+            XRPLTokenAmount::new(0, 1)
         );
     }
 
