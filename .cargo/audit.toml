@@ -20,4 +20,7 @@ ignore = [
     "RUSTSEC-2026-0099",  # rustls-webpki: name constraints accepted for wildcard certs — same upstream blockers as RUSTSEC-2026-0049
     "RUSTSEC-2026-0104",  # rustls-webpki: reachable panic in CRL parsing — same upstream blockers as RUSTSEC-2026-0049
     "RUSTSEC-2026-0144",  # anchor-lang: Program<System> accepts arbitrary executable programs — upgrade to 1.0.2 blocked by Rust 1.86/CosmWasm optimizer; used off-chain for Solana event decoding so not vulnerable
+    # Review by 2026-10-01 and remove after separate dependency remediation.
+    "RUSTSEC-2026-0258",  # h2 empty DATA frame DoS — upgrade 0.4.x to >=0.4.16; 0.3.x also needs upstream upgrades or a backport
+    "RUSTSEC-2026-0285",  # rustls TLS 1.3 encryption-level validation — upgrade to >=0.23.45
 ]

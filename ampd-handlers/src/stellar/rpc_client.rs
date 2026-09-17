@@ -10,7 +10,7 @@ use error_stack::{report, ResultExt};
 use futures::future::join_all;
 use mockall::automock;
 use stellar_rpc_client::GetTransactionResponse;
-use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta};
+use stellar_xdr::curr::{ContractEvent, Hash, TransactionMeta, TransactionResultResult};
 use thiserror::Error;
 use tracing::warn;
 
@@ -28,6 +28,8 @@ pub enum TxParseError {
     InvalidOperationCount { expected: usize, actual: usize },
     #[error("Unsupported transaction metadata version")]
     UnsupportedMetadataVersion,
+    #[error("Fee-bump message ID must use the inner transaction hash")]
+    NonCanonicalTransactionHash,
 }
 
 /// TxResponse parses XDR encoded TransactionMeta to ContractEvent type, and only contains necessary fields for verification
@@ -54,6 +56,16 @@ impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
                 successful: false,
                 contract_events: vec![],
             });
+        }
+
+        if let Some(TransactionResultResult::TxFeeBumpInnerSuccess(inner)) =
+            response.result.as_ref().map(|result| &result.result)
+        {
+            // RPC resolves both hashes to the same transaction. Require the inner hash
+            // so the same event cannot be verified under both inner and outer message IDs.
+            if transaction_hash != inner.transaction_hash.to_string() {
+                return Err(TxParseError::NonCanonicalTransactionHash);
+            }
         }
 
         let contract_events = match response.result_meta.as_ref() {
@@ -222,7 +234,8 @@ mod tests {
     use stellar_rpc_client::{GetTransactionEvents, GetTransactionResponse};
     use stellar_xdr::curr::{
         ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
-        ScVal, SorobanTransactionMeta, TransactionMeta, TransactionMetaV3, TransactionMetaV4,
+        InnerTransactionResultPair, ScVal, SorobanTransactionMeta, TransactionMeta,
+        TransactionMetaV3, TransactionMetaV4, TransactionResult,
     };
 
     use super::*;
@@ -295,6 +308,94 @@ mod tests {
                 transaction_events: vec![],
             },
         }
+    }
+
+    fn successful_responses_with_result(
+        events: Vec<ContractEvent>,
+        result: TransactionResultResult,
+    ) -> [GetTransactionResponse; 2] {
+        [
+            create_mock_transaction_response_v3(events.clone(), STATUS_SUCCESS),
+            create_mock_transaction_response_v4(vec![events], STATUS_SUCCESS),
+        ]
+        .map(|mut response| {
+            response.result = Some(TransactionResult {
+                result: result.clone(),
+                ..Default::default()
+            });
+            response
+        })
+    }
+
+    #[test]
+    fn normal_tx_success_preserves_supplied_hash_and_events_for_v3_and_v4() {
+        let supplied_hash = Hash::from([7; 32]);
+        let events = vec![create_mock_contract_event(1), create_mock_contract_event(2)];
+        let responses = successful_responses_with_result(
+            events.clone(),
+            TransactionResultResult::TxSuccess(Default::default()),
+        );
+
+        for response in responses {
+            let receipt = TxResponse::try_from((supplied_hash.clone(), response)).unwrap();
+
+            assert_eq!(receipt.transaction_hash, supplied_hash.to_string());
+            assert!(receipt.successful);
+            assert_eq!(receipt.contract_events, events);
+        }
+    }
+
+    #[test]
+    fn fee_bump_accepts_only_inner_hash_for_v3_and_v4() {
+        let inner_hash = Hash::from([1; 32]);
+        let outer_hash = Hash::from([2; 32]);
+        let events = vec![create_mock_contract_event(42)];
+        let responses = successful_responses_with_result(
+            events.clone(),
+            TransactionResultResult::TxFeeBumpInnerSuccess(InnerTransactionResultPair {
+                transaction_hash: inner_hash.clone(),
+                ..Default::default()
+            }),
+        );
+
+        for response in responses {
+            // Both RPC lookups return the same result and events. Only the requested hash differs.
+            let outer = TxResponse::try_from((outer_hash.clone(), response.clone()));
+            assert!(matches!(
+                outer,
+                Err(TxParseError::NonCanonicalTransactionHash)
+            ));
+
+            let inner = TxResponse::try_from((inner_hash.clone(), response)).unwrap();
+            assert_eq!(inner.transaction_hash, inner_hash.to_string());
+            assert!(inner.successful);
+            assert_eq!(inner.contract_events, events);
+        }
+    }
+
+    #[test]
+    fn noncanonical_fee_bump_hash_is_excluded_from_receipts() {
+        let mut response = create_mock_transaction_response_v4(
+            vec![vec![create_mock_contract_event(42)]],
+            STATUS_SUCCESS,
+        );
+        response.result = Some(TransactionResult {
+            result: TransactionResultResult::TxFeeBumpInnerSuccess(InnerTransactionResultPair {
+                transaction_hash: Hash::from([1; 32]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let client = create_mock_client();
+        assert!(client
+            .validate_tx_response(Ok(response.clone()), Hash::from([2; 32]))
+            .is_none());
+        assert!(
+            client
+                .validate_tx_response(Ok(response), Hash::from([1; 32]))
+                .unwrap()
+                .successful
+        );
     }
 
     #[test]
