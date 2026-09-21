@@ -1,9 +1,8 @@
 [toolchain]
 # Rust version - matches workspace.package.rust-version in Cargo.toml
-# This version must be supported by CosmWasm optimizer before updating
-# See: https://github.com/CosmWasm/optimizer
+# Keep the contract compiler in docker/optimizer/Dockerfile aligned.
 # Also used in Docker images (ampd/Dockerfile, ampd-handlers/Dockerfile)
-channel = "1.86.0"
+channel = "1.98.1"
 
 # Components needed by the project:
 # - rustfmt: Required for code formatting checks (cargo fmt-check alias)

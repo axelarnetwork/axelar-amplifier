@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use std::collections::{HashMap, HashSet};
 
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;

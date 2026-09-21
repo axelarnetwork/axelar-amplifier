@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use std::collections::HashMap;
 
 use assert_ok::assert_ok;

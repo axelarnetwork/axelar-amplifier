@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use assert_ok::assert_ok;
 use axelar_wasm_std::response::inspect_response_msg;
 use axelar_wasm_std::{assert_err_contains, nonempty, permission_control};

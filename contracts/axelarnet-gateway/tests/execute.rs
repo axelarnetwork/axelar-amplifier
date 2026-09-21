@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use assert_ok::assert_ok;
 use axelar_core_std::nexus::test_utils::reply_with_is_chain_registered;
 use axelar_wasm_std::assert_err_contains;
