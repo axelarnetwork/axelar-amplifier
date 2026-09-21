@@ -1,4 +1,4 @@
-# Builds all CosmWasm contracts to wasm32 and validates them with cosmwasm-check.
+# Builds, optimizes and validates all CosmWasm contracts with the repo-local image.
 name: "CI: Wasm Contract Build"
 
 on:
@@ -13,28 +13,15 @@ concurrency:
 
 jobs:
   cosmwasm-compilation:
-    name: Build contracts to wasm32 and validate with cosmwasm-check
+    name: Build and validate optimized contracts
     runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: recursive
 
-      - name: Setup Rust
-        uses: ./.github/actions/setup-rust
-        with:
-          cache-key: "cache-cosmwasm-compilation"
+      - name: Build optimizer image
+        uses: ./.github/actions/build-optimizer
 
-      - name: Build wasm release
-        run: |
-          for C in ./contracts/*/
-          do
-            echo "Compiling `basename $C`..."
-            (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
-          done
-
-      - name: Install cosmwasm-check
-        run: cargo install --version 3.0.7 --locked cosmwasm-check
-
-      - name: Check wasm contracts
-        run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
+      - name: Build and validate contracts
+        run: sh docker/optimizer/run.sh
