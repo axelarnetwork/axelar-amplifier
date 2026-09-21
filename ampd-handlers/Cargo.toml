@@ -86,7 +86,7 @@ solana-axelar-gateway = { workspace = true }
 solana-axelar-std = { workspace = true }
 solana-client = { workspace = true }
 solana-sdk = { workspace = true }
-solana-transaction-status = { workspace = true }
+solana-transaction-status-client-types = { workspace = true }
 
 [dev-dependencies]
 ampd = { path = "../ampd", default-features = false, features = ["url", "test-utils"] }
