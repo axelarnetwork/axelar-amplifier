@@ -195,19 +195,23 @@ mod tests {
         };
         instruction_data.extend_from_slice(&borsh::to_vec(&cc_event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![solana_transaction_status::UiInstruction::Compiled(
-                compiled_instruction,
-            )],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![
+                    solana_transaction_status_client_types::UiInstruction::Compiled(
+                        compiled_instruction,
+                    ),
+                ],
+            },
+        ];
 
         let tx = crate::solana::SolanaTransaction {
             signature: RAW_SIGNATURE.into(),
@@ -315,19 +319,22 @@ mod tests {
         instruction_data.extend_from_slice(VerifierSetRotatedEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&verifier_set_rotated_data).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let instruction = solana_transaction_status::UiInstruction::Compiled(compiled_instruction);
+        let instruction =
+            solana_transaction_status_client_types::UiInstruction::Compiled(compiled_instruction);
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![instruction],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![instruction],
+            },
+        ];
 
         (
             crate::solana::SolanaTransaction {

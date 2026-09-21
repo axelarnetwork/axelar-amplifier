@@ -15,11 +15,10 @@ ignore = [
     "RUSTSEC-2025-0137",  # potential undefined behaviour in ruint — used by alloy etc. – waiting for upstream fix
     "RUSTSEC-2026-0220",  # ruint shift ops overflow flags/truncation — fix requires ruint >=1.20.0 (needs Rust 1.90); pending dependency update now that the toolchain supports it
     "RUSTSEC-2026-0009",  # time: DoS stack exhaustion — transitive (tendermint, serde_with etc.), upgrade when deps allow,
-    "RUSTSEC-2026-0049",  # rustls-webpki: CRL Distribution Point validation bypass — 0.102.x fix requires major version bump blocked on Sui/anemo upstream; 0.103.x fix blocked on Solana upstream
+    "RUSTSEC-2026-0049",  # rustls-webpki: CRL Distribution Point validation bypass — 0.102.x fix requires major version bump blocked on Sui/anemo upstream
     "RUSTSEC-2026-0098",  # rustls-webpki: name constraints for URI names incorrectly accepted — same upstream blockers as RUSTSEC-2026-0049
     "RUSTSEC-2026-0099",  # rustls-webpki: name constraints accepted for wildcard certs — same upstream blockers as RUSTSEC-2026-0049
     "RUSTSEC-2026-0104",  # rustls-webpki: reachable panic in CRL parsing — same upstream blockers as RUSTSEC-2026-0049
-    "RUSTSEC-2026-0144",  # anchor-lang: Program<System> accepts arbitrary executable programs — pending Anchor dependency update; used off-chain for Solana event decoding so not vulnerable
     # Review by 2026-10-01 and remove after separate dependency remediation.
     "RUSTSEC-2026-0258",  # h2 empty DATA frame DoS — upgrade 0.4.x to >=0.4.16; 0.3.x also needs upstream upgrades or a backport
     "RUSTSEC-2026-0285",  # rustls TLS 1.3 encryption-level validation — upgrade to >=0.23.45
