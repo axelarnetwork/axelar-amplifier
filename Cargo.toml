@@ -129,12 +129,12 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 
 # Solana
-anchor-lang = { version = "1.0.0", features = ["event-cpi"] }
-solana-axelar-gateway = "1.1.0"
-solana-axelar-std = "1.1.0"
-solana-client = "3.1.10"
-solana-sdk = "3.0.0"
-solana-transaction-status = "3.1.10"
+anchor-lang = { version = "1.2.0", features = ["event-cpi"] }
+solana-axelar-gateway = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", rev = "b3f67f0a6e7b062a4258d6be1f71a5dc368f12a1" }
+solana-axelar-std = { git = "https://github.com/axelarnetwork/axelar-amplifier-solana.git", rev = "b3f67f0a6e7b062a4258d6be1f71a5dc368f12a1" }
+solana-client = "=4.2.2"
+solana-sdk = "~4.0.1"
+solana-transaction-status-client-types = "=4.2.2"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"

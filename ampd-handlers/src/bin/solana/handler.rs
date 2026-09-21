@@ -657,7 +657,7 @@ mod tests {
         ) -> Result<Option<SolanaTransaction>, ampd_handlers::solana::ClientError> {
             use anchor_lang::Discriminator;
             use solana_axelar_gateway::events::CallContractEvent;
-            use solana_transaction_status::{
+            use solana_transaction_status_client_types::{
                 UiCompiledInstruction, UiInnerInstructions, UiInstruction,
             };
 
