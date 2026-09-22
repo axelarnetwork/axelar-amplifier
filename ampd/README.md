@@ -423,14 +423,18 @@ which can be overridden by passing `--state [path]`.
 Ensure tofnd is running and reachable, and your ampd config is ready (see above).
 
 ```bash
-# ampd (mount config and state dir, expose gRPC port for handlers)
-docker run -p 9090:9090 \
+docker network create ampd
+
+# ampd (mount config and state dir)
+# Requires `ip_addr = "0.0.0.0"` under [grpc] in ampd's config.toml, since the
+# default 127.0.0.1 is only reachable inside the ampd container.
+docker run --network ampd --name ampd \
   -v ~/.ampd:/home/axelard/.ampd \
   axelarnet/axelar-ampd:<version>
 
 # handlers (configure via env vars, no config files needed)
-docker run \
-  -e AMPD_HANDLERS_AMPD_URL=http://<ampd-host>:9090 \
+docker run --network ampd \
+  -e AMPD_HANDLERS_AMPD_URL=http://ampd:9090 \
   -e AMPD_HANDLERS_CHAIN_NAME=flow \
   -e AMPD_EVM_HANDLER_RPC_URL=https://testnet.evm.nodes.onflow.org \
   -e AMPD_EVM_HANDLER_FINALIZATION=RPCFinalizedBlock \
@@ -440,7 +444,9 @@ docker run \
 Networking requirements:
 - **ampd** must be able to reach tofnd (default `:50051`) and the Axelar node (JSON-RPC `:26657`, gRPC `:9090`)
 - **handlers** must be able to reach ampd's gRPC (default `:9090`) and external chain RPCs (outbound internet)
-- If running all containers on the same machine, use a shared Docker network or `--network host` so they can communicate
+- **Never** expose ampd's gRPC port to the public internet. When using multiple machines, use a private network, VPN/WireGuard tunnel, or mTLS proxy.
+- Avoid `--network host` together with `ip_addr = "0.0.0.0"`; that listens on every host interface.
+- If you need host access to ampd's gRPC, publish it on loopback only: `-p 127.0.0.1:9090:9090`, never `-p 9090:9090`.
 
 ### Help
 
