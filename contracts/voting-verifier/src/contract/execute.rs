@@ -63,8 +63,14 @@ pub fn verify_verifier_set(
     new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;
-    if status.is_confirmed() {
-        return Ok(Response::new());
+    match status {
+        VerificationStatus::SucceededOnSourceChain | VerificationStatus::InProgress => {
+            return Ok(Response::new());
+        }
+        VerificationStatus::NotFoundOnSourceChain
+        | VerificationStatus::FailedToVerify
+        | VerificationStatus::FailedOnSourceChain
+        | VerificationStatus::Unknown => {}
     }
 
     let config = CONFIG.load(deps.storage).expect("failed to load config");
