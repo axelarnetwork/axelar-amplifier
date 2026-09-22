@@ -56,8 +56,10 @@ jobs:
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
+        env:
+          BINARY: ${{ github.event.inputs.binary-to-release }}
         run: |
-          binary="${{ github.event.inputs.binary-to-release }}"
+          binary="$BINARY"
           declare -A binaries_data=(
             ["ampd"]="ampd,/\(major\)|\(major-ampd\)/,/\(minor\)|\(minor-ampd\)/,ampd packages"
             ["ampd-sdk"]="ampd-sdk,/\(major\)|\(major-ampd-sdk\)/,/\(minor\)|\(minor-ampd-sdk\)/,packages/ampd-sdk"
