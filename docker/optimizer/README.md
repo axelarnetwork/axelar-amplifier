@@ -24,9 +24,8 @@ successful build replaces the previous contract artifact set.
 - A digest-pinned Debian Rust image. Rust 1.98.1 for contracts is selected
   inside the container independently of the repository's native toolchain.
 - Binaryen 132, from the official Linux release, verified by SHA-256.
-- `cosmwasm-check` 3.0.9, built in a separate pinned Rust 1.86.0
-  Debian stage with `--locked`. Its pinned Wasmer 5.0.6 dependency fails to link
-  with Rust 1.98.1 (`__rust_probestack`); this does not constrain the contract compiler.
+- `cosmwasm-check` 3.0.10, built with `--locked` using the same pinned
+  Rust 1.98.1 Debian image as the contracts.
 
 Validation uses Axelar Core's limits of 2,048 locals per function and 20,000
 locals per module; other checker limits retain their defaults. See the

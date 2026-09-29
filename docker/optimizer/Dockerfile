@@ -1,12 +1,8 @@
 # Build with --platform linux/amd64, including on Apple Silicon.
 FROM cosmwasm/optimizer:0.17.0@sha256:7e0b9229c1a4118d0c9a2af2e7f5d95a91f264c26a2ce5681c779926e74d7f85 AS upstream
 
-# cosmwasm-check 3.0.9 pins Wasmer 5.0.6, which fails to link on Rust 1.98.1
-# (undefined __rust_probestack). Keep the checker compiler separate from contracts.
-# https://github.com/rust-lang/rust/issues/143835
-# Debian avoids Wasmer's Alpine static-Clang build requirement.
-FROM rust:1.86.0-bookworm@sha256:300ec56abce8cc9448ddea2172747d048ed902a3090e6b57babb2bf19f754081 AS checker
-RUN cargo +1.86.0 install cosmwasm-check --version 3.0.9 --locked \
+FROM rust:1.98.1-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e AS checker
+RUN cargo +1.98.1 install cosmwasm-check --version 3.0.10 --locked \
     --root /opt/checker --jobs 2
 
 FROM upstream AS binaryen
