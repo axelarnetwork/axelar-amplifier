@@ -36,5 +36,7 @@ for wasm in "$@"; do
         "$wasm" -o "artifacts/$(basename "$wasm")"
 done
 
-cosmwasm-check artifacts/*.wasm
+# Match Axelar Core's per-function and module-wide locals limits.
+# https://github.com/axelarnetwork/axelar-core/blob/60e54ec1d39d55ee2ce2a5ed0ab4192ca3704d98/app/keepers.go#L166
+cosmwasm-check --wasm-limits '{"max_function_locals":2048,"max_total_function_locals":20000}' artifacts/*.wasm
 (cd artifacts && sha256sum -- *.wasm > checksums.txt && cat checksums.txt)
