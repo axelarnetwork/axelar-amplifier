@@ -11,7 +11,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.98.1" # Keep rust-toolchain.toml and Docker build images aligned.
+rust-version = "1.89.0" # MSRV
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
