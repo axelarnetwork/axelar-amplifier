@@ -1,6 +1,6 @@
 # Build stage
 # Rust version should match rust-toolchain.toml
-FROM rust:1.86-bookworm AS chef
+FROM rust:1.98.1-bookworm AS chef
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 RUN cargo install cargo-chef@0.1.75 --locked
 WORKDIR /ampd

@@ -26,7 +26,8 @@ pub enum Error {
     ExecutionFailed(String),
 }
 
-#[allow(non_snake_case)]
+// Generated Tonic methods return tonic::Status; its representation is upstream-owned.
+#[allow(non_snake_case, clippy::result_large_err)]
 mod proto {
     tonic::include_proto!("tofnd");
 }

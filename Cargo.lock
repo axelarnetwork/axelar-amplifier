@@ -1296,7 +1296,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha3",
- "starknet-checked-felt",
  "stellar-xdr",
  "strum 0.25.0",
  "sui-types 1.0.0",
@@ -3822,7 +3821,6 @@ dependencies = [
  "service-registry",
  "service-registry-api",
  "sha3",
- "starknet-checked-felt",
  "thiserror 1.0.69",
  "voting-verifier-api",
 ]
@@ -5863,28 +5861,6 @@ name = "keccak-const"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57d8d8ce877200136358e0bbff3a77965875db3af755a11e1fa6b1b3e2df13ea"
-
-[[package]]
-name = "lambdaworks-crypto"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbc2a4da0d9e52ccfe6306801a112e81a8fc0c76aa3e4449fefeda7fef72bb34"
-dependencies = [
- "lambdaworks-math",
- "serde",
- "sha2 0.10.9",
- "sha3",
-]
-
-[[package]]
-name = "lambdaworks-math"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1bd2632acbd9957afc5aeec07ad39f078ae38656654043bf16e046fa2730e23"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "lazy_static"
@@ -9747,12 +9723,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 
 [[package]]
-name = "size-of"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4e36eca171fddeda53901b0a436573b3f2391eaa9189d439b2bd8ea8cebd7e3"
-
-[[package]]
 name = "sized-chunks"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11933,35 +11903,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "starknet-checked-felt"
-version = "1.0.0"
-dependencies = [
- "alloy-primitives",
- "axelar-wasm-std",
- "error-stack",
- "hex",
- "serde",
- "starknet-types-core",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "starknet-types-core"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4037bcb26ce7c508448d221e570d075196fd4f6912ae6380981098937af9522a"
-dependencies = [
- "lambdaworks-crypto",
- "lambdaworks-math",
- "num-bigint 0.4.6",
- "num-integer",
- "num-traits",
- "serde",
- "size-of",
- "zeroize",
-]
-
-[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13896,7 +13837,6 @@ dependencies = [
  "service-registry",
  "service-registry-api",
  "sha3",
- "starknet-checked-felt",
  "thiserror 1.0.69",
  "voting-verifier-api",
 ]
