@@ -38,8 +38,10 @@ jobs:
     steps:
       - name: Extract semver from tag
         id: extract_semver
+        env:
+          TAG: ${{ github.event.inputs.tag }}
         run: |
-          full_semver=$(echo ${{ github.event.inputs.tag }} | sed 's/ampd-//')
+          full_semver=$(echo "$TAG" | sed 's/ampd-//')
           version_number=$(echo $full_semver | sed 's/^v//')
           echo "semver=$full_semver" >> $GITHUB_OUTPUT
           echo "version=$version_number" >> $GITHUB_OUTPUT
