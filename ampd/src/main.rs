@@ -162,10 +162,7 @@ fn init_config_with_defaults(
         info!(file_count = files.len(), env_vars = ?env_keys, "loading config");
     }
 
-    Ok(parse_config(files)
-        .change_context(Error::LoadConfig)
-        .inspect_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
-        .unwrap_or_default())
+    parse_config(files).change_context(Error::LoadConfig)
 }
 
 fn find_config_files(
@@ -243,10 +240,22 @@ mod tests {
     use super::*;
 
     fn make_file(dir: &TempDir, name: &str) -> PathBuf {
+        make_file_with_contents(dir, name, "")
+    }
+
+    fn make_file_with_contents(dir: &TempDir, name: &str, contents: &str) -> PathBuf {
         let path = dir.path().join(name);
-        fs::write(&path, b"").expect("write temp file");
+        fs::write(&path, contents).expect("write temp file");
         path
     }
+
+    // `[tofnd_config]` is present but `timeout` is missing, so the file does not deserialize
+    const TOFND_CONFIG_WITHOUT_TIMEOUT: &str = r#"
+[tofnd_config]
+url = "http://127.0.0.1:50999"
+party_uid = "ampd"
+key_uid = "axelar"
+"#;
 
     #[traced_test]
     #[test]
@@ -435,6 +444,39 @@ mod tests {
             let cfg = init_config_with_defaults(&[], &[]).expect("should not error");
             assert_eq!(cfg, Config::default());
         });
+    }
+
+    #[traced_test]
+    #[test]
+    fn init_config_errors_on_unparsable_user_supplied_file() {
+        let dir = TempDir::new().unwrap();
+        let path = make_file_with_contents(&dir, "ampd.toml", TOFND_CONFIG_WITHOUT_TIMEOUT);
+
+        let err = init_config(&[path]).unwrap_err();
+        let formatted = format!("{err:?}");
+        assert!(
+            formatted.contains("missing field `timeout`"),
+            "expected error to mention the missing field, got: {formatted}",
+        );
+    }
+
+    #[traced_test]
+    #[test]
+    fn init_config_errors_on_unparsable_default_file() {
+        let dir = TempDir::new().unwrap();
+        let path = make_file_with_contents(&dir, "config.toml", TOFND_CONFIG_WITHOUT_TIMEOUT);
+        let path_str = path.to_str().unwrap().to_string();
+
+        assert!(init_config_with_defaults(&[], &[path_str.as_str()]).is_err());
+    }
+
+    #[traced_test]
+    #[test]
+    fn init_config_or_exit_returns_failure_on_unparsable_file() {
+        let dir = TempDir::new().unwrap();
+        let path = make_file_with_contents(&dir, "ampd.toml", TOFND_CONFIG_WITHOUT_TIMEOUT);
+
+        assert!(init_config_or_exit(&[path], &Output::Json).is_err());
     }
 
     #[traced_test]
