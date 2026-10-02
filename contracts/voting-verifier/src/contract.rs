@@ -121,8 +121,8 @@ mod test {
     use assert_ok::assert_ok;
     use axelar_wasm_std::address::{validate_address, AddressFormat};
     use axelar_wasm_std::msg_id::{
-        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
-        FieldElementAndEventIndex, HexTxHash, HexTxHashAndEventIndex, MessageIdFormat,
+        Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHash,
+        HexTxHashAndEventIndex, MessageIdFormat,
     };
     use axelar_wasm_std::voting::Vote;
     use axelar_wasm_std::{
@@ -139,7 +139,6 @@ mod test {
     use router_api::{address, chain_name, cosmos_addr, ChainName, CrossChainId, Message};
     use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
     use sha3::{Digest, Keccak256, Keccak512};
-    use starknet_checked_felt::CheckedFelt;
 
     use super::*;
     use crate::error::ContractError;
@@ -257,17 +256,6 @@ mod test {
 
     fn message_id(id: &str, index: u64, msg_id_format: &MessageIdFormat) -> nonempty::String {
         match msg_id_format {
-            MessageIdFormat::FieldElementAndEventIndex => {
-                let mut id_bytes: [u8; 32] = Keccak256::digest(id.as_bytes()).into();
-                id_bytes[0] = 0; // felt is ~31 bytes
-                FieldElementAndEventIndex {
-                    tx_hash: CheckedFelt::try_from(&id_bytes).unwrap(),
-                    event_index: index,
-                }
-                .to_string()
-                .parse()
-                .unwrap()
-            }
             MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
                 tx_hash: Keccak256::digest(id.as_bytes()).into(),
                 event_index: index,
@@ -381,48 +369,6 @@ mod test {
                     .to_string()
                     .to_lowercase(),
                 address_format: AddressFormat::Eip55,
-                should_fail: true,
-            },
-            TestCase {
-                source_gateway_address:
-                    // 63 chars
-                    "0x06cdc5221388566e09e1a9be3dcfd4b1bbb4abf98296bb4674401a79373cce5"
-                        .to_string()
-                        .to_lowercase(),
-                address_format: AddressFormat::Starknet,
-                should_fail: true,
-            },
-            TestCase {
-                source_gateway_address:
-                    // 62 chars
-                    "0x6cdc5221388566e09e1a9be3dcfd4b1bbb4abf98296bb4674401a79373cce5"
-                        .to_string()
-                        .to_lowercase(),
-                address_format: AddressFormat::Starknet,
-                should_fail: true,
-            },
-            TestCase {
-                source_gateway_address:
-                    // 64 chars, but out of prime field range
-                    "0xff6cdc5221388566e09e1a9be3dcfd4b1bbb4abf98296bb4674401a79373cce5"
-                        .to_string()
-                        .to_lowercase(),
-                address_format: AddressFormat::Starknet,
-                should_fail: true,
-            },
-            TestCase {
-                source_gateway_address:
-                    "0x006cdc5221388566e09e1a9be3dcfd4b1bbb4abf98296bb4674401a79373cce5"
-                        .to_string()
-                        .to_lowercase(),
-                address_format: AddressFormat::Starknet,
-                should_fail: false,
-            },
-            TestCase {
-                source_gateway_address: "0x4F4495243837681061C4743b74B3eEdf548D56A5"
-                    .to_string()
-                    .to_lowercase(),
-                address_format: AddressFormat::Starknet,
                 should_fail: true,
             },
             TestCase {
@@ -616,28 +562,6 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
-        let msg = ExecuteMsg::VerifyMessages(messages.clone());
-
-        let err = execute(
-            deps.as_mut(),
-            mock_env(),
-            message_info(&cosmos_addr!(SENDER), &[]),
-            msg,
-        )
-        .unwrap_err();
-        assert_contract_err_strings_equal(
-            err,
-            ContractError::InvalidMessageID(messages[0].cc_id.message_id.to_string()),
-        );
-    }
-
-    #[test]
-    fn should_fail_if_messages_have_hex_msg_id_but_contract_expects_field_element() {
-        let msg_id_format = MessageIdFormat::FieldElementAndEventIndex;
-        let verifiers = verifiers(2);
-        let mut deps = setup(verifiers.clone(), &msg_id_format);
-
-        let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages(messages.clone());
 
         let err = execute(
@@ -1028,7 +952,6 @@ mod test {
             [
                 (v, s, MessageIdFormat::HexTxHashAndEventIndex),
                 (v, s, MessageIdFormat::Base58TxDigestAndEventIndex),
-                (v, s, MessageIdFormat::FieldElementAndEventIndex),
             ]
         })
         .collect::<Vec<_>>();

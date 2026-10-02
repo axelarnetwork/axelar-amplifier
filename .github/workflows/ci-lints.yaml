@@ -1,4 +1,4 @@
-# Runs all linting checks: rustfmt, cargo-sort, clippy, and custom dylint lints.
+# Runs all linting checks: rustfmt, cargo-sort, and clippy.
 name: "CI: Lints"
 
 on:
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   lints:
-    name: Format, sort, clippy, and custom lints
+    name: Format, sort, and clippy
     runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -41,18 +41,6 @@ jobs:
         with:
           crate: cargo-sort
 
-      - name: Install cargo-dylint
-        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
-        with:
-          crate: cargo-dylint
-          version: 4.1.0
-
-      - name: Install dylint-link
-        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3
-        with:
-          crate: dylint-link
-          version: 4.1.0
-
       - name: Run cargo fmt
         run: cargo +nightly fmt-check # alias
 
@@ -61,11 +49,6 @@ jobs:
 
       - name: Run cargo clippy
         run: cargo clippy-check # alias
-
-      - name: Run custom lints
-        run: cargo dylint --all
-        env:
-          DYLINT_RUSTFLAGS: -D warnings -A deprecated
 
       - name: Check Diff
         # fails if any changes not committed
