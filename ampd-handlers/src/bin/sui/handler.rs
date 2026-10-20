@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use ampd::monitoring;
-use ampd_handlers::sui::json_rpc::SuiClient;
+use ampd_handlers::sui::rpc_client::{SuiClient, Transaction};
 use ampd_handlers::sui::types::{Message, VerifierSetConfirmation};
 use ampd_handlers::sui::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};
@@ -15,7 +15,6 @@ use cosmrs::{AccountId, Any};
 use error_stack::{Report, ResultExt};
 use events::{try_from, AbciEventTypeFilter, Event, EventType};
 use serde::Deserialize;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
 use sui_types::base_types::SuiAddress;
 use sui_types::digests::TransactionDigest;
 use typed_builder::TypedBuilder;
@@ -54,7 +53,7 @@ impl voting::PollEventData for PollEventData {
     type Digest = TransactionDigest;
     type MessageId = Base58TxDigestAndEventIndex;
     type ChainAddress = SuiAddress;
-    type Receipt = SuiTransactionBlockResponse;
+    type Receipt = Transaction;
     type ContextData = ();
 
     fn tx_hash(&self) -> TransactionDigest {
@@ -71,7 +70,7 @@ impl voting::PollEventData for PollEventData {
     fn verify(
         &self,
         source_gateway_address: &SuiAddress,
-        tx_receipt: &SuiTransactionBlockResponse,
+        tx_receipt: &Transaction,
         _: &Self::ContextData,
     ) -> Vote {
         match self {
@@ -157,7 +156,7 @@ where
     C: SuiClient + Send + Sync,
 {
     type Digest = TransactionDigest;
-    type Receipt = SuiTransactionBlockResponse;
+    type Receipt = Transaction;
     type ChainAddress = SuiAddress;
     type EventData = PollEventData;
     type ContextData = ();
@@ -187,8 +186,7 @@ where
         poll_data: &[Self::EventData],
         _confirmation_height: Option<u64>,
     ) -> Result<HashMap<Self::Digest, Self::Receipt>> {
-        // Does not assume voting verifier emits unique tx ids.
-        // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
+        // Does not assume voting verifier emits unique tx ids; fetch each transaction once.
         let deduplicated_tx_ids: HashSet<_> = poll_data.iter().map(|data| data.tx_hash()).collect();
 
         let transaction_blocks = self
@@ -248,7 +246,7 @@ mod tests {
 
     use ampd::monitoring::{metrics, test_utils};
     use ampd::types::TMAddress;
-    use ampd_handlers::sui::json_rpc::MockSuiClient;
+    use ampd_handlers::sui::rpc_client::{self, MockSuiClient};
     use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
     use axelar_wasm_std::chain_name;
@@ -256,7 +254,6 @@ mod tests {
     use cosmrs::tx::Msg;
     use error_stack::Report;
     use ethers_core::types::H160;
-    use ethers_providers::ProviderError;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
     use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
@@ -368,11 +365,7 @@ mod tests {
         let mut rpc_client = MockSuiClient::new();
         rpc_client
             .expect_finalized_transaction_blocks()
-            .returning(|_| {
-                Err(Report::from(ProviderError::CustomError(
-                    "failed to get tx blocks".to_string(),
-                )))
-            });
+            .returning(|_| Err(Report::new(rpc_client::Error::RpcCall)));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -577,11 +570,7 @@ mod tests {
         // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
         rpc_client
             .expect_finalized_transaction_blocks()
-            .returning(|_| {
-                Err(Report::from(ProviderError::CustomError(
-                    "failed to get tx blocks".to_string(),
-                )))
-            });
+            .returning(|_| Err(Report::new(rpc_client::Error::RpcCall)));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -628,11 +617,7 @@ mod tests {
         // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
         rpc_client
             .expect_finalized_transaction_blocks()
-            .returning(|_| {
-                Err(Report::from(ProviderError::CustomError(
-                    "failed to get tx blocks".to_string(),
-                )))
-            });
+            .returning(|_| Err(Report::new(rpc_client::Error::RpcCall)));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
