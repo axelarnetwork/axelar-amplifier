@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use ampd::monitoring;
-use ampd_handlers::sui::rpc_client::{SuiClient, Transaction};
+use ampd_handlers::sui::rpc_client::SuiClient;
+use ampd_handlers::sui::transaction::Transaction;
 use ampd_handlers::sui::types::{Message, VerifierSetConfirmation};
 use ampd_handlers::sui::verifier::{verify_message, verify_verifier_set};
 use ampd_handlers::voting::{self, Error, PollEventData as _, VotingHandler};

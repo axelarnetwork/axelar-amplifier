@@ -15,11 +15,12 @@ use sui_rpc::proto::sui::rpc::v2::get_transaction_result::Result as Lookup;
 use sui_rpc::proto::sui::rpc::v2::{
     BatchGetTransactionsRequest, ExecutedTransaction, GetTransactionResult,
 };
-use sui_sdk_types::{Event, TransactionEvents};
 use sui_types::digests::TransactionDigest;
 use thiserror::Error;
 use tonic::metadata::{Ascii, MetadataKey, MetadataValue};
 use tonic::Code;
+
+use crate::sui::transaction::Transaction;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -40,37 +41,6 @@ const BATCH_SIZE: usize = 50;
 
 /// A transaction may emit tens of megabytes of events, well past tonic's 4 MiB default.
 const MAX_RESPONSE_BYTES: usize = 256 * 1024 * 1024;
-
-/// A finalized transaction reduced to what verification needs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Transaction {
-    pub digest: TransactionDigest,
-    /// The emitted events in order; a message id's event index is a position in this list.
-    pub events: Vec<Event>,
-}
-
-impl TryFrom<ExecutedTransaction> for Transaction {
-    type Error = Report<Error>;
-
-    fn try_from(transaction: ExecutedTransaction) -> Result<Self> {
-        let digest = transaction
-            .digest
-            .as_deref()
-            .and_then(|digest| digest.parse().ok())
-            .ok_or_else(|| report!(Error::MalformedResponse).attach_printable("invalid digest"))?;
-        let events = transaction
-            .events
-            .as_ref()
-            .map(TransactionEvents::try_from)
-            .transpose()
-            .change_context(Error::MalformedResponse)?;
-
-        Ok(Self {
-            digest,
-            events: events.map(|events| events.0).unwrap_or_default(),
-        })
-    }
-}
 
 #[automock]
 #[async_trait]
@@ -215,7 +185,7 @@ fn headers_interceptor(headers: HashMap<String, String>) -> Result<HeadersInterc
 }
 
 // The digest to key the response, the checkpoint to determine finality and the event
-// fields [`Event`] is built from.
+// fields [`Transaction`] is built from.
 fn read_mask() -> FieldMask {
     let event = || ExecutedTransaction::path_builder().events().events();
     FieldMask::from_paths([
@@ -249,8 +219,9 @@ fn finalized_transaction(result: GetTransactionResult) -> Result<Option<Transact
     // Checkpoint number exists when this transaction was included and finalized.
     transaction
         .checkpoint
-        .map(|_| transaction.try_into())
+        .map(|_| Transaction::try_from(transaction))
         .transpose()
+        .change_context(Error::MalformedResponse)
 }
 
 #[cfg(test)]
@@ -259,7 +230,7 @@ mod tests {
     use bytes::Bytes;
     use prost::Message as _;
     use sui_rpc::proto::google::rpc::Status;
-    use sui_rpc::proto::sui::rpc::v2::{self as proto, BatchGetTransactionsResponse};
+    use sui_rpc::proto::sui::rpc::v2::BatchGetTransactionsResponse;
     use tokio::sync::mpsc;
 
     use super::*;
@@ -272,16 +243,6 @@ mod tests {
         ExecutedTransaction::default()
             .with_digest(digest.base58_encode())
             .with_checkpoint(1)
-    }
-
-    fn event() -> Event {
-        Event {
-            package_id: sui_sdk_types::Address::TWO,
-            module: sui_sdk_types::Identifier::from_static("sui"),
-            sender: sui_sdk_types::Address::ZERO,
-            type_: "0x2::sui::SUI".parse().unwrap(),
-            contents: b"contents".to_vec(),
-        }
     }
 
     enum Reply {
@@ -380,17 +341,13 @@ mod tests {
     #[test]
     fn should_convert_finalized_transaction() {
         let digest = TransactionDigest::random();
-        let transaction =
-            finalized(digest).with_events(proto::TransactionEvents::from(TransactionEvents(vec![
-                event(),
-            ])));
-        let result = GetTransactionResult::new_transaction(transaction);
+        let result = GetTransactionResult::new_transaction(finalized(digest));
 
         assert_eq!(
             finalized_transaction(result).unwrap(),
             Some(Transaction {
                 digest,
-                events: vec![event()],
+                events: vec![],
             })
         );
     }
@@ -400,14 +357,9 @@ mod tests {
         let invalid_digest = ExecutedTransaction::default()
             .with_digest("not a digest")
             .with_checkpoint(1);
-        let mut missing_contents = proto::Event::from(event());
-        missing_contents.contents = None;
-        let missing_contents = finalized(TransactionDigest::random())
-            .with_events(proto::TransactionEvents::default().with_events(vec![missing_contents]));
 
         for result in [
             GetTransactionResult::new_transaction(invalid_digest),
-            GetTransactionResult::new_transaction(missing_contents),
             GetTransactionResult::default(),
         ] {
             let err = finalized_transaction(result).unwrap_err();

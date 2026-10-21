@@ -8,7 +8,7 @@ use sui_sdk_types::{Event, StructTag};
 use sui_types::base_types::SuiAddress;
 use tracing::debug;
 
-use crate::sui::rpc_client::Transaction;
+use crate::sui::transaction::Transaction;
 use crate::sui::types::{Message, VerifierSetConfirmation};
 
 enum EventType {
@@ -156,7 +156,7 @@ mod tests {
     use sui_sdk_types::{Address, Event, Identifier, StructTag};
     use sui_types::base_types::{SuiAddress, TransactionDigest};
 
-    use crate::sui::rpc_client::Transaction;
+    use crate::sui::transaction::Transaction;
     use crate::sui::types::{Message, VerifierSetConfirmation};
     use crate::sui::verifier::{verify_message, verify_verifier_set, EventType};
 
