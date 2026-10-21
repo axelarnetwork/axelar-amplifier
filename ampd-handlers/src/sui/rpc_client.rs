@@ -143,21 +143,24 @@ impl Client {
         &self,
         digests: &[TransactionDigest],
     ) -> Result<Vec<(TransactionDigest, Transaction)>> {
-        let request = BatchGetTransactionsRequest::default()
-            .with_digests(
-                digests
-                    .iter()
-                    .map(TransactionDigest::base58_encode)
-                    .collect(),
-            )
-            .with_read_mask(read_mask());
+        let mut request = tonic::Request::new(
+            BatchGetTransactionsRequest::default()
+                .with_digests(
+                    digests
+                        .iter()
+                        .map(TransactionDigest::base58_encode)
+                        .collect(),
+                )
+                .with_read_mask(read_mask()),
+        );
+        request.set_timeout(self.timeout);
 
         // The client is a handle on a shared channel, so cloning it per call is cheap and
         // keeps `&self` here while `ledger_client` needs `&mut`.
         let mut ledger = self.client.clone().ledger_client();
-        let response = tokio::time::timeout(self.timeout, ledger.batch_get_transactions(request))
+        let response = ledger
+            .batch_get_transactions(request)
             .await
-            .change_context(Error::RpcCall)?
             .change_context(Error::RpcCall)?
             .into_inner();
         ensure!(
