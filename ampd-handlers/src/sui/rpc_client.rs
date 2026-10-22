@@ -7,7 +7,7 @@ use ampd::url::Url;
 use async_trait::async_trait;
 use axelar_wasm_std::chain::ChainName;
 use error_stack::{ensure, report, Report, ResultExt};
-use futures::future::try_join_all;
+use futures::stream::{self, StreamExt, TryStreamExt};
 use mockall::automock;
 use sui_rpc::client::HeadersInterceptor;
 use sui_rpc::field::{FieldMask, FieldMaskUtil};
@@ -41,6 +41,9 @@ const BATCH_SIZE: usize = 50;
 
 /// A transaction may emit tens of megabytes of events, well past tonic's 4 MiB default.
 const MAX_RESPONSE_BYTES: usize = 256 * 1024 * 1024;
+
+/// Requests in flight at once, bounding the memory and node load a large poll can cause.
+const MAX_CONCURRENT_REQUESTS: usize = 4;
 
 #[automock]
 #[async_trait]
@@ -84,8 +87,14 @@ impl Client {
     async fn fetch(&self, digests: &[Digest]) -> Result<Vec<(Digest, Transaction)>> {
         match self.fetch_batch(digests).await {
             Err(err) if digests.len() > 1 && too_large(&err) => {
-                let singles = digests.chunks(1).map(|digest| self.fetch_batch(digest));
-                Ok(try_join_all(singles).await?.into_iter().flatten().collect())
+                let singles: Vec<_> = digests
+                    .chunks(1)
+                    .map(|digest| self.fetch_batch(digest))
+                    .collect();
+                stream::iter(singles)
+                    .buffer_unordered(MAX_CONCURRENT_REQUESTS)
+                    .try_concat()
+                    .await
             }
             res => res,
         }
@@ -140,9 +149,17 @@ impl SuiClient for Client {
         digests: HashSet<Digest>,
     ) -> Result<HashMap<Digest, Transaction>> {
         let digests: Vec<_> = digests.into_iter().collect();
-        let batches = digests.chunks(BATCH_SIZE).map(|batch| self.fetch(batch));
+        let batches: Vec<_> = digests
+            .chunks(BATCH_SIZE)
+            .map(|batch| self.fetch(batch))
+            .collect();
 
-        Ok(try_join_all(batches).await?.into_iter().flatten().collect())
+        Ok(stream::iter(batches)
+            .buffer_unordered(MAX_CONCURRENT_REQUESTS)
+            .try_concat()
+            .await?
+            .into_iter()
+            .collect())
     }
 }
 
