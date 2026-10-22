@@ -10322,8 +10322,9 @@ dependencies = [
 
 [[package]]
 name = "solana-axelar-gateway"
-version = "1.1.1"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?rev=b3f67f0a6e7b062a4258d6be1f71a5dc368f12a1#b3f67f0a6e7b062a4258d6be1f71a5dc368f12a1"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23c31b63e588cd97febcb7956dc432561d68e00a98c94203700470b98bff6b6a"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -10342,8 +10343,9 @@ dependencies = [
 
 [[package]]
 name = "solana-axelar-std"
-version = "1.1.1"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier-solana.git?rev=b3f67f0a6e7b062a4258d6be1f71a5dc368f12a1#b3f67f0a6e7b062a4258d6be1f71a5dc368f12a1"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "058de83be0ecf9d38682d193a1700c8f90007e8afaaab03702ad1113cadd91ce"
 dependencies = [
  "alloy-primitives",
  "arrayref",
