@@ -1,7 +1,6 @@
 use error_stack::{report, Report, ResultExt};
 use sui_rpc::proto::sui::rpc::v2::ExecutedTransaction;
-use sui_sdk_types::Digest;
-use sui_sdk_types::{Event, TransactionEvents};
+use sui_sdk_types::{Digest, Event, TransactionEvents};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
