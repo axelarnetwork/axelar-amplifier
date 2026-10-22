@@ -63,8 +63,7 @@ stellar-rpc-client = { workspace = true }
 stellar-xdr = { workspace = true }
 sui-gateway = { workspace = true }
 sui-rpc = "0.4"
-sui-sdk-types = "0.4"
-sui-types = { git = "https://github.com/mystenlabs/sui", tag = "testnet-v1.39.1" }
+sui-sdk-types = { version = "0.4", features = ["serde"] }
 tendermint = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
@@ -108,6 +107,7 @@ rand = { workspace = true }
 random-string = { workspace = true }
 router-api = { workspace = true }
 test-log = { workspace = true }
+sui-sdk-types = { version = "0.4", features = ["rand"] }
 tokio = { workspace = true, features = ["net"] }
 
 [lints]

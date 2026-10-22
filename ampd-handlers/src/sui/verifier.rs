@@ -4,8 +4,7 @@ use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
 use sui_gateway::events::{ContractCall, SignersRotated};
 use sui_gateway::{WeightedSigner, WeightedSigners};
-use sui_sdk_types::{Event, StructTag};
-use sui_types::base_types::SuiAddress;
+use sui_sdk_types::{Address, Event, StructTag};
 use tracing::debug;
 
 use crate::sui::transaction::Transaction;
@@ -18,7 +17,7 @@ enum EventType {
 
 impl EventType {
     // Sui event type  is in the form of: <address>::<module_name>::<event_name>
-    fn struct_tag(&self, gateway_address: &SuiAddress) -> StructTag {
+    fn struct_tag(&self, gateway_address: &Address) -> StructTag {
         let event = match self {
             EventType::ContractCall => "ContractCall",
             EventType::SignersRotated => "SignersRotated",
@@ -50,7 +49,7 @@ impl PartialEq<&Message> for &Event {
                 };
 
                 matches_destination_chain
-                    && msg.source_address.as_ref() == source_id.as_bytes()
+                    && msg.source_address.as_bytes() == source_id.as_bytes()
                     && msg.destination_address == destination_address
                     && msg.payload_hash.to_fixed_bytes().to_vec() == payload_hash.to_vec()
             }
@@ -107,7 +106,7 @@ fn find_event(transaction_block: &Transaction, event_seq: u64) -> Option<&Event>
 }
 
 pub fn verify_message(
-    gateway_address: &SuiAddress,
+    gateway_address: &Address,
     transaction_block: &Transaction,
     message: &Message,
 ) -> Vote {
@@ -124,7 +123,7 @@ pub fn verify_message(
 }
 
 pub fn verify_verifier_set(
-    gateway_address: &SuiAddress,
+    gateway_address: &Address,
     transaction_block: &Transaction,
     confirmation: &VerifierSetConfirmation,
 ) -> Vote {
@@ -153,8 +152,7 @@ mod tests {
     use random_string::generate;
     use sui_gateway::events::{ContractCall, SignersRotated};
     use sui_gateway::{WeightedSigner, WeightedSigners};
-    use sui_sdk_types::{Address, Event, Identifier, StructTag};
-    use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use sui_sdk_types::{Address, Digest, Event, Identifier, StructTag};
 
     use crate::sui::transaction::Transaction;
     use crate::sui::types::{Message, VerifierSetConfirmation};
@@ -166,7 +164,7 @@ mod tests {
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.message_id.tx_digest = TransactionDigest::random().into();
+        msg.message_id.tx_digest = Digest::generate(rand::thread_rng()).into();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -199,7 +197,7 @@ mod tests {
     fn should_not_verify_msg_if_source_address_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.source_address = SuiAddress::random_for_testing_only();
+        msg.source_address = Address::generate(rand::thread_rng());
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -273,7 +271,7 @@ mod tests {
 
         assert_eq!(
             verify_verifier_set(
-                &SuiAddress::random_for_testing_only(),
+                &Address::generate(rand::thread_rng()),
                 &tx_block,
                 &verifier_set
             ),
@@ -284,7 +282,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_tx_digest_mismatch() {
         let (gateway_address, mut tx_block, verifier_set) = matching_verifier_set_and_tx_block();
-        tx_block.digest = TransactionDigest::random();
+        tx_block.digest = Digest::generate(rand::thread_rng());
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_block, &verifier_set),
@@ -310,7 +308,7 @@ mod tests {
             .events
             .get_mut(usize::try_from(verifier_set.message_id.event_index).unwrap())
             .unwrap()
-            .type_ = format!("{}::module::Name", SuiAddress::random_for_testing_only())
+            .type_ = format!("{}::module::Name", Address::generate(rand::thread_rng()))
             .parse()
             .unwrap();
 
@@ -360,7 +358,7 @@ mod tests {
     // Index 1 or above, so another event always precedes the quoted one
     fn random_message_id() -> Base58TxDigestAndEventIndex {
         Base58TxDigestAndEventIndex::new(
-            TransactionDigest::random(),
+            Digest::generate(rand::thread_rng()),
             u64::from(rand::random::<u8>()).max(1),
         )
     }
@@ -390,7 +388,7 @@ mod tests {
     fn mock_message(destination_chain: &str) -> Message {
         Message {
             message_id: random_message_id(),
-            source_address: SuiAddress::random_for_testing_only(),
+            source_address: Address::generate(rand::thread_rng()),
             destination_chain: destination_chain.parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
             payload_hash: Hash::random(),
@@ -399,7 +397,7 @@ mod tests {
 
     fn mock_msg_tx_block(
         destination_chain: &str,
-        gateway_address: SuiAddress,
+        gateway_address: Address,
         msg: &Message,
     ) -> Transaction {
         let contract_call = ContractCall {
@@ -417,8 +415,8 @@ mod tests {
         mock_tx_block(&msg.message_id, event)
     }
 
-    fn matching_msg_and_tx_block() -> (SuiAddress, Transaction, Message) {
-        let gateway_address = SuiAddress::random_for_testing_only();
+    fn matching_msg_and_tx_block() -> (Address, Transaction, Message) {
+        let gateway_address = Address::generate(rand::thread_rng());
 
         let destination_chain = rand_chain_name();
         let msg = mock_message(&destination_chain);
@@ -427,8 +425,8 @@ mod tests {
         (gateway_address, tx_block, msg)
     }
 
-    fn msg_and_tx_block_with_different_chain_casing() -> (SuiAddress, Transaction, Message) {
-        let gateway_address = SuiAddress::random_for_testing_only();
+    fn msg_and_tx_block_with_different_chain_casing() -> (Address, Transaction, Message) {
+        let gateway_address = Address::generate(rand::thread_rng());
 
         let msg = mock_message("ethereum");
         let tx_block = mock_msg_tx_block("Ethereum", gateway_address, &msg);
@@ -451,8 +449,8 @@ mod tests {
         }
     }
 
-    fn matching_verifier_set_and_tx_block() -> (SuiAddress, Transaction, VerifierSetConfirmation) {
-        let gateway_address = SuiAddress::random_for_testing_only();
+    fn matching_verifier_set_and_tx_block() -> (Address, Transaction, VerifierSetConfirmation) {
+        let gateway_address = Address::generate(rand::thread_rng());
         let signers = vec![random_signer(), random_signer(), random_signer()];
         let created_at = rand::random();
         let threshold = Uint128::one();

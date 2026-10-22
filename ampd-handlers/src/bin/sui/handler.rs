@@ -16,8 +16,7 @@ use cosmrs::{AccountId, Any};
 use error_stack::{Report, ResultExt};
 use events::{try_from, AbciEventTypeFilter, Event, EventType};
 use serde::Deserialize;
-use sui_types::base_types::SuiAddress;
-use sui_types::digests::TransactionDigest;
+use sui_sdk_types::{Address, Digest as TransactionDigest};
 use typed_builder::TypedBuilder;
 
 pub type Result<T> = error_stack::Result<T, Error>;
@@ -27,7 +26,7 @@ pub type Result<T> = error_stack::Result<T, Error>;
 pub struct MessagesPollStarted {
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: SuiAddress,
+    source_gateway_address: Address,
     expires_at: u64,
     messages: Vec<Message>,
     participants: Vec<AccountId>,
@@ -39,7 +38,7 @@ pub struct VerifierSetPollStarted {
     verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
     source_chain: ChainName,
-    source_gateway_address: SuiAddress,
+    source_gateway_address: Address,
     expires_at: u64,
     participants: Vec<AccountId>,
 }
@@ -53,7 +52,7 @@ pub enum PollEventData {
 impl voting::PollEventData for PollEventData {
     type Digest = TransactionDigest;
     type MessageId = Base58TxDigestAndEventIndex;
-    type ChainAddress = SuiAddress;
+    type ChainAddress = Address;
     type Receipt = Transaction;
     type ContextData = ();
 
@@ -70,7 +69,7 @@ impl voting::PollEventData for PollEventData {
 
     fn verify(
         &self,
-        source_gateway_address: &SuiAddress,
+        source_gateway_address: &Address,
         tx_receipt: &Transaction,
         _: &Self::ContextData,
     ) -> Vote {
@@ -110,7 +109,7 @@ impl TryFrom<Event> for PollStartedEvent {
     }
 }
 
-impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, SuiAddress> {
+impl From<PollStartedEvent> for voting::PollStartedEvent<PollEventData, Address> {
     fn from(event: PollStartedEvent) -> Self {
         match event {
             PollStartedEvent::Messages(message_event) => voting::PollStartedEvent {
@@ -158,7 +157,7 @@ where
 {
     type Digest = TransactionDigest;
     type Receipt = Transaction;
-    type ChainAddress = SuiAddress;
+    type ChainAddress = Address;
     type EventData = PollEventData;
     type ContextData = ();
 
@@ -257,7 +256,7 @@ mod tests {
     use ethers_core::types::H160;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ecdsa_test_data};
-    use sui_types::base_types::{SuiAddress, SUI_ADDRESS_LENGTH};
+    use sui_sdk_types::Address;
     use tokio::test as async_test;
     use voting_verifier::events::{
         PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation,
@@ -275,8 +274,7 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!("sui"),
-                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
-                    .unwrap()
+                source_gateway_address: Address::new([3; Address::LENGTH])
                     .to_string()
                     .parse()
                     .unwrap(),
@@ -289,8 +287,7 @@ mod tests {
             },
             messages: vec![TxEventConfirmation {
                 message_id: msg_id.to_string().parse().unwrap(),
-                source_address: SuiAddress::from_bytes([4; SUI_ADDRESS_LENGTH])
-                    .unwrap()
+                source_address: Address::new([4; Address::LENGTH])
                     .to_string()
                     .parse()
                     .unwrap(),
@@ -310,8 +307,7 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: chain_name!("sui"),
-                source_gateway_address: SuiAddress::from_bytes([3; SUI_ADDRESS_LENGTH])
-                    .unwrap()
+                source_gateway_address: Address::new([3; Address::LENGTH])
                     .to_string()
                     .parse()
                     .unwrap(),

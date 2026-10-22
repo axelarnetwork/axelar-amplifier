@@ -1,7 +1,7 @@
 use error_stack::{report, Report, ResultExt};
 use sui_rpc::proto::sui::rpc::v2::ExecutedTransaction;
+use sui_sdk_types::Digest;
 use sui_sdk_types::{Event, TransactionEvents};
-use sui_types::digests::TransactionDigest;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -15,7 +15,7 @@ pub enum Error {
 /// A finalized transaction reduced to what verification needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
-    pub digest: TransactionDigest,
+    pub digest: Digest,
     /// The emitted events in order; a message id's event index is a position in this list.
     pub events: Vec<Event>,
 }
@@ -61,9 +61,9 @@ mod tests {
 
     #[test]
     fn should_convert_executed_transaction() {
-        let digest = TransactionDigest::random();
+        let digest = Digest::generate(rand::thread_rng());
         let transaction = ExecutedTransaction::default()
-            .with_digest(digest.base58_encode())
+            .with_digest(digest.to_string())
             .with_events(proto::TransactionEvents::from(TransactionEvents(vec![
                 event(),
             ])));
@@ -90,7 +90,7 @@ mod tests {
         let mut missing_contents = proto::Event::from(event());
         missing_contents.contents = None;
         let transaction = ExecutedTransaction::default()
-            .with_digest(TransactionDigest::random().base58_encode())
+            .with_digest(Digest::generate(rand::thread_rng()).to_string())
             .with_events(proto::TransactionEvents::default().with_events(vec![missing_contents]));
 
         let err = Transaction::try_from(transaction).unwrap_err();

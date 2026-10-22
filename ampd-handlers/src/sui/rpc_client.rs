@@ -15,7 +15,7 @@ use sui_rpc::proto::sui::rpc::v2::get_transaction_result::Result as Lookup;
 use sui_rpc::proto::sui::rpc::v2::{
     BatchGetTransactionsRequest, ExecutedTransaction, GetTransactionResult,
 };
-use sui_types::digests::TransactionDigest;
+use sui_sdk_types::Digest;
 use thiserror::Error;
 use tonic::metadata::{Ascii, MetadataKey, MetadataValue};
 use tonic::Code;
@@ -47,8 +47,8 @@ const MAX_RESPONSE_BYTES: usize = 256 * 1024 * 1024;
 pub trait SuiClient {
     async fn finalized_transaction_blocks(
         &self,
-        digests: HashSet<TransactionDigest>,
-    ) -> Result<HashMap<TransactionDigest, Transaction>>;
+        digests: HashSet<Digest>,
+    ) -> Result<HashMap<Digest, Transaction>>;
 }
 
 pub struct Client {
@@ -81,10 +81,7 @@ impl Client {
 
     /// One batch, refetched one transaction at a time when its response exceeds the
     /// receive limit, which a single transaction's events never do.
-    async fn fetch(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> Result<Vec<(TransactionDigest, Transaction)>> {
+    async fn fetch(&self, digests: &[Digest]) -> Result<Vec<(Digest, Transaction)>> {
         match self.fetch_batch(digests).await {
             Err(err) if digests.len() > 1 && too_large(&err) => {
                 let singles = digests.chunks(1).map(|digest| self.fetch_batch(digest));
@@ -94,10 +91,7 @@ impl Client {
         }
     }
 
-    async fn fetch_batch(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> Result<Vec<(TransactionDigest, Transaction)>> {
+    async fn fetch_batch(&self, digests: &[Digest]) -> Result<Vec<(Digest, Transaction)>> {
         let res = self.try_fetch_batch(digests).await;
         self.monitoring_client
             .metrics()
@@ -109,18 +103,10 @@ impl Client {
         res
     }
 
-    async fn try_fetch_batch(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> Result<Vec<(TransactionDigest, Transaction)>> {
+    async fn try_fetch_batch(&self, digests: &[Digest]) -> Result<Vec<(Digest, Transaction)>> {
         let mut request = tonic::Request::new(
             BatchGetTransactionsRequest::default()
-                .with_digests(
-                    digests
-                        .iter()
-                        .map(TransactionDigest::base58_encode)
-                        .collect(),
-                )
+                .with_digests(digests.iter().map(Digest::to_string).collect())
                 .with_read_mask(read_mask()),
         );
         request.set_timeout(self.timeout);
@@ -151,8 +137,8 @@ impl Client {
 impl SuiClient for Client {
     async fn finalized_transaction_blocks(
         &self,
-        digests: HashSet<TransactionDigest>,
-    ) -> Result<HashMap<TransactionDigest, Transaction>> {
+        digests: HashSet<Digest>,
+    ) -> Result<HashMap<Digest, Transaction>> {
         let digests: Vec<_> = digests.into_iter().collect();
         let batches = digests.chunks(BATCH_SIZE).map(|batch| self.fetch(batch));
 
@@ -239,9 +225,9 @@ mod tests {
         Status::default().with_code(i32::from(code))
     }
 
-    fn finalized(digest: TransactionDigest) -> ExecutedTransaction {
+    fn finalized(digest: Digest) -> ExecutedTransaction {
         ExecutedTransaction::default()
-            .with_digest(digest.base58_encode())
+            .with_digest(digest.to_string())
             .with_checkpoint(1)
     }
 
@@ -331,8 +317,8 @@ mod tests {
 
     #[test]
     fn should_skip_transaction_not_in_checkpoint() {
-        let transaction =
-            ExecutedTransaction::default().with_digest(TransactionDigest::random().base58_encode());
+        let transaction = ExecutedTransaction::default()
+            .with_digest(Digest::generate(rand::thread_rng()).to_string());
         let result = GetTransactionResult::new_transaction(transaction);
 
         assert_eq!(finalized_transaction(result).unwrap(), None);
@@ -340,7 +326,7 @@ mod tests {
 
     #[test]
     fn should_convert_finalized_transaction() {
-        let digest = TransactionDigest::random();
+        let digest = Digest::generate(rand::thread_rng());
         let result = GetTransactionResult::new_transaction(finalized(digest));
 
         assert_eq!(
@@ -392,7 +378,7 @@ mod tests {
         let started = std::time::Instant::now();
 
         let result = client
-            .finalized_transaction_blocks(HashSet::from([TransactionDigest::random()]))
+            .finalized_transaction_blocks(HashSet::from([Digest::generate(rand::thread_rng())]))
             .await;
 
         assert!(matches!(
@@ -412,7 +398,7 @@ mod tests {
         let (client, _) = client(&url, Duration::from_secs(5));
 
         let result = client
-            .finalized_transaction_blocks(HashSet::from([TransactionDigest::random()]))
+            .finalized_transaction_blocks(HashSet::from([Digest::generate(rand::thread_rng())]))
             .await;
 
         assert!(matches!(
@@ -425,7 +411,10 @@ mod tests {
     async fn should_refetch_one_at_a_time_when_the_response_is_too_large() {
         let url = mock_server(vec![Reply::TooLarge]).await;
         let (client, mut receiver) = client(&url, Duration::from_secs(5));
-        let digests = HashSet::from([TransactionDigest::random(), TransactionDigest::random()]);
+        let digests = HashSet::from([
+            Digest::generate(rand::thread_rng()),
+            Digest::generate(rand::thread_rng()),
+        ]);
 
         let transactions = client.finalized_transaction_blocks(digests).await.unwrap();
 
@@ -446,7 +435,7 @@ mod tests {
         let url = Url::new_non_sensitive("http://invalid_link").unwrap();
         let (client, mut receiver) = client(&url, Duration::from_secs(1));
         let digests = (0..=BATCH_SIZE)
-            .map(|_| TransactionDigest::random())
+            .map(|_| Digest::generate(rand::thread_rng()))
             .collect();
 
         let result = client.finalized_transaction_blocks(digests).await;
