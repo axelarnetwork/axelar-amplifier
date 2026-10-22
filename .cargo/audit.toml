@@ -20,7 +20,14 @@ ignore = [
     "RUSTSEC-2026-0099",  # rustls-webpki: name constraints accepted for wildcard certs — same upstream blockers as RUSTSEC-2026-0049
     "RUSTSEC-2026-0104",  # rustls-webpki: reachable panic in CRL parsing — same upstream blockers as RUSTSEC-2026-0049
     "RUSTSEC-2026-0144",  # anchor-lang: Program<System> accepts arbitrary executable programs — pending Anchor dependency update; used off-chain for Solana event decoding so not vulnerable
-    # Review by 2026-10-01 and remove after separate dependency remediation.
+    # Review by 2026-12-01 and remove after separate dependency remediation.
     "RUSTSEC-2026-0258",  # h2 empty DATA frame DoS — upgrade 0.4.x to >=0.4.16; 0.3.x also needs upstream upgrades or a backport
-    "RUSTSEC-2026-0285",  # rustls TLS 1.3 encryption-level validation — upgrade to >=0.23.45
+    # The TLS stack below is fixed on the versions we control. What remains is
+    # pinned by upstream trees we do not: Sui's jsonrpsee 0.16 and anemo forks,
+    # Sui's tonic 0.12, and the deprecated ethers-rs, which has no release that
+    # moves off rustls 0.21. Each fix needs a major bump that those block.
+    "RUSTSEC-2026-0346",  # rustls 0.21: Debug impls for client session values expose TLS secrets — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
+    "RUSTSEC-2026-0349",  # rustls 0.20/0.21: unauthenticated ServerHello downgrades later connections to classical key exchange — fix is >=0.23.46; 0.20 arrives via Sui's jsonrpsee 0.16 fork
+    "RUSTSEC-2026-0381",  # webpki-roots 0.22/0.25/0.26: bundled roots trust distrusted emSign intermediates — fix is >=1.0.10, blocked on Sui's jsonrpsee and tonic 0.12 plus ethers-providers
+    "RUSTSEC-2026-0382",  # rustls-webpki 0.101/0.102: certificate verification may accept distrusted intermediates — fix is >=0.103.16, blocked behind rustls 0.21 and Sui's anemo
 ]

@@ -901,9 +901,35 @@ pub mod xrpl_currency_string {
 // In XRPL generally it can be decimal and even negative (!) but in our case that doesn't apply.
 #[cw_serde]
 #[derive(Eq, Hash)]
+#[serde(try_from = "RawXRPLTokenAmount")]
 pub struct XRPLTokenAmount {
     mantissa: u64,
     exponent: i64,
+}
+
+/// Wire form of [`XRPLTokenAmount`]. Deserialization goes through
+/// `TryFrom<RawXRPLTokenAmount>` so that every value in memory satisfies the
+/// canonical-form invariant that `new()` enforces and `Ord` relies on.
+#[derive(serde::Deserialize)]
+struct RawXRPLTokenAmount {
+    mantissa: u64,
+    exponent: i64,
+}
+
+impl TryFrom<RawXRPLTokenAmount> for XRPLTokenAmount {
+    type Error = XRPLError;
+
+    fn try_from(raw: RawXRPLTokenAmount) -> Result<Self, Self::Error> {
+        if !XRPLTokenAmount::is_valid_pair(raw.mantissa, raw.exponent) {
+            return Err(XRPLError::InvalidTokenAmount {
+                reason: format!(
+                    "non-canonical mantissa/exponent pair {}e{}",
+                    raw.mantissa, raw.exponent
+                ),
+            });
+        }
+        Ok(XRPLTokenAmount::new(raw.mantissa, raw.exponent))
+    }
 }
 
 impl fmt::Display for XRPLTokenAmount {
@@ -920,12 +946,23 @@ impl XRPLTokenAmount {
         exponent: 0,
     };
 
+    /// Whether `new()` accepts this pair: zero with any exponent, or a 16-digit
+    /// mantissa with an exponent in the XRPL range.
+    fn is_valid_pair(mantissa: u64, exponent: i64) -> bool {
+        mantissa == 0
+            || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa)
+                && (MIN_EXPONENT..=MAX_EXPONENT).contains(&exponent))
+    }
+
     pub fn new(mantissa: u64, exponent: i64) -> Self {
-        assert!(
-            mantissa == 0
-                || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa)
-                    && (MIN_EXPONENT..=MAX_EXPONENT).contains(&exponent))
-        );
+        assert!(Self::is_valid_pair(mantissa, exponent));
+
+        // Zero has a single canonical representation so that the derived
+        // `PartialEq`/`Hash` agree with `Ord`, which treats every zero as equal.
+        if mantissa == 0 {
+            return Self::ZERO;
+        }
+
         Self { mantissa, exponent }
     }
 
@@ -952,12 +989,30 @@ impl XRPLTokenAmount {
     }
 }
 
+impl Ord for XRPLTokenAmount {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+
+        // The (exponent, mantissa) ordering below is only correct because every
+        // non-zero mantissa has exactly 16 digits. All constructors, including
+        // Deserialize, enforce that.
+        // Handle zero first
+        match (self.is_zero(), other.is_zero()) {
+            (true, true) => return Ordering::Equal,
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            (false, false) => {}
+        }
+
+        self.exponent
+            .cmp(&other.exponent)
+            .then(self.mantissa.cmp(&other.mantissa))
+    }
+}
+
 impl PartialOrd for XRPLTokenAmount {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let (self_mantissa, other_mantissa, _min_exponent) =
-            scale_to_min_exponent(self, other).expect("scale_to_min_exponent should not fail");
-
-        Some(self_mantissa.cmp(&other_mantissa))
+        Some(self.cmp(other))
     }
 }
 
@@ -1153,15 +1208,27 @@ impl fmt::Display for XRPLPathStep {
     }
 }
 
+/// The single canonical representation of zero. Every zero-valued amount uses
+/// this pair, so equality, hashing and ordering all agree on it, and both
+/// zero-returning paths in `canonicalize_mantissa` stay identical by
+/// construction.
+const ZERO_CANONICAL: (u64, i64) = (
+    XRPLTokenAmount::ZERO.mantissa,
+    XRPLTokenAmount::ZERO.exponent,
+);
+
 // always called when XRPLTokenAmount instantiated
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
 pub fn canonicalize_mantissa(
     mut mantissa: Uint256,
     mut exponent: i64,
 ) -> Result<(u64, i64), XRPLError> {
-    // Zero canonicalizes to (0, 1) for every exponent, so return it directly.
+    // Zero is returned directly rather than scaled. This keeps it identical to
+    // the underflow case below, and it bounds the loops: a zero mantissa never
+    // reaches MIN_MANTISSA, so an extreme exponent would otherwise be stepped
+    // all the way down to MIN_EXPONENT one power of ten at a time.
     if mantissa.is_zero() {
-        return Ok((0, 1));
+        return Ok(ZERO_CANONICAL);
     }
 
     let ten = Uint256::from(10u8);
@@ -1176,7 +1243,7 @@ pub fn canonicalize_mantissa(
             .ok_or(XRPLError::SubtractionUnderflow)?;
     }
 
-    while mantissa > MAX_MANTISSA.into() && exponent > MIN_EXPONENT {
+    while mantissa > MAX_MANTISSA.into() {
         if exponent >= MAX_EXPONENT {
             return Err(XRPLError::ExponentOverflow);
         }
@@ -1189,7 +1256,7 @@ pub fn canonicalize_mantissa(
     }
 
     if exponent < MIN_EXPONENT || mantissa < MIN_MANTISSA.into() {
-        return Ok((0, 1));
+        return Ok(ZERO_CANONICAL);
     }
 
     if exponent > MAX_EXPONENT {
@@ -1487,17 +1554,128 @@ mod tests {
         for exponent in [i64::MIN, -97, -96, 0, 1, 80, 1000, i64::MAX] {
             assert_eq!(
                 canonicalize_mantissa(Uint256::zero(), exponent).unwrap(),
-                (0, 1)
+                ZERO_CANONICAL
             );
         }
 
         assert_eq!(
             XRPLTokenAmount::from_str("0e9223372036854775807").unwrap(),
-            XRPLTokenAmount::new(0, 1)
+            XRPLTokenAmount::ZERO
         );
         assert_eq!(
             XRPLTokenAmount::from_str("0.0e9223372036854775807").unwrap(),
-            XRPLTokenAmount::new(0, 1)
+            XRPLTokenAmount::ZERO
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_zero_agrees_across_both_return_paths() {
+        // taken directly, because the mantissa is already zero
+        let early = canonicalize_mantissa(Uint256::zero(), 5).unwrap();
+
+        // reached by underflow, from a nonzero mantissa too small to represent
+        let late = canonicalize_mantissa(Uint256::from(1u8), MIN_EXPONENT).unwrap();
+
+        assert_eq!(early, late);
+        assert_eq!(early, ZERO_CANONICAL);
+        assert_eq!(
+            XRPLTokenAmount::new(early.0, early.1),
+            XRPLTokenAmount::ZERO
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_scales_down_at_the_minimum_exponent() {
+        // 1e17 at e-96 is 1e-79, representable as 1000000000000000e-94.
+        assert_eq!(
+            canonicalize_mantissa(Uint256::from(100_000_000_000_000_000u128), MIN_EXPONENT)
+                .unwrap(),
+            (MIN_MANTISSA, -94)
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_scales_down_from_below_the_minimum_exponent() {
+        // 1e25 at e-100 is 1e-75, representable as 1000000000000000e-90.
+        assert_eq!(
+            canonicalize_mantissa(Uint256::from(10_000_000_000_000_000_000_000_000u128), -100)
+                .unwrap(),
+            (MIN_MANTISSA, -90)
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_scales_down_without_losing_value() {
+        // shifting k digits out of the mantissa must raise the exponent by k
+        for extra_digits in 1..=20u32 {
+            let mantissa = Uint256::from(MIN_MANTISSA)
+                .checked_mul(Uint256::from(10u8).checked_pow(extra_digits).unwrap())
+                .unwrap();
+
+            assert_eq!(
+                canonicalize_mantissa(mantissa, MIN_EXPONENT).unwrap(),
+                (MIN_MANTISSA, MIN_EXPONENT + i64::from(extra_digits)),
+                "extra digits {extra_digits}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_canonicalize_still_rejects_values_above_the_range() {
+        // scaling down would have to push the exponent past MAX_EXPONENT
+        assert!(matches!(
+            canonicalize_mantissa(Uint256::from(100_000_000_000_000_000u128), MAX_EXPONENT),
+            Err(XRPLError::ExponentOverflow)
+        ));
+    }
+
+    #[test]
+    fn test_canonicalize_still_flushes_values_below_the_range_to_zero() {
+        // 1 at e-96 is 1e-96, far under the smallest representable value
+        assert_eq!(
+            canonicalize_mantissa(Uint256::from(1u8), MIN_EXPONENT).unwrap(),
+            ZERO_CANONICAL
+        );
+    }
+
+    #[test]
+    fn test_canonicalize_is_idempotent_over_the_representable_range() {
+        for exponent in (MIN_EXPONENT..=MAX_EXPONENT).step_by(7) {
+            for mantissa in [
+                MIN_MANTISSA,
+                MIN_MANTISSA + 1,
+                5_000_000_000_000_000,
+                MAX_MANTISSA,
+            ] {
+                assert_eq!(
+                    canonicalize_mantissa(Uint256::from(mantissa), exponent).unwrap(),
+                    (mantissa, exponent),
+                    "mantissa {mantissa} exponent {exponent}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_high_precision_string_at_the_minimum_exponent() {
+        // reachable through the public parser, not only the helper
+        assert_eq!(
+            XRPLTokenAmount::from_str("100000000000000000e-96").unwrap(),
+            XRPLTokenAmount::new(MIN_MANTISSA, -94)
+        );
+    }
+
+    #[test]
+    fn test_add_dust_amounts_that_carry_at_the_minimum_exponent() {
+        // The sum carries past MAX_MANTISSA while the exponent is already at the
+        // floor. This is the addition the verifier runs on the transfer amount
+        // plus the gas fee, and it used to fail for two valid operands.
+        let a = XRPLTokenAmount::new(9_000_000_000_000_000, MIN_EXPONENT);
+        let b = XRPLTokenAmount::new(9_000_000_000_000_000, MIN_EXPONENT);
+
+        assert_eq!(
+            a.add(b).unwrap(),
+            XRPLTokenAmount::new(1_800_000_000_000_000, MIN_EXPONENT + 1)
         );
     }
 
@@ -1717,8 +1895,9 @@ mod tests {
         let y = XRPLTokenAmount::new(8_765_432_109_876_543, -5);
 
         let result = x.sub(y).unwrap();
+        assert_eq!(result, XRPLTokenAmount::ZERO);
         assert_eq!(result.mantissa, 0);
-        assert_eq!(result.exponent, 1);
+        assert_eq!(result.exponent, 0);
     }
 
     #[test]
@@ -1821,7 +2000,7 @@ mod tests {
         let result = x.sub(y).unwrap();
         assert_eq!(
             result,
-            XRPLPaymentAmount::Issued(token, XRPLTokenAmount::new(0, 1))
+            XRPLPaymentAmount::Issued(token, XRPLTokenAmount::ZERO)
         );
     }
 
@@ -1855,6 +2034,108 @@ mod tests {
         let g1 = XRPLTokenAmount::new(1_000_000_000_000_000, 1);
         let g2 = XRPLTokenAmount::new(1_000_000_000_000_000, -2);
         assert_eq!(g1.partial_cmp(&g2), Some(std::cmp::Ordering::Greater));
+    }
+
+    #[test]
+    fn test_token_amount_comparison_large_exponent_gap_does_not_panic() {
+        // Regression: the old PartialOrd scaled the higher-exponent amount up to
+        // mantissa * 10^(exponent gap) in a Uint256, which overflows (and
+        // panicked via .expect) once that product exceeds Uint256::MAX
+        // (~1.16e77): a gap of 63 for MIN_MANTISSA, 62 for MAX_MANTISSA. Both
+        // amounts below are valid canonical values whose exponents differ by 83
+        // (-13 vs -96), the gap produced by comparing a normal ~100-unit Issued
+        // payment against the smallest non-zero canonical amount. The new
+        // (exponent, mantissa) ordering compares them without overflow.
+        let big = XRPLTokenAmount::new(MIN_MANTISSA, -13); // ~100 units
+        let tiny = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT); // smallest non-zero, exponent -96
+        assert_eq!(MIN_EXPONENT, -96);
+        assert_eq!(big.exponent - tiny.exponent, 83); // gap >= 63 -> old code overflowed
+
+        assert_eq!(big.cmp(&tiny), std::cmp::Ordering::Greater);
+        assert_eq!(tiny.cmp(&big), std::cmp::Ordering::Less);
+        assert_eq!(big.cmp(&big), std::cmp::Ordering::Equal);
+
+        // The full canonical exponent range (gap of 176) is also fine.
+        let max_exp = XRPLTokenAmount::new(MAX_MANTISSA, MAX_EXPONENT);
+        let min_exp = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT);
+        assert_eq!(max_exp.cmp(&min_exp), std::cmp::Ordering::Greater);
+        assert_eq!(min_exp.cmp(&max_exp), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn test_token_amount_comparison_zero_representations_are_equal() {
+        // Zero has more than one stored representation; all must compare equal
+        // and rank below any non-zero amount.
+        let zero_const = XRPLTokenAmount::ZERO; // {0, 0}
+        let zero_canonical = XRPLTokenAmount::new(0, 1); // normalized to {0, 0} by new()
+        assert_eq!(zero_const.cmp(&zero_canonical), std::cmp::Ordering::Equal);
+
+        let smallest = XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT);
+        assert_eq!(zero_const.cmp(&smallest), std::cmp::Ordering::Less);
+        assert_eq!(zero_canonical.cmp(&smallest), std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn test_token_amount_zero_representations_eq_and_hash_agree_with_ord() {
+        // `Ord` says all zero representations are Equal, so `Eq` and `Hash` must
+        // agree (Rust's Ord contract: a.cmp(b) == Equal  <=>  a == b).
+        // Zero can be reached several ways (the ZERO constant, subtracting
+        // equal amounts, underflow in canonicalize_mantissa, parsing "0e5");
+        // all of them must collapse to the same stored value.
+        let zero_const = XRPLTokenAmount::ZERO;
+        let zero_from_sub = XRPLTokenAmount::new(MIN_MANTISSA, -15)
+            .sub(XRPLTokenAmount::new(MIN_MANTISSA, -15))
+            .unwrap();
+        assert!(zero_from_sub.is_zero());
+        assert_eq!(zero_const.cmp(&zero_from_sub), std::cmp::Ordering::Equal);
+
+        assert_eq!(zero_const, zero_from_sub);
+        assert_eq!(zero_const, XRPLTokenAmount::new(0, 1));
+        assert_eq!(zero_const, XRPLTokenAmount::new(0, MIN_EXPONENT));
+        assert_eq!(zero_const, XRPLTokenAmount::from_str("0e5").unwrap());
+        assert_eq!(zero_const, XRPLTokenAmount::from_str("0.000").unwrap());
+        // Underflow below the smallest canonical amount rounds to zero.
+        assert_eq!(zero_const, XRPLTokenAmount::from_str("1e-200").unwrap());
+
+        let mut sorted = vec![zero_from_sub.clone(), zero_const.clone()];
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 1);
+
+        let hashed: std::collections::HashSet<XRPLTokenAmount> =
+            [zero_const, zero_from_sub].into_iter().collect();
+        assert_eq!(hashed.len(), 1);
+    }
+
+    #[test]
+    fn test_token_amount_deserialize_enforces_canonical_form() {
+        // Canonical values round-trip.
+        let canonical = XRPLTokenAmount::new(1_234_567_891_234_567, -15);
+        let json = serde_json::to_string(&canonical).unwrap();
+        assert_eq!(json, r#"{"mantissa":1234567891234567,"exponent":-15}"#);
+        assert_eq!(
+            serde_json::from_str::<XRPLTokenAmount>(&json).unwrap(),
+            canonical
+        );
+
+        // Zero with any exponent is accepted and normalized.
+        assert_eq!(
+            serde_json::from_str::<XRPLTokenAmount>(r#"{"mantissa":0,"exponent":1}"#).unwrap(),
+            XRPLTokenAmount::ZERO
+        );
+
+        // A 17-digit mantissa (50 written as 50000000000000000e-15) would make
+        // the exponent-first ordering call 50 smaller than 10. It is rejected
+        // at the boundary instead of ever existing in memory.
+        for bad in [
+            r#"{"mantissa":50000000000000000,"exponent":-15}"#,
+            r#"{"mantissa":999999999999999,"exponent":0}"#,
+            r#"{"mantissa":1000000000000000,"exponent":-97}"#,
+            r#"{"mantissa":1000000000000000,"exponent":81}"#,
+        ] {
+            let err = serde_json::from_str::<XRPLTokenAmount>(bad).unwrap_err();
+            assert!(err.to_string().contains("non-canonical"), "{bad}: {err}");
+        }
     }
 
     #[test]
