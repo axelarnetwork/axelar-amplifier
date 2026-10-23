@@ -83,7 +83,7 @@ impl Client {
     }
 
     /// One batch, refetched one transaction at a time when its response exceeds the
-    /// receive limit, which a single transaction's events never do.
+    /// receive limit, but that never happens for a single transaction.
     async fn fetch(&self, digests: &[Digest]) -> Result<Vec<(Digest, Transaction)>> {
         match self.fetch_batch(digests).await {
             Err(err) if digests.len() > 1 && too_large(&err) => {
@@ -120,8 +120,7 @@ impl Client {
         );
         request.set_timeout(self.timeout);
 
-        // The client is a handle on a shared channel, so cloning it per call is cheap and
-        // keeps `&self` here while `ledger_client` needs `&mut`.
+        // The client is a handle on a shared channel
         let mut ledger = self.client.clone().ledger_client();
         let response = ledger
             .batch_get_transactions(request)
@@ -262,7 +261,6 @@ mod tests {
         Empty,
     }
 
-    /// A gRPC frame: a compression flag and a big-endian length, then the message.
     fn frame(message: &[u8]) -> Bytes {
         let mut frame = vec![0];
         frame.extend(u32::try_from(message.len()).unwrap().to_be_bytes());
