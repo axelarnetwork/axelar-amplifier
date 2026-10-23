@@ -7,3 +7,8 @@ sort-check = "sort --workspace --check --check-format --grouped"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]
+
+[target.wasm32-unknown-unknown]
+# CosmWasm host imports must remain unresolved until the VM instantiates the Wasm.
+# Target flags override build.rustflags, so preserve tracing_unstable here too.
+rustflags = ["--cfg", "tracing_unstable", "-Clink-arg=--allow-undefined"]

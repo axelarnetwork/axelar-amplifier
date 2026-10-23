@@ -303,13 +303,6 @@ mod tests {
         // Create mock CPI instruction data for VerifierSetRotated event
         let mut epoch_bytes = [0u8; 32];
         epoch_bytes[..8].copy_from_slice(&2_u64.to_le_bytes()); // Put u64 in first 8 bytes
-                                                                // Convert epoch_bytes to [u64; 4] for U256::from_le_bytes
-        let mut epoch_u64_array = [0u64; 4];
-        for (i, chunk) in epoch_bytes.chunks_exact(8).enumerate().take(4) {
-            if let Ok(bytes) = chunk.try_into() {
-                epoch_u64_array[i] = u64::from_le_bytes(bytes);
-            }
-        }
 
         let verifier_set_rotated_data = VerifierSetRotatedEvent {
             epoch: solana_axelar_std::U256::from_le_bytes(epoch_bytes),

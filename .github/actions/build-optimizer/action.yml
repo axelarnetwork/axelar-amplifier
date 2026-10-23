@@ -1,0 +1,19 @@
+name: Build contract optimizer
+description: Build and load the repo-local optimizer using GitHub Actions layer caching
+inputs:
+  repository:
+    description: Path to the checked-out Amplifier repository
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+    - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      with:
+        context: ${{ inputs.repository }}/docker/optimizer
+        platforms: linux/amd64
+        tags: axelar-amplifier-optimizer:local
+        push: false
+        load: true
+        cache-from: type=gha,scope=cosmwasm-optimizer-amd64
+        cache-to: type=gha,scope=cosmwasm-optimizer-amd64,mode=max

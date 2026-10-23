@@ -1,6 +1,6 @@
 # Build stage
 # Rust version should match rust-toolchain.toml
-FROM rust:1.86-bookworm AS builder
+FROM rust:1.98.1-bookworm AS builder
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /app
