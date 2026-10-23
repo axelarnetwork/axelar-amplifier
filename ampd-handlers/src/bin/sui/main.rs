@@ -1,11 +1,12 @@
 mod error;
 mod handler;
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use ampd::asyncutil::task::{CancellableTask, TaskGroup};
-use ampd::json_rpc;
 use ampd::url::Url;
+use ampd_handlers::sui::rpc_client::Client;
 use ampd_handlers::tracing::init_tracing;
 use ampd_handlers::{multisig, Args};
 use ampd_sdk::config;
@@ -15,21 +16,24 @@ use clap::Parser;
 #[cfg(debug_assertions)]
 use dotenv_flow::dotenv_flow;
 use error_stack::{Result, ResultExt};
-use ethers_providers::Http;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
 
 use crate::error::Error;
 use crate::handler::Handler;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+// No `Debug` or `Serialize`: the headers carry provider credentials.
+#[derive(Clone, Deserialize)]
 struct SuiHandlerConfig {
     #[serde(deserialize_with = "Url::deserialize_sensitive")]
     rpc_url: Url,
     #[serde(with = "humantime_serde")]
     #[serde(default = "default_rpc_timeout")]
     rpc_timeout: Duration,
+    /// Headers sent with every RPC request, e.g. a provider's authentication token
+    #[serde(default)]
+    rpc_headers: HashMap<String, String>,
 }
 
 fn default_rpc_timeout() -> Duration {
@@ -40,17 +44,15 @@ fn build_handler(
     runtime: &HandlerRuntime,
     chain_name: ChainName,
     config: SuiHandlerConfig,
-) -> Result<Handler<json_rpc::Client<Http>>, Error> {
-    let rpc_client = json_rpc::Client::new_http(
-        config.rpc_url,
-        reqwest::ClientBuilder::new()
-            .connect_timeout(config.rpc_timeout)
-            .timeout(config.rpc_timeout)
-            .build()
-            .change_context(Error::HandlerStart)?,
+) -> Result<Handler<Client>, Error> {
+    let rpc_client = Client::new(
+        &config.rpc_url,
+        config.rpc_timeout,
+        config.rpc_headers,
         runtime.monitoring_client.clone(),
         chain_name.clone(),
-    );
+    )
+    .change_context(Error::HandlerStart)?;
 
     let handler = Handler::builder()
         .verifier(runtime.verifier.clone())
