@@ -233,7 +233,8 @@ mod tests {
     use bytes::Bytes;
     use prost::Message as _;
     use sui_rpc::proto::google::rpc::Status;
-    use sui_rpc::proto::sui::rpc::v2::BatchGetTransactionsResponse;
+    use sui_rpc::proto::sui::rpc::v2::{self as proto, BatchGetTransactionsResponse};
+    use sui_sdk_types::{Event, TransactionEvents};
     use tokio::sync::mpsc;
 
     use super::*;
@@ -251,8 +252,10 @@ mod tests {
     enum Reply {
         /// Headers at once, then nothing: only a whole-call deadline ends it.
         StalledBody,
-        /// A message declared larger than the receive limit.
+        /// A message declared one byte over the receive limit.
         TooLarge,
+        /// A finalized transaction, as the node would return it.
+        Transaction(Box<ExecutedTransaction>),
         /// One `NOT_FOUND` result, as for a single unknown digest.
         NotFound,
         /// A response with no results at all.
@@ -285,7 +288,19 @@ mod tests {
                     let mut stream = respond.send_response(response, false).unwrap();
                     let frame = match reply {
                         Reply::StalledBody => std::future::pending().await,
-                        Reply::TooLarge => Bytes::from_static(&[0, 0x20, 0, 0, 0]),
+                        Reply::TooLarge => {
+                            let mut header = vec![0];
+                            header.extend(
+                                u32::try_from(MAX_RESPONSE_BYTES + 1).unwrap().to_be_bytes(),
+                            );
+                            header.into()
+                        }
+                        Reply::Transaction(transaction) => frame(
+                            &BatchGetTransactionsResponse::new(vec![
+                                GetTransactionResult::new_transaction(*transaction),
+                            ])
+                            .encode_to_vec(),
+                        ),
                         Reply::NotFound => frame(
                             &BatchGetTransactionsResponse::new(vec![
                                 GetTransactionResult::new_error(status(Code::NotFound)),
@@ -422,6 +437,35 @@ mod tests {
             result.unwrap_err().current_context(),
             Error::MalformedResponse
         ));
+    }
+
+    /// tonic rejects messages over 4 MiB unless the limit is raised.
+    #[tokio::test]
+    async fn should_accept_a_response_larger_than_tonics_default_limit() {
+        let digest = Digest::generate(rand::thread_rng());
+        let event = Event {
+            package_id: sui_sdk_types::Address::TWO,
+            module: sui_sdk_types::Identifier::from_static("sui"),
+            sender: sui_sdk_types::Address::ZERO,
+            type_: "0x2::sui::SUI".parse().unwrap(),
+            contents: vec![0; 8 * 1024 * 1024],
+        };
+        let transaction =
+            finalized(digest).with_events(proto::TransactionEvents::from(TransactionEvents(vec![
+                event,
+            ])));
+        let url = mock_server(vec![Reply::Transaction(Box::new(transaction))]).await;
+        let (client, _) = client(&url, Duration::from_secs(10));
+
+        let transactions = client
+            .finalized_transaction_blocks(HashSet::from([digest]))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            transactions[&digest].events[0].contents.len(),
+            8 * 1024 * 1024
+        );
     }
 
     #[tokio::test]
