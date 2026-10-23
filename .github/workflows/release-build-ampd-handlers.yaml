@@ -249,6 +249,13 @@ jobs:
         run: |
           make build-handler-docker-image
 
+      - name: Import GPG key
+        if: needs.extract-semver.outputs.publish-private == 'true'
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
       - name: Build docker image and export as tarball
         if: needs.extract-semver.outputs.publish-private == 'true'
         env:
@@ -260,8 +267,9 @@ jobs:
           mkdir -p handlerimage
           make build-handler-docker-image
           for f in handlerimage/*.tar; do
+            shasum -a 256 "$f" | awk '{print $1}' > "$f.sha256"
+            gpg --armor --detach-sign "$f"
             gzip -f "$f"
-            shasum -a 256 "$f.gz" | awk '{print $1}' > "$f.gz.sha256"
           done
 
       - name: Upload docker image tarball to release

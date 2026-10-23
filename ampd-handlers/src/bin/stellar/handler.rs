@@ -269,7 +269,8 @@ mod tests {
 
     use ampd::monitoring;
     use ampd::types::TMAddress;
-    use ampd_handlers::stellar::rpc_client::{MockStellarClient, TxResponse};
+    use ampd::url::Url;
+    use ampd_handlers::stellar::rpc_client::{Client, MockStellarClient};
     use ampd_handlers::test_utils::{into_structured_event, participants};
     use ampd_sdk::event::event_handler::EventHandler;
     use ampd_sdk::grpc::client::test_utils::MockHandlerTaskClient;
@@ -406,6 +407,24 @@ mod tests {
         goldie::assert_debug!(event);
     }
 
+    #[test]
+    fn destination_address_keeps_literal_escape_sequence() {
+        let mut poll = message_poll_started_event(participants(5, None), 100);
+        let PollStarted::Messages { messages, .. } = &mut poll else {
+            panic!("expected messages poll");
+        };
+        messages[0].destination_address = r"\x30x0000000000000000000000000000000000000000"
+            .parse()
+            .unwrap();
+
+        let event = into_structured_event(poll, &TMAddress::random(PREFIX));
+        let event: MessagesPollStarted = event.try_into().unwrap();
+        assert_eq!(
+            event.messages[0].destination_address,
+            r"\x30x0000000000000000000000000000000000000000"
+        );
+    }
+
     #[async_test]
     async fn should_skip_expired_message_poll() {
         let mut rpc_client = MockStellarClient::new();
@@ -505,6 +524,40 @@ mod tests {
         assert_eq!(repeated_outer, vec![Vote::NotFound, Vote::NotFound]);
     }
 
+    #[async_test]
+    async fn not_found_tx_votes_not_found() {
+        // A tx the RPC has not indexed yet (or has evicted) must not be voted FailedOnChain,
+        // since the voting verifier never re-polls a message marked failed.
+        let votes = votes_for_rpc_status("NOT_FOUND").await;
+        assert_eq!(votes, vec![Vote::NotFound, Vote::NotFound]);
+    }
+
+    #[async_test]
+    async fn failed_tx_votes_failed_on_chain() {
+        let votes = votes_for_rpc_status("FAILED").await;
+        assert_eq!(votes, vec![Vote::FailedOnChain, Vote::FailedOnChain]);
+    }
+
+    async fn votes_for_rpc_status(status: &str) -> Vec<Vote> {
+        let hashes = [INNER_TX_HASH, OUTER_TX_HASH];
+        let verifier = TMAddress::random(PREFIX);
+        let poll = message_poll_for_hashes(hashes, &verifier);
+        let response = GetTransactionResponse {
+            status: status.into(),
+            envelope: None,
+            result: None,
+            result_meta: Some(TransactionMeta::V4(Default::default())),
+            events: GetTransactionEvents {
+                contract_events: vec![],
+                diagnostic_events: vec![],
+                transaction_events: vec![],
+            },
+        };
+        let rpc_client = mock_rpc_returning_same_transaction(hashes, response);
+
+        run_message_poll(poll, verifier, rpc_client).await
+    }
+
     async fn votes_for_fee_bump_hashes(hashes: [[u8; 32]; 2]) -> Vec<Vote> {
         let verifier = TMAddress::random(PREFIX);
         let poll = message_poll_for_hashes(hashes, &verifier);
@@ -602,19 +655,29 @@ mod tests {
             .into_iter()
             .map(|hash| Hash::from(hash).to_string())
             .collect::<HashSet<_>>();
+        let (monitoring_client, _) = monitoring::test_utils::monitoring_client();
+        let real_client = Client::new(
+            Url::new_non_sensitive("http://localhost").unwrap(),
+            monitoring_client,
+            chain_name!(STELLAR),
+        )
+        .unwrap();
         let mut rpc_client = MockStellarClient::new();
         rpc_client
             .expect_transaction_responses()
             .times(1)
             .withf(move |hashes| hashes == &expected_hashes)
             .returning(move |hashes| {
-                // Mock only the RPC response. Exercise the real converter for each alias,
-                // dropping parse errors exactly as Client::validate_tx_response does.
+                // Mock only the RPC response. Run the real status gate and converter for
+                // each hash so the receipts match what Client::transaction_responses returns.
                 Ok(hashes
                     .into_iter()
                     .filter_map(|hash| {
-                        TxResponse::try_from((Hash::from_str(&hash).unwrap(), response.clone()))
-                            .ok()
+                        real_client
+                            .validate_tx_response(
+                                Ok(response.clone()),
+                                Hash::from_str(&hash).unwrap(),
+                            )
                             .map(|receipt| (receipt.tx_hash(), receipt))
                     })
                     .collect())
