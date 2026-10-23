@@ -45,6 +45,9 @@ fn default_rpc_timeout() -> Duration {
 /// Accepts the headers either as a map (config file) or as a single
 /// `name=value[,name=value...]` string (environment variable, which cannot express a map).
 /// Names and values are trimmed; values may not contain commas.
+///
+/// Errors identify a malformed pair by its position only: the pairs carry credentials
+/// and the error ends up in startup logs.
 fn deserialize_headers<'de, D>(
     deserializer: D,
 ) -> std::result::Result<HashMap<String, String>, D::Error>
@@ -64,13 +67,15 @@ where
             .split(',')
             .map(str::trim)
             .filter(|pair| !pair.is_empty())
-            .map(|pair| {
+            .enumerate()
+            .map(|(index, pair)| {
                 pair.split_once('=')
                     .map(|(name, value)| (name.trim().to_string(), value.trim().to_string()))
                     .filter(|(name, _)| !name.is_empty())
                     .ok_or_else(|| {
                         serde::de::Error::custom(format!(
-                            "expected rpc header as `name=value`, got {pair:?}"
+                            "rpc header {} is not of the form `name=value`",
+                            index.saturating_add(1)
                         ))
                     })
             })
@@ -232,5 +237,16 @@ mod tests {
         assert!(headers(json!({ "rpc_headers": "x-token" })).is_err());
         assert!(headers(json!({ "rpc_headers": "=secret" })).is_err());
         assert!(headers(json!({ "rpc_headers": "x-token=a,oops" })).is_err());
+    }
+
+    #[test]
+    fn should_not_echo_malformed_pairs() {
+        let err = headers(json!({ "rpc_headers": "x-token=ok, Bearer secret-credential" }))
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("rpc header 2"), "{err}");
+        assert!(!err.contains("secret-credential"), "{err}");
+        assert!(!err.contains("Bearer"), "{err}");
     }
 }
