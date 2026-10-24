@@ -17,7 +17,7 @@ ignore = [
     "RUSTSEC-2026-0382",  # rustls-webpki 0.101: certificate verification may accept distrusted intermediates — fix is >=0.103.16, via rustls 0.21
     "RUSTSEC-2026-0346",  # rustls 0.21: Debug impls for client session values expose TLS secrets — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
     "RUSTSEC-2026-0349",  # rustls 0.21: unauthenticated ServerHello downgrades later connections to classical key exchange — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
-    "RUSTSEC-2026-0381",  # webpki-roots 0.25/0.26: bundled roots trust distrusted emSign intermediates — fix is >=1.0.10; 0.25 via reqwest 0.11, tokio-tungstenite 0.20, tendermint-rpc and xrpl_http_client; 0.26 via solana-rpc-client's hyper-rustls 0.27
+    "RUSTSEC-2026-0381",  # webpki-roots 0.25: bundled roots trust distrusted emSign intermediates — fix is >=1.0.10; 0.25 via reqwest 0.11, tokio-tungstenite 0.20, tendermint-rpc and xrpl_http_client
 
     # alloy 0.7 (via solana-axelar-gateway and axelar-wasm-std)
     "RUSTSEC-2024-0370",  # proc-macro-error unmaintained — via alloy-sol-macro
@@ -27,7 +27,4 @@ ignore = [
     # CosmWasm 2.2
     "RUSTSEC-2024-0388",  # derivative unmaintained — via cosmwasm-crypto
     "RUSTSEC-2024-0436",  # paste unmaintained — via cosmwasm-crypto and alloy
-
-    # Solana
-    "RUSTSEC-2026-0144",  # anchor-lang: Program<System> accepts arbitrary executable programs — pending Anchor dependency update; used off-chain for Solana event decoding so not vulnerable
 ]
