@@ -299,7 +299,8 @@ domain_separator = "618644b4dfbd1e1277cbd472750a1c49ce46c9234207cd42609f79e9309c
 ```toml
 rpc_url = "https://fullnode.testnet.sui.io"   # gRPC endpoint
 rpc_timeout = "3s"                          # per-request timeout, default: 3s
-# rpc_headers = { x-token = "..." }         # optional: headers sent with every request, e.g. provider auth (file only)
+# rpc_headers = { x-token = "..." }         # optional: headers sent with every request, e.g. provider auth
+                                            # (env: AMPD_SUI_HANDLER_RPC_HEADERS="x-token=...,other=...")
 ```
 
 **Stellar** (`stellar-handler-config.toml`, env prefix: `AMPD_STELLAR_HANDLER`):
