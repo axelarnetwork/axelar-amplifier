@@ -3,6 +3,23 @@
 # Every entry names the dependency that pins the vulnerable version; drop the
 # entry once that dependency is upgraded or removed.
 ignore = [
+    # Temporary exceptions for PR #1184; review by 2026-11-23.
+    # Review date is a manual follow-up, not an automatically enforced expiry.
+    # elliptic-curve 0.13 (k256/p256, CosmWasm, cosmrs, ethers) and tofn
+    # require crypto-bigint 0.5; patched >=0.7.6 needs upstream migration or
+    # a reviewed backport. Secret-dependent timing risk remains unresolved.
+    "RUSTSEC-2026-0387",  # crypto-bigint: timing variability in constant-time operations
+
+    # Solana 4.2.2 and tonic 0.14.6 require zstd 0.13, which requires
+    # zstd-safe 7; fixes require zstd >=0.14.3 and zstd-safe >=8.2.0.
+    # Inspected Solana/tonic calls create fresh contexts and use read decoders;
+    # these checks are not a proof of non-reachability across every target.
+    "RUSTSEC-2026-0391",  # zstd: cross-stream disclosure when reusing an abandoned context
+    "RUSTSEC-2026-0403",  # zstd-safe: legacy streaming write decoder can expose heap memory
+    # seekable is absent from the inspected host workspace feature graph;
+    # re-evaluate if features or targets change.
+    "RUSTSEC-2026-0398",  # zstd-safe: seekable decompression can expose/corrupt heap memory
+
     # ethers-rs is deprecated and its last release is pinned to the reqwest 0.11 /
     # hyper 0.14 / rustls 0.21 generation. ampd's own reqwest 0.11 and
     # stellar-rpc-client's jsonrpsee 0.20 sit on the same generation. Each fix
