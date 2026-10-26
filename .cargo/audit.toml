@@ -3,6 +3,23 @@
 # Every entry names the dependency that pins the vulnerable version; drop the
 # entry once that dependency is upgraded or removed.
 ignore = [
+    # Temporary exceptions for PR #1184; review by 2026-11-23.
+    # Review date is a manual follow-up, not an automatically enforced expiry.
+    # elliptic-curve 0.13 (k256/p256, CosmWasm, cosmrs, ethers) and tofn
+    # require crypto-bigint 0.5; patched >=0.7.6 needs upstream migration or
+    # a reviewed backport. Secret-dependent timing risk remains unresolved.
+    "RUSTSEC-2026-0387",  # crypto-bigint: timing variability in constant-time operations
+
+    # Solana 4.2.2 and tonic 0.14.6 require zstd 0.13, which requires
+    # zstd-safe 7; fixes require zstd >=0.14.3 and zstd-safe >=8.2.0.
+    # Inspected Solana/tonic calls create fresh contexts and use read decoders;
+    # these checks are not a proof of non-reachability across every target.
+    "RUSTSEC-2026-0391",  # zstd: cross-stream disclosure when reusing an abandoned context
+    "RUSTSEC-2026-0403",  # zstd-safe: legacy streaming write decoder can expose heap memory
+    # seekable is absent from the inspected host workspace feature graph;
+    # re-evaluate if features or targets change.
+    "RUSTSEC-2026-0398",  # zstd-safe: seekable decompression can expose/corrupt heap memory
+
     # ethers-rs is deprecated and its last release is pinned to the reqwest 0.11 /
     # hyper 0.14 / rustls 0.21 generation. ampd's own reqwest 0.11 and
     # stellar-rpc-client's jsonrpsee 0.20 sit on the same generation. Each fix
@@ -17,7 +34,7 @@ ignore = [
     "RUSTSEC-2026-0382",  # rustls-webpki 0.101: certificate verification may accept distrusted intermediates — fix is >=0.103.16, via rustls 0.21
     "RUSTSEC-2026-0346",  # rustls 0.21: Debug impls for client session values expose TLS secrets — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
     "RUSTSEC-2026-0349",  # rustls 0.21: unauthenticated ServerHello downgrades later connections to classical key exchange — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
-    "RUSTSEC-2026-0381",  # webpki-roots 0.25/0.26: bundled roots trust distrusted emSign intermediates — fix is >=1.0.10; 0.25 via reqwest 0.11, tokio-tungstenite 0.20, tendermint-rpc and xrpl_http_client; 0.26 via solana-rpc-client's hyper-rustls 0.27
+    "RUSTSEC-2026-0381",  # webpki-roots 0.25: bundled roots trust distrusted emSign intermediates — fix is >=1.0.10; 0.25 via reqwest 0.11, tokio-tungstenite 0.20, tendermint-rpc and xrpl_http_client
 
     # alloy 0.7 (via solana-axelar-gateway and axelar-wasm-std)
     "RUSTSEC-2024-0370",  # proc-macro-error unmaintained — via alloy-sol-macro
@@ -27,7 +44,4 @@ ignore = [
     # CosmWasm 2.2
     "RUSTSEC-2024-0388",  # derivative unmaintained — via cosmwasm-crypto
     "RUSTSEC-2024-0436",  # paste unmaintained — via cosmwasm-crypto and alloy
-
-    # Solana
-    "RUSTSEC-2026-0144",  # anchor-lang: Program<System> accepts arbitrary executable programs — pending Anchor dependency update; used off-chain for Solana event decoding so not vulnerable
 ]
