@@ -1,22 +1,47 @@
 [advisories]
-# Ignore vulnerabilities that we cannot immediately fix due to dependencies
+# Ignore vulnerabilities that we cannot immediately fix due to dependencies.
+# Every entry names the dependency that pins the vulnerable version; drop the
+# entry once that dependency is upgraded or removed.
 ignore = [
-    "RUSTSEC-2024-0437",  # protobuf recursion crash in Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2025-0009",  # ring AES panic in ethers-providers and Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2023-0071",  # rsa timing attack in Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2024-0336",  # rustls infinite loop in Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2024-0320",  # yaml-rust unmaintained in Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2024-0388",  # derivative unmaintained in Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2020-0095",  # difference unmaintained in Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2024-0384",  # instant unmaintained in ethers-providers - waiting for upstream fix
-    "RUSTSEC-2024-0436",  # paste unmaintained in alloy and CosmWasm dependencies - waiting for upstream fix
-    "RUSTSEC-2024-0370",  # proc-macro-error unmaintained in alloy and Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2025-0010",  # ring unmaintained (pre-0.17) in ethers-providers and Sui dependencies - waiting for upstream fix
-    "RUSTSEC-2025-0137",  # potential undefined behaviour in ruint — used by alloy etc. – waiting for upstream fix
-    "RUSTSEC-2026-0009",  # time: DoS stack exhaustion — transitive (tendermint, serde_with etc.), upgrade when deps allow,
-    "RUSTSEC-2026-0049",  # rustls-webpki: CRL Distribution Point validation bypass — 0.102.x fix requires major version bump blocked on Sui/anemo upstream; 0.103.x fix blocked on Solana upstream
-    "RUSTSEC-2026-0098",  # rustls-webpki: name constraints for URI names incorrectly accepted — same upstream blockers as RUSTSEC-2026-0049
-    "RUSTSEC-2026-0099",  # rustls-webpki: name constraints accepted for wildcard certs — same upstream blockers as RUSTSEC-2026-0049
-    "RUSTSEC-2026-0104",  # rustls-webpki: reachable panic in CRL parsing — same upstream blockers as RUSTSEC-2026-0049
-    "RUSTSEC-2026-0144",  # anchor-lang: Program<System> accepts arbitrary executable programs — upgrade to 1.0.2 blocked by Rust 1.86/CosmWasm optimizer; used off-chain for Solana event decoding so not vulnerable
+    # Temporary exceptions for PR #1184; review by 2026-11-23.
+    # Review date is a manual follow-up, not an automatically enforced expiry.
+    # elliptic-curve 0.13 (k256/p256, CosmWasm, cosmrs, ethers) and tofn
+    # require crypto-bigint 0.5; patched >=0.7.6 needs upstream migration or
+    # a reviewed backport. Secret-dependent timing risk remains unresolved.
+    "RUSTSEC-2026-0387",  # crypto-bigint: timing variability in constant-time operations
+
+    # Solana 4.2.2 and tonic 0.14.6 require zstd 0.13, which requires
+    # zstd-safe 7; fixes require zstd >=0.14.3 and zstd-safe >=8.2.0.
+    # Inspected Solana/tonic calls create fresh contexts and use read decoders;
+    # these checks are not a proof of non-reachability across every target.
+    "RUSTSEC-2026-0391",  # zstd: cross-stream disclosure when reusing an abandoned context
+    "RUSTSEC-2026-0403",  # zstd-safe: legacy streaming write decoder can expose heap memory
+    # seekable is absent from the inspected host workspace feature graph;
+    # re-evaluate if features or targets change.
+    "RUSTSEC-2026-0398",  # zstd-safe: seekable decompression can expose/corrupt heap memory
+
+    # ethers-rs is deprecated and its last release is pinned to the reqwest 0.11 /
+    # hyper 0.14 / rustls 0.21 generation. ampd's own reqwest 0.11 and
+    # stellar-rpc-client's jsonrpsee 0.20 sit on the same generation. Each fix
+    # below needs a major bump that those block.
+    "RUSTSEC-2025-0009",  # ring 0.16 AES panic — via ethers-providers
+    "RUSTSEC-2025-0010",  # ring 0.16 unmaintained — via ethers-providers
+    "RUSTSEC-2024-0384",  # instant unmaintained — via ethers-providers
+    "RUSTSEC-2026-0258",  # h2 0.3 empty DATA frame DoS — fix is h2 >=0.4.16, via hyper 0.14 (reqwest 0.11, ethers-providers, stellar-rpc-client's jsonrpsee 0.20)
+    "RUSTSEC-2026-0098",  # rustls-webpki 0.101: name constraints for URI names incorrectly accepted — fix is 0.103.x, via rustls 0.21
+    "RUSTSEC-2026-0099",  # rustls-webpki 0.101: name constraints accepted for wildcard certs — fix is 0.103.x, via rustls 0.21
+    "RUSTSEC-2026-0104",  # rustls-webpki 0.101: reachable panic in CRL parsing — fix is 0.103.x, via rustls 0.21
+    "RUSTSEC-2026-0382",  # rustls-webpki 0.101: certificate verification may accept distrusted intermediates — fix is >=0.103.16, via rustls 0.21
+    "RUSTSEC-2026-0346",  # rustls 0.21: Debug impls for client session values expose TLS secrets — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
+    "RUSTSEC-2026-0349",  # rustls 0.21: unauthenticated ServerHello downgrades later connections to classical key exchange — fix is >=0.23.46, via reqwest 0.11 and ethers-providers' tokio-tungstenite 0.20
+    "RUSTSEC-2026-0381",  # webpki-roots 0.25: bundled roots trust distrusted emSign intermediates — fix is >=1.0.10; 0.25 via reqwest 0.11, tokio-tungstenite 0.20, tendermint-rpc and xrpl_http_client
+
+    # alloy 0.7 (via solana-axelar-gateway and axelar-wasm-std)
+    "RUSTSEC-2024-0370",  # proc-macro-error unmaintained — via alloy-sol-macro
+    "RUSTSEC-2025-0137",  # potential undefined behaviour in ruint — via alloy-primitives
+    "RUSTSEC-2026-0220",  # ruint shift ops overflow flags/truncation — fix requires ruint >=1.20.0 (needs Rust 1.90); pending dependency update now that the toolchain supports it
+
+    # CosmWasm 2.2
+    "RUSTSEC-2024-0388",  # derivative unmaintained — via cosmwasm-crypto
+    "RUSTSEC-2024-0436",  # paste unmaintained — via cosmwasm-crypto and alloy
 ]

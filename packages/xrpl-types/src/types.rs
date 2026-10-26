@@ -1159,6 +1159,11 @@ pub fn canonicalize_mantissa(
     mut mantissa: Uint256,
     mut exponent: i64,
 ) -> Result<(u64, i64), XRPLError> {
+    // Zero canonicalizes to (0, 1) for every exponent, so return it directly.
+    if mantissa.is_zero() {
+        return Ok((0, 1));
+    }
+
     let ten = Uint256::from(10u8);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
@@ -1478,6 +1483,25 @@ mod tests {
     }
 
     #[test]
+    fn test_canonicalize_zero_mantissa_terminates_for_any_exponent() {
+        for exponent in [i64::MIN, -97, -96, 0, 1, 80, 1000, i64::MAX] {
+            assert_eq!(
+                canonicalize_mantissa(Uint256::zero(), exponent).unwrap(),
+                (0, 1)
+            );
+        }
+
+        assert_eq!(
+            XRPLTokenAmount::from_str("0e9223372036854775807").unwrap(),
+            XRPLTokenAmount::new(0, 1)
+        );
+        assert_eq!(
+            XRPLTokenAmount::from_str("0.0e9223372036854775807").unwrap(),
+            XRPLTokenAmount::new(0, 1)
+        );
+    }
+
+    #[test]
     fn test_scale_to_decimals() {
         let amount = XRPLTokenAmount::new(1_000_000_000_000_000u64, -33);
         assert_eq!(scale_to_decimals(amount, 18).unwrap(), Uint256::one());
@@ -1705,6 +1729,36 @@ mod tests {
         let result = x.add(y).unwrap();
         assert_eq!(result.mantissa, 2 * MIN_MANTISSA);
         assert_eq!(result.exponent, MIN_EXPONENT);
+    }
+
+    // IOU add/sub are lossy (16 sig digits, floored), so re-adding `transfer + gas` need not
+    // reproduce the payment — which is why the verifier subtracts (`payment - gas`) instead.
+
+    #[test]
+    fn test_xrpl_token_amount_add_loses_low_order_digit() {
+        // 1.111111111111111 + 0.1111111111111111 = 1.2222222222222221 (17 digits); 17th floored away.
+        let x = XRPLTokenAmount::new(1_111_111_111_111_111, -15);
+        let y = XRPLTokenAmount::new(1_111_111_111_111_111, -16);
+
+        let result = x.add(y).unwrap();
+        assert_eq!(result.mantissa, 1_222_222_222_222_222); // 1.222222222222222
+        assert_eq!(result.exponent, -15);
+    }
+
+    #[test]
+    fn test_xrpl_interchain_transfer_split_does_not_round_trip() {
+        // payment P = 1_234_567.890123456 (16 sig digits); gas G = 1e-10 (finer than P's ULP).
+        let payment = XRPLTokenAmount::new(1_234_567_890_123_456, -9);
+        let gas_fee = XRPLTokenAmount::new(1_000_000_000_000_000, -25); // 1e-10
+
+        // relayer: transfer = P - G (sub-ULP gas floored away).
+        let transfer = payment.clone().sub(gas_fee.clone()).unwrap();
+        assert_eq!(transfer, XRPLTokenAmount::new(1_234_567_890_123_455, -9));
+
+        // re-adding transfer + G never returns to P, so an `==` check would reject it.
+        let reconstructed = transfer.add(gas_fee).unwrap();
+        assert_ne!(reconstructed, payment);
+        assert!(reconstructed < payment);
     }
 
     #[test]

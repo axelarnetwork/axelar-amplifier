@@ -18,6 +18,7 @@ jobs:
     runs-on: blacksmith-32vcpu-ubuntu-2204
     env:
       CARGO_TERM_COLOR: always
+      HAS_CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -35,7 +36,9 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libclang-dev
-        run: sudo apt-get install libclang-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@1fd1160ee1f4387ce162a5a4f9c26ea274278b7f # cargo-llvm-cov branch (v2.58.7)
@@ -48,6 +51,7 @@ jobs:
           RUST_BACKTRACE: 1
 
       - name: Upload coverage to Codecov
+        if: ${{ env.HAS_CODECOV_TOKEN == 'true' }}
         uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

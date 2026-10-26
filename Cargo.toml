@@ -11,16 +11,9 @@ members = [
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.86.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
+rust-version = "1.89.0" # MSRV
 edition = "2021"
 license = "MIT OR Apache-2.0"
-
-[workspace.metadata.dylint]
-
-[[workspace.metadata.dylint.libraries]]
-git = "https://github.com/axelarnetwork/axelar-lints"
-pattern = "amplifier-lints"
-rev = "bb4bda06a73ff8fb0642519f4c01dbbbe316e9f9"
 
 [workspace.dependencies]
 alloy-primitives = { version = "0.7.6", default-features = false, features = ["std"] }
@@ -94,13 +87,9 @@ semver = "1.0"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.134"
 serde_with = "3.2.0"
-service-registry = { version = "^1.2.1", path = "contracts/service-registry" }
+service-registry = { version = "^1.2.2", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
-starknet-checked-felt = { version = "^1.0.0", path = "packages/starknet-checked-felt" }
-starknet-core = "0.12.0"
-starknet-providers = "0.12.0"
-starknet-types-core = { version = "0.1.7" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
 stellar-rpc-client = { version = "23.0.0-rc.5" }
 stellar-strkey = { version = "0.0.10" }
@@ -140,20 +129,18 @@ its-msg-translator-api = { version = "^1.0.0", path = "packages/its-msg-translat
 its-solana-translator = { version = "^1.0.0", path = "contracts/its-solana-translator" }
 
 # Solana
-anchor-lang = { version = "1.0.0", features = ["event-cpi"] }
-solana-axelar-gateway = "1.1.0"
-solana-axelar-std = "1.1.0"
-solana-client = "3.1.10"
-solana-sdk = "3.0.0"
-solana-transaction-status = "3.1.10"
+anchor-lang = { version = "1.2.0", features = ["event-cpi"] }
+solana-axelar-gateway = { version = "1.1.2" }
+solana-axelar-std = { version = "1.1.2" }
+solana-client = "=4.2.2"
+solana-sdk = "~4.0.1"
+solana-transaction-status-client-types = "=4.2.2"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
 cast_possible_truncation = "deny"
-
-[workspace.lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = ["cfg(dylint_lib, values(any()))"]
+ref_option = "deny"
+unwrap_used = "deny"
 
 [profile.release]
 opt-level = 3

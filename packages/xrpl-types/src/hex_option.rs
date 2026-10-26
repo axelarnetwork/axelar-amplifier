@@ -2,7 +2,8 @@ use cosmwasm_std::HexBinary;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[cfg_attr(dylint_lib = "amplifier_lints", allow(ref_opt_type))]
+// Serde requires a reference to the field's exact type.
+#[allow(clippy::ref_option)]
 pub fn serialize<S, const N: usize>(
     value: &Option<[u8; N]>,
     serializer: S,

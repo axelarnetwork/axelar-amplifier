@@ -21,7 +21,7 @@ on:
 
 jobs:
   compile-and-upload:
-    name: Compile with cosmwasm/optimizer and upload artifacts
+    name: Build validated contracts and upload artifacts
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -89,6 +89,13 @@ jobs:
             echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4
         with:
@@ -96,7 +103,7 @@ jobs:
           path: axelar-amplifier
           submodules: recursive
           ref: ${{ steps.get-checkout-ref.outputs.ref }}
-          token: ${{ secrets.INTEROP_CI_ACTION_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Import GPG key
         id: import_gpg
@@ -105,14 +112,25 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+      - name: Build optimizer image
+        if: ${{ hashFiles('axelar-amplifier/docker/optimizer/Dockerfile') != '' }}
+        uses: ./axelar-amplifier/.github/actions/build-optimizer
+        with:
+          repository: axelar-amplifier
+
       - name: Compile all amplifier contracts
         id: compile-contracts
         run: |
           cd axelar-amplifier
-          docker run --rm -v "$(pwd)":/code \
-          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-          cosmwasm/optimizer:0.17.0
+          if [ -f docker/optimizer/run.sh ]; then
+            sh docker/optimizer/run.sh
+          else
+            # Historical refs predate the repo-local optimizer.
+            docker run --rm --platform linux/amd64 -v "$(pwd):/code" \
+              --mount type=volume,source=amplifier_legacy_target,target=/target \
+              --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+              cosmwasm/optimizer:0.17.0
+          fi
 
           commit_hash=$(git rev-parse --short HEAD)
           cd ..

@@ -1,19 +1,13 @@
 # Project commands. Requires `just` to be installed.
 # https://crates.io/crates/just
 
-# Run rust optimizer for x86_64 architecture.
-optimize:
-    docker run --rm -v "$(pwd)":/code \
-      --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-      --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-      cosmwasm/optimizer:0.17.0
+# Build the repo-local contract optimizer. Docker caches installed tools.
+optimizer-build:
+    docker build --platform linux/amd64 -t axelar-amplifier-optimizer:local docker/optimizer
 
-# Run rust optimizer for arm64 architecture. Not recommended for production.
-optimize-arm64:
-    docker run --rm -v "$(pwd)":/code \
-      --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-      --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-      cosmwasm/optimizer-arm64:0.17.0
+# Build, optimize and validate contracts using the same platform as CI.
+optimize: optimizer-build
+    sh docker/optimizer/run.sh
 
 # Run project checks.
 check:

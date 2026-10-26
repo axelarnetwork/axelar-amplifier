@@ -195,19 +195,23 @@ mod tests {
         };
         instruction_data.extend_from_slice(&borsh::to_vec(&cc_event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![solana_transaction_status::UiInstruction::Compiled(
-                compiled_instruction,
-            )],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![
+                    solana_transaction_status_client_types::UiInstruction::Compiled(
+                        compiled_instruction,
+                    ),
+                ],
+            },
+        ];
 
         let tx = crate::solana::SolanaTransaction {
             signature: RAW_SIGNATURE.into(),
@@ -303,13 +307,6 @@ mod tests {
         // Create mock CPI instruction data for VerifierSetRotated event
         let mut epoch_bytes = [0u8; 32];
         epoch_bytes[..8].copy_from_slice(&2_u64.to_le_bytes()); // Put u64 in first 8 bytes
-                                                                // Convert epoch_bytes to [u64; 4] for U256::from_le_bytes
-        let mut epoch_u64_array = [0u64; 4];
-        for (i, chunk) in epoch_bytes.chunks_exact(8).enumerate().take(4) {
-            if let Ok(bytes) = chunk.try_into() {
-                epoch_u64_array[i] = u64::from_le_bytes(bytes);
-            }
-        }
 
         let verifier_set_rotated_data = VerifierSetRotatedEvent {
             epoch: solana_axelar_std::U256::from_le_bytes(epoch_bytes),
@@ -322,19 +319,22 @@ mod tests {
         instruction_data.extend_from_slice(VerifierSetRotatedEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&verifier_set_rotated_data).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let instruction = solana_transaction_status::UiInstruction::Compiled(compiled_instruction);
+        let instruction =
+            solana_transaction_status_client_types::UiInstruction::Compiled(compiled_instruction);
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![instruction],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![instruction],
+            },
+        ];
 
         (
             crate::solana::SolanaTransaction {

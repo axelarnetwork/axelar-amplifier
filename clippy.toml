@@ -1,0 +1,2 @@
+# Unit tests may unwrap fixtures and assertions. Production code must handle errors.
+allow-unwrap-in-tests = true
