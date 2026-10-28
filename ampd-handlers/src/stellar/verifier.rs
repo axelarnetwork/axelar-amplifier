@@ -46,7 +46,7 @@ impl PartialEq<ContractEventBody> for Message {
             && expected_topic == *symbol
             && (ScVal::Address(self.source_address.clone()) == *source_address)
             && (ScVal::Bytes(self.payload_hash.clone()) == *payload_hash)
-            && (ScVal::String(self.destination_address.clone()) == *destination_address)
+            && matches!(destination_address, ScVal::String(s) if s.0.as_slice() == self.destination_address.as_bytes())
     }
 }
 
@@ -145,7 +145,6 @@ mod test {
     use axelar_wasm_std::chain_name;
     use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use axelar_wasm_std::voting::Vote;
-    use cosmrs::tx::MessageExt;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ed25519_dalek::SigningKey;
     use multisig::key::KeyType;
@@ -219,9 +218,7 @@ mod test {
     #[test]
     fn should_not_verify_msg_if_destination_address_does_not_match() {
         let (gateway_address, tx_response, mut msg) = matching_msg_and_tx_block();
-        msg.destination_address = ScString::from(
-            StringM::try_from(format!("0x{:x}", EVMAddress::random()).to_bytes().unwrap()).unwrap(),
-        );
+        msg.destination_address = format!("0x{:x}", EVMAddress::random());
 
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),
@@ -247,6 +244,17 @@ mod test {
         assert_eq!(
             verify_message(&gateway_address, &tx_response, &msg),
             Vote::SucceededOnChain
+        );
+    }
+
+    #[test]
+    fn should_not_verify_msg_if_destination_address_contains_escape_sequence() {
+        let (gateway_address, tx_response, mut msg) = matching_msg_and_tx_block();
+        msg.destination_address = format!(r"\x30{}", &msg.destination_address[1..]);
+
+        assert_eq!(
+            verify_message(&gateway_address, &tx_response, &msg),
+            Vote::NotFound
         );
     }
 
@@ -321,10 +329,7 @@ mod test {
                 Uint256::from(signing_key.verifying_key().to_bytes()),
             ))),
             destination_chain: destination_chain.parse().unwrap(),
-            destination_address: ScString::from(
-                StringM::try_from(format!("0x{:x}", EVMAddress::random()).to_bytes().unwrap())
-                    .unwrap(),
-            ),
+            destination_address: format!("0x{:x}", EVMAddress::random()),
             payload_hash: ScBytes(BytesM::try_from(Hash::random().to_fixed_bytes()).unwrap()),
         }
     }
@@ -341,7 +346,9 @@ mod test {
                 ScVal::String(ScString::from(
                     StringM::from_str(destination_chain).unwrap(),
                 )),
-                ScVal::String(msg.destination_address.clone()),
+                ScVal::String(ScString::from(
+                    StringM::try_from(msg.destination_address.as_bytes().to_vec()).unwrap(),
+                )),
                 ScVal::Bytes(msg.payload_hash.clone()),
             ]
             .try_into()

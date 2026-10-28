@@ -56,8 +56,8 @@ mod tests {
     use router_api::chain_name;
     use solana_axelar_gateway::events::CallContractEvent;
     use solana_sdk::pubkey::Pubkey;
-    use solana_transaction_status::option_serializer::OptionSerializer;
-    use solana_transaction_status::UiInstruction;
+    use solana_transaction_status_client_types::option_serializer::OptionSerializer;
+    use solana_transaction_status_client_types::UiInstruction;
 
     use super::*;
     #[test_log::test]
@@ -140,17 +140,19 @@ mod tests {
         instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 3,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+            },
+        ];
 
         let msg = create_msg_counterpart(&event, 1, 1);
 
@@ -181,17 +183,19 @@ mod tests {
         instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 5,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+            },
+        ];
 
         let msg = create_msg_counterpart(&event, 1, 1);
 
@@ -246,17 +250,19 @@ mod tests {
     fn should_not_verify_msg_if_instruction_data_cannot_be_parsed() {
         // An instruction that points to the gateway program but whose data is
         // too short to be a valid event (empty base58 → 0 bytes).
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: String::new(), // empty → decodes to 0 bytes, too short for a GatewayEvent
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+            },
+        ];
 
         let (_base64_data, event) = fixture_call_contract_log();
         let msg = create_msg_counterpart(&event, 1, 1);
@@ -288,17 +294,19 @@ mod tests {
         };
         instruction_data.extend_from_slice(&borsh::to_vec(&vs_event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+            },
+        ];
 
         let (_base64_data, event) = fixture_call_contract_log();
         let msg = create_msg_counterpart(&event, 1, 1);
@@ -331,17 +339,19 @@ mod tests {
         };
         instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+            },
+        ];
 
         let (_, valid_event) = fixture_call_contract_log();
         let msg = create_msg_counterpart(&valid_event, 1, 1);
@@ -401,14 +411,14 @@ mod tests {
         instruction_data2.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data2.extend_from_slice(&borsh::to_vec(&call_contract_event2).unwrap());
 
-        let compiled_instruction1 = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction1 = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data1).into_string(),
             stack_height: Some(2),
         };
 
-        let compiled_instruction2 = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction2 = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data2).into_string(),
@@ -418,10 +428,12 @@ mod tests {
         let instruction1 = UiInstruction::Compiled(compiled_instruction1);
         let instruction2 = UiInstruction::Compiled(compiled_instruction2);
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![instruction1, instruction2],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![instruction1, instruction2],
+            },
+        ];
 
         let msg = create_msg_counterpart(&event, 1, 2); // Look for the second instruction in group 1 (1-based indexing)
         let signature = msg.message_id.raw_signature.into();
@@ -504,7 +516,9 @@ mod tests {
         (solana_tx, event, msg)
     }
 
-    fn tx_meta(logs: Vec<String>) -> solana_transaction_status::UiTransactionStatusMeta {
+    fn tx_meta(
+        logs: Vec<String>,
+    ) -> solana_transaction_status_client_types::UiTransactionStatusMeta {
         // Create mock CPI instruction data for CallContract event
         let call_contract_event = CallContractEvent {
             sender: solana_sdk::pubkey::Pubkey::from_str(
@@ -529,7 +543,7 @@ mod tests {
         instruction_data.extend_from_slice(CallContractEvent::DISCRIMINATOR);
         instruction_data.extend_from_slice(&borsh::to_vec(&call_contract_event).unwrap());
 
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 0,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
@@ -538,12 +552,14 @@ mod tests {
 
         let instruction = UiInstruction::Compiled(compiled_instruction);
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![instruction],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![instruction],
+            },
+        ];
 
-        solana_transaction_status::UiTransactionStatusMeta {
+        solana_transaction_status_client_types::UiTransactionStatusMeta {
             err: None,
             status: Ok(()),
             fee: 0,

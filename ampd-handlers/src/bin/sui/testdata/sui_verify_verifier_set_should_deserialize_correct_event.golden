@@ -88,7 +88,9 @@ VerifierSet(
         source_chain: ChainName(
             "sui",
         ),
-        source_gateway_address: 0x0303030303030303030303030303030303030303030303030303030303030303,
+        source_gateway_address: Address(
+            "0x0303030303030303030303030303030303030303030303030303030303030303",
+        ),
         expires_at: 100,
         participants: [
             AccountId(

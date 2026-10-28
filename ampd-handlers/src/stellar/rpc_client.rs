@@ -41,6 +41,8 @@ pub struct TxResponse {
 }
 
 const STATUS_SUCCESS: &str = "SUCCESS";
+const STATUS_FAILED: &str = "FAILED";
+const STATUS_NOT_FOUND: &str = "NOT_FOUND";
 const EXPECTED_SOROBAN_OPERATION_COUNT: usize = 1;
 
 impl TryFrom<(Hash, GetTransactionResponse)> for TxResponse {
@@ -140,7 +142,7 @@ impl Client {
         })
     }
 
-    fn validate_tx_response(
+    pub fn validate_tx_response(
         &self,
         result: Result<GetTransactionResponse, stellar_rpc_client::Error>,
         hash: Hash,
@@ -152,6 +154,15 @@ impl Client {
                 return None;
             }
         };
+
+        match response.status.as_str() {
+            STATUS_SUCCESS | STATUS_FAILED => {}
+            STATUS_NOT_FOUND => return None,
+            status => {
+                warn!(status, tx_hash = ?hash, "unexpected transaction status");
+                return None;
+            }
+        }
 
         TxResponse::try_from((hash.clone(), response))
             .map_err(|err| {
@@ -557,6 +568,39 @@ mod tests {
         assert_eq!(tx_response.transaction_hash, hash.to_string());
         assert!(tx_response.successful);
         assert_eq!(tx_response.contract_events.len(), 1);
+    }
+
+    #[test]
+    fn validate_tx_response_with_not_found_response() {
+        let hash = Hash::from([2u8; 32]);
+        let client = create_mock_client();
+        let response = create_mock_transaction_response_v4(vec![], "NOT_FOUND");
+
+        let result = client.validate_tx_response(Ok(response), hash);
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn validate_tx_response_with_failed_response() {
+        let hash = Hash::from([3u8; 32]);
+        let client = create_mock_client();
+        let response = create_mock_transaction_response_v4(vec![], "FAILED");
+
+        let result = client.validate_tx_response(Ok(response), hash);
+
+        assert!(result.is_some_and(|tx_response| tx_response.has_failed()));
+    }
+
+    #[test]
+    fn validate_tx_response_with_unknown_status() {
+        let hash = Hash::from([4u8; 32]);
+        let client = create_mock_client();
+        let response = create_mock_transaction_response_v4(vec![], "PENDING");
+
+        let result = client.validate_tx_response(Ok(response), hash);
+
+        assert!(result.is_none());
     }
 
     #[test]

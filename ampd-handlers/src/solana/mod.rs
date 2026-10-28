@@ -17,8 +17,8 @@ use solana_client::rpc_request::RpcRequest;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_sdk::transaction::TransactionError;
-use solana_transaction_status::option_serializer::OptionSerializer;
-use solana_transaction_status::{
+use solana_transaction_status_client_types::option_serializer::OptionSerializer;
+use solana_transaction_status_client_types::{
     EncodedConfirmedTransactionWithStatusMeta, UiCompiledInstruction, UiInnerInstructions,
     UiInstruction,
 };
@@ -63,7 +63,7 @@ pub trait SolanaRpcClientProxy: Send + Sync + 'static {
 impl SolanaRpcClientProxy for Client {
     async fn tx(&self, signature: &Signature) -> Result<Option<SolanaTransaction>, ClientError> {
         let config = RpcTransactionConfig {
-            encoding: Some(solana_transaction_status::UiTransactionEncoding::Json),
+            encoding: Some(solana_transaction_status_client_types::UiTransactionEncoding::Json),
             commitment: Some(CommitmentConfig::finalized()),
             max_supported_transaction_version: Some(0),
         };
@@ -112,9 +112,9 @@ fn parse_rpc_response(
 
     // Extract account keys from the transaction
     let mut account_keys = match &tx_data.transaction.transaction {
-        solana_transaction_status::EncodedTransaction::Json(ui_transaction) => {
+        solana_transaction_status_client_types::EncodedTransaction::Json(ui_transaction) => {
             match &ui_transaction.message {
-                solana_transaction_status::UiMessage::Raw(raw_message) => {
+                solana_transaction_status_client_types::UiMessage::Raw(raw_message) => {
                     match raw_message
                         .account_keys
                         .iter()
@@ -365,8 +365,8 @@ mod test {
     use axelar_wasm_std::chain::ChainName;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_sdk::signature::Signature;
-    use solana_transaction_status::option_serializer::OptionSerializer;
-    use solana_transaction_status::{UiInnerInstructions, UiInstruction};
+    use solana_transaction_status_client_types::option_serializer::OptionSerializer;
+    use solana_transaction_status_client_types::{UiInnerInstructions, UiInstruction};
 
     use super::{Client, SolanaRpcClientProxy};
 
@@ -401,8 +401,8 @@ mod test {
         group_index: u32,
         inner_index: u32,
         program_id_index: u8,
-    ) -> solana_transaction_status::UiCompiledInstruction {
-        use solana_transaction_status::UiCompiledInstruction;
+    ) -> solana_transaction_status_client_types::UiCompiledInstruction {
+        use solana_transaction_status_client_types::UiCompiledInstruction;
         UiCompiledInstruction {
             program_id_index,
             accounts: vec![0, 1],
@@ -415,7 +415,7 @@ mod test {
     fn create_inner_instruction_group(
         group_index: u32,
         num_inner_instructions: u32,
-    ) -> solana_transaction_status::UiInnerInstructions {
+    ) -> solana_transaction_status_client_types::UiInnerInstructions {
         let instructions = (0..num_inner_instructions)
             .map(|i| UiInstruction::Compiled(create_inner_instruction(group_index, i, 1)))
             .collect();
@@ -446,10 +446,12 @@ mod test {
 
     fn make_rpc_response(
         account_keys: Vec<String>,
-        loaded_addresses: OptionSerializer<solana_transaction_status::UiLoadedAddresses>,
-    ) -> solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+        loaded_addresses: OptionSerializer<
+            solana_transaction_status_client_types::UiLoadedAddresses,
+        >,
+    ) -> solana_transaction_status_client_types::EncodedConfirmedTransactionWithStatusMeta {
         use solana_sdk::message::MessageHeader;
-        use solana_transaction_status::{
+        use solana_transaction_status_client_types::{
             EncodedTransaction, EncodedTransactionWithStatusMeta, UiMessage, UiRawMessage,
             UiTransaction, UiTransactionStatusMeta,
         };
@@ -471,7 +473,7 @@ mod test {
             cost_units: OptionSerializer::None,
         };
 
-        solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
+        solana_transaction_status_client_types::EncodedConfirmedTransactionWithStatusMeta {
             slot: 0,
             transaction: EncodedTransactionWithStatusMeta {
                 transaction: EncodedTransaction::Json(UiTransaction {
@@ -486,19 +488,21 @@ mod test {
                         recent_blockhash: String::new(),
                         instructions: vec![],
                         address_table_lookups: None,
+                        transaction_config: None,
                     }),
                 }),
                 meta: Some(meta),
                 version: None,
             },
             block_time: None,
+            transaction_index: None,
         }
     }
 
     #[test]
     fn parse_rpc_response_with_loaded_addresses() {
         use solana_sdk::pubkey::Pubkey;
-        use solana_transaction_status::UiLoadedAddresses;
+        use solana_transaction_status_client_types::UiLoadedAddresses;
 
         let static_key = Pubkey::new_unique();
         let writable_key = Pubkey::new_unique();
@@ -538,7 +542,7 @@ mod test {
     #[test]
     fn parse_rpc_response_returns_none_on_invalid_loaded_address_pubkeys() {
         use solana_sdk::pubkey::Pubkey;
-        use solana_transaction_status::UiLoadedAddresses;
+        use solana_transaction_status_client_types::UiLoadedAddresses;
 
         let static_key = Pubkey::new_unique();
         let valid_key = Pubkey::new_unique();
@@ -557,17 +561,21 @@ mod test {
 
     #[test]
     fn parse_rpc_response_returns_none_when_no_meta() {
-        use solana_transaction_status::{EncodedTransaction, EncodedTransactionWithStatusMeta};
-
-        let resp = solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
-            slot: 0,
-            transaction: EncodedTransactionWithStatusMeta {
-                transaction: EncodedTransaction::LegacyBinary(String::new()),
-                meta: None,
-                version: None,
-            },
-            block_time: None,
+        use solana_transaction_status_client_types::{
+            EncodedTransaction, EncodedTransactionWithStatusMeta,
         };
+
+        let resp =
+            solana_transaction_status_client_types::EncodedConfirmedTransactionWithStatusMeta {
+                slot: 0,
+                transaction: EncodedTransactionWithStatusMeta {
+                    transaction: EncodedTransaction::LegacyBinary(String::new()),
+                    meta: None,
+                    version: None,
+                },
+                block_time: None,
+                transaction_index: None,
+            };
 
         let sig = Signature::default();
         assert!(super::parse_rpc_response(&sig, resp).is_none());
@@ -579,7 +587,7 @@ mod test {
         use solana_axelar_gateway::events::CallContractEvent;
         use solana_sdk::message::MessageHeader;
         use solana_sdk::pubkey::Pubkey;
-        use solana_transaction_status::{
+        use solana_transaction_status_client_types::{
             EncodedTransaction, EncodedTransactionWithStatusMeta, UiLoadedAddresses, UiMessage,
             UiRawMessage, UiTransaction, UiTransactionStatusMeta,
         };
@@ -602,17 +610,19 @@ mod test {
         instruction_data.extend_from_slice(&borsh::to_vec(&event).unwrap());
 
         // Gateway is at index 1 (static_key=0, gateway=1 via loaded_addresses)
-        let compiled_instruction = solana_transaction_status::UiCompiledInstruction {
+        let compiled_instruction = solana_transaction_status_client_types::UiCompiledInstruction {
             program_id_index: 1,
             accounts: vec![],
             data: bs58::encode(&instruction_data).into_string(),
             stack_height: Some(2),
         };
 
-        let inner_instructions = vec![solana_transaction_status::UiInnerInstructions {
-            index: 0,
-            instructions: vec![UiInstruction::Compiled(compiled_instruction)],
-        }];
+        let inner_instructions = vec![
+            solana_transaction_status_client_types::UiInnerInstructions {
+                index: 0,
+                instructions: vec![UiInstruction::Compiled(compiled_instruction)],
+            },
+        ];
 
         let meta = UiTransactionStatusMeta {
             err: None,
@@ -634,28 +644,31 @@ mod test {
             cost_units: OptionSerializer::None,
         };
 
-        let rpc_response = solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta {
-            slot: 0,
-            transaction: EncodedTransactionWithStatusMeta {
-                transaction: EncodedTransaction::Json(UiTransaction {
-                    signatures: vec![],
-                    message: UiMessage::Raw(UiRawMessage {
-                        header: MessageHeader {
-                            num_required_signatures: 1,
-                            num_readonly_signed_accounts: 0,
-                            num_readonly_unsigned_accounts: 0,
-                        },
-                        account_keys: vec![static_key.to_string()],
-                        recent_blockhash: String::new(),
-                        instructions: vec![],
-                        address_table_lookups: None,
+        let rpc_response =
+            solana_transaction_status_client_types::EncodedConfirmedTransactionWithStatusMeta {
+                slot: 0,
+                transaction: EncodedTransactionWithStatusMeta {
+                    transaction: EncodedTransaction::Json(UiTransaction {
+                        signatures: vec![],
+                        message: UiMessage::Raw(UiRawMessage {
+                            header: MessageHeader {
+                                num_required_signatures: 1,
+                                num_readonly_signed_accounts: 0,
+                                num_readonly_unsigned_accounts: 0,
+                            },
+                            account_keys: vec![static_key.to_string()],
+                            recent_blockhash: String::new(),
+                            instructions: vec![],
+                            address_table_lookups: None,
+                            transaction_config: None,
+                        }),
                     }),
-                }),
-                meta: Some(meta),
-                version: None,
-            },
-            block_time: None,
-        };
+                    meta: Some(meta),
+                    version: None,
+                },
+                block_time: None,
+                transaction_index: None,
+            };
 
         let sig = Signature::default();
         let tx = super::parse_rpc_response(&sig, rpc_response)
