@@ -13,6 +13,14 @@
 - [Multisig Prover](contracts/multisig_prover.md)
 - [Rewards](contracts/rewards.md)
 - [Coordinator](contracts/coordinator.md)
+- [XRPL Gateway](contracts/xrpl_gateway.md)
+- [XRPL Voting Verifier](contracts/xrpl_voting_verifier.md)
+- [XRPL Multisig Prover](contracts/xrpl_multisig_prover.md)
+
+# XRPL
+
+- [Tickets](xrpl/tickets.md)
+- [Glossary](xrpl/glossary.md)
 
 ## Message Access Requirements
 
