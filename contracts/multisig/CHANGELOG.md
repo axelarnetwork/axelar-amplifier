@@ -5,6 +5,8 @@
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.0..HEAD)
 
+- Restore the optional `sig_verifier` callback on `StartSigningSession` and the `signature-verifier-api` package (reverts [#1141](https://github.com/axelarnetwork/axelar-amplifier/pull/1141)). Chains whose signatures are over a per-signer digest, such as XRPL, verify signatures through the callback; without it every signature is checked against the session message.
+
 ## [v2.4.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.0)
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.3.2..multisig-v2.4.0)
