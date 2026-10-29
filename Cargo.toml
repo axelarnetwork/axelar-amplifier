@@ -90,6 +90,7 @@ serde_with = "3.2.0"
 service-registry = { version = "^1.2.2", path = "contracts/service-registry" }
 service-registry-api = { version = "^1.0.0", path = "packages/service-registry-api" }
 sha3 = { version = "0.10.8", default-features = false, features = [] }
+signature-verifier-api = { version = "^1.0.0", path = "packages/signature-verifier-api" }
 stellar = { version = "^1.0.0", path = "external-gateways/stellar" }
 stellar-rpc-client = { version = "23.0.0-rc.5" }
 stellar-strkey = { version = "0.0.10" }

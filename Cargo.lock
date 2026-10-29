@@ -4656,6 +4656,7 @@ dependencies = [
  "service-registry",
  "service-registry-api",
  "sha3",
+ "signature-verifier-api",
  "tofn",
  "voting-verifier",
 ]
@@ -5453,6 +5454,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
+ "signature-verifier-api",
  "thiserror 1.0.69",
 ]
 
@@ -7925,6 +7927,20 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "signature-verifier-api"
+version = "1.0.0"
+dependencies = [
+ "axelar-wasm-std",
+ "client",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "error-stack",
+ "goldie",
+ "msgs-derive",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

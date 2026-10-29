@@ -94,8 +94,12 @@ pub fn construct_proof(
     let multisig: multisig::Client =
         client::ContractClient::new(deps.querier, &config.multisig).into();
 
-    let start_sig_msg =
-        multisig.start_signing_session(verifier_set.id(), digest, config.chain_name);
+    let start_sig_msg = multisig.start_signing_session(
+        verifier_set.id(),
+        digest,
+        config.chain_name,
+        config.sig_verifier_address.map(Into::into),
+    );
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(
         start_sig_msg,
@@ -298,8 +302,12 @@ pub fn update_verifier_set(
             let multisig: multisig::Client =
                 client::ContractClient::new(deps.querier, &config.multisig).into();
 
-            let start_sig_msg =
-                multisig.start_signing_session(cur_verifier_set.id(), digest, config.chain_name);
+            let start_sig_msg = multisig.start_signing_session(
+                cur_verifier_set.id(),
+                digest,
+                config.chain_name,
+                config.sig_verifier_address.map(Into::into),
+            );
 
             let verifier_union_set = all_active_verifiers(deps.storage)?;
 
@@ -588,6 +596,7 @@ mod tests {
             domain_separator: [0; 32],
             notify_signing_session: false,
             expect_full_message_payloads: false,
+            sig_verifier_address: None,
         }
     }
 }

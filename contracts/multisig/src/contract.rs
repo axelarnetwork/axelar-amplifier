@@ -72,7 +72,20 @@ pub fn execute(
             verifier_set_id,
             msg,
             chain_name,
-        } => execute::start_signing_session(deps, env, verifier_set_id, msg.into(), chain_name),
+            sig_verifier,
+        } => {
+            let sig_verifier = sig_verifier
+                .map(|addr| address::validate_cosmwasm_address(deps.api, &addr))
+                .transpose()?;
+            execute::start_signing_session(
+                deps,
+                env,
+                verifier_set_id,
+                msg.into(),
+                chain_name,
+                sig_verifier,
+            )
+        }
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
@@ -285,6 +298,7 @@ mod tests {
             verifier_set_id: verifier_set_id.to_string(),
             msg: message.clone(),
             chain_name,
+            sig_verifier: None,
         };
         execute(deps, env, info, msg.into())
     }
