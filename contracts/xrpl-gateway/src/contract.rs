@@ -1,0 +1,396 @@
+use std::fmt::Debug;
+use std::str::FromStr;
+
+use axelar_core_std::nexus;
+use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response, StdError,
+};
+use error_stack::ResultExt;
+use interchain_token_service_std::TokenId;
+use router_api::{ChainNameRaw, CrossChainId};
+use xrpl_types::msg::XRPLMessage;
+use xrpl_types::types::{
+    XRPLAccountId, XRPLCurrency, XRPLPaymentAmount, XRPLToken, XRPLTokenOrXrp,
+};
+
+use crate::events::XRPLGatewayEvent;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::Config;
+use crate::{state, token_id};
+
+mod execute;
+mod query;
+
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BASE_VERSION: &str = "1.3.2";
+
+// https://xrpl.org/docs/concepts/accounts/addresses#special-addresses
+const XRP_ISSUER: &str = "rrrrrrrrrrrrrrrrrrrrrhoLvTp";
+
+#[derive(thiserror::Error, Debug, IntoContractError)]
+pub enum Error {
+    #[error("batch contains duplicate message ids")]
+    DuplicateMessageIds,
+    #[error("failed to execute gateway command")]
+    Execute,
+    #[error("contract execution disabled")]
+    ExecutionDisabled,
+    #[error("invalid address")]
+    InvalidAddress,
+    #[error("invalid cross-chain id")]
+    InvalidCrossChainId,
+    #[error("invalid decimals {0}")]
+    InvalidDecimals(u8),
+    #[error("invalid destination address")]
+    InvalidDestinationAddress,
+    #[error("invalid destination chain {0}")]
+    InvalidDestinationChain(ChainNameRaw),
+    #[error("invalid source address")]
+    InvalidSourceAddress,
+    #[error("invalid token")]
+    InvalidToken,
+    #[error("invalid transfer amount {amount} to chain {destination_chain}")]
+    InvalidTransferAmount {
+        destination_chain: ChainNameRaw,
+        amount: XRPLPaymentAmount,
+    },
+    #[error("failed to query linked token id")]
+    LinkedTokenId,
+    #[error("token {xrpl_token} deployed mismatch: expected {expected}, actual {actual}")]
+    LocalTokenDeployedIdMismatch {
+        xrpl_token: XRPLToken,
+        expected: TokenId,
+        actual: TokenId,
+    },
+    #[error("token {token_id} deployed mismatch: expected {expected}, actual {actual}")]
+    LocalTokenDeployedMismatch {
+        token_id: TokenId,
+        expected: XRPLToken,
+        actual: XRPLToken,
+    },
+    #[error("failed to query message status")]
+    MessageStatus,
+    #[error("failed to query the nexus module")]
+    Nexus,
+    #[error("message with ID {0} was not sent from ITS Hub chain")]
+    OnlyFromItsHubChain(CrossChainId),
+    #[error("message with ID {0} was not sent from the ITS Hub")]
+    OnlyFromItsHub(CrossChainId),
+    #[error("failed to query outgoing messages")]
+    OutgoingMessages,
+    #[error("ABI encoded payload was empty")]
+    PayloadEncodingFailed,
+    #[error("payload given but payload hash is empty")]
+    PayloadHashEmpty,
+    #[error("payload hash {0} given without full payload")]
+    PayloadHashGivenWithoutPayload(HexBinary),
+    #[error("payload hash mismatch: expected {expected}, actual {actual}")]
+    PayloadHashMismatch {
+        expected: HexBinary,
+        actual: HexBinary,
+    },
+    #[error("remote token {token_id} deployed XRPL currency mismatch: expected {expected}, actual {actual}")]
+    RemoteTokenDeployedCurrencyMismatch {
+        token_id: TokenId,
+        expected: XRPLCurrency,
+        actual: XRPLCurrency,
+    },
+    #[error("remote token with XRPL currency {xrpl_currency} deployed token ID mismatch: expected {expected}, actual {actual}")]
+    RemoteTokenDeployedIdMismatch {
+        xrpl_currency: XRPLCurrency,
+        expected: TokenId,
+        actual: TokenId,
+    },
+    #[error("remote token {token_id} deployed XRPL issuer mismatch: expected {expected}, actual {actual}")]
+    RemoteTokenDeployedIssuerMismatch {
+        token_id: TokenId,
+        expected: XRPLAccountId,
+        actual: XRPLAccountId,
+    },
+    #[error("failed to save outgoing message")]
+    SaveOutgoingMessage,
+    #[error("state error")]
+    State,
+    #[error(transparent)]
+    Std(#[from] StdError),
+    #[error("failed to query token instance decimals for token {token_id} on chain {chain_name}")]
+    TokenInstanceDecimals {
+        chain_name: ChainNameRaw,
+        token_id: TokenId,
+    },
+    #[error("token {0} not local")]
+    TokenNotLocal(XRPLTokenOrXrp),
+    #[error("message {0:?} is not a valid incoming message")]
+    UnsupportedIncomingMessage(XRPLMessage),
+    #[error("failed to query xrpl token {0}")]
+    XrplToken(TokenId),
+    #[error("failed to query xrpl token id for {0}")]
+    XrplTokenId(XRPLToken),
+    #[error("failed to query xrp token ID")]
+    XrpTokenId,
+    #[error("failed to update admin")]
+    FailedToUpdateAdmin,
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let router = address::validate_cosmwasm_address(deps.api, &msg.router_address)?;
+    let verifier = address::validate_cosmwasm_address(deps.api, &msg.verifier_address)?;
+    let its_hub = address::validate_cosmwasm_address(deps.api, &msg.its_hub_address)?;
+
+    let xrp_issuer = XRPLAccountId::from_str(XRP_ISSUER).expect("invalid XRP issuer");
+    let chain_name_hash = token_id::chain_name_hash(msg.chain_name.clone());
+    let salt = token_id::currency_hash(&XRPLCurrency::XRP);
+    let xrp_token_id = token_id::linked_token_id(chain_name_hash, &xrp_issuer, salt);
+
+    state::save_config(
+        deps.storage,
+        &Config {
+            verifier,
+            router,
+            its_hub,
+            its_hub_chain_name: msg.its_hub_chain_name,
+            chain_name: msg.chain_name.clone(),
+            xrpl_multisig: msg.xrpl_multisig_address,
+            xrp_token_id,
+        },
+    )?;
+
+    permission_control::set_admin(deps.storage, &deps.api.addr_validate(&msg.admin_address)?)?;
+    permission_control::set_governance(
+        deps.storage,
+        &deps.api.addr_validate(&msg.governance_address)?,
+    )?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
+    Ok(
+        Response::default().add_event(XRPLGatewayEvent::LocalTokenRegistered {
+            token_id: xrp_token_id,
+            token: XRPLTokenOrXrp::Xrp,
+        }),
+    )
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    let config = state::load_config(deps.storage);
+
+    match msg.ensure_permissions(deps.storage, &info.sender, |_, sender, _| {
+        Ok::<_, error_stack::Report<Error>>(*sender == config.router)
+    })? {
+        ExecuteMsg::RegisterTokenMetadata { xrpl_token } => {
+            let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+            execute::register_token_metadata(deps.querier, &config, &nexus_client, xrpl_token)
+        }
+        ExecuteMsg::RegisterLocalToken { xrpl_token } => {
+            execute::register_local_token(deps.storage, &config, xrpl_token)
+        }
+        ExecuteMsg::RegisterRemoteToken {
+            token_id,
+            xrpl_currency,
+        } => execute::register_remote_token(
+            deps.storage,
+            config.xrpl_multisig,
+            token_id,
+            xrpl_currency,
+        ),
+        ExecuteMsg::LinkToken {
+            token_id,
+            destination_chain,
+            link_token,
+        } => {
+            let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+            execute::link_token(
+                deps.storage,
+                deps.querier,
+                &config,
+                &nexus_client,
+                token_id,
+                destination_chain,
+                link_token,
+            )
+        }
+        ExecuteMsg::DeployRemoteToken {
+            xrpl_token,
+            destination_chain,
+            token_metadata,
+        } => {
+            let nexus_client: nexus::Client = client::CosmosClient::new(deps.querier).into();
+            execute::deploy_remote_token(
+                deps.storage,
+                deps.querier,
+                &config,
+                &nexus_client,
+                xrpl_token,
+                destination_chain,
+                token_metadata,
+            )
+        }
+        ExecuteMsg::VerifyMessages(msgs) => {
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+            execute::verify_messages(deps.storage, &verifier, msgs)
+        }
+        // Should be called RouteOutgoingMessage.
+        // Called RouteMessages for compatibility with the router.
+        ExecuteMsg::RouteMessages(msgs) => execute::route_outgoing_messages(
+            deps.storage,
+            msgs,
+            config.its_hub,
+            &config.its_hub_chain_name,
+        ),
+        ExecuteMsg::RouteIncomingMessages(msgs) => {
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+            execute::route_incoming_messages(deps.storage, deps.querier, &config, &verifier, msgs)
+        }
+        ExecuteMsg::ConfirmAddGasMessages(msgs) => {
+            let verifier = client::ContractClient::new(deps.querier, &config.verifier).into();
+            execute::confirm_add_gas_messages(deps.storage, &config, &verifier, msgs)
+        }
+        ExecuteMsg::UpdateAdmin { new_admin_address } => {
+            execute::update_admin(deps, new_admin_address)
+        }
+        ExecuteMsg::DisableExecution => execute::disable_execution(deps.storage),
+        ExecuteMsg::EnableExecution => execute::enable_execution(deps.storage),
+    }?
+    .then(Ok)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+    match msg {
+        QueryMsg::OutgoingMessages(message_ids) => {
+            query::outgoing_messages(deps.storage, message_ids.iter())
+                .change_context(Error::OutgoingMessages)
+        }
+        QueryMsg::XrplToken(token_id) => {
+            query::xrpl_token(deps.storage, token_id).change_context(Error::XrplToken(token_id))
+        }
+        QueryMsg::XrplTokenId(xrpl_token) => query::xrpl_token_id(deps.storage, &xrpl_token)
+            .change_context(Error::XrplTokenId(xrpl_token)),
+        QueryMsg::XrpTokenId => query::xrp_token_id(deps.storage).change_context(Error::XrpTokenId),
+        QueryMsg::LinkedTokenId(xrpl_token) => {
+            query::linked_token_id(deps.storage, &xrpl_token).change_context(Error::LinkedTokenId)
+        }
+        QueryMsg::TokenInstanceDecimals {
+            chain_name,
+            token_id,
+        } => {
+            let config = state::load_config(deps.storage);
+            query::token_instance_decimals(
+                deps.querier,
+                config.its_hub,
+                chain_name.clone(),
+                token_id,
+            )
+            .change_context(Error::TokenInstanceDecimals {
+                chain_name,
+                token_id,
+            })
+        }
+        QueryMsg::InterchainTransfer { message, payload } => {
+            let config = state::load_config(deps.storage);
+            query::translate_to_interchain_transfer(
+                deps.storage,
+                deps.querier,
+                &config,
+                &message,
+                payload,
+            )
+        }
+        QueryMsg::CallContract { message, payload } => {
+            let config = state::load_config(deps.storage);
+            query::translate_to_call_contract(deps.storage, &config, &message, payload)
+        }
+        QueryMsg::IsEnabled => Ok(
+            to_json_binary(&killswitch::is_contract_active(deps.storage)).map_err(Error::from)?,
+        ),
+    }?
+    .then(Ok)
+}
+
+#[cfg(test)]
+mod test {
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
+    use cosmwasm_std::Empty;
+
+    use crate::contract::{instantiate, migrate, BASE_VERSION, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::msg::InstantiateMsg;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+        let instantiate_msg = InstantiateMsg {
+            admin_address: api.addr_make("admin").to_string(),
+            governance_address: api.addr_make("governance").to_string(),
+            verifier_address: api.addr_make("verifier").to_string(),
+            router_address: api.addr_make("router").to_string(),
+            its_hub_address: api.addr_make("its_hub").to_string(),
+            its_hub_chain_name: "hub".parse().unwrap(),
+            chain_name: "chain".parse().unwrap(),
+            xrpl_multisig_address: "rNadVFcvGdkGKs4zVGwHXZHC9spkYw7dtu".parse().unwrap(),
+        };
+
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            instantiate_msg
+        ));
+
+        cw2::CONTRACT
+            .save(
+                deps.as_mut().storage,
+                &cw2::ContractVersion {
+                    contract: CONTRACT_NAME.to_string(),
+                    version: BASE_VERSION.to_string(),
+                },
+            )
+            .unwrap();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+}
