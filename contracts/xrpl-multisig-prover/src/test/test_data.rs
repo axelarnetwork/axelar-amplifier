@@ -10,7 +10,10 @@ use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
 use xrpl_types::msg::{XRPLInterchainTransferMessage, XRPLMessage};
-use xrpl_types::types::{AxelarSigner, XRPLPaymentAmount};
+use xrpl_types::types::{
+    AxelarSigner, XRPLAccountId, XRPLPaymentAmount, XRPLSequence, XRPLTicketCreateTx,
+    XRPLUnsignedTx,
+};
 
 use crate::axelar_verifiers::VerifierSet as XRPLVerifierSet;
 
@@ -202,6 +205,38 @@ pub fn payment_unsigned_tx_hash() -> HexTxHash {
         142, 212, 113, 94, 42, 102, 120, 36, 3, 78, 98, 60, 108, 168, 218, 169, 104, 160, 198, 204,
         113, 149, 232, 126, 84, 13, 195, 254, 89, 36, 74, 100,
     ])
+}
+
+/// A TicketCreate transaction of the XRPL multisig.
+pub fn ticket_create_tx() -> XRPLUnsignedTx {
+    XRPLUnsignedTx::TicketCreate(XRPLTicketCreateTx {
+        account: XRPLAccountId::new([
+            142, 188, 192, 44, 245, 153, 112, 115, 42, 210, 53, 220, 38, 17, 131, 214, 213, 144,
+            67, 89,
+        ]),
+        fee: 165000,
+        sequence: XRPLSequence::Plain(5948774),
+        ticket_count: 6,
+    })
+}
+
+/// Hash of `ticket_create_tx` before signing.
+pub fn ticket_create_unsigned_tx_hash() -> [u8; 32] {
+    [
+        109, 93, 44, 41, 175, 75, 164, 31, 73, 188, 90, 170, 17, 236, 192, 186, 108, 99, 28, 123,
+        118, 231, 215, 158, 251, 130, 137, 237, 160, 82, 65, 72,
+    ]
+}
+
+/// Public key of a signer and its signature over `ticket_create_tx`, as submitted to the
+/// multisig for the session built from `ticket_create_unsigned_tx_hash`.
+pub fn ticket_create_signer() -> (HexBinary, HexBinary) {
+    (
+        HexBinary::from_hex("02d171cb41e6765b5cdb6f5c9efc3d2477518b3698f591f31a480753b27c902a2b")
+            .unwrap(),
+        HexBinary::from_hex("e0743ee9454a56d553c78697cafefce43f215cf800ae10e1d13f2e39aba48b3f16d677d1818bf6a7f4edda97a27bd5eff4fa6404a92e2c1c9053ebc93fd708e5")
+            .unwrap(),
+    )
 }
 
 pub fn signer_list_set_proof() -> HexBinary {

@@ -250,10 +250,13 @@ pub fn save_remote_token_id(
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::msg_id::HexTxHash;
     use cosmwasm_std::testing::mock_dependencies;
+    use interchain_token_service_std::TokenId;
     use router_api::{CrossChainId, Message};
+    use xrpl_types::types::{XRPLPaymentAmount, XRPLToken, XRPLTokenAmount};
 
-    use crate::state::OUTGOING_MESSAGES;
+    use crate::state::{count_gas, Error, GAS_ACCRUED, GAS_COUNTED, OUTGOING_MESSAGES};
 
     #[test]
     fn outgoing_messages_storage() {
@@ -293,6 +296,98 @@ mod test {
                 .may_load(&deps.storage, &unknown_id)
                 .unwrap(),
             None
+        );
+    }
+
+    #[test]
+    fn count_gas_accumulates_per_token_and_counts_each_transaction_once() {
+        let mut deps = mock_dependencies();
+        let token_id = TokenId::new([1; 32]);
+        let first_tx = HexTxHash::new([1; 32]);
+        let second_tx = HexTxHash::new([2; 32]);
+
+        count_gas(
+            deps.as_mut().storage,
+            &first_tx,
+            &token_id,
+            XRPLPaymentAmount::Drops(100),
+        )
+        .unwrap();
+        count_gas(
+            deps.as_mut().storage,
+            &second_tx,
+            &token_id,
+            XRPLPaymentAmount::Drops(50),
+        )
+        .unwrap();
+        // replaying a transaction must not count its gas again
+        count_gas(
+            deps.as_mut().storage,
+            &first_tx,
+            &token_id,
+            XRPLPaymentAmount::Drops(100),
+        )
+        .unwrap();
+
+        assert_eq!(
+            GAS_ACCRUED.load(&deps.storage, &token_id).unwrap(),
+            XRPLPaymentAmount::Drops(150)
+        );
+    }
+
+    #[test]
+    fn count_gas_ignores_zero_amounts() {
+        let mut deps = mock_dependencies();
+        let token_id = TokenId::new([1; 32]);
+        let tx = HexTxHash::new([1; 32]);
+
+        count_gas(
+            deps.as_mut().storage,
+            &tx,
+            &token_id,
+            XRPLPaymentAmount::Drops(0),
+        )
+        .unwrap();
+
+        assert_eq!(
+            GAS_ACCRUED.may_load(&deps.storage, &token_id).unwrap(),
+            None
+        );
+        // the transaction is not marked, so a later top-up for it is still counted
+        assert_eq!(
+            GAS_COUNTED.may_load(&deps.storage, &tx.tx_hash).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn count_gas_rejects_amount_in_another_token() {
+        let mut deps = mock_dependencies();
+        let token_id = TokenId::new([1; 32]);
+        let token = XRPLToken {
+            issuer: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+            currency: "USD".to_string().try_into().unwrap(),
+        };
+        count_gas(
+            deps.as_mut().storage,
+            &HexTxHash::new([1; 32]),
+            &token_id,
+            XRPLPaymentAmount::Drops(100),
+        )
+        .unwrap();
+
+        let err = count_gas(
+            deps.as_mut().storage,
+            &HexTxHash::new([2; 32]),
+            &token_id,
+            XRPLPaymentAmount::Issued(token, XRPLTokenAmount::new(1_000_000_000_000_000, -15)),
+        )
+        .unwrap_err();
+
+        assert!(matches!(err.current_context(), Error::Storage));
+        assert_eq!(
+            GAS_ACCRUED.load(&deps.storage, &token_id).unwrap(),
+            XRPLPaymentAmount::Drops(100)
         );
     }
 }

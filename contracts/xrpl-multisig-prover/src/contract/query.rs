@@ -113,10 +113,7 @@ mod test {
     use axelar_wasm_std::VerificationStatus;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
     use cosmwasm_std::{HexBinary, MemoryStorage, OwnedDeps, QuerierWrapper, Uint64};
-    use xrpl_types::types::{
-        XRPLAccountId, XRPLSequence, XRPLTicketCreateTx, XRPLTxStatus, XRPLUnsignedTx,
-        XRPLUnsignedTxToSign,
-    };
+    use xrpl_types::types::{XRPLTxStatus, XRPLUnsignedTxToSign};
 
     use crate::msg::ProofStatus;
     use crate::state::{self, TxInfo};
@@ -133,21 +130,10 @@ mod test {
 
     fn signing_session() -> SigningSession {
         SigningSession {
-            unsigned_tx_hash: [
-                109, 93, 44, 41, 175, 75, 164, 31, 73, 188, 90, 170, 17, 236, 192, 186, 108, 99,
-                28, 123, 118, 231, 215, 158, 251, 130, 137, 237, 160, 82, 65, 72,
-            ],
+            unsigned_tx_hash: test_data::ticket_create_unsigned_tx_hash(),
             session_id: Uint64::new(79419),
             tx_info: TxInfo {
-                unsigned_tx: XRPLUnsignedTx::TicketCreate(XRPLTicketCreateTx {
-                    account: XRPLAccountId::new([
-                        142, 188, 192, 44, 245, 153, 112, 115, 42, 210, 53, 220, 38, 17, 131, 214,
-                        213, 144, 67, 89,
-                    ]),
-                    fee: 165000,
-                    sequence: XRPLSequence::Plain(5948774),
-                    ticket_count: 6,
-                }),
+                unsigned_tx: test_data::ticket_create_tx(),
                 status: XRPLTxStatus::Pending,
                 original_cc_id: None,
             },
@@ -211,13 +197,11 @@ mod test {
 
         let message: HexBinary = unsigned_tx_to_sign.xrpl_serialize().unwrap().into();
 
-        let public_key = multisig::key::PublicKey::Ecdsa(
-            HexBinary::from_hex(
-                "02d171cb41e6765b5cdb6f5c9efc3d2477518b3698f591f31a480753b27c902a2b",
-            )
-            .unwrap(),
-        );
-        let signature: multisig::key::Signature = (multisig::key::KeyType::Ecdsa, HexBinary::from_hex("e0743ee9454a56d553c78697cafefce43f215cf800ae10e1d13f2e39aba48b3f16d677d1818bf6a7f4edda97a27bd5eff4fa6404a92e2c1c9053ebc93fd708e5").unwrap()).try_into().unwrap();
+        let (public_key, signature) = test_data::ticket_create_signer();
+        let public_key = multisig::key::PublicKey::Ecdsa(public_key);
+        let signature: multisig::key::Signature = (multisig::key::KeyType::Ecdsa, signature)
+            .try_into()
+            .unwrap();
 
         assert!(super::verify_signature(message, &public_key, &signature).unwrap());
     }
