@@ -512,8 +512,9 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::VerificationStatus;
     use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
-    use cosmwasm_std::{MemoryStorage, OwnedDeps};
+    use cosmwasm_std::{Addr, MemoryStorage, OwnedDeps, QuerierWrapper};
     use router_api::CrossChainId;
 
     use super::*;
@@ -522,6 +523,8 @@ mod tests {
         TxInfo, AVAILABLE_TICKETS, CONSUMED_TICKET_TO_UNSIGNED_TX_HASH, CROSS_CHAIN_ID_TO_TICKET,
         LAST_ASSIGNED_TICKET_NUMBER, UNSIGNED_TX_HASH_TO_TX_INFO,
     };
+    use crate::test::test_data;
+    use crate::test::test_utils::{mock_querier_handler, GATEWAY_ADDRESS};
 
     fn cc_id(suffix: &str) -> CrossChainId {
         CrossChainId {
@@ -834,5 +837,175 @@ mod tests {
 
         let unchanged = AVAILABLE_TICKETS.load(deps.as_ref().storage).unwrap();
         assert_eq!(unchanged, full);
+    }
+
+    /// Storage holding `tx_info` as a pending transaction, with the sequence number at 100.
+    fn setup_deps_with_pending_tx(
+        tx_info: &TxInfo,
+    ) -> (OwnedDeps<MemoryStorage, MockApi, MockQuerier>, HexTxHash) {
+        let mut deps = setup_deps_with_available_tickets(vec![1, 2, 3], 0);
+        deps.querier.update_wasm(mock_querier_handler(
+            test_data::operators(),
+            VerificationStatus::SucceededOnSourceChain,
+        ));
+        NEXT_SEQUENCE_NUMBER
+            .save(deps.as_mut().storage, &100)
+            .unwrap();
+
+        let unsigned_tx_hash = hex_tx_hash();
+        UNSIGNED_TX_HASH_TO_TX_INFO
+            .save(deps.as_mut().storage, &unsigned_tx_hash.tx_hash, tx_info)
+            .unwrap();
+
+        (deps, unsigned_tx_hash)
+    }
+
+    fn gateway_address() -> Addr {
+        MockApi::default().addr_make(GATEWAY_ADDRESS)
+    }
+
+    /// `Event` has no `Debug`, so the result cannot be unwrapped directly.
+    fn expect_err<T>(result: Result<T, ContractError>) -> ContractError {
+        match result {
+            Ok(_) => panic!("expected an error"),
+            Err(err) => err,
+        }
+    }
+
+    #[test]
+    fn confirm_prover_message_rejects_inconclusive_statuses_and_double_confirmation() {
+        let cc_id = cc_id("1");
+        let (mut deps, unsigned_tx_hash) =
+            setup_deps_with_pending_tx(&tx_info(&cc_id, 1, XRPLTxStatus::Pending));
+        let gateway_address = gateway_address();
+        let gateway: xrpl_gateway::Client =
+            client::ContractClient::new(QuerierWrapper::new(&deps.querier), &gateway_address)
+                .into();
+
+        for status in [XRPLTxStatus::Pending, XRPLTxStatus::Inconclusive] {
+            let err = confirm_prover_message(
+                &mut deps.storage,
+                &gateway,
+                hex_tx_hash(),
+                unsigned_tx_hash.clone(),
+                status.clone(),
+            )
+            .then(expect_err);
+            assert_eq!(err, ContractError::InvalidTxStatus(status));
+        }
+
+        UNSIGNED_TX_HASH_TO_TX_INFO
+            .save(
+                &mut deps.storage,
+                &unsigned_tx_hash.tx_hash,
+                &tx_info(&cc_id, 1, XRPLTxStatus::Succeeded),
+            )
+            .unwrap();
+        let err = confirm_prover_message(
+            &mut deps.storage,
+            &gateway,
+            hex_tx_hash(),
+            unsigned_tx_hash,
+            XRPLTxStatus::Succeeded,
+        )
+        .then(expect_err);
+        assert_eq!(err, ContractError::TxStatusAlreadyConfirmed);
+    }
+
+    #[test]
+    fn confirm_signer_list_set_requires_the_pending_verifier_set_to_match() {
+        let verifier_set = test_data::new_xrpl_verifier_set();
+        let pending_tx = TxInfo {
+            status: XRPLTxStatus::Pending,
+            unsigned_tx: XRPLUnsignedTx::SignerListSet(XRPLSignerListSetTx {
+                account: "rnEuTcp28kFC5mFHFqazaLNzVgwMMgdWGg".parse().unwrap(),
+                fee: 10,
+                sequence: XRPLSequence::Plain(100),
+                signer_quorum: verifier_set.quorum,
+                signer_entries: verifier_set
+                    .signers
+                    .iter()
+                    .cloned()
+                    .map(XRPLSignerEntry::from)
+                    .collect(),
+            }),
+            original_cc_id: None,
+        };
+        let (mut deps, unsigned_tx_hash) = setup_deps_with_pending_tx(&pending_tx);
+        let gateway_address = gateway_address();
+        let gateway: xrpl_gateway::Client =
+            client::ContractClient::new(QuerierWrapper::new(&deps.querier), &gateway_address)
+                .into();
+
+        // a failed confirmation must not leave the transaction confirmed
+        fn confirm_succeeded(
+            storage: &mut dyn Storage,
+            gateway: &xrpl_gateway::Client,
+            unsigned_tx_hash: &HexTxHash,
+            pending_tx: &TxInfo,
+        ) -> Result<(Option<VerifierSet>, Option<Event>), ContractError> {
+            UNSIGNED_TX_HASH_TO_TX_INFO
+                .save(storage, &unsigned_tx_hash.tx_hash, pending_tx)
+                .unwrap();
+            confirm_prover_message(
+                storage,
+                gateway,
+                unsigned_tx_hash.clone(),
+                unsigned_tx_hash.clone(),
+                XRPLTxStatus::Succeeded,
+            )
+        }
+
+        // no rotation pending
+        let err = confirm_succeeded(&mut deps.storage, &gateway, &unsigned_tx_hash, &pending_tx)
+            .then(expect_err);
+        assert_eq!(err, ContractError::NoVerifierSetToConfirm);
+
+        // another rotation pending
+        let mut other_verifier_set = verifier_set.clone();
+        other_verifier_set.quorum = other_verifier_set.quorum.checked_add(1).unwrap();
+        NEXT_VERIFIER_SET
+            .save(&mut deps.storage, &other_verifier_set)
+            .unwrap();
+        let err = confirm_succeeded(&mut deps.storage, &gateway, &unsigned_tx_hash, &pending_tx)
+            .then(expect_err);
+        assert_eq!(err, ContractError::SignerListMismatch);
+
+        // the signed rotation pending
+        NEXT_VERIFIER_SET
+            .save(&mut deps.storage, &verifier_set)
+            .unwrap();
+        let (confirmed, event) =
+            confirm_succeeded(&mut deps.storage, &gateway, &unsigned_tx_hash, &pending_tx).unwrap();
+        assert_eq!(confirmed, Some(verifier_set.clone()));
+        assert!(event.is_some());
+        assert_eq!(
+            CURRENT_VERIFIER_SET.load(&deps.storage).unwrap(),
+            verifier_set
+        );
+        assert_eq!(NEXT_VERIFIER_SET.may_load(&deps.storage).unwrap(), None);
+        assert_eq!(NEXT_SEQUENCE_NUMBER.load(&deps.storage).unwrap(), 101);
+    }
+
+    #[test]
+    fn confirm_payment_without_cross_chain_id_fails() {
+        let mut payment = tx_info(&cc_id("1"), 1, XRPLTxStatus::Pending);
+        payment.original_cc_id = None;
+        let (mut deps, unsigned_tx_hash) = setup_deps_with_pending_tx(&payment);
+        let gateway_address = gateway_address();
+        let gateway: xrpl_gateway::Client =
+            client::ContractClient::new(QuerierWrapper::new(&deps.querier), &gateway_address)
+                .into();
+
+        let err = confirm_prover_message(
+            &mut deps.storage,
+            &gateway,
+            hex_tx_hash(),
+            unsigned_tx_hash,
+            XRPLTxStatus::Succeeded,
+        )
+        .then(expect_err);
+
+        assert_eq!(err, ContractError::PaymentMissingCrossChainId);
     }
 }

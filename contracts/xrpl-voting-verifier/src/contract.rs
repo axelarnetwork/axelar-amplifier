@@ -1100,4 +1100,177 @@ mod test {
             }
         });
     }
+
+    fn execute_as(
+        deps: DepsMut,
+        sender: &str,
+        msg: ExecuteMsg,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+        execute(
+            deps,
+            mock_env(),
+            message_info(&MockApi::default().addr_make(sender), &[]),
+            msg,
+        )
+    }
+
+    #[test]
+    fn disabling_execution_blocks_verification_until_re_enabled() {
+        let mut deps = setup(verifiers(2));
+        let messages = messages(1);
+
+        let response = execute_as(deps.as_mut(), ADMIN, ExecuteMsg::DisableExecution).unwrap();
+        assert!(response
+            .events
+            .iter()
+            .any(|event| event.ty == "execution_disabled"));
+        let err = execute_as(
+            deps.as_mut(),
+            SENDER,
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::ExecutionDisabled
+        ));
+
+        let response = execute_as(deps.as_mut(), GOVERNANCE, ExecuteMsg::EnableExecution).unwrap();
+        assert!(response
+            .events
+            .iter()
+            .any(|event| event.ty == "execution_enabled"));
+        execute_as(deps.as_mut(), SENDER, ExecuteMsg::VerifyMessages(messages)).unwrap();
+    }
+
+    #[test]
+    fn elevated_messages_reject_unprivileged_senders() {
+        let mut deps = setup(verifiers(2));
+        let new_admin_address = MockApi::default().addr_make("new-admin").to_string();
+        let elevated_msgs = [
+            ExecuteMsg::DisableExecution,
+            ExecuteMsg::EnableExecution,
+            ExecuteMsg::UpdateAdmin { new_admin_address },
+        ];
+
+        for msg in elevated_msgs {
+            let err = execute_as(deps.as_mut(), SENDER, msg).unwrap_err();
+            assert!(err_contains!(
+                err.report,
+                permission_control::Error,
+                permission_control::Error::GeneralPermissionDenied { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn update_admin_transfers_the_admin_role() {
+        let mut deps = setup(verifiers(2));
+        let new_admin = "new-admin";
+        let new_admin_address = MockApi::default().addr_make(new_admin).to_string();
+
+        execute_as(
+            deps.as_mut(),
+            ADMIN,
+            ExecuteMsg::UpdateAdmin { new_admin_address },
+        )
+        .unwrap();
+
+        assert!(execute_as(deps.as_mut(), ADMIN, ExecuteMsg::DisableExecution).is_err());
+        execute_as(deps.as_mut(), new_admin, ExecuteMsg::DisableExecution).unwrap();
+
+        let err = execute_as(
+            deps.as_mut(),
+            GOVERNANCE,
+            ExecuteMsg::UpdateAdmin {
+                new_admin_address: "not an address".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::FailedToUpdateAdmin
+        ));
+    }
+
+    #[test]
+    fn should_fail_to_verify_no_messages() {
+        let mut deps = setup(verifiers(2));
+
+        let err =
+            execute_as(deps.as_mut(), SENDER, ExecuteMsg::VerifyMessages(vec![])).unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::EmptyMessages
+        ));
+    }
+
+    #[test]
+    fn should_not_start_poll_when_all_messages_have_final_status() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let messages = messages(2);
+
+        execute_as(
+            deps.as_mut(),
+            SENDER,
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+        for verifier in &verifiers {
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain],
+                },
+            )
+            .unwrap();
+        }
+        execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&MockApi::default().addr_make(SENDER), &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        )
+        .unwrap();
+
+        let response = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&MockApi::default().addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+
+        assert!(response.events.is_empty());
+        assert!(response.messages.is_empty());
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env_expired(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            vec![
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+            ]
+        );
+    }
 }
