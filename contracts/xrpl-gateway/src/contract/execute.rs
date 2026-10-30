@@ -246,8 +246,8 @@ pub fn translate_to_interchain_transfer(
                 ensure!(
                     hash == payload_hash,
                     Error::PayloadHashMismatch {
-                        expected: payload_hash.into(),
-                        actual: hash.into(),
+                        expected: hash.into(),
+                        actual: payload_hash.into(),
                     }
                 )
             }
