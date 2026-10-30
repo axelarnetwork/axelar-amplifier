@@ -32,7 +32,6 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 itertools = { workspace = true }
 msgs-derive = { workspace = true }
-multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 rewards = { workspace = true, features = ["library"] }
 router-api = { workspace = true }
@@ -49,7 +48,6 @@ assert_ok = { workspace = true }
 cw-multi-test = { workspace = true }
 goldie = { workspace = true }
 integration-tests = { workspace = true }
-multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 sha3 = { workspace = true }
 
