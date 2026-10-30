@@ -1,0 +1,1276 @@
+use axelar_wasm_std::{address, killswitch, migrate_from_version, permission_control, FnExt};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
+};
+
+use crate::error::ContractError;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{Config, CONFIG};
+
+mod execute;
+mod query;
+
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let governance = address::validate_cosmwasm_address(deps.api, &msg.governance_address)?;
+    let admin = address::validate_cosmwasm_address(deps.api, &msg.admin_address)?;
+    permission_control::set_admin(deps.storage, &admin)?;
+    permission_control::set_governance(deps.storage, &governance)?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
+    let config = Config {
+        service_name: msg.service_name,
+        service_registry_contract: address::validate_cosmwasm_address(
+            deps.api,
+            &msg.service_registry_address,
+        )?,
+        source_gateway_address: msg
+            .source_gateway_address
+            .to_string()
+            .try_into()
+            .map_err(|_| ContractError::InvalidSourceGatewayAddress)?,
+        voting_threshold: msg.voting_threshold,
+        block_expiry: msg.block_expiry,
+        confirmation_height: msg.confirmation_height,
+        source_chain: msg.source_chain,
+        rewards_contract: address::validate_cosmwasm_address(deps.api, &msg.rewards_address)?,
+    };
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_event(Event::new("instantiated").add_attributes(<Vec<Attribute>>::from(config))))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    match msg.ensure_permissions(deps.storage, &info.sender)? {
+        ExecuteMsg::VerifyMessages(messages) => Ok(execute::verify_messages(deps, env, messages)?),
+        ExecuteMsg::Vote { poll_id, votes } => Ok(execute::vote(deps, env, info, poll_id, votes)?),
+        ExecuteMsg::EndPoll { poll_id } => Ok(execute::end_poll(deps, env, poll_id)?),
+        ExecuteMsg::UpdateVotingParameters {
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
+        } => Ok(execute::update_voting_parameters(
+            deps,
+            voting_threshold,
+            block_expiry,
+            confirmation_height,
+        )?),
+        ExecuteMsg::DisableExecution => Ok(execute::disable_execution(deps.storage)?),
+        ExecuteMsg::EnableExecution => Ok(execute::enable_execution(deps.storage)?),
+        ExecuteMsg::UpdateAdmin { new_admin_address } => {
+            Ok(execute::update_admin(deps, new_admin_address)?)
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(
+    deps: Deps,
+    env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::error::ContractError> {
+    match msg {
+        QueryMsg::Poll { poll_id } => {
+            to_json_binary(&query::poll_response(deps, env.block.height, poll_id)?)
+        }
+        QueryMsg::MessagesStatus(messages) => to_json_binary(&query::messages_status(
+            deps.storage,
+            &messages,
+            env.block.height,
+        )?),
+        QueryMsg::VotingParameters => to_json_binary(&query::voting_parameters(deps)?),
+    }?
+    .then(Ok)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("2.0")]
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    Ok(Response::default())
+}
+
+#[cfg(test)]
+mod test {
+    use assert_ok::assert_ok;
+    use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::nonempty::Uint128;
+    use axelar_wasm_std::voting::Vote;
+    use axelar_wasm_std::{
+        err_contains, nonempty, MajorityThreshold, Threshold, VerificationStatus,
+    };
+    use cosmwasm_std::testing::{
+        message_info, mock_dependencies, mock_env, MockApi, MockQuerier, MockStorage,
+    };
+    use cosmwasm_std::{from_json, Empty, Fraction, OwnedDeps, Uint64, WasmQuery};
+    use rand::Rng;
+    use router_api::ChainName;
+    use service_registry::{AuthorizationState, BondingState, Verifier, WeightedVerifier};
+    use sha3::{Digest, Keccak256};
+    use xrpl_types::msg::{WithCrossChainId, XRPLInterchainTransferMessage, XRPLMessage};
+    use xrpl_types::types::{XRPLAccountId, XRPLPaymentAmount};
+
+    use super::*;
+    use crate::msg::MessageStatus;
+
+    /// Version deployed on mainnet; the migration test upgrades from it.
+    const BASE_VERSION: &str = "2.0.0";
+
+    const SENDER: &str = "sender";
+    const ADMIN: &str = "admin";
+    const SERVICE_REGISTRY_ADDRESS: &str = "service_registry_address";
+    const REWARDS_ADDRESS: &str = "rewards_address";
+    const SERVICE_NAME: &str = "service_name";
+    const POLL_BLOCK_EXPIRY: u64 = 100;
+    const GOVERNANCE: &str = "governance";
+
+    fn source_chain() -> ChainName {
+        "source-chain".parse().unwrap()
+    }
+
+    fn initial_voting_threshold() -> MajorityThreshold {
+        Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
+    }
+
+    fn verifiers(num_verifiers: usize) -> Vec<Verifier> {
+        let mut verifiers = vec![];
+        for i in 0..num_verifiers {
+            verifiers.push(Verifier {
+                address: MockApi::default().addr_make(format!("addr{}", i).as_str()),
+                bonding_state: BondingState::Bonded {
+                    amount: Uint128::try_from(100u128).unwrap(),
+                },
+                authorization_state: AuthorizationState::Authorized,
+                service_name: SERVICE_NAME.parse().unwrap(),
+            })
+        }
+        verifiers
+    }
+
+    fn setup(verifiers: Vec<Verifier>) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
+        let admin = api.addr_make(ADMIN);
+
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&admin, &[]),
+            InstantiateMsg {
+                admin_address: admin.as_str().parse().unwrap(),
+                governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+                service_registry_address: service_registry.as_str().parse().unwrap(),
+                service_name: SERVICE_NAME.parse().unwrap(),
+                source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+                voting_threshold: initial_voting_threshold(),
+                block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
+                confirmation_height: 100,
+                source_chain: source_chain(),
+                rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
+            },
+        )
+        .unwrap();
+
+        deps.querier.update_wasm(move |wq| match wq {
+            WasmQuery::Smart { contract_addr, .. }
+                if contract_addr == service_registry.as_str() =>
+            {
+                Ok(to_json_binary(
+                    &verifiers
+                        .clone()
+                        .into_iter()
+                        .map(|v| WeightedVerifier {
+                            verifier_info: v,
+                            weight: nonempty::Uint128::one(),
+                        })
+                        .collect::<Vec<WeightedVerifier>>(),
+                )
+                .into())
+                .into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
+        deps
+    }
+
+    fn message_id(id: &str) -> HexTxHash {
+        let digest: [u8; 32] = Keccak256::digest(id.as_bytes()).into();
+        HexTxHash::new(digest)
+    }
+
+    fn messages(len: u32) -> Vec<XRPLMessage> {
+        (0..len)
+            .map(|i| {
+                XRPLMessage::InterchainTransferMessage(XRPLInterchainTransferMessage {
+                    tx_id: message_id("id"),
+                    source_address: XRPLAccountId::new(rand::thread_rng().gen()),
+                    destination_chain: format!("destination-chain{i}").parse().unwrap(),
+                    destination_address: nonempty::String::try_from("1234").unwrap(),
+                    payload_hash: None,
+                    transfer_amount: XRPLPaymentAmount::Drops(
+                        u64::from(i).checked_mul(1_000_000).expect("overflow"),
+                    ),
+                    gas_fee_amount: XRPLPaymentAmount::Drops(
+                        u64::from(i).checked_mul(1_000_000).expect("overflow"),
+                    ),
+                })
+            })
+            .collect()
+    }
+
+    #[allow(clippy::arithmetic_side_effects)]
+    fn mock_env_expired() -> Env {
+        let mut env = mock_env();
+        env.block.height += POLL_BLOCK_EXPIRY;
+        env
+    }
+
+    fn msgs_statuses(messages: Vec<XRPLMessage>, status: VerificationStatus) -> Vec<MessageStatus> {
+        messages
+            .iter()
+            .map(|message| MessageStatus::new(message.clone(), status))
+            .collect()
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+        let api = deps.api;
+        let env = mock_env();
+        let info = message_info(&api.addr_make("sender"), &[]);
+        let service_registry = api.addr_make(SERVICE_REGISTRY_ADDRESS);
+        let instantiate_msg = InstantiateMsg {
+            admin_address: api.addr_make(ADMIN).as_str().parse().unwrap(),
+            governance_address: api.addr_make(GOVERNANCE).as_str().parse().unwrap(),
+            service_registry_address: service_registry.as_str().parse().unwrap(),
+            service_name: SERVICE_NAME.parse().unwrap(),
+            source_gateway_address: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".parse().unwrap(),
+            voting_threshold: initial_voting_threshold(),
+            block_expiry: POLL_BLOCK_EXPIRY.try_into().unwrap(),
+            confirmation_height: 100,
+            source_chain: source_chain(),
+            rewards_address: api.addr_make(REWARDS_ADDRESS).as_str().parse().unwrap(),
+        };
+
+        assert_ok!(instantiate(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            instantiate_msg
+        ));
+
+        cw2::CONTRACT
+            .save(
+                deps.as_mut().storage,
+                &cw2::ContractVersion {
+                    contract: CONTRACT_NAME.to_string(),
+                    version: BASE_VERSION.to_string(),
+                },
+            )
+            .unwrap();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+
+    #[test]
+    fn should_not_verify_messages_if_in_progress() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+        let messages_count = 5;
+        let messages_in_progress = 3;
+        let messages = messages(messages_count as u32);
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(
+                messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
+            ),
+        )
+        .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(
+                messages.clone(), // verify all messages including the ones from previous execution
+            ),
+        )
+        .unwrap();
+
+        let actual: Vec<XRPLMessage> = serde_json::from_str(
+            &res.events
+                .into_iter()
+                .find(|event| event.ty == "messages_poll_started")
+                .unwrap()
+                .attributes
+                .into_iter()
+                .find_map(|attribute| {
+                    if attribute.key == "messages" {
+                        Some(attribute.value)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap(),
+        )
+        .unwrap();
+
+        // messages starting after the ones already in progress
+        let expected = &messages[messages_in_progress..];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn should_retry_if_message_not_verified() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+        let messages = messages(5);
+
+        let msg = ExecuteMsg::VerifyMessages(messages.clone());
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg.clone(),
+        )
+        .unwrap();
+
+        // confirm it was not verified
+        let status: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env_expired(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            status,
+            msgs_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+        );
+
+        // retries same message
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg,
+        )
+        .unwrap();
+
+        let actual: Vec<XRPLMessage> = serde_json::from_str(
+            &res.events
+                .into_iter()
+                .find(|event| event.ty == "messages_poll_started")
+                .unwrap()
+                .attributes
+                .into_iter()
+                .find_map(|attribute| {
+                    if attribute.key == "messages" {
+                        Some(attribute.value)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap(),
+        )
+        .unwrap();
+
+        let expected = messages;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn should_retry_if_status_not_final() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        let messages = messages(4);
+
+        // 1. First verification
+
+        let msg_verify = ExecuteMsg::VerifyMessages(messages.clone());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg_verify.clone(),
+        );
+        assert!(res.is_ok());
+
+        // 2. Verifiers cast votes, but only reach consensus on the first three messages
+
+        verifiers.iter().enumerate().for_each(|(i, verifier)| {
+            let msg = ExecuteMsg::Vote {
+                poll_id: 1u64.into(),
+                votes: vec![
+                    Vote::SucceededOnChain,
+                    Vote::FailedOnChain,
+                    Vote::NotFound,
+                    if i % 2 == 0 {
+                        // verifiers vote is divided so no consensus is reached
+                        Vote::SucceededOnChain
+                    } else {
+                        Vote::FailedOnChain
+                    },
+                ],
+            };
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                msg,
+            );
+            assert!(res.is_ok());
+        });
+
+        // 3. Poll is ended. First three messages reach consensus, last one does not
+
+        let msg = ExecuteMsg::EndPoll {
+            poll_id: 1u64.into(),
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg,
+        );
+        assert!(res.is_ok());
+
+        let res: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env_expired(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            vec![
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+                MessageStatus::new(
+                    messages[2].clone(),
+                    VerificationStatus::NotFoundOnSourceChain
+                ),
+                MessageStatus::new(messages[3].clone(), VerificationStatus::FailedToVerify)
+            ]
+        );
+
+        // 3. Retry verification. From the three messages that reached consensus, only the first two have a
+        // status considered final (SucceededOnChan or FailedOnChain), so the last two are retried
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg_verify,
+        );
+        assert!(res.is_ok());
+
+        let res: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env_expired(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            vec![
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+                MessageStatus::new(messages[2].clone(), VerificationStatus::InProgress),
+                MessageStatus::new(messages[3].clone(), VerificationStatus::InProgress)
+            ]
+        );
+    }
+
+    #[test]
+    fn should_query_status_none_when_not_verified() {
+        let verifiers = verifiers(2);
+        let deps = setup(verifiers.clone());
+
+        let messages = messages(10);
+
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            msgs_statuses(messages, VerificationStatus::Unknown)
+        );
+    }
+
+    #[test]
+    fn should_query_status_in_progress_when_no_consensus_and_poll_not_ended() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        let messages = messages(10);
+
+        // starts verification process
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            msgs_statuses(messages.clone(), VerificationStatus::InProgress)
+        );
+    }
+
+    #[test]
+    fn should_query_status_failed_to_verify_when_no_consensus_and_poll_expired() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        let messages = messages(10);
+
+        // starts verification process
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env_expired(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            msgs_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+        );
+    }
+
+    #[test]
+    fn should_query_status_according_to_vote() {
+        let test_cases = [
+            (
+                Vote::SucceededOnChain,
+                VerificationStatus::SucceededOnSourceChain,
+            ),
+            (Vote::FailedOnChain, VerificationStatus::FailedOnSourceChain),
+            (Vote::NotFound, VerificationStatus::NotFoundOnSourceChain),
+        ]
+        .iter()
+        .collect::<Vec<_>>();
+
+        for (consensus_vote, expected_status) in test_cases {
+            let verifiers = verifiers(2);
+            let mut deps = setup(verifiers.clone());
+            let api = deps.api;
+
+            let messages = messages(10);
+
+            // starts verification process
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&api.addr_make(SENDER), &[]),
+                ExecuteMsg::VerifyMessages(messages.clone()),
+            )
+            .unwrap();
+
+            // all verifiers vote
+            let vote_msg = ExecuteMsg::Vote {
+                poll_id: Uint64::one().into(),
+                votes: vec![consensus_vote.clone(); messages.len()],
+            };
+            verifiers.iter().for_each(|verifier| {
+                execute(
+                    deps.as_mut(),
+                    mock_env(),
+                    message_info(&verifier.address, &[]),
+                    vote_msg.clone(),
+                )
+                .unwrap();
+            });
+
+            // end poll
+            execute(
+                deps.as_mut(),
+                mock_env_expired(),
+                message_info(&api.addr_make(SENDER), &[]),
+                ExecuteMsg::EndPoll {
+                    poll_id: Uint64::one().into(),
+                },
+            )
+            .unwrap();
+
+            // check status corresponds to votes
+            let statuses: Vec<MessageStatus> = from_json(
+                query(
+                    deps.as_ref(),
+                    mock_env(),
+                    QueryMsg::MessagesStatus(messages.clone()),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(statuses, msgs_statuses(messages.clone(), *expected_status));
+        }
+    }
+
+    #[test]
+    fn should_be_able_to_update_voting_parameters() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
+            initial_voting_threshold().numerator().u64() + 1,
+            initial_voting_threshold().denominator().u64() + 1,
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+        let new_confirmation_height: u32 = 200;
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: Some(new_confirmation_height),
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(params.confirmation_height, new_confirmation_height);
+    }
+
+    #[test]
+    #[allow(clippy::arithmetic_side_effects)]
+    fn voting_parameter_changes_should_not_affect_existing_polls() {
+        let verifiers = verifiers(10);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        // Set explicit initial voting parameters: threshold 8/10, expiry 100 blocks
+        let initial_threshold: MajorityThreshold =
+            Threshold::try_from((8, 10)).unwrap().try_into().unwrap();
+        let initial_block_expiry: nonempty::Uint64 = 100u64.try_into().unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(initial_threshold),
+                block_expiry: Some(initial_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let messages = messages(1);
+
+        let poll_start_env = mock_env();
+        let poll_start_height = poll_start_env.block.height;
+
+        // Start poll with initial parameters (threshold 8/10, expiry 100)
+        execute(
+            deps.as_mut(),
+            poll_start_env,
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+
+        // Have 7 out of 10 verifiers vote (below initial 8/10 threshold)
+        verifiers.iter().take(7).for_each(|verifier| {
+            let msg = ExecuteMsg::Vote {
+                poll_id: 1u64.into(),
+                votes: vec![Vote::SucceededOnChain],
+            };
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                msg,
+            );
+            assert!(res.is_ok());
+        });
+
+        // Update threshold to 6/10 (lower than current votes)
+        let new_threshold_lower: MajorityThreshold =
+            Threshold::try_from((6, 10)).unwrap().try_into().unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_threshold_lower),
+                block_expiry: None,
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        // Poll should still be in progress (not completed despite 7 votes > 6/10 new threshold)
+        let poll_response: crate::msg::PollResponse = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Poll {
+                    poll_id: 1u64.into(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            poll_response.status,
+            axelar_wasm_std::voting::PollStatus::InProgress
+        );
+
+        // Update block_expiry to 50 blocks
+        let new_block_expiry: nonempty::Uint64 = 50u64.try_into().unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        // Poll should still be in progress after new shorter expiry (50 blocks)
+        let mut env_after_new_expiry = mock_env();
+        env_after_new_expiry.block.height = poll_start_height + 50;
+
+        let poll_response: crate::msg::PollResponse = from_json(
+            query(
+                deps.as_ref(),
+                env_after_new_expiry,
+                QueryMsg::Poll {
+                    poll_id: 1u64.into(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            poll_response.status,
+            axelar_wasm_std::voting::PollStatus::InProgress
+        );
+
+        // Poll expires at original expiry (100 blocks)
+        let mut env_at_original_expiry = mock_env();
+        env_at_original_expiry.block.height = poll_start_height + 100;
+
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                env_at_original_expiry,
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            vec![MessageStatus::new(
+                messages[0].clone(),
+                VerificationStatus::FailedToVerify
+            )]
+        );
+    }
+
+    #[test]
+    fn update_individual_voting_parameters() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        // Get initial parameters
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let initial_params: crate::msg::VotingParameters = from_json(res).unwrap();
+
+        // Update only voting_threshold
+        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
+            initial_voting_threshold().numerator().u64() + 1,
+            initial_voting_threshold().denominator().u64() + 1,
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: Some(new_voting_threshold),
+                block_expiry: None,
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, initial_params.block_expiry);
+        assert_eq!(
+            params.confirmation_height,
+            initial_params.confirmation_height
+        );
+
+        // Update only block_expiry
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(
+            params.confirmation_height,
+            initial_params.confirmation_height
+        );
+
+        // Update only confirmation_height
+        let new_confirmation_height: u32 = 200;
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(GOVERNANCE), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: None,
+                confirmation_height: Some(new_confirmation_height),
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::VotingParameters).unwrap();
+        let params: crate::msg::VotingParameters = from_json(res).unwrap();
+        assert_eq!(params.voting_threshold, new_voting_threshold);
+        assert_eq!(params.block_expiry, new_block_expiry);
+        assert_eq!(params.confirmation_height, new_confirmation_height);
+    }
+
+    #[test]
+    fn only_governance_can_update_voting_parameters() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+
+        let new_block_expiry: nonempty::Uint64 = (POLL_BLOCK_EXPIRY + 50).try_into().unwrap();
+
+        // Non-governance address should fail
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            ExecuteMsg::UpdateVotingParameters {
+                voting_threshold: None,
+                block_expiry: Some(new_block_expiry),
+                confirmation_height: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            axelar_wasm_std::permission_control::Error,
+            axelar_wasm_std::permission_control::Error::GeneralPermissionDenied { .. }
+        ));
+    }
+
+    #[test]
+    fn should_emit_event_when_verification_succeeds() {
+        let verifiers = verifiers(3);
+        let mut deps = setup(verifiers.clone());
+        let api = deps.api;
+        let threshold = initial_voting_threshold();
+        // this test depends on the threshold being 2/3
+        assert_eq!(
+            threshold,
+            Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
+        );
+
+        let messages = messages(3);
+
+        // 1. First verification
+
+        let msg_verify = ExecuteMsg::VerifyMessages(messages.clone());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&api.addr_make(SENDER), &[]),
+            msg_verify.clone(),
+        );
+        assert!(res.is_ok());
+
+        // 2. Verifiers cast votes
+        // The first message reaches quorum after 2 votes,
+        // The second message reaches quorum after 3 votes,
+        // The third message never reaches quorum
+        verifiers.iter().enumerate().for_each(|(i, verifier)| {
+            let msg = ExecuteMsg::Vote {
+                poll_id: 1u64.into(),
+                votes: vec![
+                    Vote::SucceededOnChain,
+                    if i % 2 == 0 {
+                        Vote::NotFound
+                    } else {
+                        Vote::SucceededOnChain
+                    },
+                    if i % 3 == 0 {
+                        Vote::NotFound
+                    } else if i % 3 == 1 {
+                        Vote::SucceededOnChain
+                    } else {
+                        Vote::FailedOnChain
+                    },
+                ],
+            };
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                msg,
+            )
+            .unwrap();
+
+            let verify_event =
+                |res: &Response,
+                 expected_message: XRPLMessage,
+                 expected_status: VerificationStatus| {
+                    let mut iter = res.events.iter();
+
+                    let event = iter.find(|event| event.ty == "quorum_reached").unwrap();
+
+                    let msg_with_cc_id: WithCrossChainId<XRPLMessage> = serde_json::from_str(
+                        &event
+                            .attributes
+                            .iter()
+                            .find(|attr| attr.key == "content")
+                            .unwrap()
+                            .value,
+                    )
+                    .unwrap();
+                    assert_eq!(msg_with_cc_id.content, expected_message);
+
+                    let status: VerificationStatus = serde_json::from_str(
+                        &event
+                            .attributes
+                            .iter()
+                            .find(|attr| attr.key == "status")
+                            .unwrap()
+                            .value,
+                    )
+                    .unwrap();
+                    assert_eq!(status, expected_status);
+
+                    let additional_event = iter.find(|event| event.ty == "quorum_reached");
+                    assert_eq!(additional_event, None);
+                };
+
+            if i == 0 {
+                let event = res.events.iter().find(|event| event.ty == "quorum_reached");
+                assert_eq!(event, None);
+            }
+
+            if i == 1 {
+                verify_event(
+                    &res,
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain,
+                );
+            }
+
+            if i == 2 {
+                verify_event(
+                    &res,
+                    messages[1].clone(),
+                    VerificationStatus::NotFoundOnSourceChain,
+                );
+            }
+        });
+    }
+
+    fn execute_as(
+        deps: DepsMut,
+        sender: &str,
+        msg: ExecuteMsg,
+    ) -> Result<Response, axelar_wasm_std::error::ContractError> {
+        execute(
+            deps,
+            mock_env(),
+            message_info(&MockApi::default().addr_make(sender), &[]),
+            msg,
+        )
+    }
+
+    #[test]
+    fn disabling_execution_blocks_verification_until_re_enabled() {
+        let mut deps = setup(verifiers(2));
+        let messages = messages(1);
+
+        let response = execute_as(deps.as_mut(), ADMIN, ExecuteMsg::DisableExecution).unwrap();
+        assert!(response
+            .events
+            .iter()
+            .any(|event| event.ty == "execution_disabled"));
+        let err = execute_as(
+            deps.as_mut(),
+            SENDER,
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::ExecutionDisabled
+        ));
+
+        let response = execute_as(deps.as_mut(), GOVERNANCE, ExecuteMsg::EnableExecution).unwrap();
+        assert!(response
+            .events
+            .iter()
+            .any(|event| event.ty == "execution_enabled"));
+        execute_as(deps.as_mut(), SENDER, ExecuteMsg::VerifyMessages(messages)).unwrap();
+    }
+
+    #[test]
+    fn elevated_messages_reject_unprivileged_senders() {
+        let mut deps = setup(verifiers(2));
+        let new_admin_address = MockApi::default().addr_make("new-admin").to_string();
+        let elevated_msgs = [
+            ExecuteMsg::DisableExecution,
+            ExecuteMsg::EnableExecution,
+            ExecuteMsg::UpdateAdmin { new_admin_address },
+        ];
+
+        for msg in elevated_msgs {
+            let err = execute_as(deps.as_mut(), SENDER, msg).unwrap_err();
+            assert!(err_contains!(
+                err.report,
+                permission_control::Error,
+                permission_control::Error::GeneralPermissionDenied { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn update_admin_transfers_the_admin_role() {
+        let mut deps = setup(verifiers(2));
+        let new_admin = "new-admin";
+        let new_admin_address = MockApi::default().addr_make(new_admin).to_string();
+
+        execute_as(
+            deps.as_mut(),
+            ADMIN,
+            ExecuteMsg::UpdateAdmin { new_admin_address },
+        )
+        .unwrap();
+
+        assert!(execute_as(deps.as_mut(), ADMIN, ExecuteMsg::DisableExecution).is_err());
+        execute_as(deps.as_mut(), new_admin, ExecuteMsg::DisableExecution).unwrap();
+
+        let err = execute_as(
+            deps.as_mut(),
+            GOVERNANCE,
+            ExecuteMsg::UpdateAdmin {
+                new_admin_address: "not an address".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::FailedToUpdateAdmin
+        ));
+    }
+
+    #[test]
+    fn should_fail_to_verify_no_messages() {
+        let mut deps = setup(verifiers(2));
+
+        let err =
+            execute_as(deps.as_mut(), SENDER, ExecuteMsg::VerifyMessages(vec![])).unwrap_err();
+
+        assert!(err_contains!(
+            err.report,
+            ContractError,
+            ContractError::EmptyMessages
+        ));
+    }
+
+    #[test]
+    fn should_not_start_poll_when_all_messages_have_final_status() {
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone());
+        let messages = messages(2);
+
+        execute_as(
+            deps.as_mut(),
+            SENDER,
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+        for verifier in &verifiers {
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&verifier.address, &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::SucceededOnChain, Vote::FailedOnChain],
+                },
+            )
+            .unwrap();
+        }
+        execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&MockApi::default().addr_make(SENDER), &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        )
+        .unwrap();
+
+        let response = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            message_info(&MockApi::default().addr_make(SENDER), &[]),
+            ExecuteMsg::VerifyMessages(messages.clone()),
+        )
+        .unwrap();
+
+        assert!(response.events.is_empty());
+        assert!(response.messages.is_empty());
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env_expired(),
+                QueryMsg::MessagesStatus(messages.clone()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            vec![
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+            ]
+        );
+    }
+}
