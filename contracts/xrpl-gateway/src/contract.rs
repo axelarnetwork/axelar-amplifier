@@ -140,12 +140,10 @@ pub enum Error {
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[migrate_from_version("1.3")]
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
-
     Ok(Response::default())
 }
 
