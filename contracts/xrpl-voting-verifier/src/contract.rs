@@ -1,4 +1,4 @@
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, migrate_from_version, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -14,7 +14,6 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.3.0";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -105,15 +104,12 @@ pub fn query(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("2.0")]
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
     Ok(Response::default())
 }
 
@@ -139,6 +135,9 @@ mod test {
 
     use super::*;
     use crate::msg::MessageStatus;
+
+    /// Version deployed on mainnet; the migration test upgrades from it.
+    const BASE_VERSION: &str = "2.0.0";
 
     const SENDER: &str = "sender";
     const ADMIN: &str = "admin";

@@ -42,6 +42,7 @@ multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 ripemd = "0.1.3"
 router-api = { workspace = true }
+semver = { workspace = true }
 serde_json = { workspace = true }
 service-registry-api = { workspace = true }
 sha3 = { workspace = true }

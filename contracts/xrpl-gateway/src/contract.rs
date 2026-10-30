@@ -2,7 +2,9 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use axelar_core_std::nexus;
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt, IntoContractError};
+use axelar_wasm_std::{
+    address, killswitch, migrate_from_version, permission_control, FnExt, IntoContractError,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -26,7 +28,6 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.3.2";
 
 // https://xrpl.org/docs/concepts/accounts/addresses#special-addresses
 const XRP_ISSUER: &str = "rrrrrrrrrrrrrrrrrrrrrhoLvTp";
@@ -137,16 +138,13 @@ pub enum Error {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("1.3")]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
@@ -350,8 +348,11 @@ mod test {
     use cosmwasm_std::testing::{message_info, mock_dependencies, mock_env};
     use cosmwasm_std::Empty;
 
-    use crate::contract::{instantiate, migrate, BASE_VERSION, CONTRACT_NAME, CONTRACT_VERSION};
+    use crate::contract::{instantiate, migrate, CONTRACT_NAME, CONTRACT_VERSION};
     use crate::msg::InstantiateMsg;
+
+    /// Version deployed on mainnet; the migration test upgrades from it.
+    const BASE_VERSION: &str = "1.3.2";
 
     #[test]
     fn migrate_sets_contract_version() {
