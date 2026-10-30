@@ -1,4 +1,4 @@
-use axelar_wasm_std::{address, killswitch, permission_control, FnExt};
+use axelar_wasm_std::{address, killswitch, migrate_from_version, permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -22,7 +22,6 @@ pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const BASE_VERSION: &str = "1.4.2";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -217,16 +216,13 @@ pub fn query(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[migrate_from_version("1.4")]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::error::ContractError> {
-    cw2::assert_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
-
     killswitch::init(deps.storage, killswitch::State::Disengaged)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
@@ -262,6 +258,9 @@ mod tests {
         MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
         XRPL_MULITISIG_ADDRESS,
     };
+
+    /// Version deployed on mainnet; the migration test upgrades from it.
+    const BASE_VERSION: &str = "1.4.2";
 
     const RELAYER: &str = "relayer";
     const MULTISIG_SESSION_ID: Uint64 = Uint64::one();
