@@ -12578,7 +12578,6 @@ dependencies = [
  "cw-storage-plus",
  "cw2",
  "error-stack",
- "gateway-api",
  "goldie",
  "interchain-token-service",
  "interchain-token-service-std",
