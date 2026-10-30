@@ -12600,7 +12600,6 @@ dependencies = [
 name = "xrpl-multisig-prover"
 version = "1.4.3"
 dependencies = [
- "anyhow",
  "ascii 1.1.0",
  "axelar-wasm-std",
  "client",
@@ -12611,9 +12610,7 @@ dependencies = [
  "cw-storage-plus",
  "cw-utils",
  "cw2",
- "elliptic-curve",
  "error-stack",
- "generic-array",
  "goldie",
  "interchain-token-service",
  "interchain-token-service-std",
@@ -12624,7 +12621,6 @@ dependencies = [
  "multisig",
  "prost 0.12.6",
  "report",
- "ripemd",
  "router-api",
  "semver 1.0.28",
  "serde_json",
@@ -12679,7 +12675,6 @@ dependencies = [
  "integration-tests",
  "itertools 0.14.0",
  "msgs-derive",
- "multisig",
  "rand 0.8.6",
  "report",
  "rewards",
