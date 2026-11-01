@@ -82,13 +82,6 @@ fn sig_verifier_called() {
     );
     assert!(response.is_ok());
 
-    let response = multisig_prover.execute(
-        &mut protocol.app,
-        multisig_prover_admin,
-        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
-    );
-    assert!(response.is_ok());
-
     let response = protocol.multisig.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -100,6 +93,13 @@ fn sig_verifier_called() {
             .into_iter()
             .collect(),
         },
+    );
+    assert!(response.is_ok());
+
+    let response = multisig_prover.execute(
+        &mut protocol.app,
+        multisig_prover_admin,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 

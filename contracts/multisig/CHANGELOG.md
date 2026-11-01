@@ -3,7 +3,15 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.2..HEAD)
+
+## [v2.4.4](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.4)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.2..multisig-v2.4.4)
+
+Hotfix release cut from `multisig-v2.4.2`. It does not include the changes on `main` since v2.4.2 (in particular the removal of the signature verifier callback in [#1141](https://github.com/axelarnetwork/axelar-amplifier/pull/1141), which the XRPL prover relies on). v2.4.3 was built from `main` and must not be deployed.
+
+- restrict `RegisterVerifierSet` to authorized provers, admin and governance.
 
 ## [v2.4.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.0)
 
