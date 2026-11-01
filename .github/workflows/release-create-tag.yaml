@@ -29,6 +29,9 @@ on:
           - its-abi-translator
           - its-solana-translator
           - event-verifier
+          - xrpl-gateway
+          - xrpl-multisig-prover
+          - xrpl-voting-verifier
       dry-run:
         description: Dry run
         type: boolean
@@ -79,6 +82,9 @@ jobs:
             ["its-abi-translator"]="its-abi-translator,/\(major\)|\(major-its-abi-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-abi-translator\)|\(minor-contracts\)/,contracts/its-abi-translator packages"
             ["its-solana-translator"]="its-solana-translator,/\(major\)|\(major-its-solana-translator\)|\(major-contracts\)/,/\(minor\)|\(minor-its-solana-translator\)|\(minor-contracts\)/,contracts/its-solana-translator packages"
             ["event-verifier"]="event-verifier,/\(major\)|\(major-event-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-event-verifier\)|\(minor-contracts\)/,contracts/event-verifier packages"
+            ["xrpl-gateway"]="xrpl-gateway,/\(major\)|\(major-xrpl-gateway\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-gateway\)|\(minor-contracts\)/,contracts/xrpl-gateway packages"
+            ["xrpl-multisig-prover"]="xrpl-multisig-prover,/\(major\)|\(major-xrpl-multisig-prover\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-multisig-prover\)|\(minor-contracts\)/,contracts/xrpl-multisig-prover packages"
+            ["xrpl-voting-verifier"]="xrpl-voting-verifier,/\(major\)|\(major-xrpl-voting-verifier\)|\(major-contracts\)/,/\(minor\)|\(minor-xrpl-voting-verifier\)|\(minor-contracts\)/,contracts/xrpl-voting-verifier packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then
