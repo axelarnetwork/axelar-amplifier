@@ -3,7 +3,13 @@
 
 ## [Unreleased](https://github.com/axelarnetwork/axelar-amplifier/tree/HEAD)
 
-[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.0..HEAD)
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.2..HEAD)
+
+## [v2.4.3](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.3)
+
+[Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.2..multisig-v2.4.3)
+
+- restrict `RegisterVerifierSet` to authorized provers, admin and governance
 
 ## [v2.4.0](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.0)
 
