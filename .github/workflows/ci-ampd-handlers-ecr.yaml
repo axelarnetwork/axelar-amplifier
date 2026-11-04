@@ -66,15 +66,17 @@ jobs:
 
       - name: Set handlers to build
         id: set-handlers
+        env:
+          INPUT_HANDLER: ${{ github.event.inputs.handler }}
         run: |
           if [ "${{ github.event_name }}" == "push" ]; then
             handlers='${{ steps.check-handlers.outputs.available-handlers }}'
-          elif [ "${{ github.event.inputs.handler }}" == "all" ]; then
+          elif [ "$INPUT_HANDLER" == "all" ]; then
             handlers='${{ steps.check-handlers.outputs.available-handlers }}'
             echo "Building all available handlers"
-          elif [ -n "${{ github.event.inputs.handler }}" ]; then
+          elif [ -n "$INPUT_HANDLER" ]; then
             available_handlers='${{ steps.check-handlers.outputs.available-handlers }}'
-            input_handler="${{ github.event.inputs.handler }}"
+            input_handler="$INPUT_HANDLER"
             if echo "$available_handlers" | jq -e --arg handler "$input_handler" 'contains([$handler])' > /dev/null; then
               handlers="[\"$input_handler\"]"
               echo "Valid handler specified: $input_handler"
@@ -92,8 +94,10 @@ jobs:
 
       - name: Set image tag
         id: set-tag
+        env:
+          BUILD_REF: ${{ github.event.inputs.ref || github.ref }}
         run: |
-          build_ref="${{ github.event.inputs.ref || github.ref }}"
+          build_ref="$BUILD_REF"
 
           if git rev-parse --verify --quiet "refs/tags/$build_ref" >/dev/null; then
             tag="$build_ref"
@@ -132,11 +136,13 @@ jobs:
           git fetch --unshallow || true
 
       - name: Determine build mode
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry-run }}
         run: |
           if [ "${{ github.event_name }}" == "push" ]; then
             echo "AUTOMATIC BUILD MODE (push to main)"
             echo "This will build and push images to ECR"
-          elif [ "${{ github.event.inputs.dry-run }}" == "true" ]; then
+          elif [ "$DRY_RUN" == "true" ]; then
             echo "DRY RUN MODE (manual trigger)"
             echo "This will NOT build or push images"
           else

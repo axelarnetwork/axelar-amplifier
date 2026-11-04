@@ -30,17 +30,23 @@ runs:
     - name: Print inputs
       id: print-inputs
       shell: bash
+      env:
+        BINARY_TO_RELEASE: ${{ inputs.binary-to-release }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        MAJOR_PATTERN: ${{ inputs.major-pattern }}
+        MINOR_PATTERN: ${{ inputs.minor-pattern }}
+        CHANGE_PATH: ${{ inputs.change-path }}
       run: |
         echo "binary-to-release:
-          ${{ inputs.binary-to-release }}"
+          $BINARY_TO_RELEASE"
         echo "dry-run:
-          ${{ inputs.dry-run }}"
+          $DRY_RUN"
         echo "major-pattern:
-          ${{ inputs.major-pattern }}"
+          $MAJOR_PATTERN"
         echo "minor-pattern:
-          ${{ inputs.minor-pattern }}"
+          $MINOR_PATTERN"
         echo "change-path:
-          ${{ inputs.change-path }}"
+          $CHANGE_PATH"
 
     - name: Determine next semantic version
       id: semantic-version
@@ -87,6 +93,8 @@ runs:
       id: validate-tag
       shell: bash
       if: ${{ steps.semantic-version.outputs.changed == 'true' }}
+      env:
+        BINARY_TO_RELEASE: ${{ inputs.binary-to-release }}
       run: |
         if [[
           ! -z "$(git tag -l ${{ steps.semantic-version.outputs.version_tag }})"
@@ -103,13 +111,13 @@ runs:
           new release.
 
           Retrieve the latest patch commit from the tag:
-          git tag --list ${{inputs.binary-to-release}}-v*
+          git tag --list ${BINARY_TO_RELEASE}-v*
 
           Checkout the tag:
           git checkout <latest-existing-patch>
 
           Create a new branch from the commit:
-          git checkout -b patch/${{inputs.binary-to-release}}/<new-patch>
+          git checkout -b patch/${BINARY_TO_RELEASE}/<new-patch>
 
           Cherry pick current changes to the new branch:
           git cherry-pick ${{ github.sha }}
@@ -158,12 +166,15 @@ runs:
       id: validate-version-match
       shell: bash
       if: steps.semantic-version.outputs.changed == 'true'
+      env:
+        BINARY_TO_RELEASE: ${{ inputs.binary-to-release }}
+        VERSION_TYPE: ${{ steps.semantic-version.outputs.version_type }}
       run: |
         # Get what cargo release would do with the current Cargo.toml
-        cargo_release_output=$(cargo release -p ${{ inputs.binary-to-release }} ${{ steps.semantic-version.outputs.version_type }} --allow-branch "main,releases/*" -v 2>&1 || true)
+        cargo_release_output=$(cargo release -p "$BINARY_TO_RELEASE" "$VERSION_TYPE" --allow-branch "main,releases/*" -v 2>&1 || true)
 
         # Extract the version that cargo release would create
-        upgrade_line=$(echo "$cargo_release_output" | grep -E "Upgrading ${{ inputs.binary-to-release }} from.*to" | head -1)
+        upgrade_line=$(echo "$cargo_release_output" | grep -E "Upgrading ${BINARY_TO_RELEASE} from.*to" | head -1)
         # Extract semantic version from "Upgrading package from X.Y.Z to A.B.C" text
         # Captures: major.minor.patch with optional pre-release suffix (-alpha.N, -beta.N, -rc.N)
         cargo_version=$(echo "$upgrade_line" | sed -E 's/.*to ([0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+|-beta\.[0-9]+|-rc\.[0-9]+)?).*/\1/')
@@ -231,9 +242,12 @@ runs:
       if:
         inputs.dry-run == 'true' &&
         steps.semantic-version.outputs.changed == 'true'
+      env:
+        BINARY_TO_RELEASE: ${{ inputs.binary-to-release }}
+        VERSION_TYPE: ${{ steps.semantic-version.outputs.version_type }}
       run: |
-        cargo release -p ${{ inputs.binary-to-release }} \
-          ${{ steps.semantic-version.outputs.version_type }} \
+        cargo release -p "$BINARY_TO_RELEASE" \
+          "$VERSION_TYPE" \
           --allow-branch "main,releases/*" \
           -v
 
@@ -242,24 +256,31 @@ runs:
       if:
         inputs.dry-run == 'false' &&
         steps.semantic-version.outputs.changed == 'true'
+      env:
+        BINARY_TO_RELEASE: ${{ inputs.binary-to-release }}
+        VERSION_TYPE: ${{ steps.semantic-version.outputs.version_type }}
       run: |
         cargo release -x \
           --no-confirm \
           --no-push \
-          -p ${{ inputs.binary-to-release }} \
-          ${{ steps.semantic-version.outputs.version_type }}
+          -p "$BINARY_TO_RELEASE" \
+          "$VERSION_TYPE"
 
     - name: Create additional tags from prefixes
       shell: bash
       if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true' && inputs.tag-prefixes != ''
+      env:
+        VERSION_TAG: ${{ steps.semantic-version.outputs.version_tag }}
+        VERSION: ${{ steps.semantic-version.outputs.version }}
+        TAG_PREFIXES: ${{ inputs.tag-prefixes }}
       run: |
-        version_tag="${{ steps.semantic-version.outputs.version_tag }}"
-        version="${{ steps.semantic-version.outputs.version }}"
+        version_tag="$VERSION_TAG"
+        version="$VERSION"
         commit_sha=$(git rev-parse "$version_tag")
         
         echo "Creating additional tags for version $version at commit $commit_sha"
         
-        IFS=',' read -ra prefixes <<< "${{ inputs.tag-prefixes }}"
+        IFS=',' read -ra prefixes <<< "$TAG_PREFIXES"
         
         filtered_prefixes=()
         for prefix in "${prefixes[@]}"; do
