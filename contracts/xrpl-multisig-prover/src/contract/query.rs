@@ -1,0 +1,234 @@
+use axelar_wasm_std::msg_id::HexTxHash;
+use cosmwasm_std::{Addr, HexBinary, QuerierWrapper, StdResult, Storage, Uint64};
+use multisig::key::{PublicKey, Signature};
+use multisig::types::MultisigState;
+use router_api::CrossChainId;
+use xrpl_types::error::XRPLError;
+use xrpl_types::types::{XRPLAccountId, XRPLSignedTx, XRPLSigner};
+
+use crate::error::ContractError;
+use crate::msg::{ProofResponse, ProofStatus};
+use crate::state::{
+    MultisigSession, CROSS_CHAIN_ID_TO_MULTISIG_SESSION, CURRENT_VERIFIER_SET,
+    MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH, NEXT_VERIFIER_SET, UNSIGNED_TX_HASH_TO_TX_INFO,
+};
+use crate::xrpl_multisig;
+use crate::xrpl_serialize::XRPLSerialize;
+
+pub fn verify_signature(
+    encoded_unsigned_tx: HexBinary,
+    public_key: &PublicKey,
+    signature: &Signature,
+) -> StdResult<bool> {
+    let signer_xrpl_address = &XRPLAccountId::from(public_key);
+    let tx_hash =
+        xrpl_types::types::message_to_sign(encoded_unsigned_tx.into(), signer_xrpl_address)?;
+
+    Ok(signature
+        .verify(HexBinary::from(tx_hash), public_key)
+        .is_ok())
+}
+
+pub fn proof(
+    storage: &dyn Storage,
+    querier: QuerierWrapper,
+    multisig_address: &Addr,
+    multisig_session_id: Uint64,
+) -> StdResult<ProofResponse> {
+    let unsigned_tx_hash =
+        MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH.load(storage, multisig_session_id.u64())?;
+
+    let tx_info = UNSIGNED_TX_HASH_TO_TX_INFO.load(storage, &unsigned_tx_hash)?;
+
+    let multisig: multisig::Client = client::ContractClient::new(querier, multisig_address).into();
+
+    let multisig_session = multisig
+        .multisig(multisig_session_id)
+        .map_err(|_| ContractError::FailedToGetMultisigSession(multisig_session_id.u64()))?;
+
+    let status = match multisig_session.state {
+        MultisigState::Pending => ProofStatus::Pending,
+        MultisigState::Completed { .. } => {
+            let xrpl_signers: Vec<XRPLSigner> = multisig_session
+                .optimize_signatures()
+                .into_iter()
+                .map(XRPLSigner::try_from)
+                .collect::<Result<Vec<_>, XRPLError>>()?;
+
+            let signed_tx = XRPLSignedTx::new(
+                tx_info.unsigned_tx,
+                xrpl_signers,
+                HexTxHash::new(unsigned_tx_hash),
+                tx_info.original_cc_id,
+            );
+            let execute_data = HexBinary::from(signed_tx.xrpl_serialize()?);
+            ProofStatus::Completed { execute_data }
+        }
+    };
+
+    Ok(ProofResponse {
+        unsigned_tx_hash: HexTxHash::new(unsigned_tx_hash),
+        status,
+    })
+}
+
+pub fn current_verifier_set(
+    storage: &dyn Storage,
+) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
+    CURRENT_VERIFIER_SET
+        .may_load(storage)
+        .map(|op| op.and_then(|set| set.try_into().ok()))
+}
+
+pub fn next_verifier_set(
+    storage: &dyn Storage,
+) -> StdResult<Option<multisig::verifier_set::VerifierSet>> {
+    NEXT_VERIFIER_SET
+        .may_load(storage)
+        .map(|op| op.and_then(|set| set.try_into().ok()))
+}
+
+pub fn multisig_session(
+    storage: &dyn Storage,
+    cc_id: &CrossChainId,
+) -> StdResult<Option<MultisigSession>> {
+    CROSS_CHAIN_ID_TO_MULTISIG_SESSION.may_load(storage, cc_id)
+}
+
+pub fn ticket_create(
+    storage: &dyn Storage,
+    ticket_count_threshold: u32,
+) -> Result<u32, ContractError> {
+    let ticket_count = xrpl_multisig::num_of_tickets_to_create(storage)?;
+    if ticket_count < ticket_count_threshold {
+        return Err(ContractError::TicketCountThresholdNotReached);
+    }
+
+    Ok(ticket_count)
+}
+
+#[cfg(test)]
+mod test {
+    use axelar_wasm_std::msg_id::HexTxHash;
+    use axelar_wasm_std::VerificationStatus;
+    use cosmwasm_std::testing::{mock_dependencies, MockApi, MockQuerier};
+    use cosmwasm_std::{HexBinary, MemoryStorage, OwnedDeps, QuerierWrapper, Uint64};
+    use xrpl_types::types::{XRPLTxStatus, XRPLUnsignedTxToSign};
+
+    use crate::msg::ProofStatus;
+    use crate::state::{self, TxInfo};
+    use crate::test::test_data::{self, new_verifier_set, new_xrpl_verifier_set};
+    use crate::test::test_utils::{mock_querier_handler, MULTISIG_ADDRESS};
+    use crate::xrpl_serialize::XRPLSerialize;
+
+    #[derive(Clone)]
+    struct SigningSession {
+        pub unsigned_tx_hash: [u8; 32],
+        pub session_id: Uint64,
+        pub tx_info: TxInfo,
+    }
+
+    fn signing_session() -> SigningSession {
+        SigningSession {
+            unsigned_tx_hash: test_data::ticket_create_unsigned_tx_hash(),
+            session_id: Uint64::new(79419),
+            tx_info: TxInfo {
+                unsigned_tx: test_data::ticket_create_tx(),
+                status: XRPLTxStatus::Pending,
+                original_cc_id: None,
+            },
+        }
+    }
+
+    fn setup_deps_with_signing_session(
+        signing_session: SigningSession,
+    ) -> OwnedDeps<MemoryStorage, MockApi, MockQuerier> {
+        let mut deps = mock_dependencies();
+
+        deps.querier.update_wasm(mock_querier_handler(
+            test_data::operators(),
+            VerificationStatus::SucceededOnSourceChain,
+        ));
+
+        state::UNSIGNED_TX_HASH_TO_TX_INFO
+            .save(
+                deps.as_mut().storage,
+                &signing_session.unsigned_tx_hash,
+                &signing_session.tx_info,
+            )
+            .unwrap();
+
+        super::MULTISIG_SESSION_ID_TO_UNSIGNED_TX_HASH
+            .save(
+                deps.as_mut().storage,
+                signing_session.session_id.u64(),
+                &signing_session.unsigned_tx_hash,
+            )
+            .unwrap();
+
+        deps
+    }
+
+    #[test]
+    fn next_verifier_set() {
+        let mut deps = mock_dependencies();
+
+        assert_eq!(None, super::next_verifier_set(&deps.storage).unwrap());
+
+        state::NEXT_VERIFIER_SET
+            .save(deps.as_mut().storage, &new_xrpl_verifier_set())
+            .unwrap();
+
+        assert_eq!(
+            Some(new_verifier_set()),
+            super::next_verifier_set(&deps.storage).unwrap()
+        );
+    }
+
+    #[test]
+    fn verify_signature() {
+        let signing_session = signing_session();
+
+        let unsigned_tx_to_sign = XRPLUnsignedTxToSign {
+            unsigned_tx: signing_session.tx_info.unsigned_tx.clone(),
+            unsigned_tx_hash: HexTxHash::new(signing_session.unsigned_tx_hash),
+            cc_id: signing_session.tx_info.original_cc_id,
+        };
+
+        let message: HexBinary = unsigned_tx_to_sign.xrpl_serialize().unwrap().into();
+
+        let (public_key, signature) = test_data::ticket_create_signer();
+        let public_key = multisig::key::PublicKey::Ecdsa(public_key);
+        let signature: multisig::key::Signature = (multisig::key::KeyType::Ecdsa, signature)
+            .try_into()
+            .unwrap();
+
+        assert!(super::verify_signature(message, &public_key, &signature).unwrap());
+    }
+
+    #[test]
+    fn proof() {
+        let signing_session = signing_session();
+        let deps = setup_deps_with_signing_session(signing_session.clone());
+        let api = deps.api;
+        let multisig = api.addr_make(MULTISIG_ADDRESS);
+
+        let proof = super::proof(
+            &deps.storage,
+            QuerierWrapper::new(&deps.querier),
+            &multisig,
+            signing_session.session_id,
+        )
+        .unwrap();
+
+        assert_eq!(
+            signing_session.unsigned_tx_hash,
+            proof.unsigned_tx_hash.tx_hash
+        );
+        if let ProofStatus::Completed { execute_data } = proof.status {
+            goldie::assert!(execute_data.to_string());
+        } else {
+            panic!("Expected ProofStatus::Completed");
+        };
+    }
+}
