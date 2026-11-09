@@ -97,6 +97,7 @@ StartSigningSession { // Can only be called by an authorized contract
     verifier_set_id: String,
     msg: HexBinary,
     chain_name: ChainName,
+    sig_verifier: Option<String>,
 }
 ```
 
