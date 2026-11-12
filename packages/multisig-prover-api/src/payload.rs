@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_json, HexBinary, StdResult};
+use cosmwasm_std::{HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message, FIELD_DELIMITER};
@@ -72,14 +72,33 @@ impl KeyDeserialize for PayloadId {
     const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        Ok(from_json(value).expect("violated invariant: PayloadId is not deserializable"))
+        Ok(value.into())
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::Payload;
+    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::{Order, StdResult};
+    use cw_storage_plus::Map;
+
+    use super::{Payload, PayloadId};
     use crate::test::test_data;
+
+    #[test]
+    fn payload_id_key_round_trips_through_storage() {
+        let id = Payload::Messages(test_data::messages()).id();
+        let map: Map<PayloadId, ()> = Map::new("payload");
+        let mut storage = MockStorage::new();
+        map.save(&mut storage, id.clone(), &()).unwrap();
+
+        let keys: Vec<_> = map
+            .keys(&storage, None, None, Order::Ascending)
+            .collect::<StdResult<_>>()
+            .unwrap();
+
+        assert_eq!(keys, vec![id]);
+    }
 
     #[test]
     fn payload_messages_id_unchanged() {
