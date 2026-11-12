@@ -5,6 +5,8 @@
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.2..HEAD)
 
+- decode `KeyType` storage keys from their stored single-byte encoding, so maps keyed by it can be iterated
+
 ## [v2.4.3](https://github.com/axelarnetwork/axelar-amplifier/tree/multisig-v2.4.3)
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/multisig-v2.4.2..multisig-v2.4.3)

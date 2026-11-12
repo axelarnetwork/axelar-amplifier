@@ -170,22 +170,18 @@ impl KeyDeserialize for XRPLToken {
     const KEY_ELEMS: u16 = 2;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        if value.len() != XRPL_ACCOUNT_ID_LENGTH + XRPL_CURRENCY_LENGTH {
-            return Err(StdError::generic_err("Invalid key length for XRPLToken"));
-        }
-
-        let issuer: [u8; XRPL_ACCOUNT_ID_LENGTH] = value[0..XRPL_ACCOUNT_ID_LENGTH]
-            .try_into()
-            .map_err(|_| StdError::generic_err("Invalid issuer bytes"))?;
-
-        let currency: [u8; XRPL_CURRENCY_LENGTH] = value
-            [XRPL_ACCOUNT_ID_LENGTH..(XRPL_ACCOUNT_ID_LENGTH + XRPL_CURRENCY_LENGTH)]
-            .try_into()
-            .map_err(|_| StdError::generic_err("Invalid currency bytes"))?;
+        // cw-storage-plus stores the issuer prefixed with its big-endian u16 length,
+        // followed by the currency.
+        let (issuer, currency) = value
+            .split_first_chunk()
+            .and_then(|(issuer_length, key)| {
+                key.split_at_checked(u16::from_be_bytes(*issuer_length).into())
+            })
+            .ok_or_else(|| StdError::parse_err("XRPLToken", "malformed storage key"))?;
 
         Ok(XRPLToken {
-            issuer: XRPLAccountId(issuer),
-            currency: XRPLCurrency(currency),
+            issuer: XRPLAccountId(<[u8; XRPL_ACCOUNT_ID_LENGTH]>::from_slice(issuer)?),
+            currency: XRPLCurrency::from_slice(currency)?,
         })
     }
 }
@@ -1409,7 +1405,9 @@ pub fn scale_to_drops(
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::Uint256;
+    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::{Order, Uint256};
+    use cw_storage_plus::Map;
 
     use super::*;
 
@@ -1877,12 +1875,44 @@ mod tests {
 
     #[test]
     fn test_xrpl_token_key_deserialize() {
-        let issuer = XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap();
-        let currency = XRPLCurrency::new("USD").unwrap();
-        assert_eq!(
-            XRPLToken::from_vec([issuer.as_bytes(), currency.as_bytes()].concat()).unwrap(),
-            XRPLToken { issuer, currency }
-        );
+        let token = XRPLToken {
+            issuer: XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap(),
+            currency: XRPLCurrency::new("USD").unwrap(),
+        };
+        let map: Map<XRPLToken, ()> = Map::new("tokens");
+        let mut storage = MockStorage::new();
+        map.save(&mut storage, token.clone(), &()).unwrap();
+
+        let keys: Vec<_> = map
+            .keys(&storage, None, None, Order::Ascending)
+            .collect::<StdResult<_>>()
+            .unwrap();
+
+        assert_eq!(keys, vec![token]);
+    }
+
+    #[test]
+    fn test_xrpl_token_key_deserialize_rejects_malformed_keys() {
+        let token = XRPLToken {
+            issuer: XRPLAccountId::from_str("rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN").unwrap(),
+            currency: XRPLCurrency::new("USD").unwrap(),
+        };
+        let key = token.joined_key();
+        assert_eq!(XRPLToken::from_vec(key.clone()).unwrap(), token);
+
+        let malformed_keys = [
+            vec![],
+            key[..1].to_vec(),               // cut inside the length prefix
+            key[..10].to_vec(),              // cut inside the issuer
+            key[..30].to_vec(),              // cut inside the currency
+            key[2..].to_vec(),               // no length prefix
+            [&[0, 19], &key[2..]].concat(),  // wrong issuer length
+            [key.as_slice(), &[0]].concat(), // trailing byte
+        ];
+
+        for malformed_key in malformed_keys {
+            assert!(XRPLToken::from_vec(malformed_key).is_err());
+        }
     }
 
     #[test]
