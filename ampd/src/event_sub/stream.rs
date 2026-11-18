@@ -8,7 +8,7 @@ use error_stack::ResultExt;
 use events::Event;
 use futures::{stream, Stream, StreamExt, TryStream};
 use pin_project_lite::pin_project;
-use tendermint::block;
+use tendermint::{abci, block};
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
 use tracing::instrument;
@@ -58,12 +58,13 @@ async fn latest_block_height<T: TmClient>(tm_client: &T) -> Result<block::Height
 }
 
 /// Returns a stream of blockchain events from the provided block height stream.
-/// Events are retrieved for each block height and include begin block, transaction, and end block events.
+/// Events are retrieved for each block height and include block-level and transaction events.
 /// The function automatically retries failed event retrievals according to the specified retry policy.
 ///
 /// Each block in the stream produces the following event sequence:
 /// 1. `Event::BlockBegin` - marks the start of block processing
-/// 2. All ABCI events from the block (begin_block, transactions, end_block)
+/// 2. All ABCI events from the block: those of BeginBlock, then those of the transactions, then
+///    those of EndBlock
 /// 3. `Event::BlockEnd` - marks the end of block processing
 ///
 /// Guarantees:
@@ -132,16 +133,21 @@ where
         })
 }
 
+const END_BLOCK_MODE: &str = "EndBlock";
+
 fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
-    let begin_block_events = block_results.begin_block_events.into_iter().flatten();
+    let (end_block_events, begin_block_events): (Vec<_>, Vec<_>) = block_results
+        .finalize_block_events
+        .into_iter()
+        .partition(is_end_block_event);
     let tx_events = block_results
         .txs_results
         .into_iter()
         .flatten()
         .flat_map(|tx| tx.events);
-    let end_block_events = block_results.end_block_events.into_iter().flatten();
 
     let events: Vec<Result<Event>> = begin_block_events
+        .into_iter()
         .chain(tx_events)
         .chain(end_block_events)
         .map(|event| {
@@ -155,6 +161,13 @@ fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
         .chain(events)
         .chain(iter::once(Ok(Event::BlockEnd(block_results.height))))
         .collect()
+}
+
+fn is_end_block_event(event: &abci::Event) -> bool {
+    event
+        .attributes
+        .iter()
+        .any(|attr| attr.key_bytes() == b"mode" && attr.value_bytes() == END_BLOCK_MODE.as_bytes())
 }
 
 pin_project! {
