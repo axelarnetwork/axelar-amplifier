@@ -244,8 +244,8 @@ mod tests {
     fn test_block_results(height: block::Height) -> tm_client::BlockResultsResponse {
         tm_client::BlockResultsResponse {
             height,
-            begin_block_events: Some(vec![]),
-            end_block_events: Some(vec![]),
+            begin_block_events: None,
+            end_block_events: None,
             consensus_param_updates: None,
             txs_results: Some(vec![abci::types::ExecTxResult::default()]),
             validator_updates: vec![],
