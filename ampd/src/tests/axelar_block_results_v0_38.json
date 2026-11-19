@@ -1,0 +1,539 @@
+{
+  "height": "37556800",
+  "txs_results": null,
+  "finalize_block_events": [
+    {
+      "type": "coin_spent",
+      "attributes": [
+        {
+          "key": "spender",
+          "value": "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "coin_received",
+      "attributes": [
+        {
+          "key": "receiver",
+          "value": "axelar1jv65s3grqf6v6jl3dp4t6c9t9rk99cd8r3j5z7",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "transfer",
+      "attributes": [
+        {
+          "key": "recipient",
+          "value": "axelar1jv65s3grqf6v6jl3dp4t6c9t9rk99cd8r3j5z7",
+          "index": true
+        },
+        {
+          "key": "sender",
+          "value": "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "attributes": [
+        {
+          "key": "sender",
+          "value": "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "coin_spent",
+      "attributes": [
+        {
+          "key": "spender",
+          "value": "axelar1jv65s3grqf6v6jl3dp4t6c9t9rk99cd8r3j5z7",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "burn",
+      "attributes": [
+        {
+          "key": "burner",
+          "value": "axelar1jv65s3grqf6v6jl3dp4t6c9t9rk99cd8r3j5z7",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "axelar.distribution.v1beta1.FeesBurned",
+      "attributes": [
+        {
+          "key": "coins",
+          "value": "[]",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "coin_spent",
+      "attributes": [
+        {
+          "key": "spender",
+          "value": "axelar1m3h30wlvsf8llruxtpukdvsy0km2kum8vl3svp",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "coin_received",
+      "attributes": [
+        {
+          "key": "receiver",
+          "value": "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "transfer",
+      "attributes": [
+        {
+          "key": "recipient",
+          "value": "axelar17xpfvakm2amg962yls6f84z3kell8c5l5h4gqu",
+          "index": true
+        },
+        {
+          "key": "sender",
+          "value": "axelar1m3h30wlvsf8llruxtpukdvsy0km2kum8vl3svp",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "attributes": [
+        {
+          "key": "sender",
+          "value": "axelar1m3h30wlvsf8llruxtpukdvsy0km2kum8vl3svp",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "mint",
+      "attributes": [
+        {
+          "key": "bonded_ratio",
+          "value": "0.224485671714617030",
+          "index": true
+        },
+        {
+          "key": "inflation",
+          "value": "0.000000000000000000",
+          "index": true
+        },
+        {
+          "key": "annual_provisions",
+          "value": "0.000000000000000000",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "0",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "BeginBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "coin_spent",
+      "attributes": [
+        {
+          "key": "spender",
+          "value": "axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "400000000000uaxl",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "coin_received",
+      "attributes": [
+        {
+          "key": "receiver",
+          "value": "axelar14vps3ev03zyp2wmj89etx8rrxdxyltfy4rzl5m",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "400000000000uaxl",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "transfer",
+      "attributes": [
+        {
+          "key": "recipient",
+          "value": "axelar14vps3ev03zyp2wmj89etx8rrxdxyltfy4rzl5m",
+          "index": true
+        },
+        {
+          "key": "sender",
+          "value": "axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj",
+          "index": true
+        },
+        {
+          "key": "amount",
+          "value": "400000000000uaxl",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "message",
+      "attributes": [
+        {
+          "key": "sender",
+          "value": "axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "execute",
+      "attributes": [
+        {
+          "key": "_contract_address",
+          "value": "axelar18vsne7lns36uvm8gv2cv5jl2lghts0xm7dvzpqzn70dl56gk9hvsgu9sqg",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "wasm-routing",
+      "attributes": [
+        {
+          "key": "_contract_address",
+          "value": "axelar18vsne7lns36uvm8gv2cv5jl2lghts0xm7dvzpqzn70dl56gk9hvsgu9sqg",
+          "index": true
+        },
+        {
+          "key": "message_id",
+          "value": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-7697513",
+          "index": true
+        },
+        {
+          "key": "source_chain",
+          "value": "axelar",
+          "index": true
+        },
+        {
+          "key": "source_address",
+          "value": "axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj",
+          "index": true
+        },
+        {
+          "key": "destination_chain",
+          "value": "celo",
+          "index": true
+        },
+        {
+          "key": "destination_address",
+          "value": "0x7Acbae6CBa67d78AAf69e47000884aE00F9B2525",
+          "index": true
+        },
+        {
+          "key": "payload_hash",
+          "value": "900bcef6e7d9fbf4ea93fb648ec4bcf49e4bebc1f5e8faf4f112471b95030b5f",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "wasm-contract_called",
+      "attributes": [
+        {
+          "key": "_contract_address",
+          "value": "axelar18vsne7lns36uvm8gv2cv5jl2lghts0xm7dvzpqzn70dl56gk9hvsgu9sqg",
+          "index": true
+        },
+        {
+          "key": "message_id",
+          "value": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-7697513",
+          "index": true
+        },
+        {
+          "key": "source_chain",
+          "value": "axelar",
+          "index": true
+        },
+        {
+          "key": "source_address",
+          "value": "axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj",
+          "index": true
+        },
+        {
+          "key": "destination_chain",
+          "value": "celo",
+          "index": true
+        },
+        {
+          "key": "destination_address",
+          "value": "0x7Acbae6CBa67d78AAf69e47000884aE00F9B2525",
+          "index": true
+        },
+        {
+          "key": "payload_hash",
+          "value": "900bcef6e7d9fbf4ea93fb648ec4bcf49e4bebc1f5e8faf4f112471b95030b5f",
+          "index": true
+        },
+        {
+          "key": "payload",
+          "value": "0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000e432150cce91c13a887f7d836923d5597add8e3100000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000084a3499c7300000000000000000000000016c22cbdd77350b1ac88adda344f691c12f41960cdf0215a1d183a1bec40a1a559e94065faa0e22bfdabc5e00d7fe88b8195d63b0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "axelar.nexus.v1beta1.MessageReceived",
+      "attributes": [
+        {
+          "key": "id",
+          "value": "\"axelar-0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-7697513\"",
+          "index": true
+        },
+        {
+          "key": "payload_hash",
+          "value": "\"kAvO9ufZ+/Tqk/tkjsS89J5L68H16Pr08RJHG5UDC18=\"",
+          "index": true
+        },
+        {
+          "key": "recipient",
+          "value": "{\"chain\":{\"name\":\"celo\",\"native_asset_deprecated\":\"\",\"supports_foreign_assets\":true,\"key_type\":\"KEY_TYPE_MULTISIG\",\"module\":\"evm\"},\"address\":\"0x7Acbae6CBa67d78AAf69e47000884aE00F9B2525\"}",
+          "index": true
+        },
+        {
+          "key": "sender",
+          "value": "{\"chain\":{\"name\":\"axelar\",\"native_asset_deprecated\":\"\",\"supports_foreign_assets\":false,\"key_type\":\"KEY_TYPE_NONE\",\"module\":\"wasm\"},\"address\":\"axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj\"}",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "axelar.nexus.v1beta1.MessageProcessing",
+      "attributes": [
+        {
+          "key": "destination_chain",
+          "value": "\"celo\"",
+          "index": true
+        },
+        {
+          "key": "id",
+          "value": "\"axelar-0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855-7697513\"",
+          "index": true
+        },
+        {
+          "key": "source_chain",
+          "value": "\"axelar\"",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    },
+    {
+      "type": "active_proposal",
+      "attributes": [
+        {
+          "key": "proposal_id",
+          "value": "512",
+          "index": true
+        },
+        {
+          "key": "proposal_result",
+          "value": "proposal_passed",
+          "index": true
+        },
+        {
+          "key": "proposal_log",
+          "value": "passed",
+          "index": true
+        },
+        {
+          "key": "mode",
+          "value": "EndBlock",
+          "index": true
+        }
+      ]
+    }
+  ],
+  "validator_updates": null,
+  "consensus_param_updates": {
+    "block": {
+      "max_bytes": "5242880",
+      "max_gas": "400000000"
+    },
+    "evidence": {
+      "max_age_num_blocks": "100000",
+      "max_age_duration": "172800000000000",
+      "max_bytes": "1048576"
+    },
+    "validator": {
+      "pub_key_types": [
+        "ed25519"
+      ]
+    }
+  },
+  "app_hash": "OPccLHQ5sRNWfnSz0Ax1ezmNuamWaiD4exrfY1JlU+Y="
+}

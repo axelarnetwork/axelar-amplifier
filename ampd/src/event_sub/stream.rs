@@ -8,7 +8,7 @@ use error_stack::ResultExt;
 use events::Event;
 use futures::{stream, Stream, StreamExt, TryStream};
 use pin_project_lite::pin_project;
-use tendermint::block;
+use tendermint::{abci, block};
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
 use tracing::instrument;
@@ -58,12 +58,13 @@ async fn latest_block_height<T: TmClient>(tm_client: &T) -> Result<block::Height
 }
 
 /// Returns a stream of blockchain events from the provided block height stream.
-/// Events are retrieved for each block height and include begin block, transaction, and end block events.
+/// Events are retrieved for each block height and include block-level and transaction events.
 /// The function automatically retries failed event retrievals according to the specified retry policy.
 ///
 /// Each block in the stream produces the following event sequence:
 /// 1. `Event::BlockBegin` - marks the start of block processing
-/// 2. All ABCI events from the block (begin_block, transactions, end_block)
+/// 2. All ABCI events from the block: those of BeginBlock, then those of the transactions, then
+///    those of EndBlock
 /// 3. `Event::BlockEnd` - marks the end of block processing
 ///
 /// Guarantees:
@@ -132,16 +133,21 @@ where
         })
 }
 
+const END_BLOCK_MODE: &str = "EndBlock";
+
 fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
-    let begin_block_events = block_results.begin_block_events.into_iter().flatten();
+    let (end_block_events, begin_block_events): (Vec<_>, Vec<_>) = block_results
+        .finalize_block_events
+        .into_iter()
+        .partition(is_end_block_event);
     let tx_events = block_results
         .txs_results
         .into_iter()
         .flatten()
         .flat_map(|tx| tx.events);
-    let end_block_events = block_results.end_block_events.into_iter().flatten();
 
     let events: Vec<Result<Event>> = begin_block_events
+        .into_iter()
         .chain(tx_events)
         .chain(end_block_events)
         .map(|event| {
@@ -155,6 +161,13 @@ fn block_events(block_results: BlockResultsResponse) -> Vec<Result<Event>> {
         .chain(events)
         .chain(iter::once(Ok(Event::BlockEnd(block_results.height))))
         .collect()
+}
+
+fn is_end_block_event(event: &abci::Event) -> bool {
+    event
+        .attributes
+        .iter()
+        .any(|attr| attr.key_bytes() == b"mode" && attr.value_bytes() == END_BLOCK_MODE.as_bytes())
 }
 
 pin_project! {
@@ -536,7 +549,7 @@ mod tests {
     use tendermint::{abci, block};
 
     use crate::asyncutil::future::RetryPolicy;
-    use crate::event_sub::stream::{blocks, events};
+    use crate::event_sub::stream::{block_events, blocks, events};
     use crate::event_sub::Error;
     use crate::tm_client::{self, MockTmClient, TmClient};
 
@@ -561,8 +574,8 @@ mod tests {
     ) -> tm_client::BlockResultsResponse {
         tm_client::BlockResultsResponse {
             height,
-            begin_block_events: Some(begin_block_events),
-            end_block_events: Some(end_block_events),
+            begin_block_events: None,
+            end_block_events: None,
             consensus_param_updates: None,
             txs_results: Some(
                 txs_events
@@ -575,7 +588,13 @@ mod tests {
             ),
             validator_updates: vec![],
             app_hash: Default::default(),
-            finalize_block_events: vec![],
+            finalize_block_events: begin_block_events
+                .into_iter()
+                .chain(end_block_events.into_iter().map(|mut event| {
+                    event.attributes.push(("mode", "EndBlock").into());
+                    event
+                }))
+                .collect(),
         }
     }
 
@@ -1206,6 +1225,79 @@ mod tests {
             tokio::time::sleep((self.delay)(count)).await; // Simulate slow response
             self.client.block_results(height).await
         }
+    }
+
+    fn event_with_mode(kind: &str, mode: Option<&str>) -> abci::Event {
+        let mut attributes = vec![("key", "value")];
+        attributes.extend(mode.map(|mode| ("mode", mode)));
+        abci::Event::new(kind, attributes)
+    }
+
+    fn event_type(event: &Result<Event, error_stack::Report<Error>>) -> &str {
+        match event {
+            Ok(Event::Abci { event_type, .. }) => event_type,
+            _ => panic!("expected an ABCI event, got {:?}", event),
+        }
+    }
+
+    #[test]
+    fn block_events_streams_finalize_block_events_around_tx_events_in_block_order() {
+        let mut block_results = block_results_response(
+            block::Height::from(100u32),
+            vec![],
+            vec![],
+            vec![event_with_mode("tx", None)],
+        );
+        block_results.finalize_block_events = vec![
+            event_with_mode("pre_block", None),
+            event_with_mode("begin_block", Some("BeginBlock")),
+            event_with_mode("end_block_1", Some("EndBlock")),
+            event_with_mode("end_block_2", Some("EndBlock")),
+        ];
+
+        let events = block_events(block_results);
+
+        assert!(matches!(events.first(), Some(Ok(Event::BlockBegin(_)))));
+        assert!(matches!(events.last(), Some(Ok(Event::BlockEnd(_)))));
+        let event_types: Vec<_> = events[1..events.len() - 1].iter().map(event_type).collect();
+        assert_eq!(
+            event_types,
+            vec![
+                "pre_block",
+                "begin_block",
+                "tx",
+                "end_block_1",
+                "end_block_2",
+            ]
+        );
+    }
+
+    // block_results of Axelar mainnet block 37556800 (CometBFT 0.38), in which governance proposal 512
+    // was executed, trimmed to the BeginBlock events and the first EndBlock events
+    #[test]
+    fn block_events_streams_block_level_events_of_cometbft_v0_38() {
+        let block_results: tm_client::BlockResultsResponse =
+            serde_json::from_str(include_str!("../tests/axelar_block_results_v0_38.json")).unwrap();
+        assert!(block_results.begin_block_events.is_none());
+        assert!(block_results.end_block_events.is_none());
+        let finalize_block_events_count = block_results.finalize_block_events.len();
+
+        let events = block_events(block_results);
+
+        assert_eq!(events.len(), finalize_block_events_count + 2);
+        assert!(matches!(events.first(), Some(Ok(Event::BlockBegin(_)))));
+        assert!(matches!(events.last(), Some(Ok(Event::BlockEnd(_)))));
+        let abci_events = &events[1..events.len() - 1];
+        assert!(abci_events
+            .iter()
+            .any(|event| event_type(event) == "active_proposal"));
+        let contract_called = abci_events
+            .iter()
+            .find(|event| event_type(event) == "wasm-contract_called")
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        assert!(contract_called.contract_address().is_some());
     }
 
     fn create_block_with_height(
