@@ -79,8 +79,8 @@ runs:
       shell: bash
       if: inputs.dry-run == 'false' && steps.semantic-version.outputs.changed == 'true'
       run: |
-        git config --global user.email "devops@interoplabs.io"
-        git config --global user.name "Interop Labs CI"
+        git config --global user.email "engineering@commonprefix.com"
+        git config --global user.name "Common Prefix CI"
 
     - name: Check if tag already exists (possible collision with an orphaned
         commit tagged as patch)

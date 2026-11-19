@@ -94,15 +94,15 @@ jobs:
         id: set-tag
         run: |
           build_ref="${{ github.event.inputs.ref || github.ref }}"
-          
-          if git describe --exact-match --tags "$build_ref" >/dev/null 2>&1; then
+
+          if git rev-parse --verify --quiet "refs/tags/$build_ref" >/dev/null; then
             tag="$build_ref"
             echo "Building from tag: $tag"
           else
-            tag="${{ github.sha }}"
+            tag="$(git rev-parse HEAD)"
             echo "Building from ref '$build_ref', using commit SHA: $tag"
           fi
-          
+
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
   build-and-push:

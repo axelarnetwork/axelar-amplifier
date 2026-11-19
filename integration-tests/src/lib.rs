@@ -1,4 +1,5 @@
-#![cfg_attr(dylint_lib = "amplifier_lints", allow(unwraps_outside_tests))]
+// This crate contains only integration-test helpers.
+#![allow(clippy::unwrap_used)]
 
 pub mod chain_codec_contract;
 pub mod contract;

@@ -52,7 +52,6 @@ integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
 rand = { workspace = true }
 sha3 = { workspace = true }
-starknet-checked-felt = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::iter;

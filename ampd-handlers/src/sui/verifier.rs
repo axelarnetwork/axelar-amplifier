@@ -2,13 +2,12 @@ use axelar_wasm_std::chain::ChainName;
 use axelar_wasm_std::voting::Vote;
 use axelar_wasm_std::{self};
 use cosmwasm_std::HexBinary;
-use move_core_types::language_storage::StructTag;
 use sui_gateway::events::{ContractCall, SignersRotated};
 use sui_gateway::{WeightedSigner, WeightedSigners};
-use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
-use sui_types::base_types::SuiAddress;
+use sui_sdk_types::{Address, Event, StructTag};
 use tracing::debug;
 
+use crate::sui::transaction::Transaction;
 use crate::sui::types::{Message, VerifierSetConfirmation};
 
 enum EventType {
@@ -18,7 +17,7 @@ enum EventType {
 
 impl EventType {
     // Sui event type  is in the form of: <address>::<module_name>::<event_name>
-    fn struct_tag(&self, gateway_address: &SuiAddress) -> StructTag {
+    fn struct_tag(&self, gateway_address: &Address) -> StructTag {
         let event = match self {
             EventType::ContractCall => "ContractCall",
             EventType::SignersRotated => "SignersRotated",
@@ -31,9 +30,9 @@ impl EventType {
     }
 }
 
-impl PartialEq<&Message> for &SuiEvent {
+impl PartialEq<&Message> for &Event {
     fn eq(&self, msg: &&Message) -> bool {
-        match bcs::from_bytes::<ContractCall>(&self.bcs) {
+        match bcs::from_bytes::<ContractCall>(&self.contents) {
             Ok(ContractCall {
                 source_id,
                 destination_chain,
@@ -50,7 +49,7 @@ impl PartialEq<&Message> for &SuiEvent {
                 };
 
                 matches_destination_chain
-                    && msg.source_address.as_ref() == source_id.as_bytes()
+                    && msg.source_address.as_bytes() == source_id.as_bytes()
                     && msg.destination_address == destination_address
                     && msg.payload_hash.to_fixed_bytes().to_vec() == payload_hash.to_vec()
             }
@@ -59,7 +58,7 @@ impl PartialEq<&Message> for &SuiEvent {
     }
 }
 
-impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
+impl PartialEq<&VerifierSetConfirmation> for &Event {
     fn eq(&self, verifier_set: &&VerifierSetConfirmation) -> bool {
         let expected = &verifier_set.verifier_set;
 
@@ -78,7 +77,7 @@ impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
             .chain(expected.created_at.to_be_bytes())
             .collect::<Vec<_>>();
 
-        match bcs::from_bytes::<SignersRotated>(&self.bcs) {
+        match bcs::from_bytes::<SignersRotated>(&self.contents) {
             Ok(SignersRotated {
                 signers:
                     WeightedSigners {
@@ -99,21 +98,16 @@ impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
     }
 }
 
-fn find_event(
-    transaction_block: &SuiTransactionBlockResponse,
-    event_seq: u64,
-) -> Option<&SuiEvent> {
+// The event index of a message id is the event's position within the transaction's events
+fn find_event(transaction_block: &Transaction, event_seq: u64) -> Option<&Event> {
     transaction_block
         .events
-        .as_ref()
-        .iter()
-        .flat_map(|events| events.data.iter())
-        .find(|event| event.id.event_seq == event_seq)
+        .get(usize::try_from(event_seq).ok()?)
 }
 
 pub fn verify_message(
-    gateway_address: &SuiAddress,
-    transaction_block: &SuiTransactionBlockResponse,
+    gateway_address: &Address,
+    transaction_block: &Transaction,
     message: &Message,
 ) -> Vote {
     match find_event(transaction_block, message.message_id.event_index) {
@@ -129,8 +123,8 @@ pub fn verify_message(
 }
 
 pub fn verify_verifier_set(
-    gateway_address: &SuiAddress,
-    transaction_block: &SuiTransactionBlockResponse,
+    gateway_address: &Address,
+    transaction_block: &Transaction,
     confirmation: &VerifierSetConfirmation,
 ) -> Vote {
     match find_event(transaction_block, confirmation.message_id.event_index) {
@@ -151,21 +145,18 @@ mod tests {
     use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use move_core_types::language_storage::StructTag;
     use multisig::key::KeyType;
     use multisig::msg::Signer;
     use multisig::verifier_set::VerifierSet;
     use rand::rngs::OsRng;
     use random_string::generate;
-    use serde_json::json;
     use sui_gateway::events::{ContractCall, SignersRotated};
     use sui_gateway::{WeightedSigner, WeightedSigners};
-    use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
-    use sui_types::base_types::{SuiAddress, TransactionDigest};
-    use sui_types::event::EventID;
+    use sui_sdk_types::{Address, Digest, Event, Identifier, StructTag};
 
+    use crate::sui::transaction::Transaction;
     use crate::sui::types::{Message, VerifierSetConfirmation};
-    use crate::sui::verifier::{verify_message, verify_verifier_set};
+    use crate::sui::verifier::{verify_message, verify_verifier_set, EventType};
 
     const PREFIX: &str = "axelar";
 
@@ -173,7 +164,7 @@ mod tests {
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.message_id.tx_digest = TransactionDigest::random().into();
+        msg.message_id.tx_digest = Digest::generate(rand::thread_rng()).into();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -192,10 +183,21 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_if_another_event_is_at_the_index() {
+        let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
+
+        msg.message_id.event_index = 0;
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
     fn should_not_verify_msg_if_source_address_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = matching_msg_and_tx_block();
 
-        msg.source_address = SuiAddress::random_for_testing_only();
+        msg.source_address = Address::generate(rand::thread_rng());
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -269,7 +271,7 @@ mod tests {
 
         assert_eq!(
             verify_verifier_set(
-                &SuiAddress::random_for_testing_only(),
+                &Address::generate(rand::thread_rng()),
                 &tx_block,
                 &verifier_set
             ),
@@ -280,7 +282,7 @@ mod tests {
     #[test]
     fn should_not_verify_verifier_set_if_tx_digest_mismatch() {
         let (gateway_address, mut tx_block, verifier_set) = matching_verifier_set_and_tx_block();
-        tx_block.digest = TransactionDigest::random();
+        tx_block.digest = Digest::generate(rand::thread_rng());
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_block, &verifier_set),
@@ -304,17 +306,11 @@ mod tests {
         let (gateway_address, mut tx_block, verifier_set) = matching_verifier_set_and_tx_block();
         tx_block
             .events
-            .as_mut()
+            .get_mut(usize::try_from(verifier_set.message_id.event_index).unwrap())
             .unwrap()
-            .data
-            .first_mut()
-            .unwrap()
-            .type_ = StructTag {
-            address: SuiAddress::random_for_testing_only().into(),
-            module: "module".parse().unwrap(),
-            name: "Name".parse().unwrap(),
-            type_params: vec![],
-        };
+            .type_ = format!("{}::module::Name", Address::generate(rand::thread_rng()))
+            .parse()
+            .unwrap();
 
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx_block, &verifier_set),
@@ -359,24 +355,51 @@ mod tests {
         );
     }
 
+    // Index 1 or above, so another event always precedes the quoted one
+    fn random_message_id() -> Base58TxDigestAndEventIndex {
+        Base58TxDigestAndEventIndex::new(
+            Digest::generate(rand::thread_rng()),
+            u64::from(rand::random::<u8>()).max(1),
+        )
+    }
+
+    // The event sits at the position given by the message id's event index
+    fn mock_tx_block(message_id: &Base58TxDigestAndEventIndex, event: Event) -> Transaction {
+        let other = mock_event("0x2::sui::SUI".parse().unwrap(), vec![]);
+        let mut events = vec![other; usize::try_from(message_id.event_index).unwrap()];
+        events.push(event);
+
+        Transaction {
+            digest: message_id.tx_digest.into(),
+            events,
+        }
+    }
+
+    fn mock_event(type_: StructTag, contents: Vec<u8>) -> Event {
+        Event {
+            package_id: Address::TWO,
+            module: Identifier::from_static("events"),
+            sender: Address::ZERO,
+            type_,
+            contents,
+        }
+    }
+
     fn mock_message(destination_chain: &str) -> Message {
         Message {
-            message_id: Base58TxDigestAndEventIndex::new(
-                TransactionDigest::random(),
-                rand::random::<u64>(),
-            ),
-            source_address: SuiAddress::random_for_testing_only(),
+            message_id: random_message_id(),
+            source_address: Address::generate(rand::thread_rng()),
             destination_chain: destination_chain.parse().unwrap(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
             payload_hash: Hash::random(),
         }
     }
 
-    fn mock_tx_block(
+    fn mock_msg_tx_block(
         destination_chain: &str,
-        gateway_address: SuiAddress,
+        gateway_address: Address,
         msg: &Message,
-    ) -> SuiTransactionBlockResponse {
+    ) -> Transaction {
         let contract_call = ContractCall {
             destination_address: msg.destination_address.clone(),
             destination_chain: destination_chain.to_string(),
@@ -384,48 +407,29 @@ mod tests {
             payload_hash: msg.payload_hash.to_fixed_bytes(),
             source_id: msg.source_address.to_string().parse().unwrap(),
         };
-        let event = SuiEvent {
-            id: EventID {
-                tx_digest: msg.message_id.tx_digest.into(),
-                event_seq: msg.message_id.event_index,
-            },
-            package_id: gateway_address.into(),
-            transaction_module: "gateway".parse().unwrap(),
-            sender: msg.source_address,
-            type_: StructTag {
-                address: gateway_address.into(),
-                module: "events".parse().unwrap(),
-                name: "ContractCall".parse().unwrap(),
-                type_params: vec![],
-            },
-            parsed_json: json!({}),
-            bcs: bcs::to_bytes(&contract_call).unwrap(),
-            timestamp_ms: None,
-        };
+        let event = mock_event(
+            EventType::ContractCall.struct_tag(&gateway_address),
+            bcs::to_bytes(&contract_call).unwrap(),
+        );
 
-        SuiTransactionBlockResponse {
-            digest: msg.message_id.tx_digest.into(),
-            events: Some(SuiTransactionBlockEvents { data: vec![event] }),
-            ..Default::default()
-        }
+        mock_tx_block(&msg.message_id, event)
     }
 
-    fn matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
-        let gateway_address = SuiAddress::random_for_testing_only();
+    fn matching_msg_and_tx_block() -> (Address, Transaction, Message) {
+        let gateway_address = Address::generate(rand::thread_rng());
 
         let destination_chain = rand_chain_name();
         let msg = mock_message(&destination_chain);
-        let tx_block = mock_tx_block(&destination_chain, gateway_address, &msg);
+        let tx_block = mock_msg_tx_block(&destination_chain, gateway_address, &msg);
 
         (gateway_address, tx_block, msg)
     }
 
-    fn msg_and_tx_block_with_different_chain_casing(
-    ) -> (SuiAddress, SuiTransactionBlockResponse, Message) {
-        let gateway_address = SuiAddress::random_for_testing_only();
+    fn msg_and_tx_block_with_different_chain_casing() -> (Address, Transaction, Message) {
+        let gateway_address = Address::generate(rand::thread_rng());
 
         let msg = mock_message("ethereum");
-        let tx_block = mock_tx_block("Ethereum", gateway_address, &msg);
+        let tx_block = mock_msg_tx_block("Ethereum", gateway_address, &msg);
 
         (gateway_address, tx_block, msg)
     }
@@ -445,20 +449,13 @@ mod tests {
         }
     }
 
-    fn matching_verifier_set_and_tx_block() -> (
-        SuiAddress,
-        SuiTransactionBlockResponse,
-        VerifierSetConfirmation,
-    ) {
-        let gateway_address = SuiAddress::random_for_testing_only();
+    fn matching_verifier_set_and_tx_block() -> (Address, Transaction, VerifierSetConfirmation) {
+        let gateway_address = Address::generate(rand::thread_rng());
         let signers = vec![random_signer(), random_signer(), random_signer()];
         let created_at = rand::random();
         let threshold = Uint128::one();
         let verifier_set_confirmation = VerifierSetConfirmation {
-            message_id: Base58TxDigestAndEventIndex::new(
-                TransactionDigest::random(),
-                rand::random::<u64>(),
-            ),
+            message_id: random_message_id(),
             verifier_set: VerifierSet {
                 signers: signers
                     .iter()
@@ -491,30 +488,11 @@ mod tests {
                 .into(),
             },
         };
-        let event = SuiEvent {
-            id: EventID {
-                tx_digest: verifier_set_confirmation.message_id.tx_digest.into(),
-                event_seq: verifier_set_confirmation.message_id.event_index,
-            },
-            package_id: gateway_address.into(),
-            transaction_module: "gateway".parse().unwrap(),
-            sender: SuiAddress::random_for_testing_only(),
-            type_: StructTag {
-                address: gateway_address.into(),
-                module: "events".parse().unwrap(),
-                name: "SignersRotated".parse().unwrap(),
-                type_params: vec![],
-            },
-            parsed_json: json!({}),
-            bcs: bcs::to_bytes(&signers_rotated).unwrap(),
-            timestamp_ms: None,
-        };
-
-        let tx_block = SuiTransactionBlockResponse {
-            digest: verifier_set_confirmation.message_id.tx_digest.into(),
-            events: Some(SuiTransactionBlockEvents { data: vec![event] }),
-            ..Default::default()
-        };
+        let event = mock_event(
+            EventType::SignersRotated.struct_tag(&gateway_address),
+            bcs::to_bytes(&signers_rotated).unwrap(),
+        );
+        let tx_block = mock_tx_block(&verifier_set_confirmation.message_id, event);
 
         (gateway_address, tx_block, verifier_set_confirmation)
     }

@@ -32,9 +32,11 @@
   "RegisterVerifierSet": {
     "external": [],
     "general": [
-      "Any"
+      "Elevated"
     ],
-    "specific": []
+    "specific": [
+      "authorized"
+    ]
   },
   "StartSigningSession": {
     "external": [],

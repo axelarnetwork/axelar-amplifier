@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use std::convert::TryInto;
 
 use ampd::types::TMAddress;

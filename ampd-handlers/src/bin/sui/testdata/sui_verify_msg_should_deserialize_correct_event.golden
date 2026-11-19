@@ -8,7 +8,9 @@ Messages(
         source_chain: ChainName(
             "sui",
         ),
-        source_gateway_address: 0x0303030303030303030303030303030303030303030303030303030303030303,
+        source_gateway_address: Address(
+            "0x0303030303030303030303030303030303030303030303030303030303030303",
+        ),
         expires_at: 100,
         messages: [
             Message {
@@ -53,7 +55,9 @@ Messages(
                 destination_chain: ChainName(
                     "ethereum",
                 ),
-                source_address: 0x0404040404040404040404040404040404040404040404040404040404040404,
+                source_address: Address(
+                    "0x0404040404040404040404040404040404040404040404040404040404040404",
+                ),
                 payload_hash: 0x0202020202020202020202020202020202020202020202020202020202020202,
             },
         ],

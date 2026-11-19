@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)] // Test fixtures and assertions.
+
 use std::collections::{HashMap, HashSet};
 
 use axelar_core_std::nexus::query::IsChainRegisteredResponse;
@@ -762,13 +764,6 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
-    let response = multisig_prover.execute(
-        &mut protocol.app,
-        multisig_prover_admin,
-        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
-    );
-    assert!(response.is_ok());
-
     let response = protocol.multisig.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -778,6 +773,13 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
                 chain_name.clone(),
             )]),
         },
+    );
+    assert!(response.is_ok());
+
+    let response = multisig_prover.execute(
+        &mut protocol.app,
+        multisig_prover_admin,
+        &multisig_prover_api::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 

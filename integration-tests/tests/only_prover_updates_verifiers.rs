@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::{permission_control, Threshold};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use cosmwasm_std::testing::MockApi;
@@ -56,6 +58,20 @@ fn only_prover_can_update_verifier_set_with_coordinator() {
         },
     );
     assert!(response.is_ok());
+
+    // authorize the prover on the multisig (under a chain not yet taken by the test case's own
+    // prover) so that registering the verifier set passes and the coordinator check is what fails
+    let response = protocol.multisig.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &multisig::msg::ExecuteMsg::AuthorizeCallers {
+            contracts: HashMap::from([(
+                multisig_prover.contract_addr.to_string(),
+                chain_name!("unregistered-chain"),
+            )]),
+        },
+    );
+    assert!(response.is_ok(), "{response:?}");
 
     let response = multisig_prover.execute(
         &mut protocol.app,

@@ -15,7 +15,8 @@ use router_api::ChainName;
 use crate::events::Event;
 use crate::msg::{ExecuteMsg, ExecuteMsgFromProxy, InstantiateMsg, QueryMsg};
 use crate::state::{
-    verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
+    chain_by_prover, verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER,
+    VERIFIER_SETS,
 };
 use crate::types::{MsgToSign, MultisigState};
 use crate::ContractError;
@@ -59,7 +60,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = can_start_signing_session))]
+#[ensure_permissions(proxy(coordinator = find_coordinator), direct(authorized = is_authorized_caller))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -123,7 +124,7 @@ fn validate_contract_addresses(
         .try_collect()
 }
 
-fn can_start_signing_session(
+fn is_authorized_caller(
     storage: &dyn Storage,
     sender_addr: &Addr,
     msg: &ExecuteMsg,
@@ -135,6 +136,10 @@ fn can_start_signing_session(
                     .change_context(permission_control::Error::Unauthorized)?,
             )
         }
+        // a verifier set is not tied to a chain, so any authorized prover may register one
+        ExecuteMsg::RegisterVerifierSet { .. } => Ok(chain_by_prover(storage, sender_addr.clone())
+            .change_context(permission_control::Error::Unauthorized)?
+            .is_some()),
         _ => Err(report!(permission_control::Error::WrongVariant)),
     }
 }
@@ -239,8 +244,14 @@ mod tests {
 
     fn generate_verifier_set(
         key_type: KeyType,
-        deps: DepsMut,
+        mut deps: DepsMut,
     ) -> Result<(Response, VerifierSet), axelar_wasm_std::error::ContractError> {
+        // only authorized provers can register verifier sets
+        do_authorize_callers(
+            deps.branch(),
+            vec![(cosmos_addr!(PROVER), chain_name!(MOCK_CHAIN))],
+        )?;
+
         let info = message_info(&cosmos_addr!(PROVER), &[]);
         let env = mock_env();
 
@@ -469,6 +480,102 @@ mod tests {
         ] {
             let res = generate_verifier_set(key_type, deps.as_mut());
             assert!(res.is_ok());
+        }
+    }
+
+    #[test]
+    fn register_verifier_set_by_unauthorized_sender_fails() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
+
+        for sender in [cosmos_addr!("anyone"), cosmos_addr!(PROVER)] {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&sender, &[]),
+                ExecuteMsg::RegisterVerifierSet {
+                    verifier_set: verifier_set.clone(),
+                }
+                .into(),
+            );
+            // the sender's own role varies, but none of them fits the required ones
+            let err = res.unwrap_err().to_string();
+            assert!(
+                err.contains("is not allowed to perform this action"),
+                "{err}"
+            );
+        }
+
+        assert!(query_verifier_set(&verifier_set.id(), deps.as_ref()).is_err());
+    }
+
+    #[test]
+    fn register_verifier_set_by_authorized_prover_succeeds() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        do_authorize_callers(
+            deps.as_mut(),
+            vec![(cosmos_addr!(PROVER), chain_name!(MOCK_CHAIN))],
+        )
+        .unwrap();
+
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(PROVER), &[]),
+            ExecuteMsg::RegisterVerifierSet {
+                verifier_set: verifier_set.clone(),
+            }
+            .into(),
+        );
+        assert!(res.is_ok());
+
+        let stored: VerifierSet =
+            from_json(query_verifier_set(&verifier_set.id(), deps.as_ref()).unwrap()).unwrap();
+        assert_eq!(stored, verifier_set);
+
+        // once unauthorized, the prover can no longer register verifier sets
+        do_unauthorize_caller(
+            deps.as_mut(),
+            vec![(cosmos_addr!(PROVER), chain_name!(MOCK_CHAIN))],
+        )
+        .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            message_info(&cosmos_addr!(PROVER), &[]),
+            ExecuteMsg::RegisterVerifierSet {
+                verifier_set: verifier_set.clone(),
+            }
+            .into(),
+        );
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn register_verifier_set_by_admin_or_governance_succeeds() {
+        for sender in [cosmos_addr!(ADMIN), cosmos_addr!(GOVERNANCE)] {
+            let mut deps = mock_dependencies();
+            do_instantiate(deps.as_mut()).unwrap();
+
+            let verifier_set = build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers());
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                message_info(&sender, &[]),
+                ExecuteMsg::RegisterVerifierSet {
+                    verifier_set: verifier_set.clone(),
+                }
+                .into(),
+            );
+            assert!(res.is_ok(), "{res:?}");
+
+            let stored: VerifierSet =
+                from_json(query_verifier_set(&verifier_set.id(), deps.as_ref()).unwrap()).unwrap();
+            assert_eq!(stored, verifier_set);
         }
     }
 
