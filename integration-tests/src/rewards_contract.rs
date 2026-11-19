@@ -1,6 +1,6 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
-use rewards::contract::{execute, instantiate, query};
+use rewards::contract::{execute, instantiate, query, reply};
 use router_api::cosmos_addr;
 
 use crate::contract::Contract;
@@ -17,7 +17,8 @@ impl RewardsContract {
         governance: Addr,
         rewards_denom: String,
     ) -> Self {
-        let code = ContractWrapper::new_with_empty(execute, instantiate, query);
+        let code =
+            ContractWrapper::new_with_empty(execute, instantiate, query).with_reply_empty(reply);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
