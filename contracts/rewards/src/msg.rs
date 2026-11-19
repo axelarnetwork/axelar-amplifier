@@ -86,7 +86,8 @@ pub enum ExecuteMsg {
     CreatePool { params: Params, pool_id: PoolId },
 
     /// Sets a proxy address for verifier rewards. Any future rewards distributed to the sender will instead
-    /// be distributed to the proxy address.
+    /// be distributed to the proxy address. If a transfer to the proxy address fails, the rewards are sent
+    /// to the sender instead.
     #[permission(Any)]
     SetVerifierProxy { proxy_address: Address },
 

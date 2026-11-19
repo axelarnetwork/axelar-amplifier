@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Coin, Uint128};
 
 use crate::state::{Epoch, RewardsDistribution};
 
@@ -15,6 +15,11 @@ pub enum Event {
         epochs_processed: Vec<u64>,
         current_epoch: Epoch,
         can_distribute_more: bool,
+    },
+    /// The transfer to a verifier's proxy failed, so the verifier was paid directly instead
+    ProxyTransferFailed {
+        verifier_address: String,
+        amount: Vec<Coin>,
     },
 }
 
@@ -61,6 +66,15 @@ impl From<Event> for cosmwasm_std::Event {
                         .expect("failed to serialize current epoch"),
                 )
                 .add_attribute("can_distribute_more", more_epochs_to_distribute.to_string()),
+            Event::ProxyTransferFailed {
+                verifier_address,
+                amount,
+            } => cosmwasm_std::Event::new("proxy_transfer_failed")
+                .add_attribute("verifier_address", verifier_address)
+                .add_attribute(
+                    "amount",
+                    serde_json::to_string(&amount).expect("failed to serialize amount"),
+                ),
         }
     }
 }

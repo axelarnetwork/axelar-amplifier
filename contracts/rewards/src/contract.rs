@@ -2,7 +2,8 @@ use axelar_wasm_std::{address, nonempty, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
+    from_json, to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdResult, SubMsg, Uint128,
 };
 use error_stack::ResultExt;
 use itertools::Itertools;
@@ -20,6 +21,8 @@ pub use migrations::{migrate, MigrateMsg};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+const PROXY_SEND_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -99,24 +102,30 @@ pub fn execute(
                 epoch_count,
             )?;
 
+            let denom = state::load_config(deps.storage).rewards_denom;
             let msgs = rewards_distribution
                 .rewards
                 .clone()
                 .into_iter()
                 .sorted()
-                .map(|(verifier, amount)| BankMsg::Send {
-                    to_address: verifier
-                        .proxy_address
-                        .unwrap_or(verifier.verifier_address)
-                        .into(),
-                    amount: vec![Coin {
-                        denom: state::load_config(deps.storage).rewards_denom.clone(),
-                        amount,
-                    }],
-                });
+                .map(|(verifier, amount)| {
+                    let bank_send_to_verifier =
+                        bank_send(verifier.verifier_address, &denom, amount);
+                    Ok(match verifier.proxy_address {
+                        // a proxy that cannot receive funds must not block the distribution,
+                        // so on failure the verifier is paid directly instead (see `reply`)
+                        Some(proxy) => SubMsg::reply_on_error(
+                            bank_send(proxy, &denom, amount),
+                            PROXY_SEND_REPLY_ID,
+                        )
+                        .with_payload(to_json_binary(&bank_send_to_verifier)?),
+                        None => SubMsg::new(bank_send_to_verifier),
+                    })
+                })
+                .collect::<StdResult<Vec<_>>>()?;
 
             Ok(Response::new()
-                .add_messages(msgs)
+                .add_submessages(msgs)
                 .add_event(events::Event::from(rewards_distribution)))
         }
         ExecuteMsg::UpdatePoolParams { params, pool_id } => {
@@ -153,6 +162,42 @@ pub fn execute(
 
             Ok(Response::new())
         }
+    }
+}
+
+fn bank_send(to: Addr, denom: &str, amount: Uint128) -> BankMsg {
+    BankMsg::Send {
+        to_address: to.into(),
+        amount: vec![Coin {
+            denom: denom.into(),
+            amount,
+        }],
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(
+    _deps: DepsMut,
+    _env: Env,
+    reply: Reply,
+) -> Result<Response, axelar_wasm_std::error::ContractError> {
+    match reply.id {
+        // The transfer to a proxy failed, so pay the verifier directly. This transfer is not
+        // caught: if it fails as well, the whole distribution reverts and can be retried.
+        PROXY_SEND_REPLY_ID => {
+            let bank_send_to_verifier: BankMsg = from_json(&reply.payload)?;
+            let BankMsg::Send { to_address, amount } = &bank_send_to_verifier else {
+                unreachable!("the payload is always a bank send")
+            };
+
+            Ok(Response::new()
+                .add_event(events::Event::ProxyTransferFailed {
+                    verifier_address: to_address.clone(),
+                    amount: amount.clone(),
+                })
+                .add_message(bank_send_to_verifier))
+        }
+        _ => unreachable!("unknown reply ID"),
     }
 }
 
