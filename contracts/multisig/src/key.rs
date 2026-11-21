@@ -219,7 +219,11 @@ impl KeyDeserialize for KeyType {
     const KEY_ELEMS: u16 = 1;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        serde_json::from_slice(value.as_slice()).map_err(|err| StdError::parse_err("KeyType", err))
+        match value.as_slice() {
+            [byte] if *byte == KeyType::Ecdsa as u8 => Ok(KeyType::Ecdsa),
+            [byte] if *byte == KeyType::Ed25519 as u8 => Ok(KeyType::Ed25519),
+            _ => Err(StdError::parse_err("KeyType", "unknown storage key")),
+        }
     }
 }
 
@@ -315,6 +319,42 @@ impl From<PublicKey> for HexBinary {
             PublicKey::Ecdsa(key) => key,
             PublicKey::Ed25519(key) => key,
         }
+    }
+}
+
+#[cfg(test)]
+mod key_type_tests {
+    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::{Addr, Order, StdResult};
+    use cw_storage_plus::{KeyDeserialize, Map};
+
+    use super::KeyType;
+
+    #[test]
+    fn key_type_key_round_trips_through_storage() {
+        let keys = vec![
+            (Addr::unchecked("signer"), KeyType::Ecdsa),
+            (Addr::unchecked("signer"), KeyType::Ed25519),
+        ];
+        let map: Map<(Addr, KeyType), ()> = Map::new("pub_keys");
+        let mut storage = MockStorage::new();
+        for key in &keys {
+            map.save(&mut storage, key.clone(), &()).unwrap();
+        }
+
+        let stored: Vec<_> = map
+            .keys(&storage, None, None, Order::Ascending)
+            .collect::<StdResult<_>>()
+            .unwrap();
+
+        assert_eq!(stored, keys);
+    }
+
+    #[test]
+    fn key_type_from_vec_rejects_unknown_storage_key() {
+        assert!(KeyType::from_vec(vec![]).is_err());
+        assert!(KeyType::from_vec(vec![2]).is_err());
+        assert!(KeyType::from_vec(vec![0, 0]).is_err());
     }
 }
 
