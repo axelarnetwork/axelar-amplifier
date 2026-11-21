@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, HexBinary, Uint128, Uint64};
 use error_stack::{bail, ResultExt};
 use router_api::ChainName;
 
@@ -18,6 +18,7 @@ pub struct SigningSession {
     pub msg: MsgToSign,
     pub state: MultisigState,
     pub expires_at: u64,
+    pub sig_verifier: Option<Addr>,
 }
 
 impl SigningSession {
@@ -27,6 +28,7 @@ impl SigningSession {
         chain_name: ChainName,
         msg: MsgToSign,
         expires_at: u64,
+        sig_verifier: Option<Addr>,
     ) -> Self {
         Self {
             id: session_id,
@@ -35,6 +37,7 @@ impl SigningSession {
             msg,
             state: MultisigState::Pending,
             expires_at,
+            sig_verifier,
         }
     }
 
@@ -60,21 +63,45 @@ pub fn validate_session_signature(
     signature: &Signature,
     pub_key: &PublicKey,
     block_height: u64,
-) -> error_stack::Result<(), ContractError> {
+    sig_verifier: Option<&signature_verifier_api::Client>,
+) -> error_stack::Result<Option<CosmosMsg>, ContractError> {
     if session.expires_at < block_height {
         bail!(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
 
-    signature
-        .verify(&session.msg, pub_key)
-        .change_context(ContractError::InvalidSignature {
-            session_id: session.id,
-            signer: signer.into(),
-        })?;
+    match sig_verifier {
+        Some(sig_verifier) => Ok(Some(call_sig_verifier(
+            sig_verifier,
+            signature.as_ref().into(),
+            session.msg.as_ref().into(),
+            pub_key.as_ref().into(),
+            signer.to_string(),
+            session.id,
+        ))),
+        None => {
+            signature.verify(&session.msg, pub_key).change_context(
+                ContractError::InvalidSignature {
+                    session_id: session.id,
+                    signer: signer.into(),
+                },
+            )?;
 
-    Ok(())
+            Ok(None)
+        }
+    }
+}
+
+fn call_sig_verifier(
+    sig_verifier: &signature_verifier_api::Client,
+    signature: HexBinary,
+    message: HexBinary,
+    pub_key: HexBinary,
+    signer: String,
+    session_id: Uint64,
+) -> CosmosMsg {
+    sig_verifier.verify_signature(signature, message, pub_key, signer, session_id)
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &VerifierSet) -> Uint128 {
@@ -93,7 +120,9 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 #[cfg(test)]
 mod tests {
 
-    use cosmwasm_std::HexBinary;
+    use assert_ok::assert_ok;
+    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::{HexBinary, QuerierWrapper};
     use router_api::{chain_name, cosmos_addr};
 
     use super::*;
@@ -122,6 +151,7 @@ mod tests {
             chain_name!("mock-chain"),
             message.clone(),
             expires_at,
+            None,
         );
 
         let signatures: HashMap<String, Signature> = signers
@@ -157,6 +187,7 @@ mod tests {
             chain_name!("mock-chain"),
             message.clone(),
             expires_at,
+            None,
         );
 
         let signatures: HashMap<String, Signature> = signers
@@ -211,7 +242,53 @@ mod tests {
                 .unwrap()
                 .pub_key;
 
-            assert!(validate_session_signature(&session, &signer, signature, pub_key, 0).is_ok());
+            assert!(
+                validate_session_signature(&session, &signer, signature, pub_key, 0, None).is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn validation_through_signature_verifier_contract() {
+        for config in [ecdsa_setup(), ed25519_setup()] {
+            let session = config.session;
+            let verifier_set = config.verifier_set;
+            let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
+            let signature = config.signatures.values().next().unwrap();
+            let pub_key = &verifier_set
+                .signers
+                .get(&signer.to_string())
+                .unwrap()
+                .pub_key;
+
+            let sig_verifier_addr = cosmos_addr!("verifier");
+
+            let querier = MockQuerier::default();
+            let sig_verifier: signature_verifier_api::Client =
+                client::ContractClient::new(QuerierWrapper::new(&querier), &sig_verifier_addr)
+                    .into();
+
+            let result = validate_session_signature(
+                &session,
+                &signer,
+                signature,
+                pub_key,
+                0,
+                Some(&sig_verifier),
+            );
+            let msg = assert_ok!(result);
+            assert!(msg.is_some());
+            let msg = msg.unwrap();
+            assert_eq!(
+                msg,
+                sig_verifier.verify_signature(
+                    signature.as_ref().into(),
+                    session.msg.into(),
+                    pub_key.as_ref().into(),
+                    signer.to_string(),
+                    session.id
+                )
+            );
         }
     }
 
@@ -235,6 +312,7 @@ mod tests {
                 signature,
                 pub_key,
                 block_height,
+                None
             )
             .is_ok());
         }
@@ -254,8 +332,14 @@ mod tests {
                 .unwrap()
                 .pub_key;
 
-            let result =
-                validate_session_signature(&session, &signer, signature, pub_key, block_height);
+            let result = validate_session_signature(
+                &session,
+                &signer,
+                signature,
+                pub_key,
+                block_height,
+                None,
+            );
 
             assert_eq!(
                 *result.unwrap_err().current_context(),
@@ -287,7 +371,8 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0);
+            let result =
+                validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, None);
 
             assert_eq!(
                 *result.unwrap_err().current_context(),

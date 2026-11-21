@@ -4,6 +4,8 @@
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/coordinator-v2.0.0..HEAD)
 
+- Restore the optional `sig_verifier_address` on `ProverMsg` (defaults to `None`).
+
 ## [v2.0.0](https://github.com/axelarnetwork/axelar-amplifier/tree/coordinator-v2.0.0)
 
 [Full Changelog](https://github.com/axelarnetwork/axelar-amplifier/compare/coordinator-v1.1.0..coordinator-v2.0.0)
