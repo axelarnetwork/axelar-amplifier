@@ -102,13 +102,17 @@ async fn prepare_app(cfg: Config) -> Result<App, Error> {
         .await
         .change_context(Error::Connection)
         .attach_printable(tm_grpc.clone())?;
-    let broadcaster = broadcast::Broadcaster::builder()
+    let mut broadcaster = broadcast::Broadcaster::builder()
         .client(cosmos_client.clone())
         .chain_id(broadcast.chain_id)
         .pub_key(pub_key)
         .gas_adjustment(broadcast.gas_adjustment)
         .gas_price(broadcast.gas_price)
         .build()
+        .await
+        .change_context(Error::Broadcaster)?;
+    broadcaster
+        .check_gas_price()
         .await
         .change_context(Error::Broadcaster)?;
     let (msg_queue, msg_queue_client) = broadcast::MsgQueue::new_msg_queue_and_client(

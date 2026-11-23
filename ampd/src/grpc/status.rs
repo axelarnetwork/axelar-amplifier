@@ -94,7 +94,11 @@ impl From<&broadcast::Error> for Status {
             broadcast::Error::SignTx => {
                 tonic::Status::unavailable("signing service is temporarily unavailable")
             }
-            broadcast::Error::EnqueueMsg
+            broadcast::Error::TxRejected { .. } => {
+                tonic::Status::failed_precondition(err.to_string())
+            }
+            broadcast::Error::GasPriceBelowNodeMinimum { .. }
+            | broadcast::Error::EnqueueMsg
             | broadcast::Error::FeeAdjustment
             | broadcast::Error::InvalidPubKey
             | broadcast::Error::ReceiveTxResult(_)
