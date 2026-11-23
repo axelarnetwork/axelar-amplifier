@@ -7,12 +7,14 @@ use cosmrs::{Any, Coin, Gas};
 use error_stack::ResultExt;
 use k256::sha2::{Digest, Sha256};
 use prost::encoding::{decode_key, decode_varint, WireType};
+use report::LoggableError;
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 use typed_builder::TypedBuilder;
+use valuable::Valuable;
 
 use crate::monitoring::metrics;
 use crate::monitoring::metrics::{Msg, Stage};
@@ -59,6 +61,14 @@ pub enum Error {
     SignTx,
     #[error("failed to broadcast tx")]
     BroadcastTx,
+    #[error("tx rejected by the node with codespace {codespace} code {code}: {log}")]
+    TxRejected {
+        codespace: String,
+        code: u32,
+        log: String,
+    },
+    #[error("configured gas price {gas_price} is below the node's minimum gas price: {log}")]
+    GasPriceBelowNodeMinimum { gas_price: String, log: String },
     #[error("failed to receive tx result")]
     ReceiveTxResult(#[from] oneshot::error::RecvError),
     #[error("message {msg_type}'s estimated gas {gas} exceeds gas limit {gas_cap}")]
@@ -161,6 +171,24 @@ where
                 success: res.is_ok(),
                 duration: elapsed,
             });
+
+            if let Err(err) = &res {
+                error!(
+                    err = LoggableError::from(err).as_value(),
+                    msg_count = msgs.len(),
+                    "failed to broadcast tx, its messages are dropped"
+                );
+
+                if let Error::TxRejected {
+                    codespace, code, ..
+                } = err.current_context()
+                {
+                    monitoring_client.metrics().record_metric(Msg::TxRejected {
+                        codespace: codespace.clone(),
+                        code: *code,
+                    });
+                }
+            }
 
             handle_tx_res(
                 tx_confirmer_client.as_ref(),
@@ -719,6 +747,118 @@ mod tests {
 
         let err = rx.await.unwrap().unwrap_err();
         assert!(err_contains!(err.as_ref(), Error, Error::BroadcastTx));
+    }
+
+    #[tokio::test]
+    async fn broadcaster_task_should_report_checktx_rejection_as_failure() {
+        let pub_key = random_cosmos_public_key();
+        let address = pub_key.account_id(PREFIX).unwrap().into();
+        let chain_id: tendermint::chain::Id = "test-chain-id".parse().unwrap();
+        let initial_account = broadcast::test_utils::create_base_account(&address);
+
+        let (tx, rx) = oneshot::channel();
+        let queue_msgs = vec![QueueMsg {
+            msg: dummy_msg(),
+            gas: 50000,
+            tx_res_callback: tx,
+        }]
+        .try_into()
+        .unwrap();
+        let msg_queue = iter(vec![queue_msgs]);
+
+        let mut mock_signer = MockMultisig::new();
+        mock_signer
+            .expect_sign()
+            .once()
+            .returning(|_, _, _, _| Ok(vec![0u8; 64]));
+
+        let mut seq = Sequence::new();
+        let mut mock_client = cosmos::MockCosmosClient::new();
+        mock_successful_account_and_balance_queries(
+            &mut mock_client,
+            &mut seq,
+            initial_account,
+            &address,
+        );
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+        // Sync broadcast returns Ok with the node's CheckTx rejection in the response code
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(BroadcastTxResponse {
+                    tx_response: Some(TxResponse {
+                        txhash: "rejected_tx_hash".to_string(),
+                        codespace: "sdk".to_string(),
+                        code: 13,
+                        raw_log:
+                            "insufficient fees; got: 1uaxl required: 1400uaxl: insufficient fee"
+                                .to_string(),
+                        ..Default::default()
+                    }),
+                })
+            });
+
+        let broadcaster = broadcaster::Broadcaster::builder()
+            .client(mock_client)
+            .chain_id(chain_id)
+            .pub_key(pub_key)
+            .gas_adjustment(1.5)
+            .gas_price(DecCoin::new(0.00005, "uaxl").unwrap())
+            .build()
+            .await
+            .unwrap();
+        let (monitoring_client, mut receiver) = monitoring::test_utils::monitoring_client();
+        let broadcaster_task = BroadcasterTask::builder()
+            .broadcaster(broadcaster)
+            .msg_queue(msg_queue)
+            .signer(mock_signer)
+            .key_id("test-key".to_string())
+            .monitoring_client(monitoring_client)
+            .build();
+
+        let result = tokio::spawn(broadcaster_task.run(CancellationToken::new()))
+            .await
+            .unwrap();
+        assert!(result.is_ok());
+
+        // the submitter is told the message was not broadcast, instead of getting a tx hash
+        let err = rx.await.unwrap().unwrap_err();
+        assert!(err_contains!(
+            err.as_ref(),
+            Error,
+            Error::TxRejected { code: 13, .. }
+        ));
+
+        assert!(matches!(
+            receiver.recv().await.unwrap(),
+            Msg::StageResult {
+                stage: Stage::TransactionBroadcast,
+                success: false,
+                duration: _,
+            }
+        ));
+        assert_eq!(
+            receiver.recv().await.unwrap(),
+            Msg::TxRejected {
+                codespace: "sdk".to_string(),
+                code: 13,
+            }
+        );
+        assert!(receiver.try_recv().is_err());
     }
 
     #[tokio::test]

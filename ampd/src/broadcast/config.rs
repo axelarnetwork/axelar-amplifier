@@ -29,7 +29,7 @@ pub struct Config {
     /// Higher values reduce out-of-gas failures but increase transaction costs.
     pub gas_adjustment: f64,
 
-    /// Gas price for transactions (e.g., "0.00005uaxl").
+    /// Gas price for transactions (e.g., "0.007uaxl").
     pub gas_price: DecCoin,
 
     /// Maximum total gas for a batch of messages in a single transaction.
@@ -71,7 +71,7 @@ impl Default for Config {
             tx_fetch_interval: Duration::from_millis(500),
             tx_fetch_max_retries: 10,
             gas_adjustment: 1.2,
-            gas_price: DecCoin::new(0.00005, "uaxl").expect("default gas price should be valid"),
+            gas_price: DecCoin::new(0.007, "uaxl").expect("default gas price should be valid"),
             batch_gas_limit: 1000000,
             queue_cap: 1000,
             broadcast_interval: Duration::from_secs(1),

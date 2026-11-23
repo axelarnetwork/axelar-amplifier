@@ -60,6 +60,8 @@ pub enum Msg {
         success: bool,
         duration: Duration,
     },
+    /// Record a transaction rejected by the node (non-zero CheckTx code)
+    TxRejected { codespace: String, code: u32 },
     /// Record the number of errors in message enqueue operations
     MessageEnqueueError,
     /// Record the number of timeouts in event stream
@@ -282,6 +284,9 @@ impl Metrics {
             } => {
                 self.stage_result.record(success, duration, stage);
             }
+            Msg::TxRejected { codespace, code } => {
+                self.error_metrics.record_tx_rejected(codespace, code);
+            }
             Msg::MessageEnqueueError => {
                 self.error_metrics.record_msg_enqueue_error();
             }
@@ -466,7 +471,14 @@ impl EventStageMetrics {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct TxRejectedLabel {
+    codespace: String,
+    code: u32,
+}
+
 struct ErrorMetrics {
+    tx_rejected: Family<TxRejectedLabel, Counter>,
     msg_enqueue_error: Counter,
     event_timeout: Counter,
     event_publisher_error: Counter,
@@ -476,6 +488,7 @@ struct ErrorMetrics {
 impl ErrorMetrics {
     fn new() -> Self {
         Self {
+            tx_rejected: Family::<TxRejectedLabel, Counter>::default(),
             msg_enqueue_error: Counter::default(),
             event_timeout: Counter::default(),
             event_publisher_error: Counter::default(),
@@ -484,6 +497,11 @@ impl ErrorMetrics {
     }
 
     fn register_all(&self, registry: &mut Registry) {
+        registry.register(
+            "tx_rejected",
+            "number of transactions rejected by the node, per CheckTx codespace and code",
+            self.tx_rejected.clone(),
+        );
         registry.register(
             "msg_enqueue_error",
             "number of failures in message enqueue",
@@ -504,6 +522,12 @@ impl ErrorMetrics {
             "number of failures in grpc service",
             self.grpc_service_error.clone(),
         );
+    }
+
+    fn record_tx_rejected(&self, codespace: String, code: u32) {
+        self.tx_rejected
+            .get_or_create(&TxRejectedLabel { codespace, code })
+            .inc();
     }
 
     fn record_msg_enqueue_error(&self) {
@@ -710,6 +734,10 @@ mod tests {
             client.record_metric(Msg::EventStreamTimeout);
             client.record_metric(Msg::EventPublisherError);
             client.record_metric(Msg::GrpcServiceError);
+            client.record_metric(Msg::TxRejected {
+                codespace: "sdk".to_string(),
+                code: 13,
+            });
         }
 
         // Wait for the metrics to be updated

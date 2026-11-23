@@ -40,6 +40,9 @@ stage_failed_total{stage="TransactionConfirmation"} 1
 stage_duration_total{stage="EventHandling"} 300
 stage_duration_total{stage="TransactionBroadcast"} 700
 stage_duration_total{stage="TransactionConfirmation"} 1100
+# HELP tx_rejected number of transactions rejected by the node, per CheckTx codespace and code.
+# TYPE tx_rejected counter
+tx_rejected_total{codespace="sdk",code="13"} 2
 # HELP msg_enqueue_error number of failures in message enqueue.
 # TYPE msg_enqueue_error counter
 msg_enqueue_error_total 2

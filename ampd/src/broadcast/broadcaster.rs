@@ -2,22 +2,30 @@ use std::future::Future;
 use std::ops::Mul;
 use std::sync::{Arc, LazyLock};
 
+use cosmrs::bank::MsgSend;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmrs::tx::Fee;
+use cosmrs::tx::{Fee, Msg};
 use cosmrs::{tendermint, Any, Coin, Denom, Gas};
 use error_stack::{ensure, report, Context, ResultExt};
 use num_traits::cast;
 use regex::Regex;
-use report::ResultCompatExt;
+use report::{LoggableError, ResultCompatExt};
 use tokio::sync::{RwLock, RwLockWriteGuard};
-use tracing::info;
+use tracing::{info, warn};
 use typed_builder::TypedBuilder;
+use valuable::Valuable;
 
 use super::{Error, Result};
 use crate::broadcast::dec_coin::DecCoin;
 use crate::broadcast::Tx;
 use crate::types::{CosmosPublicKey, TMAddress};
 use crate::{cosmos, PREFIX};
+
+const SDK_CODESPACE: &str = "sdk";
+const CODE_INSUFFICIENT_FEE: u32 = 13;
+const CODE_WRONG_SEQUENCE: u32 = 32;
+/// gas limit of the gas price probe; only used to compute the probe's fee
+const PROBE_GAS: Gas = 200_000;
 
 static SEQUENCE_ERROR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"account sequence mismatch, expected (\d+), got (\d+)").expect("Invalid regex")
@@ -281,6 +289,18 @@ where
             .change_context(Error::SignTx)?;
 
         match cosmos::broadcast(&mut self.client, tx).await {
+            Ok(tx_response) if tx_response.code != 0 => {
+                if tx_response.codespace == SDK_CODESPACE && tx_response.code == CODE_WRONG_SEQUENCE
+                {
+                    reset_sequence(&mut self.client, &self.address, acc_sequence).await?;
+                }
+
+                Err(report!(Error::TxRejected {
+                    codespace: tx_response.codespace,
+                    code: tx_response.code,
+                    log: tx_response.raw_log,
+                }))
+            }
             Ok(tx_response) => {
                 // increment sequence number on successful broadcast
                 *acc_sequence = acc_sequence
@@ -298,9 +318,70 @@ where
         }
     }
 
+    /// Checks that the node accepts the configured gas price, without paying for it.
+    pub async fn check_gas_price(&mut self) -> Result<()> {
+        let fee = self.fee(PROBE_GAS as f64)?;
+        let acc_sequence = *self.acc_sequence.read().await;
+        let probe_msg = MsgSend {
+            from_address: self.address.as_ref().clone(),
+            to_address: self.address.as_ref().clone(),
+            amount: vec![
+                Coin::new(1, self.gas_price.denom.as_ref()).change_context(Error::FeeAdjustment)?
+            ],
+        }
+        .to_any()
+        .change_context(Error::SignTx)?;
+
+        let tx = Tx::builder()
+            .msgs(vec![probe_msg])
+            .pub_key(self.pub_key)
+            .acc_sequence(acc_sequence)
+            .fee(fee)
+            .build()
+            .with_dummy_sig()
+            .await
+            .change_context(Error::SignTx)?;
+
+        match cosmos::broadcast(&mut self.client, tx).await {
+            Ok(res) if res.codespace == SDK_CODESPACE && res.code == CODE_INSUFFICIENT_FEE => {
+                Err(report!(Error::GasPriceBelowNodeMinimum {
+                    gas_price: self.gas_price.to_string(),
+                    log: res.raw_log,
+                }))
+            }
+            Ok(res) if res.code == 0 => {
+                // cannot happen with a dummy signature; never expected, but harmless
+                warn!(
+                    tx_hash = res.txhash,
+                    "gas price probe was accepted by the node"
+                );
+                Ok(())
+            }
+            Ok(res) => {
+                info!(
+                    gas_price = %self.gas_price,
+                    probe_rejected_by = format!("{} {}", res.codespace, res.code),
+                    "node accepts the configured gas price"
+                );
+                Ok(())
+            }
+            Err(err) => {
+                warn!(
+                    err = LoggableError::from(&err).as_value(),
+                    "could not check the configured gas price against the node"
+                );
+                Ok(())
+            }
+        }
+    }
+
     async fn estimate_fee(&mut self, msgs: Vec<Any>) -> Result<Fee> {
         let gas = self.estimate_gas(msgs).await? as f64 * self.gas_adjustment;
 
+        self.fee(gas)
+    }
+
+    fn fee(&self, gas: f64) -> Result<Fee> {
         let fee = Fee::from_amount_and_gas(
             Coin::new(
                 cast(gas.mul(self.gas_price.amount).ceil()).ok_or(report!(Error::FeeAdjustment))?,
@@ -1125,5 +1206,244 @@ mod tests {
             *broadcaster.acc_sequence.read().await,
             initial_sequence + broadcast_count
         );
+    }
+
+    fn checktx_response(codespace: &str, code: u32, raw_log: &str) -> BroadcastTxResponse {
+        BroadcastTxResponse {
+            tx_response: Some(TxResponse {
+                txhash: "rejected_tx_hash".to_string(),
+                codespace: codespace.to_string(),
+                code,
+                raw_log: raw_log.to_string(),
+                ..Default::default()
+            }),
+        }
+    }
+
+    fn setup_rejected_broadcast_expectations(
+        mut mock_client: cosmos::MockCosmosClient,
+        mock_seq: &mut Sequence,
+        sequence: u64,
+        response: BroadcastTxResponse,
+    ) -> cosmos::MockCosmosClient {
+        mock_client
+            .expect_simulate()
+            .once()
+            .in_sequence(mock_seq)
+            .return_once(move |_| {
+                Ok(SimulateResponse {
+                    gas_info: Some(GasInfo {
+                        gas_wanted: 0,
+                        gas_used: 100000,
+                    }),
+                    result: None,
+                })
+            });
+
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(mock_seq)
+            .withf(move |req| sequence == decode_sequence(&req.tx_bytes))
+            .return_once(move |_| Ok(response));
+
+        mock_client
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_fail_and_keep_sequence_when_node_rejects_tx() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let initial_sequence = 10u64;
+
+        let (mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
+            42,
+            initial_sequence,
+            "1000000".to_string(),
+        );
+        let mock_client = setup_rejected_broadcast_expectations(
+            mock_client,
+            &mut seq,
+            initial_sequence,
+            checktx_response(
+                "sdk",
+                13,
+                "insufficient fees; got: 1uaxl required: 1400uaxl: insufficient fee",
+            ),
+        );
+        // the next tx must reuse the sequence of the rejected one
+        let mock_client = setup_broadcast_expectations(
+            mock_client,
+            &mut seq,
+            "tx_after_rejection".to_string(),
+            initial_sequence,
+        );
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
+        let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
+
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
+        assert_err_contains!(
+            result,
+            Error,
+            Error::TxRejected { codespace, code: 13, log }
+                if codespace == "sdk" && log.contains("insufficient fee")
+        );
+        assert_eq!(*broadcaster.acc_sequence.read().await, initial_sequence);
+
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
+        assert_eq!(result.unwrap().txhash, "tx_after_rejection");
+        assert_eq!(*broadcaster.acc_sequence.read().await, initial_sequence + 1);
+    }
+
+    #[tokio::test]
+    async fn broadcast_should_resync_sequence_when_node_rejects_tx_for_wrong_sequence() {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let account_number = 42u64;
+        let initial_sequence = 10u64;
+        let chain_sequence = 15u64;
+
+        let (mock_client, mut seq) = setup_client_with_balance(
+            address.to_string(),
+            account_number,
+            initial_sequence,
+            "1000000".to_string(),
+        );
+        let mut mock_client = setup_rejected_broadcast_expectations(
+            mock_client,
+            &mut seq,
+            initial_sequence,
+            checktx_response("sdk", 32, "account sequence mismatch"),
+        );
+        let base_account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number,
+            sequence: chain_sequence,
+        };
+        mock_client
+            .expect_account()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |_| {
+                Ok(QueryAccountResponse {
+                    account: Some(Any::from_msg(&base_account).unwrap()),
+                })
+            });
+
+        let mut broadcaster = setup_broadcaster(mock_client, pub_key).await.unwrap();
+        let sign_fn = |_: Vec<u8>| async { Ok::<Vec<u8>, Report<cosmos::Error>>(vec![0u8; 64]) };
+
+        let result = broadcaster.broadcast(vec![dummy_msg()], sign_fn).await;
+        assert_err_contains!(result, Error, Error::TxRejected { code: 32, .. });
+        assert_eq!(*broadcaster.acc_sequence.read().await, chain_sequence);
+    }
+
+    async fn setup_probe_broadcaster(
+        gas_price_amount: f64,
+        response: core::result::Result<BroadcastTxResponse, Report<cosmos::Error>>,
+    ) -> (
+        Broadcaster<cosmos::MockCosmosClient>,
+        Arc<RwLock<Option<Vec<u8>>>>,
+    ) {
+        let pub_key = random_cosmos_public_key();
+        let address: TMAddress = pub_key.account_id(PREFIX).unwrap().into();
+        let sent = Arc::new(RwLock::new(None));
+        let sent_clone = sent.clone();
+
+        let (mut mock_client, mut seq) =
+            setup_client_with_balance(address.to_string(), 42, 10, "1000000".to_string());
+        mock_client
+            .expect_broadcast_tx()
+            .once()
+            .in_sequence(&mut seq)
+            .return_once(move |req| {
+                *sent_clone.write().unwrap() = Some(req.tx_bytes);
+                response
+            });
+
+        let broadcaster =
+            setup_broadcaster_with_gas_info(mock_client, pub_key, 1.5, gas_price_amount)
+                .await
+                .unwrap();
+        (broadcaster, sent)
+    }
+
+    #[tokio::test]
+    async fn check_gas_price_should_fail_when_node_requires_higher_gas_price() {
+        let (mut broadcaster, _) = setup_probe_broadcaster(
+            0.00005,
+            Ok(checktx_response(
+                "sdk",
+                13,
+                "insufficient fees; got: 10uaxl required: 1400uaxl: insufficient fee",
+            )),
+        )
+        .await;
+
+        let result = broadcaster.check_gas_price().await;
+
+        assert_err_contains!(
+            result,
+            Error,
+            Error::GasPriceBelowNodeMinimum { log, .. } if log.contains("required: 1400uaxl")
+        );
+    }
+
+    #[tokio::test]
+    async fn check_gas_price_should_pass_when_probe_fails_a_later_check() {
+        // unknown address, insufficient funds, unauthorized (bad signature), wrong sequence
+        for (codespace, code) in [
+            ("sdk", 9),
+            ("sdk", 5),
+            ("sdk", 4),
+            ("sdk", 32),
+            ("wasm", 13),
+        ] {
+            let (mut broadcaster, _) =
+                setup_probe_broadcaster(0.007, Ok(checktx_response(codespace, code, "rejected")))
+                    .await;
+
+            assert!(
+                broadcaster.check_gas_price().await.is_ok(),
+                "{codespace} {code} must not be read as a low gas price"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn check_gas_price_should_not_block_startup_when_node_is_unreachable() {
+        let (mut broadcaster, _) = setup_probe_broadcaster(
+            0.007,
+            Err(report!(cosmos::Error::GrpcRequest(
+                tonic::Status::unavailable("node down")
+            ))),
+        )
+        .await;
+
+        assert!(broadcaster.check_gas_price().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn check_gas_price_should_send_unsigned_probe_priced_at_configured_gas_price() {
+        let (mut broadcaster, sent) =
+            setup_probe_broadcaster(0.007, Ok(checktx_response("sdk", 4, "unauthorized"))).await;
+
+        broadcaster.check_gas_price().await.unwrap();
+
+        let tx_bytes = sent.read().unwrap().clone().unwrap();
+        let fee = test_utils::decode_gas_fee(&tx_bytes);
+        assert_eq!(fee.gas_limit, PROBE_GAS);
+        assert_eq!(fee.amount.first().unwrap().amount, "1400"); // ceil(200_000 * 0.007)
+        assert_eq!(fee.amount.first().unwrap().denom, DENOM);
+
+        let tx_raw =
+            cosmrs::proto::cosmos::tx::v1beta1::TxRaw::decode(tx_bytes.as_slice()).unwrap();
+        assert_eq!(tx_raw.signatures, vec![vec![0u8; 64]]);
+        assert_eq!(decode_sequence(&tx_bytes), 10);
+        // the probe never touches the local sequence
+        assert_eq!(*broadcaster.acc_sequence.read().await, 10);
     }
 }
