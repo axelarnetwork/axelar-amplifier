@@ -28,6 +28,10 @@ pub mod msg_verifier;
 pub mod types;
 pub mod verifier_set_verifier;
 
+/// Highest transaction version the RPC node is asked to return (v1 = SIMD-0385). The node
+/// answers with an error instead of the transaction when its version is above this.
+const MAX_SUPPORTED_TRANSACTION_VERSION: u8 = 1;
+
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize)]
 pub enum GatewayEvent {
     VerifierSetRotated(VerifierSetRotatedEvent),
@@ -65,7 +69,7 @@ impl SolanaRpcClientProxy for Client {
         let config = RpcTransactionConfig {
             encoding: Some(solana_transaction_status_client_types::UiTransactionEncoding::Json),
             commitment: Some(CommitmentConfig::finalized()),
-            max_supported_transaction_version: Some(0),
+            max_supported_transaction_version: Some(MAX_SUPPORTED_TRANSACTION_VERSION),
         };
 
         let res: Result<Option<EncodedConfirmedTransactionWithStatusMeta>, _> = self
@@ -363,12 +367,93 @@ mod test {
     use ampd::monitoring::metrics::Msg;
     use ampd::monitoring::test_utils;
     use axelar_wasm_std::chain::ChainName;
+    use axelar_wasm_std::voting::Vote;
     use solana_client::nonblocking::rpc_client::RpcClient;
+    use solana_client::rpc_client::RpcClientConfig;
+    use solana_client::rpc_custom_error::JSON_RPC_SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION;
+    use solana_client::rpc_request::{RpcError, RpcRequest, RpcResponseErrorData};
+    use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
+    use solana_sdk::pubkey::Pubkey;
     use solana_sdk::signature::Signature;
     use solana_transaction_status_client_types::option_serializer::OptionSerializer;
     use solana_transaction_status_client_types::{UiInnerInstructions, UiInstruction};
 
-    use super::{Client, SolanaRpcClientProxy};
+    use super::msg_verifier::verify_message;
+    use super::types::Message;
+    use super::{Client, ClientError, SolanaRpcClientProxy};
+
+    /// An RPC node that holds a single version 1 transaction: a real devnet transaction in
+    /// which the gateway's `call_contract` is called with a 2400-byte payload. Like a real
+    /// node, it only returns the transaction to a client that supports its version.
+    struct NodeWithV1Transaction;
+
+    #[async_trait::async_trait]
+    impl RpcSender for NodeWithV1Transaction {
+        async fn send(
+            &self,
+            request: RpcRequest,
+            params: serde_json::Value,
+        ) -> Result<serde_json::Value, ClientError> {
+            assert_eq!(request, RpcRequest::GetTransaction);
+
+            let max_supported_version = params[1]["maxSupportedTransactionVersion"].as_u64();
+            if max_supported_version < Some(1) {
+                return Err(RpcError::RpcResponseError {
+                    code: JSON_RPC_SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION,
+                    message: "Transaction version (1) is not supported by the requesting client"
+                        .to_owned(),
+                    data: RpcResponseErrorData::Empty,
+                }
+                .into());
+            }
+
+            Ok(serde_json::from_str(include_str!("testdata/v1_transaction.json")).unwrap())
+        }
+
+        fn get_transport_stats(&self) -> RpcTransportStats {
+            RpcTransportStats::default()
+        }
+
+        fn url(&self) -> String {
+            "http://mock.example".to_owned()
+        }
+    }
+
+    #[tokio::test]
+    async fn should_fetch_and_verify_v1_transaction() {
+        let (monitoring_client, _) = test_utils::monitoring_client();
+        let client = Client::new(
+            RpcClient::new_sender(NodeWithV1Transaction, RpcClientConfig::default()),
+            monitoring_client,
+            ChainName::from_str("solana").unwrap(),
+        );
+        let signature = Signature::from_str(
+            "4ZgiEc7dM6CUzeDKKvdPbT1WiotDn1VJyVD4UASshsb1gSZPyiDUND6b9Y5616Kc4vGYRwvVdJPniCrYbD6SLGFN",
+        )
+        .unwrap();
+
+        let tx = client
+            .tx(&signature)
+            .await
+            .unwrap()
+            .expect("node should return the v1 transaction");
+
+        // A v1 transaction lists every account in its message, none come from lookup tables
+        assert_eq!(tx.account_keys.len(), 8);
+
+        let gateway = Pubkey::from_str("gtwT4uGVTYSPnTGv6rSpMheyFyczUicxVWKqdtxNGw9").unwrap();
+        let msg = Message {
+            message_id: format!("{signature}-1.1").parse().unwrap(),
+            destination_address: "0x0000000000000000000000000000000000001234".to_owned(),
+            destination_chain: "avalanche-fuji".parse().unwrap(),
+            source_address: Pubkey::from_str("3xWeeoom7LUpfML89bSVet5TZ8QmTqM6B6uwS2MjYPS9")
+                .unwrap(),
+            payload_hash: "477c474f1bd610f03aed17ccd344b0a594890c08205acce2b1087a326e4c975f"
+                .parse()
+                .unwrap(),
+        };
+        assert_eq!(Vote::SucceededOnChain, verify_message(&tx, &msg, &gateway));
+    }
 
     #[tokio::test]
     async fn should_record_rpc_failure_metrics_successfully() {
