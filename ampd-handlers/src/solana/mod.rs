@@ -366,12 +366,13 @@ mod test {
 
     use ampd::monitoring::metrics::Msg;
     use ampd::monitoring::test_utils;
+    use async_trait::async_trait;
     use axelar_wasm_std::chain::ChainName;
     use axelar_wasm_std::voting::Vote;
+    use mockall::mock;
     use solana_client::nonblocking::rpc_client::RpcClient;
     use solana_client::rpc_client::RpcClientConfig;
-    use solana_client::rpc_custom_error::JSON_RPC_SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION;
-    use solana_client::rpc_request::{RpcError, RpcRequest, RpcResponseErrorData};
+    use solana_client::rpc_request::RpcRequest;
     use solana_client::rpc_sender::{RpcSender, RpcTransportStats};
     use solana_sdk::pubkey::Pubkey;
     use solana_sdk::signature::Signature;
@@ -382,48 +383,42 @@ mod test {
     use super::types::Message;
     use super::{Client, ClientError, SolanaRpcClientProxy};
 
-    /// An RPC node that holds a single version 1 transaction: a real devnet transaction in
-    /// which the gateway's `call_contract` is called with a 2400-byte payload. Like a real
-    /// node, it only returns the transaction to a client that supports its version.
-    struct NodeWithV1Transaction;
+    mock! {
+        RpcNode {}
 
-    #[async_trait::async_trait]
-    impl RpcSender for NodeWithV1Transaction {
-        async fn send(
-            &self,
-            request: RpcRequest,
-            params: serde_json::Value,
-        ) -> Result<serde_json::Value, ClientError> {
-            assert_eq!(request, RpcRequest::GetTransaction);
-
-            let max_supported_version = params[1]["maxSupportedTransactionVersion"].as_u64();
-            if max_supported_version < Some(1) {
-                return Err(RpcError::RpcResponseError {
-                    code: JSON_RPC_SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION,
-                    message: "Transaction version (1) is not supported by the requesting client"
-                        .to_owned(),
-                    data: RpcResponseErrorData::Empty,
-                }
-                .into());
-            }
-
-            Ok(serde_json::from_str(include_str!("testdata/v1_transaction.json")).unwrap())
+        #[async_trait]
+        impl RpcSender for RpcNode {
+            async fn send(
+                &self,
+                request: RpcRequest,
+                params: serde_json::Value,
+            ) -> Result<serde_json::Value, ClientError>;
+            fn get_transport_stats(&self) -> RpcTransportStats;
+            fn url(&self) -> String;
         }
+    }
 
-        fn get_transport_stats(&self) -> RpcTransportStats {
-            RpcTransportStats::default()
-        }
-
-        fn url(&self) -> String {
-            "http://mock.example".to_owned()
-        }
+    /// An RPC node that holds a real devnet version 1 transaction, in which the gateway's
+    /// `call_contract` is called with a 2400-byte payload. Like a real node, it returns the
+    /// transaction only to a client that supports its version.
+    fn node_with_v1_transaction() -> MockRpcNode {
+        let mut node = MockRpcNode::new();
+        node.expect_send()
+            .withf(|request, params| {
+                *request == RpcRequest::GetTransaction
+                    && params[1]["maxSupportedTransactionVersion"].as_u64() >= Some(1)
+            })
+            .returning(|_, _| {
+                Ok(serde_json::from_str(include_str!("testdata/v1_transaction.json")).unwrap())
+            });
+        node
     }
 
     #[tokio::test]
     async fn should_fetch_and_verify_v1_transaction() {
         let (monitoring_client, _) = test_utils::monitoring_client();
         let client = Client::new(
-            RpcClient::new_sender(NodeWithV1Transaction, RpcClientConfig::default()),
+            RpcClient::new_sender(node_with_v1_transaction(), RpcClientConfig::default()),
             monitoring_client,
             ChainName::from_str("solana").unwrap(),
         );
